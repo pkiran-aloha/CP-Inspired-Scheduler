@@ -4,6 +4,7 @@ import react from '@vitejs/plugin-react'
 // SHARE_INLINE=1 (the single-file `npm run share` build) folds every dynamic chunk
 // into one bundle so the HTML has nothing external to fetch.
 export default defineConfig({
+  base: './', // path-relative assets: works on GitHub Pages project subpaths as well as domain roots
   plugins: [react()],
   server: {
     host: true,
