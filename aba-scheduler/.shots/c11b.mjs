@@ -1,0 +1,12 @@
+import { chromium } from 'playwright-core'
+const browser = await chromium.launch()
+const pg = await browser.newPage({ viewport: { width: 1600, height: 950 }, deviceScaleFactor: 1.5 })
+pg.on('pageerror', (e) => console.log('PAGEERROR', e.message))
+await pg.goto('http://localhost:5173/', { waitUntil: 'networkidle' })
+await pg.evaluate(() => localStorage.clear()); await pg.reload({ waitUntil: 'networkidle' }); await pg.waitForTimeout(1100)
+await pg.screenshot({ path: '.shots/c11-week2.png' })
+await pg.click('[data-testid="nav-reports"]'); await pg.waitForTimeout(600)
+await pg.screenshot({ path: '.shots/c11-reports2.png' })
+await pg.click('[data-testid="rp-xls"]'); await pg.waitForTimeout(400)
+await pg.screenshot({ path: '.shots/c11-toast.png', clip: { x: 380, y: 0, width: 1220, height: 220 } })
+await browser.close(); console.log('ok')

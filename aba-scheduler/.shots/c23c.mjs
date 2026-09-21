@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core'
+const browser = await chromium.launch()
+const pg = await browser.newPage({ viewport: { width: 1600, height: 980 }, deviceScaleFactor: 1.5 })
+await pg.goto('http://localhost:5173/', { waitUntil: 'networkidle' })
+await pg.evaluate(() => localStorage.clear()); await pg.reload({ waitUntil: 'networkidle' }); await pg.waitForTimeout(900)
+await pg.click('[data-testid="nav-dashboard"]'); await pg.waitForTimeout(500)
+await pg.click('[data-testid="dash-board-save"]'); await pg.fill('[data-testid="dash-bname"]', 'Morning huddle'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(250)
+await pg.click('[data-testid="dash-board-save"]'); await pg.fill('[data-testid="dash-bname"]', 'Billing review'); await pg.keyboard.press('Enter'); await pg.waitForTimeout(250)
+await pg.hover('[data-testid="dash-widget-w-heat"]'); await pg.click('[data-testid="dw-more-w-heat"]'); await pg.selectOption('[data-testid="dw-range-w-heat"]', 'horizon'); await pg.waitForTimeout(300)
+await pg.screenshot({ path: '.shots/c23-board.png' })
+await browser.close(); console.log('ok')
