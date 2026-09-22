@@ -4,7 +4,7 @@ import { Icon } from '../ui/Icons'
 import { Dropdown } from './fields'
 import { fmtDur, fmtTime } from '../lib/date'
 import { TYPES, autoBilling, findConflicts, uid } from '../lib/model'
-import { svcList, activeSvcs, payerForAppt, ensurePayer } from '../lib/master'
+import { payerForAppt, svcOptionsFor, rateFor } from '../lib/master'
 
 /**
  * Drag-on-grid quick booking: ask WHO the client is and WHAT service, then book.
@@ -19,7 +19,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
   const [staffId, setStaffId] = useState(ui.staffSel.length === 1 ? ui.staffSel[0] : '')
 
   const client = clients.find((c) => c.id === clientId)
-  const service = svcList(state).find((s) => s.id === serviceId)
+  const service = svcOptionsFor(state, clientId ? [clientId] : []).find((s) => s.id === serviceId)
   const dur = slot.end - slot.start
   const title = service ? service.label : 'Session'
 
@@ -47,8 +47,8 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
     let billing = autoBilling({ type: 'service', billing: { code } }, dur)
     {
       const py = payerForAppt(state, client ? [client.id] : [])
-      const o = py && serviceId ? (ensurePayer(py).svcOv || {})[serviceId] : null
-      if (o?.charge) billing = { ...billing, rate: Number(o.charge) }
+      const rr = serviceId && py ? rateFor(state, py, serviceId, code) : null
+      if (rr && Number.isFinite(rr.rate) && rr.rate > 0) billing = { ...billing, rate: rr.rate }
     }
     const appt = {
       id: uid(),
@@ -111,7 +111,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
               value={serviceId}
               onChange={setServiceId}
               placeholder="Defaults to client program"
-              options={[{ value: '', label: 'Auto (from program)' }, ...activeSvcs(state).map((s) => ({ value: s.id, label: s.label, sub: `bills under ${s.code}` }))]}
+              options={[{ value: '', label: 'Auto (from program)' }, ...svcOptionsFor(state, clientId ? [clientId] : []).map((sv) => ({ value: sv.id, label: sv.label, sub: sv.payerLocal ? `${sv.code} · ${sv.payerName} only` : `bills under ${sv.code}` }))]}
             />
           </div>
           {client && (

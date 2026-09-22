@@ -47,12 +47,44 @@ const DEFAULT_RULES = {
   mue: { daily: '', per: {} },
 }
 
+export const CF_TYPES = [
+  { id: 'text', label: 'Free text' },
+  { id: 'select', label: 'Single select (radio)' },
+  { id: 'multi', label: 'Multi select (checkbox)' },
+  { id: 'toggle', label: 'Toggle' },
+  { id: 'date', label: 'Date / time' },
+  { id: 'signature', label: 'Signature' },
+]
+export const cfTypeLabel = (t) => CF_TYPES.find((x) => x.id === t)?.label || t
+// custom-field defs may be legacy strings ("label") or plain {label,value} — migrate to typed defs
+export function cfDefs(p) {
+  return ((p && p.cf) || []).map((f, i) =>
+    typeof f === 'string'
+      ? { id: `legacy-${i}`, label: f, type: 'text', options: [], required: false, value: '' }
+      : f.value !== undefined && f.type === undefined
+        ? { id: `legacy-${i}`, label: f.label, type: 'text', options: [], required: false, value: f.value }
+        : { options: [], required: false, ...f, id: f.id || `f${i}` }
+  )
+}
+// required-but-empty validator for an appointment's answers; returns error strings
+export function pcfsErrors(defs, vals = {}) {
+  const out = []
+  for (const d of defs) {
+    if (!d.required) continue
+    const v = (vals || {})[d.id]?.value
+    const empty = d.type === 'multi' ? !(Array.isArray(v) && v.length) : d.type === 'signature' ? !v || !v.name : v === undefined || v === null || String(v).trim() === ''
+    if (empty) out.push(`Payer field “${d.label}” is required before completing`)
+  }
+  return out
+}
+
 // every payer read goes through here — deep-enough merge so partial saves render
 export function ensurePayer(p) {
   if (!p) return p
   const r = p.rules || {}
   return {
     services: [],
+    svcs: [],
     svcOv: {},
     cf: [],
     cmsType: 'Group Health Plan',
@@ -91,9 +123,35 @@ export function svcList(state) {
 }
 export const activeSvcs = (state) => svcList(state).filter((s) => s.status !== 'inactive')
 
-// charge rate for an appt service under a payer: contract override → master rate → code rate
+// payer-owned services (added straight on the payer's Services tab — full records)
+export const localSvcs = (payer) => (payer ? ensurePayer(payer).svcs || [] : [])
+export function payerLocalSvcs(state, clientIds) {
+  const p = payerForAppt(state, clientIds)
+  return localSvcs(p).filter((sv) => sv.status !== 'inactive')
+}
+// any service id (master or payer-local) resolved for labels/codes
+export function svcById(state, id) {
+  if (!id) return null
+  return svcList(state).find((s) => s.id === id) || (state.payers || []).flatMap((p) => localSvcs(p)).find((s) => s.id === id) || null
+}
+// the picker list for an appointment: active master services + the clients' payer's own active services
+export function svcOptionsFor(state, clientIds) {
+  const p = payerForAppt(state, clientIds)
+  const mine = localSvcs(p).filter((s) => s.status !== 'inactive')
+  return [...activeSvcs(state), ...mine.map((s) => ({ ...s, code: s.code || '97151', unitMins: parseInt(s.unitSize, 10) || (BILL_CODES.find((c) => c.id === s.code) || {}).unitMins || 30, payerLocal: true, payerName: p.name }))]
+}
+// charge rate for an appt service under a payer — only when the encounter actually bills
+// the contracted code: payer-local record → contract override → master rate → code table.
+// (If the user re-picks a different CPT on the appointment, the code table rate governs.)
 export function rateFor(state, payer, svcId, codeId) {
   const svc = svcList(state).find((s) => s.id === svcId)
+  const local = payer ? (ensurePayer(payer).svcs || []).find((s) => s.id === svcId) : null
+  const contractedCode = local ? local.code : svc?.code
+  if (codeId && contractedCode && contractedCode !== codeId) {
+    const c = BILL_CODES.find((x) => x.id === codeId)
+    return { rate: c ? c.rate : 0, source: 'code table' }
+  }
+  if (local) return { rate: Number(local.charge) || 0, source: `${payer.name} contract` }
   const ovr = payer ? (ensurePayer(payer).svcOv || {})[svcId] : null
   if (ovr && ovr.charge) return { rate: Number(ovr.charge), source: `${payer.name} contract` }
   if (svc && svc.rate) return { rate: Number(svc.rate), source: `${svc.label} master rate` }
@@ -109,7 +167,7 @@ export function concurrentNote(state, { payer, svcId, clientId, date, start, end
   const apptList = Array.isArray(state.appts) ? state.appts : Object.values(state.appts || {})
   const same = apptList.filter((a) => a.id !== excludeId && a.date === date && (a.clientIds || []).includes(clientId) && a.status !== 'cancelled' && a.start < end && a.end > start)
   if (!same.length) return null
-  const label = (id) => svcList(state).find((s) => s.id === id)?.label || id
+  const label = (id) => (svcList(state).find((s) => s.id === id) || localSvcs(payer).find((s) => s.id === id))?.label || id
   if (!rules.concurrent.allowed) return { level: 'warn', text: `${payer.name} does not allow concurrent billing — this slot overlaps ${same.length} other booked service hour${same.length > 1 ? 's' : ''} for this client.` }
   for (const r of rules.concurrent.rules || []) {
     for (const a of same) {

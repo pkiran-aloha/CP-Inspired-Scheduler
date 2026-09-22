@@ -2,7 +2,7 @@ import React from 'react'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import App from '../App'
-import { ensurePayer, svcList, rateFor, concurrentNote, payerForAppt } from '../lib/master'
+import { ensurePayer, svcList, rateFor, concurrentNote, payerForAppt, svcOptionsFor, svcById } from '../lib/master'
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
@@ -88,10 +88,10 @@ describe('masters — nav & service types', () => {
     render(<App />)
     await toMasters('svcs')
     const id = stored().svcs.find((s) => s.status === 'active').id
-    fireEvent.click(screen.getByTestId(`sv-toggle-${id}`))
+    fireEvent.click(screen.getByTestId(`sv-status-${id}`))
     await waitFor(() => expect(stored().svcs.find((s) => s.id === id).status).toBe('inactive'))
     expect(screen.getByTestId(`sv-status-${id}`).textContent).toContain('Inactive')
-    fireEvent.click(screen.getByTestId(`sv-toggle-${id}`))
+    fireEvent.click(screen.getByTestId(`sv-status-${id}`))
     await waitFor(() => expect(stored().svcs.find((s) => s.id === id).status).toBe('active'))
   })
 })
@@ -125,17 +125,29 @@ describe('masters — payer deep record', () => {
     expect(info.textContent).toContain('Availity')
   })
 
-  it('custom fields: add, persist, remove', async () => {
+  it('custom fields: typed designer — add a select, its options editor, then remove', async () => {
     render(<App />)
     await openDetail('py-aetna')
-    const before = stored().payers.find((p) => p.id === 'py-aetna').cf.length
+    const aetna = () => stored().payers.find((p) => p.id === 'py-aetna').cf
+    const before = aetna().length
     fireEvent.change(await screen.findByTestId('pd-cf-label'), { target: { value: 'Auth line' } })
-    fireEvent.change(screen.getByTestId('pd-cf-value'), { target: { value: 'Behav-77' } })
+    fireEvent.change(screen.getByTestId('pd-cf-type'), { target: { value: 'select' } })
     fireEvent.click(screen.getByTestId('pd-cf-add'))
-    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toHaveLength(before + 1))
-    expect(screen.getByTestId(`pd-cf-${before}`).textContent).toContain('Auth line')
-    fireEvent.click(screen.getByTestId(`pd-cf-${before}`).querySelector('.iconbtn'))
-    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toHaveLength(before))
+    await waitFor(() => expect(aetna()).toHaveLength(before + 1))
+    const nf = aetna()[before]
+    expect(nf.label).toBe('Auth line')
+    expect(nf.type).toBe('select')
+    expect(nf.options.length).toBeGreaterThan(0)
+    // options are editable as one-per-line list
+    fireEvent.click(screen.getByTestId(`pcf-opts-${nf.id}`))
+    fireEvent.change(await screen.findByTestId(`pcf-optedit-${nf.id}`), { target: { value: 'L1\nL2\nL3' } })
+    await waitFor(() => expect(aetna()[before].options).toEqual(['L1', 'L2', 'L3']))
+    // type can be switched inline; label inline-editable
+    fireEvent.click(screen.getByTestId(`pcf-type-${nf.id}`))
+    fireEvent.click(await screen.findByTestId(`opt-pcf-type-${nf.id}-toggle`))
+    await waitFor(() => expect(aetna()[before].type).toBe('toggle'))
+    fireEvent.click(screen.getByTestId(`pcf-del-${nf.id}`))
+    await waitFor(() => expect(aetna()).toHaveLength(before))
   })
 
   it('services tab: default-all note, narrowing contracts via the + picker', async () => {
@@ -169,7 +181,7 @@ describe('masters — payer deep record', () => {
     expect(screen.getByTestId('ovr-contract').value).toBe('34')
     fireEvent.change(charge, { target: { value: '40.5' } })
     fireEvent.click(screen.getByTestId('ovr-save'))
-    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcOv.dtt.charge).toBe('40.5'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcOv.dtt.charge).toBe(40.5))
     expect(await screen.findByTestId('pd-svc-dtt')).toBeTruthy()
   })
 })
@@ -385,5 +397,202 @@ describe('masters — platform relationships', () => {
     expect(list.map((s) => s.id)).toContain('dtt')
     expect(list.every((s) => s.rate > 0 && s.status === 'active')).toBe(true)
     expect(payerForAppt({ clients: [{ id: 'c1', insurer: 'Aetna' }], payers: [{ id: 'py-aetna', name: 'Aetna' }] }, ['c1']).id).toBe('py-aetna')
+  })
+})
+
+describe('chunk 32 — modal closes, modifiable payer services, inline edits, typed fields', () => {
+  it('Cancel (and ✕) on the add-payer modal never corrupts state — the page stays alive', async () => {
+    render(<App />)
+    await toMasters()
+    fireEvent.click(screen.getByTestId('py-add'))
+    fireEvent.change(await screen.findByTestId('py-name'), { target: { value: 'Temporary Payer' } })
+    fireEvent.click(screen.getByTestId('py-cancel')) // the old blank-page trigger
+    expect(await screen.findByTestId('payers-table')).toBeTruthy() // not blank!
+    expect(stored().payers).toHaveLength(12)
+    // ✕ in the header does the same
+    fireEvent.click(screen.getByTestId('py-add'))
+    fireEvent.change(await screen.findByTestId('py-name'), { target: { value: 'Another Temp' } })
+    fireEvent.click(screen.getByTestId('py-close'))
+    expect(await screen.findByTestId('payers-table')).toBeTruthy()
+    expect(stored().payers).toHaveLength(12)
+    // and table interaction still works right after
+    fireEvent.change(screen.getByTestId('py-search'), { target: { value: 'aetna' } })
+    expect(await screen.findByTestId('py-row-py-aetna')).toBeTruthy()
+  })
+
+  it('Cancel inside the detail edit modal returns to the record, not the void', async () => {
+    render(<App />)
+    await openDetail('py-aetna')
+    fireEvent.click(screen.getByTestId('pd-edit'))
+    fireEvent.change(await screen.findByTestId('py-name'), { target: { value: 'Renamed Away' } })
+    fireEvent.click(screen.getByTestId('py-cancel'))
+    expect(await screen.findByTestId('payer-detail')).toBeTruthy()
+    expect(stored().payers.find((p) => p.id === 'py-aetna').name).toBe('Aetna')
+  })
+
+  it('payer services are modifiable: add a payer-only service with the full form', async () => {
+    render(<App />)
+    await openDetail('py-aetna')
+    fireEvent.click(screen.getByTestId('pd-tab-services'))
+    fireEvent.click(await screen.findByTestId('pd-svc-fab'))
+    fireEvent.click(await screen.findByTestId('pd-svc-new'))
+    await screen.findByTestId('ovr-modal')
+    // validation first: charge, code and Dx1 are required
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    expect(await screen.findByText('Charge rate is required (use 0 for none)')).toBeTruthy()
+    expect(screen.getByText('Primary Dx code is required')).toBeTruthy()
+    fireEvent.change(screen.getByTestId('ovr-label'), { target: { value: 'Parent Coaching — Telehealth' } })
+    fireEvent.change(screen.getByTestId('ovr-charge'), { target: { value: '55' } })
+    fireEvent.change(screen.getByTestId('ovr-dx1'), { target: { value: 'F84.0' } })
+    await pickDropdown('ovr-code', '97152')
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcs).toHaveLength(1))
+    const rec = stored().payers.find((p) => p.id === 'py-aetna').svcs[0]
+    expect(rec.label).toBe('Parent Coaching — Telehealth')
+    expect(rec.charge).toBe(55)
+    expect(rec.code).toBe('97152')
+    const card = await screen.findByTestId(`pd-svc-${rec.id}`)
+    expect(card.textContent).toContain('$55.00')
+    expect(card.textContent).toContain('payer-only')
+    // re-edit the line (modifiable, per the ask)
+    fireEvent.click(screen.getByTestId(`pd-ovr-${rec.id}`))
+    fireEvent.change(await screen.findByTestId('ovr-charge'), { target: { value: '60' } })
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcs[0].charge).toBe(60))
+    // and remove it from this payer
+    fireEvent.click(screen.getByTestId(`pd-unlink-${rec.id}`))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcs).toHaveLength(0))
+  })
+
+  it('uncontracting a master service narrows an implicit all-services contract', async () => {
+    render(<App />)
+    await openDetail('py-regence-bcbs')
+    fireEvent.click(screen.getByTestId('pd-tab-services'))
+    expect(await screen.findByTestId('pd-svc-dtt')).toBeTruthy() // implicit contract
+    fireEvent.click(screen.getByTestId('pd-unlink-dtt'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-regence-bcbs').services.length).toBeGreaterThan(0))
+    expect(stored().payers.find((p) => p.id === 'py-regence-bcbs').services).not.toContain('dtt')
+    expect(screen.queryByTestId('pd-svc-dtt')).toBeNull()
+  })
+
+  it('payer directory: inline cells edit the master straight from the table', async () => {
+    render(<App />)
+    await toMasters()
+    // inline phone
+    fireEvent.click(await screen.findByTestId('py-phone-py-aetna'))
+    fireEvent.change(screen.getByTestId('py-phone-py-aetna-input'), { target: { value: '(800) 555-9900' } })
+    fireEvent.keyDown(screen.getByTestId('py-phone-py-aetna-input'), { key: 'Enter' })
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').contacts[0].number).toBe('(800) 555-9900'))
+    expect(screen.getByTestId('py-phone-py-aetna').textContent).toContain('(800) 555-9900')
+    // inline select: service type list
+    fireEvent.click(screen.getByTestId(`py-svclist-py-aetna`))
+    fireEvent.click(await screen.findByTestId('opt-py-svclist-py-aetna-Telehealth'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcList).toBe('Telehealth'))
+    // status chip inline
+    fireEvent.click(screen.getByTestId('py-status-py-aetna'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').status).toBe('inactive'))
+    // Esc cancels an inline edit without writing
+    fireEvent.click(screen.getByTestId('py-status-py-aetna'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').status).toBe('active'))
+    fireEvent.click(screen.getByTestId(`py-aka-py-aetna`))
+    fireEvent.change(screen.getByTestId('py-aka-py-aetna-input'), { target: { value: 'should not persist' } })
+    fireEvent.keyDown(screen.getByTestId('py-aka-py-aetna-input'), { key: 'Escape' })
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').aka).toBe('Aetna Better Health of CA'))
+  })
+
+  it('service types master: rate + unit + code inline, no modal needed', async () => {
+    render(<App />)
+    await toMasters('svcs')
+    fireEvent.click(await screen.findByTestId('sv-rate-social'))
+    fireEvent.change(screen.getByTestId('sv-rate-social-input'), { target: { value: '20.5' } })
+    fireEvent.keyDown(screen.getByTestId('sv-rate-social-input'), { key: 'Enter' })
+    await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').rate).toBe(20.5))
+    await pickDropdown('sv-unit-social', '15')
+    await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').unitMins).toBe(15))
+    await pickDropdown('sv-code-social', '97151')
+    await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').code).toBe('97151'))
+  })
+
+  it('wizard: typed payer fields render per definition, block a required one, persist snapshots', async () => {
+    render(<App />)
+    await toMasters()
+    await openDetail('py-aetna')
+    // make the seeded select field required and add a toggle + signature field
+    fireEvent.click(screen.getByTestId('pd-tab-profile'))
+    await screen.findByTestId('pcf-req-authdept')
+    fireEvent.click(screen.getByTestId('pcf-req-authdept'))
+    fireEvent.change(screen.getByTestId('pd-cf-label'), { target: { value: 'Caregiver present' } })
+    fireEvent.change(screen.getByTestId('pd-cf-type'), { target: { value: 'toggle' } })
+    fireEvent.click(screen.getByTestId('pd-cf-add'))
+    // now book for Justin Hsu (Aetna)
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu')))
+    fireEvent.mouseDown(document.body)
+    fireEvent.click(screen.getByTestId('pick-Staff Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item'))[0])
+    fireEvent.mouseDown(document.body)
+    // required field blocks saving
+    fireEvent.click(screen.getByTestId('save-appt'))
+    expect(await screen.findByText(/Payer field “Prior auth dept” is required/)).toBeTruthy()
+    // answer it via radio chips, flip the toggle, create
+    const defs = stored().payers.find((p) => p.id === 'py-aetna').cf
+    const tog = defs.find((d) => d.label === 'Caregiver present')
+    fireEvent.click(screen.getByTestId('pcf-opt-authdept-Behavioral Intake 2'))
+    fireEvent.click(screen.getByTestId(`pcf-toggle-${tog.id}`))
+    fireEvent.click(screen.getByTestId('save-appt'))
+    await screen.findByText('Appointment created')
+    await waitFor(() => {
+      const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs.authdept)
+      expect(created).toBeTruthy()
+      expect(created.pcfs.authdept.value).toBe('Behavioral Intake 2')
+      expect(created.pcfs.authdept.label).toBe('Prior auth dept')
+      expect(created.pcfs[tog.id].value).toBe(true)
+    })
+  })
+
+  it('wizard books a payer-only service at its own contract rate', async () => {
+    render(<App />)
+    await toMasters()
+    await openDetail('py-aetna')
+    fireEvent.click(screen.getByTestId('pd-tab-services'))
+    fireEvent.click(await screen.findByTestId('pd-svc-fab'))
+    fireEvent.click(await screen.findByTestId('pd-svc-new'))
+    fireEvent.change(await screen.findByTestId('ovr-label'), { target: { value: 'Parent Coaching — Telehealth' } })
+    fireEvent.change(screen.getByTestId('ovr-charge'), { target: { value: '50' } })
+    fireEvent.change(screen.getByTestId('ovr-dx1'), { target: { value: 'F84.0' } })
+    await pickDropdown('ovr-code', '97152')
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    const lid = await waitFor(() => { const v = stored().payers.find((p) => p.id === 'py-aetna').svcs[0]; expect(v).toBeTruthy(); return v.id })
+    // book it for Justin
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu')))
+    fireEvent.mouseDown(document.body)
+    fireEvent.click(await screen.findByTestId('service-select'))
+    const optBtn = await screen.findByTestId(`opt-service-select-${lid}`)
+    expect(optBtn.textContent).toContain('Parent Coaching') // payer-only service is offered in the wizard
+    expect(optBtn.textContent).toContain('Aetna only')
+    fireEvent.click(optBtn)
+    expect((await screen.findByTestId('am-rate-ovr')).textContent).toContain('$50.00')
+  })
+
+  it('helpers: svcOptionsFor merges payer services; rateFor hits the local record', async () => {
+    const { CLIENTS, PAYERS } = await import('../lib/seed.js')
+    const st = { clients: CLIENTS, payers: PAYERS, svcs: [], appts: [] }
+    const aetnaClient = CLIENTS.find((c) => c.insurer === 'Aetna')
+    const opts = svcOptionsFor(st, [aetnaClient.id])
+    expect(opts.some((x) => x.id === 'dtt')).toBe(true)
+    const rr = rateFor(st, payerForAppt(st, [aetnaClient.id]), 'dtt', '97151')
+    expect(rr.rate).toBe(38) // the seeded Aetna contract override wins over the $32 master rate
+    expect(rr.source).toContain('Aetna')
+    // payer-local service resolves through the same helpers
+    const st2 = { ...st, payers: [{ ...payerForAppt(st, [aetnaClient.id]), svcs: [{ id: 'pl1', label: 'Zoo ABA', code: '97152', charge: 66, status: 'active' }] }] }
+    expect(svcById(st2, 'pl1').label).toBe('Zoo ABA')
+    expect(rateFor(st2, payerForAppt(st2, [aetnaClient.id]), 'pl1', '97152').rate).toBe(66)
   })
 })

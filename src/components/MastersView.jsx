@@ -7,6 +7,7 @@ import { Dropdown } from './fields'
 import { PayersList } from './PayersView'
 import PayerDetail from './PayerDetail'
 import { svcList, CREDENTIALS, ROUNDINGS } from '../lib/master'
+import { InlineText, InlineSelect } from './fields'
 import { BILL_CODES } from '../lib/model'
 
 /**
@@ -56,7 +57,11 @@ function ServiceTypesView() {
   }, [state.appts])
   const payerUse = useMemo(() => {
     const m = {}
-    for (const p of state.payers || []) for (const id of p.services || []) m[id] = (m[id] || 0) + 1
+    for (const p of state.payers || []) {
+      for (const id of p.services || []) m[id] = (m[id] || 0) + 1
+      for (const id of Object.keys(p.svcOv || {})) m[id] = (m[id] || 0) + 1
+      for (const sv of p.svcs || []) if (sv.ref) m[sv.ref] = (m[sv.ref] || 0) + 1
+    }
     return m
   }, [state.payers])
 
@@ -66,74 +71,88 @@ function ServiceTypesView() {
   }, [all, q])
 
   const save = (v) => {
-    if (!v) { setEdit(null); return }
+    if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setEdit(null); return }
     if (edit === 'new') actions.addSvc(v)
     else actions.updateSvc({ id: edit.id, ...v })
     setEdit(null)
     toast({ message: `“${v.label}” ${edit === 'new' ? 'added to' : 'updated in'} the service master`, kind: 'ok' })
   }
-  const remove = (s) => {
-    const used = usedBy[s.id] || 0
-    if (used) { toast({ message: `${s.label} is used by ${used} appointment${used === 1 ? '' : 's'} — it can’t be deleted`, kind: 'error' }); return }
-    // also drop it from any payer contracts/overrides that still reference it
+  const patch = (sv, changes, what) => { actions.updateSvc({ id: sv.id, ...changes }); if (what) toast({ message: `${sv.label} — ${what}`, kind: 'ok' }) }
+  const remove = (sv) => {
+    const used = usedBy[sv.id] || 0
+    if (used) { toast({ message: `${sv.label} is used by ${used} appointment${used === 1 ? '' : 's'} — it can’t be deleted`, kind: 'error' }); return }
+    // also drop it from any payer contracts/overrides/local copies that still reference it
     for (const p of state.payers || []) {
-      const had = (p.services || []).includes(s.id) || (p.svcOv && p.svcOv[s.id])
-      if (had) actions.updatePayer({ id: p.id, services: (p.services || []).filter((x) => x !== s.id), svcOv: Object.fromEntries(Object.entries(p.svcOv || {}).filter(([k]) => k !== s.id)) })
+      const had = (p.services || []).includes(sv.id) || (p.svcOv && p.svcOv[sv.id]) || (p.svcs || []).some((x) => x.ref === sv.id)
+      if (had) actions.updatePayer({ id: p.id, services: (p.services || []).filter((x) => x !== sv.id), svcOv: Object.fromEntries(Object.entries(p.svcOv || {}).filter(([k]) => k !== sv.id)), svcs: (p.svcs || []).filter((x) => x.ref !== sv.id) })
     }
-    actions.removeSvc(s.id)
-    toast({ message: `${s.label} removed from the service master`, kind: 'info' })
+    actions.removeSvc(sv.id)
+    toast({ message: `${sv.label} removed from the service master`, kind: 'info' })
   }
-  const flip = (s) => {
-    actions.updateSvc({ id: s.id, status: s.status === 'active' ? 'inactive' : 'active' })
-    toast({ message: `${s.label} marked ${s.status === 'active' ? 'inactive' : 'active'}`, kind: 'info' })
+  const flip = (sv) => {
+    patch(sv, { status: sv.status === 'active' ? 'inactive' : 'active' }, 'status updated')
   }
 
   return (
     <div className="py-list st-list">
       <div className="py-tools">
-        <span className="muted py-toolcount">{all.filter((s) => s.status !== 'inactive').length} active · {all.length} total</span>
+        <span className="muted py-toolcount">{all.filter((x) => x.status !== 'active').length ? `${all.filter((x) => x.status !== 'inactive').length} active · ` : ''}{all.length} service types · click a cell to edit inline</span>
         <input className="input" style={{ width: 200, height: 30 }} placeholder="Search services or codes…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="sv-search" />
         <button className="btn btn-sm btn-primary" data-testid="sv-add" onClick={() => setEdit('new')}>{Icon.plus({ size: 12 })} Add Service Type</button>
       </div>
       <div className="an-wrap" style={{ paddingTop: 10 }}>
-        <div className="dir-tables">
-          <table className="dir-table" data-testid="svcs-table">
-            <thead>
-              <tr>
-                <th>Service Type</th>
-                <th style={{ width: 86 }}>Code</th>
-                <th style={{ width: 70, textAlign: 'right' }}>Unit</th>
-                <th style={{ width: 76, textAlign: 'right' }}>Rate</th>
-                <th style={{ width: 84 }}>Rounding</th>
-                <th style={{ width: 128 }}>Credentials</th>
-                <th style={{ width: 118 }}>Used by</th>
-                <th style={{ width: 90 }}>Status</th>
-                <th style={{ width: 96 }} />
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && <tr><td colSpan={9} className="py-empty">No service types match.</td></tr>}
-              {rows.map((s) => (
-                <tr key={s.id} data-testid={`sv-row-${s.id}`} onClick={() => setEdit(s)} title="Edit this service type">
-                  <td><span className="py-nm"><b>{s.label}</b>{s.note && <em>{s.note}</em>}</span></td>
-                  <td><span className="tag">{s.code}</span></td>
-                  <td style={{ textAlign: 'right' }}>{s.unitMins}m</td>
-                  <td style={{ textAlign: 'right' }}>${Number(s.rate).toFixed(2)}</td>
-                  <td>{s.rounding || 'AMA'}</td>
-                  <td className="st-creds">{(s.credentials || []).length ? (s.credentials || []).map((c) => <span className="tag" key={c}>{c}</span>) : <span className="muted">—</span>}</td>
-                  <td className="st-use">
-                    {usedBy[s.id] ? <span data-testid={`sv-use-${s.id}`}>{usedBy[s.id]} appt{usedBy[s.id] === 1 ? '' : 's'}</span> : <span className="muted">—</span>}
-                    {payerUse[s.id] ? <span className="muted"> · {payerUse[s.id]} payer{payerUse[s.id] === 1 ? '' : 's'}</span> : null}
-                  </td>
-                  <td><span className={`tag${s.status === 'active' ? '' : ' off'}`} data-testid={`sv-status-${s.id}`}>{s.status === 'active' ? 'Active' : 'Inactive'}</span></td>
-                  <td className="st-acts">
-                    <button className="iconbtn" title={s.status === 'active' ? 'Deactivate' : 'Activate'} data-testid={`sv-toggle-${s.id}`} onClick={(e) => { e.stopPropagation(); flip(s) }}>{s.status === 'active' ? Icon.ban({ size: 13 }) : Icon.check({ size: 13 })}</button>
-                    <button className="iconbtn" title="Delete" data-testid={`sv-del-${s.id}`} onClick={(e) => { e.stopPropagation(); remove(s) }}>{Icon.trash({ size: 13 })}</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="py-tbl sv-tbl" data-testid="svcs-table">
+          <div className="py-thead sv-head">
+            <span>Service Type</span>
+            <span>Billing Code</span>
+            <span className="num">Unit</span>
+            <span className="num">Rate</span>
+            <span>Rounding</span>
+            <span>Credentials</span>
+            <span>Used by</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {rows.length === 0 && <div className="py-empty py-tempty">No service types match.</div>}
+          {rows.map((sv) => (
+            <div className="py-trow" key={sv.id} data-testid={`sv-row-${sv.id}`} onClick={() => setEdit(sv)} title="Open the full service form">
+              <div className="py-idcell sv-idcell">
+                <span className="sv-glyph">{Icon.clipboard({ size: 13 })}</span>
+                <span className="py-idtxt">
+                  <b>{sv.label}</b>
+                  <InlineText testid={`sv-note-${sv.id}`} value={sv.note || ''} placeholder="add note" onCommit={(v) => patch(sv, { note: String(v).trim() })} />
+                </span>
+              </div>
+              <div className="py-cell">
+                <InlineSelect testid={`sv-code-${sv.id}`} value={sv.code} options={BILL_CODES.map((c) => ({ value: c.id, label: c.id, sub: c.label.split(' · ')[1] }))} onCommit={(v) => patch(sv, { code: v }, 'billing code updated')} render={(v) => <span className="tag">{v}</span>} />
+              </div>
+              <div className="py-cell num">
+                <InlineSelect testid={`sv-unit-${sv.id}`} value={String(sv.unitMins)} options={[5, 10, 15, 30, 45, 60].map((m) => ({ value: String(m), label: `${m} min` }))} onCommit={(v) => patch(sv, { unitMins: Number(v) }, 'unit size updated')} />
+              </div>
+              <div className="py-cell num"><InlineText numeric testid={`sv-rate-${sv.id}`} value={sv.rate} onCommit={(v) => patch(sv, { rate: Number(v) || 0 }, 'charge rate updated')} /></div>
+              <div className="py-cell">
+                <InlineSelect testid={`sv-round-${sv.id}`} value={sv.rounding || 'AMA'} options={ROUNDINGS.map((r) => ({ value: r, label: r }))} onCommit={(v) => patch(sv, { rounding: v }, 'rounding updated')} />
+              </div>
+              <div className="py-cell st-creds">
+                <button className="ie-cell" data-testid={`sv-crededit-${sv.id}`} title="Edit required credentials" onClick={(e) => { e.stopPropagation(); setEdit(sv) }}>
+                  {(sv.credentials || []).length ? sv.credentials.map((c) => <span className="tag" key={c}>{c}</span>) : <i className="ie-empty">none</i>}
+                  {Icon.edit({ size: 10 })}
+                </button>
+              </div>
+              <div className="py-cell st-use">
+                {usedBy[sv.id] ? <span data-testid={`sv-use-${sv.id}`}>{usedBy[sv.id]} appt{usedBy[sv.id] === 1 ? '' : 's'}</span> : <span className="muted">—</span>}
+                {payerUse[sv.id] ? <span className="muted"> · {payerUse[sv.id]} payer{payerUse[sv.id] === 1 ? '' : 's'}</span> : null}
+              </div>
+              <div className="py-cell">
+                <button className={`py-statustog${sv.status !== 'inactive' ? ' on' : ''}`} data-testid={`sv-status-${sv.id}`} title="Toggle active / inactive" onClick={(e) => { e.stopPropagation(); flip(sv) }}>
+                  <i />{sv.status === 'inactive' ? 'Inactive' : 'Active'}
+                </button>
+              </div>
+              <span className="py-tgo">
+                <button className="iconbtn" title="Delete" data-testid={`sv-del-${sv.id}`} onClick={(e) => { e.stopPropagation(); remove(sv) }}>{Icon.trash({ size: 13 })}</button>
+              </span>
+            </div>
+          ))}
         </div>
       </div>
 

@@ -2160,7 +2160,7 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
 .py-flabel { font-size: 10.4px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 750; }
 .py-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .py-av { position: relative; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 10.6px; flex: none; box-shadow: 0 4px 12px -4px rgba(30, 27, 75, .35); }
-.py-dot { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); border: 2px solid var(--panel); }
+.py-dot { position: absolute; right: -1px; bottom: -1px; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); border: 2px solid var(--panel); }
 .py-dot.off { background: var(--muted-2, #9ca3af); }
 .py-nm { display: flex; flex-direction: column; min-width: 0; }
 .py-nm b { font-size: 12.6px; color: var(--accent); font-weight: 720; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -2321,3 +2321,100 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
 .am-note.info { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--line)); color: var(--accent); }
 .am-note.ok { background: color-mix(in srgb, var(--ok) 10%, var(--panel)); border: 1px solid color-mix(in srgb, var(--ok) 30%, var(--line)); color: color-mix(in srgb, var(--ok) 45%, var(--text)); }
 @media (max-width: 1080px) { .pd-rules { grid-template-columns: 1fr; } .pr-nav { position: static; flex-direction: row; flex-wrap: wrap; } .pr-rulerow { grid-template-columns: auto minmax(0, 1fr); } .pr-rulerow > :nth-child(4) { grid-column: 1; justify-self: end; } }
+
+/* ── Chunk 32: modern master tables, inline cells, typed payer fields ────── */
+.py-tbl { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; overflow: visible; box-shadow: 0 1px 2px rgb(16 24 40 / 4%); }
+.py-thead { display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(86px, .85fr) minmax(96px, .95fr) minmax(104px, 1.05fr) minmax(48px, .42fr) minmax(96px, .9fr) minmax(84px, .8fr) 24px; gap: 10px; align-items: center; padding: 9px 16px; background: var(--panel-2); border-bottom: 1px solid var(--line); border-radius: 14px 14px 0 0; }
+.py-thead > * { font-size: 10.6px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; }
+.py-thead button.sortable { border: 0; background: none; padding: 0; font-family: inherit; font-size: 10.6px; font-weight: 700; color: inherit; cursor: pointer; letter-spacing: 0.05em; text-transform: uppercase; }
+.py-thead button.sortable:hover { color: var(--accent); }
+.py-thead .num { justify-content: flex-end; }
+.py-trow { display: grid; grid-template-columns: minmax(150px, 1.6fr) minmax(86px, .85fr) minmax(96px, .95fr) minmax(104px, 1.05fr) minmax(48px, .42fr) minmax(96px, .9fr) minmax(84px, .8fr) 24px; gap: 10px; align-items: center; padding: 7px 16px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background 0.12s ease; min-width: 0; }
+.py-trow:last-of-type { border-bottom: 0; }
+.py-trow:hover { background: var(--panel-2); }
+.py-trow:hover .py-tgo { color: var(--accent); opacity: 1; }
+.py-idcell { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.py-idtxt { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.py-idtxt b { font-size: 13px; font-weight: 650; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.py-cell { min-width: 0; font-size: 12.2px; color: var(--text-2); }
+.py-cell > * { max-width: 100%; min-width: 0; }
+.py-cell .ie-cell { max-width: 100%; }
+.py-cell .ie-cell > span:first-child, .py-cell > .tag { display: inline-block; max-width: calc(100% - 16px); overflow: hidden; text-overflow: ellipsis; vertical-align: middle; white-space: nowrap; }
+.py-cell.num { text-align: right; justify-content: flex-end; display: flex; }
+.py-cell.num .ie-cell { justify-content: flex-end; }
+.py-tgo { display: flex; justify-content: flex-end; color: var(--muted); opacity: 0.55; transition: 0.12s ease; }
+.py-tempty { padding: 22px; text-align: center; }
+/* inline cell editors */
+.ie-cell { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; border: 1px solid transparent; background: transparent; border-radius: 8px; padding: 3px 7px; font: inherit; font-size: 12.2px; color: var(--text); cursor: text; transition: 0.12s ease; }
+.ie-cell svg { opacity: 0; transition: opacity 0.12s ease; flex: none; color: var(--muted); }
+.ie-cell:hover { background: var(--panel-3); border-color: var(--line-2); }
+.ie-cell:hover svg { opacity: 0.7; }
+.ie-cell .ie-empty { color: var(--muted); font-style: normal; opacity: 0.8; }
+.ie-cell > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ie-input { height: 26px; font-size: 12.2px; padding: 0 8px; border-radius: 8px; }
+.tag.soft { background: var(--panel-3); border-color: var(--line); color: var(--text-2); }
+/* status toggle chip inside rows */
+.py-statustog { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--panel-2); border-radius: 999px; padding: 2px 9px 2px 6px; font: inherit; font-size: 11px; font-weight: 650; color: var(--muted); cursor: pointer; transition: 0.14s ease; }
+.py-statustog i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.py-statustog.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, var(--panel)); border-color: color-mix(in srgb, var(--ok) 30%, var(--line)); }
+.py-statustog.on i { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 18%, transparent); }
+.py-statustog:hover { border-color: var(--line-2); }
+/* services master row variant */
+.sv-tbl .py-thead, .sv-tbl .py-trow { grid-template-columns: minmax(140px, 1.5fr) minmax(80px, .7fr) minmax(56px, .5fr) minmax(62px, .55fr) minmax(70px, .62fr) minmax(92px, .85fr) minmax(84px, .78fr) minmax(72px, .68fr) 34px; }
+.sv-glyph { display: grid; place-items: center; width: 28px; height: 28px; flex: none; border-radius: 9px; background: var(--accent-soft); color: var(--accent); }
+.sv-idcell { gap: 9px; }
+/* service card updates (payer sheet) */
+.svc-card.off { opacity: 0.55; }
+.svc-cardhead { align-items: flex-start; }
+.svc-cardacts { display: flex; gap: 2px; margin-left: auto; opacity: 0; transition: opacity 0.14s ease; }
+.svc-card:hover .svc-cardacts { opacity: 1; }
+.svc-date.off { color: var(--muted); }
+/* unified service line modal */
+.ovr-top { display: flex; align-items: flex-end; gap: 14px; }
+.ovr-top > :first-child { flex: 1; }
+.ovr-lockname { height: 32px; display: flex; align-items: center; padding: 0 10px; background: var(--panel-3); border: 1px dashed var(--line-2); border-radius: 9px; font-size: 12.6px; font-weight: 640; color: var(--text-2); }
+.pcf-status { display: flex; align-items: center; gap: 8px; padding-bottom: 6px; }
+.pcf-status span { font-size: 10.6px; font-weight: 680; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.pcf-status i { font-style: normal; font-size: 11.5px; color: var(--text-2); text-transform: capitalize; }
+.pcf-full { grid-column: 1 / -1; }
+/* typed custom-field designer (payer profile) */
+.pcf-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.pcf-row { display: grid; grid-template-columns: 172px minmax(120px, 1fr) 106px auto auto; gap: 8px; align-items: center; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 5px 8px; }
+.pcf-type { font-size: 11px; font-weight: 650; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 2px 9px; }
+.pcf-label { height: 26px; font-size: 12.2px; border: 1px solid transparent; background: transparent; border-radius: 7px; padding: 0 7px; }
+.pcf-label:hover, .pcf-label:focus { border-color: var(--line-2); background: var(--panel); outline: none; }
+.pcf-opts { border: 1px dashed var(--line-2); background: var(--panel); height: 24px; font-size: 11px; }
+.pcf-opts i { font-style: normal; font-weight: 700; color: var(--accent); margin-left: 2px; }
+.pcf-optedit { grid-column: 1 / -1; font-size: 12px; }
+.pcf-req { display: flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 620; color: var(--text-2); cursor: pointer; }
+.pcf-typesel { max-width: 190px; height: 30px; }
+/* payer fields inside the booking wizard */
+.pcf-card { margin-top: 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 9px; }
+.pcf-head { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 700; color: var(--accent); }
+.pcf-head i { font-style: normal; font-weight: 500; font-size: 11px; color: var(--muted); margin-left: 4px; }
+.pcf-f { display: flex; align-items: center; gap: 10px; }
+.pcf-f > label { flex: 0 0 190px; font-size: 11.8px; font-weight: 640; color: var(--text-2); }
+.pcf-f .input { flex: 1; height: 30px; }
+.pcf-f-signature { align-items: stretch; }
+.pcf-f-signature > label { padding-top: 8px; }
+.pcf-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.pcf-sigbox { flex: 1; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 8px 10px; }
+.pcf-f.filled { box-shadow: inset 3px 0 0 var(--ok); border-radius: 6px; }
+/* readout on the appointment detail card */
+.pcf-readout { display: flex; flex-wrap: wrap; gap: 6px; }
+.pcf-chip { display: inline-flex; align-items: baseline; gap: 6px; background: var(--panel-3); border: 1px solid var(--line); border-radius: 9px; padding: 3px 9px; font-size: 11.5px; }
+.pcf-chip b { font-weight: 680; color: var(--text-2); }
+.pcf-chip i { font-style: normal; color: var(--accent); font-weight: 620; }
+@media (max-width: 1180px) {
+  .py-thead { display: none; }
+  .py-trow, .sv-tbl .py-trow { grid-template-columns: minmax(0, 1fr) auto; grid-auto-rows: auto; row-gap: 4px; padding: 10px 14px; }
+  .py-trow > .py-idcell { grid-row: span 2; }
+  .py-trow > .py-tgo { align-self: center; opacity: 1; }
+  .py-cell:nth-child(4), .py-cell:nth-child(5) { display: none; }
+  .py-cell:nth-child(6) { grid-column: 2; justify-content: flex-end; }
+  .py-cell:nth-child(7) { grid-column: 2; justify-content: flex-end; }
+  .sv-tbl .py-cell:nth-child(4), .sv-tbl .py-cell:nth-child(5) { display: flex; }
+  .pcf-f { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pcf-f > label { flex: none; }
+  .pcf-row { grid-template-columns: 1fr 1fr; }
+}

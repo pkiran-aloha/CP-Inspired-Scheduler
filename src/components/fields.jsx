@@ -256,3 +256,88 @@ export function TagInput({ items = [], onChange, placeholder = 'Add' }) {
     </div>
   )
 }
+
+/* ── inline table-cell editors ─────────────────────────────────────────────
+   Click a cell → edit right there; Enter/blur commits, Esc cancels. Every
+   directory table shares this so editing never leaves the list context. */
+export function InlineText({ value = '', onCommit, testid, placeholder = '—', width = '100%', numeric = false, title }) {
+  const [editing, setEditing] = useState(false)
+  const [v, setV] = useState(value)
+  const ref = useRef(null)
+  useEffect(() => { if (editing && ref.current) ref.current.select() }, [editing])
+  useEffect(() => { if (!editing) setV(value) }, [value, editing])
+  const commit = () => {
+    setEditing(false)
+    const nv = numeric ? String(value ?? '') === String(v) ? value : v : v
+    if (String(value ?? '') !== String(nv ?? '')) onCommit(numeric && String(v).trim() !== '' ? Number(v) : nv)
+  }
+  if (!editing)
+    return (
+      <button
+        type="button"
+        className="ie-cell"
+        data-testid={testid}
+        title={title || 'Click to edit'}
+        onClick={(e) => { e.stopPropagation(); setV(value ?? ''); setEditing(true) }}
+      >
+        {String(value ?? '') === '' ? <i className="ie-empty">{placeholder}</i> : numeric && value ? Number(value).toFixed(2) : value}
+        {Icon.edit({ size: 10 })}
+      </button>
+    )
+  return (
+    <input
+      ref={ref}
+      className="input ie-input"
+      style={{ width }}
+      data-testid={`${testid}-input`}
+      inputMode={numeric ? 'decimal' : undefined}
+      value={v}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setV(e.target.value)}
+      onKeyDown={(e) => {
+        e.stopPropagation()
+        if (e.key === 'Enter') commit()
+        else if (e.key === 'Escape') { setV(value ?? ''); setEditing(false) }
+      }}
+      onBlur={commit}
+    />
+  )
+}
+
+export function InlineSelect({ value = '', options = [], onCommit, testid, render, placeholder = '—', title }) {
+  const [open, setOpen] = useState(false)
+  const [rect, setRect] = useState(null)
+  const anchor = useRef(null)
+  const cur = options.find((o) => o.value === value)
+  return (
+    <span className="rel" ref={anchor} style={{ display: 'inline-flex', minWidth: 0 }}>
+      <button
+        type="button"
+        className="ie-cell"
+        data-testid={testid}
+        title={title || 'Click to change'}
+        onClick={(e) => { e.stopPropagation(); setRect(anchor.current.getBoundingClientRect()); setOpen((x) => !x) }}
+      >
+        {render ? render(value) : String(value ?? '') === '' ? <i className="ie-empty">{placeholder}</i> : (cur?.label ?? value)}
+        {Icon.chevDown({ size: 10 })}
+      </button>
+      {open && (
+        <Popover anchorRect={rect} onClose={() => setOpen(false)} width={Math.max(200, anchor.current.offsetWidth + 40)}>
+          {options.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              data-testid={`opt-${testid}-${o.value || 'none'}`}
+              className={`pop-item${o.value === value ? ' on' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setOpen(false); if (o.value !== value) onCommit(o.value) }}
+            >
+              <span style={{ flex: 1 }}>{o.label}</span>
+              {o.sub && <span className="rl">{o.sub}</span>}
+              <span className="ck">{o.value === value ? Icon.check({ size: 13, strokeWidth: 2.6 }) : null}</span>
+            </button>
+          ))}
+        </Popover>
+      )}
+    </span>
+  )
+}

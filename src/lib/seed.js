@@ -114,7 +114,10 @@ export const SVCS = SERVICES.map((s) => {
 
 // master seasoning: routing ids, clearing house and a few showcase payer rules
 Object.assign(PAYERS[0], { cmsType: 'Group Health Plan', format: 'None', payerId: '00124', clearingHouse: 'Office Ally', ctList: 'ABA Standard', services: [], cf: [] })
-Object.assign(PAYERS[1], { cmsType: 'Group Health Plan', format: 'None', payerId: '87211', clearingHouse: 'Availity', ctList: 'ABA Standard', services: [], cf: [{ label: 'Prior auth dept', value: 'Behavioral Intake 2' }] })
+Object.assign(PAYERS[1], { cmsType: 'Group Health Plan', format: 'None', payerId: '87211', clearingHouse: 'Availity', ctList: 'ABA Standard', services: [], cf: [
+    { id: 'authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3'], required: false },
+    { id: 'waiver', label: 'Service waiver on file', type: 'toggle', required: false },
+  ] })
 Object.assign(PAYERS[3], { cmsType: 'Medicaid', format: 'Custom Format 1', payerId: 'MC001', clearingHouse: 'Office Ally', ctList: 'ABA Standard', services: [], cf: [] })
 Object.assign(PAYERS[4], { cmsType: 'Medicaid', format: 'None', payerId: 'DHCS-51', clearingHouse: 'Change Healthcare', ctList: '', services: [], cf: [] })
 PAYERS[1].rules = {

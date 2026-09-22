@@ -27,7 +27,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
-import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote } from '../lib/master'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, cfDefs, pcfsErrors, rateFor } from '../lib/master'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -53,9 +53,9 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const siblings = useMemo(() => (initial.seriesId ? seriesSiblings(appts, initial) : []), [appts, initial.id])
 
   const fresh = (keep = {}) => {
-    const x = { repeat: 'none', repeatCount: 8, status: 'active', verification: null, custom: {}, documents: [], ...initial, ...keep }
+    const x = { repeat: 'none', repeatCount: 8, status: 'active', verification: null, custom: {}, pcfs: {}, documents: [], ...initial, ...keep }
     x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null }
-    x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : svcsAll.find((s) => s.id === x.service)?.code || '97151')
+    x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : svcById(state, x.service)?.code || '97151')
     x.units = x.billing ? x.billing.units : null
     x.rate = x.billing ? x.billing.rate : null
     x.distance = x.billing?.distance || 0
@@ -89,7 +89,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       load: Object.fromEntries(staff.map((x) => [x.id, 0])),
       limit: cfg.suggest.count,
       cfg,
-      code: svcsAll.find((x) => x.id === f.service)?.code || '',
+      code: svcById(state, f.service)?.code || '',
       sameSite: f.location || '',
       weekDays: wk,
     })
@@ -118,16 +118,19 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
 
   // ---------- derived ----------
   const dur = Math.max(0, f.end - f.start)
-  const autoTitle = apptAutoTitle({ type: f.type, clientIds: f.clientIds, staffIds: f.staffIds, start: f.start, end: f.end, clients: clientsById, staff: Object.fromEntries(staff.map((x) => [x.id, x])), settings, serviceOverride: f.service, locationOverride: f.location })
+  const autoTitle = apptAutoTitle({ type: f.type, clientIds: f.clientIds, staffIds: f.staffIds, start: f.start, end: f.end, clients: clientsById, staff: Object.fromEntries(staff.map((x) => [x.id, x])), settings, serviceOverride: svcById(state, f.service)?.label || f.service, locationOverride: f.location })
   const title = (titleTouched ? f.title : f.title || autoTitle) || autoTitle
   const unavailTarget = f.unavailTarget || 'staff'
   const needsStaff = isUnavail ? unavailTarget === 'staff' : ['service', 'drive', 'evaluation', 'supervision'].includes(f.type)
   const needsClient = isUnavail ? unavailTarget === 'clients' : showClientPicker && ['service', 'evaluation'].includes(f.type)
+  const billPayer = payerForAppt(state, f.clientIds)
+  const pcfDefs = billPayer ? cfDefs(billPayer).filter((d) => d.label) : []
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')
   if (needsStaff && !f.staffIds.length) errors.push('Add at least one staff member')
   if (needsClient && !f.clientIds.length) errors.push('Add a client')
+  if (showClinic && pcfDefs.length) errors.push(...pcfsErrors(pcfDefs, f.pcfs))
 
   const conflicts = useMemo(() => {
     if (dur <= 0 || !f.date) return []
@@ -139,10 +142,12 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const code = BILL_CODES.find((c) => c.id === f.billingCode) || BILL_CODES[0]
   const derivedUnits = f.type === 'drive' ? 0 : Math.max(0, Math.round((dur / code.unitMins) * 4) / 4)
   const units = f.units ?? derivedUnits
-  const billPayer = payerForAppt(state, f.clientIds)
   const billRules = billPayer ? svcRule(billPayer) : null
   const svcOvr = billPayer && f.service ? (ensurePayer(billPayer).svcOv || {})[f.service] : null
-  const rate = f.rate ?? (f.type === 'drive' ? 0 : svcOvr?.charge ? Number(svcOvr.charge) : code.rate)
+  const rateRes = f.service ? rateFor(state, billPayer, f.service, code.id) : null
+  const onContract = Boolean(rateRes && /contract/.test(rateRes.source))
+  const svcMod = svcOvr?.modifier || (billPayer ? (ensurePayer(billPayer).svcs || []).find((x) => x.id === f.service)?.modifier : null)
+  const rate = f.rate ?? (f.type === 'drive' ? 0 : rateRes && Number.isFinite(rateRes.rate) && rateRes.rate ? rateRes.rate : code.rate)
   const sigReq = Boolean(billRules?.appt?.sigRequired)
   const concNote = useMemo(() => concurrentNote(state, { payer: billPayer, svcId: f.service, clientId: (f.clientIds || [])[0], date: f.date, start: f.start, end: f.end, excludeId: f.id === '__draft__' ? undefined : f.id }), [f.date, f.start, f.end, f.service, JSON.stringify(f.clientIds), billPayer?.id, state.appts])
   const mileage = f.type === 'drive' ? true : !!f.mileage
@@ -167,6 +172,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     ...(f.type === 'drive' ? { origin: f.origin || '', destination: f.destination || '' } : {}),
     ...(f.type === 'unavailable' ? { unavailTarget } : {}),
     service: f.service || '',
+    pcfs: Object.keys(f.pcfs || {}).length ? f.pcfs : null,
     notes: f.notes || '',
     abaHr: f.abaHr,
     recurrence: f.repeat,
@@ -474,18 +480,59 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                             testid="service-select"
                             value={f.service || ''}
                             onChange={(v) => {
-                              const s = svcsAll.find((x) => x.id === v)
-                              set({ service: v, billingCode: s ? s.code : f.billingCode, units: null, rate: null })
+                              const sv = svcById(state, v)
+                              set({ service: v, billingCode: sv ? sv.code : f.billingCode, units: null, rate: null })
                             }}
                             placeholder="Select Service"
-                            options={[{ value: '', label: 'Select Service' }, ...(f.service && svcsActive.every((s) => s.id !== f.service) ? [svcsAll.find((s) => s.id === f.service) || { id: f.service, label: f.service, code: '' }] : svcsActive).map((s) => ({ value: s.id, label: s.label, sub: `bills under ${s.code}` }))]}
+                            options={[{ value: '', label: 'Select Service' }, ...svcOptionsFor(state, f.clientIds).map((s) => ({ value: s.id, label: s.label, sub: s.payerLocal ? `${s.code} · ${s.payerName} only` : `bills under ${s.code}` }))]}
                           />
                         </div>
                       </div>
-                      {(concNote || svcOvr?.charge) && (
+                      {(concNote || onContract) && (
                         <div className="am-notes">
                           {concNote && <div className={`am-note ${concNote.level}`} data-testid="am-conc">{concNote.text}</div>}
-                          {svcOvr?.charge && <div className="am-note info" data-testid="am-rate-ovr">Charge rate ${Number(svcOvr.charge).toFixed(2)} comes from the {billPayer.name} contract for this service{svcOvr.modifier ? ` · modifier ${svcOvr.modifier}` : ''}.</div>}
+                          {onContract && <div className="am-note info" data-testid="am-rate-ovr">Charge rate ${Number(rateRes.rate).toFixed(2)} comes from the {rateRes.source} for this service{svcMod ? ` · modifier ${svcMod}` : ''}.</div>}
+                        </div>
+                      )}
+                      {showClinic && pcfDefs.length > 0 && (
+                        <div className="pcf-card" data-testid="am-pcf">
+                          <div className="pcf-head">{Icon.badge({ size: 12 })} Payer fields — {billPayer.name}<i>required by this payer on every session</i></div>
+                          {pcfDefs.map((d) => (
+                            <div className={`pcf-f pcf-f-${d.type}${(f.pcfs || {})[d.id]?.value ? ' filled' : ''}`} key={d.id} data-testid={`pcf-f-${d.id}`}>
+                              <label>{d.label}{d.required && ' *'}</label>
+                              {d.type === 'text' && <input className="input" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
+                              {d.type === 'date' && <input className="input" type="datetime-local" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
+                              {(d.type === 'select' || d.type === 'multi') && (
+                                <div className="pcf-chips" data-testid={`pcf-chips-${d.id}`}>
+                                  {(d.options || []).map((op) => {
+                                    const cur = (f.pcfs || {})[d.id]?.value
+                                    const on = d.type === 'select' ? cur === op : Array.isArray(cur) && cur.includes(op)
+                                    return (
+                                      <button key={op} type="button" className={`tag pick${on ? ' on' : ''}`} data-testid={`pcf-opt-${d.id}-${op}`}
+                                        onClick={() => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: d.type === 'select' ? (on ? '' : op) : (on ? cur.filter((x) => x !== op) : [...(cur || []), op]) } } })}>
+                                        {op}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              {d.type === 'toggle' && (
+                                <button role="switch" aria-checked={Boolean((f.pcfs || {})[d.id]?.value)} className={`pd-switch${(f.pcfs || {})[d.id]?.value ? ' on' : ''}`} data-testid={`pcf-toggle-${d.id}`}
+                                  onClick={() => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: !(f.pcfs || {})[d.id]?.value } } })}><i /></button>
+                              )}
+                              {d.type === 'signature' && (
+                                <div className="pcf-sigbox" data-testid={`pcf-sig-${d.id}`}>
+                                  <SignaturePad
+                                    value={(f.pcfs || {})[d.id]?.value}
+                                    staffName={staffById[f.staffIds?.[0]]?.name || ''}
+                                    staffId={f.staffIds?.[0] || ''}
+                                    certification={staffById[f.staffIds?.[0]]?.cert}
+                                    onChange={(sig) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: sig } } })}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       )}
                       </>

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
-import { SectionBar } from './NavRail'
 import { CMS_TYPES, FORMATS } from '../lib/master'
+import { InlineText, InlineSelect } from './fields'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 
@@ -60,7 +60,7 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
     <div className="modal pm-modal py-modal" role="dialog" aria-modal="true" aria-label={payer ? `Edit payer — ${payer.name}` : 'Add Payer'} data-testid="payer-form" tabIndex={-1}>
       <div className="modal-head pm-head">
         <h3>{payer ? `Payer — ${payer.name}` : 'Add Payer'}</h3>
-        <button className="iconbtn modal-x" aria-label="Close" data-testid="py-close" onClick={onClose}>{Icon.x({ size: 14 })}</button>
+        <button className="iconbtn modal-x" aria-label="Close" data-testid="py-close" onClick={() => onClose()}>{Icon.x({ size: 14 })}</button>
       </div>
       <div className="modal-body">
         <div className="py-cols">
@@ -136,7 +136,7 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
         {onRemove && <RemoveArm name={form.name || payer?.name || 'payer'} used={used} onRemove={onRemove} idp={payer?.id} />}
         <span className="py-remember">Please remember to save your changes</span>
         <button className="btn btn-sm btn-primary" data-testid="py-save" onClick={() => { const v = save(); if (v) onClose(v) }}>Save</button>
-        <button className="btn btn-sm" data-testid="py-cancel" onClick={onClose}>Cancel</button>
+        <button className="btn btn-sm" data-testid="py-cancel" onClick={() => onClose()}>Cancel</button>
       </div>
     </div>
   )
@@ -150,7 +150,7 @@ export function PayersList() {
   const [activeOnly, setActiveOnly] = useState(false)
   const [sort, setSort] = useState({ k: 'name', d: 1 })
   const [page, setPage] = useState(0)
-  const [modal, setModal] = useState(null) // 'new' | payer
+  const [modal, setModal] = useState(null) // 'new'
   const payers = useMemo(() => state.payers || [], [state.payers])
   const countFor = (name) => state.clients.filter((c) => (c.insurer || '') === name).length
 
@@ -158,7 +158,7 @@ export function PayersList() {
     let r = payers.map((p) => ({ ...p, clients: countFor(p.name) }))
     if (activeOnly) r = r.filter((p) => p.status === 'active')
     const s = q.trim().toLowerCase()
-    if (s) r = r.filter((p) => `${p.name} ${p.aka || ''} ${p.email || ''} ${p.city || ''} ${p.evvId || ''}`.toLowerCase().includes(s))
+    if (s) r = r.filter((p) => `${p.name} ${p.aka || ''} ${p.email || ''} ${p.city || ''} ${p.evvId || ''} ${p.payerId || ''}`.toLowerCase().includes(s))
     r.sort((a, b) => (sort.k === 'clients' ? a.clients - b.clients : String(a[sort.k] || '').localeCompare(String(b[sort.k] || ''), undefined, { numeric: true })) * sort.d)
     return r
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,21 +167,31 @@ export function PayersList() {
   useEffect(() => setPage(0), [q, activeOnly, sort])
   const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE))
   const view = rows.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE)
-  const flip = (k) => setSort((s) => ({ k, d: s.k === k ? -s.d : 1 }))
+  const flip = (k) => setSort((x) => ({ k, d: x.k === k ? -x.d : 1 }))
   const arrow = (k) => (sort.k === k ? (sort.d === 1 ? ' ▲' : ' ▼') : '')
 
   const save = (v) => {
-    if (!v) { setModal(null); return }
+    // close buttons call onClose() with no payload; ignore anything that isn't a plain record (e.g. leaked click events)
+    if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setModal(null); return }
     actions.addPayer({ policy: { kind: v.type === 'Self-pay' ? 'selfpay' : v.type === 'Government' ? 'medicaid' : 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 }, ...v })
     setModal(null)
     toast({ message: `${v.name} added to the payer directory`, kind: 'ok' })
+  }
+  // inline edits write straight to the payer record — no modal round-trip
+  const patch = (p, changes, what) => { actions.updatePayer({ id: p.id, ...changes }); if (what) toast({ message: `${p.name} — ${what}`, kind: 'ok' }) }
+  const patchPhone = (p, phone) => {
+    const list = (p.contacts || []).slice()
+    const i = list.findIndex((c) => c.kind === 'Main')
+    if (i >= 0) list[i] = { ...list[i], number: phone }
+    else list.unshift({ kind: 'Main', number: phone })
+    patch(p, { contacts: list.filter((c) => c.number.trim()) }, 'phone updated')
   }
 
   const filtersOn = activeOnly || q.trim()
   return (
     <div className="py-list">
       <div className="py-tools">
-        <span className="muted py-toolcount">{payers.length} payer{payers.length === 1 ? '' : 's'} · {activeOnly ? 'active only' : 'all statuses'}</span>
+        <span className="muted py-toolcount">{payers.length} payer{payers.length === 1 ? '' : 's'} · {activeOnly ? 'active only' : 'all statuses'} · click any cell to edit inline</span>
         <input className="input" style={{ width: 200, height: 30 }} placeholder="Search payers, IDs, cities…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="py-search" />
         <button className={`btn btn-sm${activeOnly ? ' btn-primary' : ''}`} data-testid="py-active-filter" onClick={() => setActiveOnly((v) => !v)} title="Show active payers only">{Icon.check({ size: 12 })} Active</button>
         <button className="btn btn-sm btn-primary" data-testid="py-add" onClick={() => setModal('new')}>{Icon.plus({ size: 12 })} Add Payer</button>
@@ -197,43 +207,53 @@ export function PayersList() {
       )}
 
       <div className="an-wrap" style={{ paddingTop: 10 }}>
-        <div className="dir-tables">
-          <table className="dir-table" data-testid="payers-table">
-            <thead>
-              <tr>
-                <th className="sortable" data-testid="py-sort-name" onClick={() => flip('name')} style={{ cursor: 'pointer' }}>Payer Name{arrow('name')}</th>
-                <th className="sortable" data-testid="py-sort-type" onClick={() => flip('type')} style={{ cursor: 'pointer', width: 130 }}>Payer Type{arrow('type')}</th>
-                <th style={{ width: 165 }}>Service Type List</th>
-                <th style={{ width: 205 }}>Required to complete the Appointment</th>
-                <th className="sortable" data-testid="py-sort-clients" onClick={() => flip('clients')} style={{ cursor: 'pointer', width: 78, textAlign: 'right' }}>Clients{arrow('clients')}</th>
-                <th style={{ width: 140 }}>Phone Number</th>
-              </tr>
-            </thead>
-            <tbody>
-              {view.length === 0 && <tr><td colSpan={6} className="py-empty">No payers match — clear the filters or add one.</td></tr>}
-              {view.map((p) => (
-                <tr key={p.id} data-testid={`py-row-${p.id}`} onClick={() => actions.setUI({ payerSel: p.id })} title="Open the payer record — profile, services & billing rules">
-                  <td>
-                    <span className="py-name">
-                      <span className="py-av" style={{ background: colorFor(p.name) }}>{initialsOf(p.name)}<i className={`py-dot${p.status === 'active' ? '' : ' off'}`} /></span>
-                      <span className="py-nm"><b>{p.name}</b>{p.aka && <em>{p.aka}</em>}</span>
-                    </span>
-                  </td>
-                  <td>{p.type || '—'}</td>
-                  <td>{p.svcList === 'None' ? <span className="muted">None</span> : p.svcList}</td>
-                  <td>{p.required === 'No' ? <span className="muted">No</span> : <span className="tag">{p.required === 'Yes' ? 'Required' : p.required.replace('Yes — after authorization is on file', 'Required after auth')}</span>}</td>
-                  <td style={{ textAlign: 'right' }}><span className={`py-cnt${p.clients ? '' : ' z'}`} data-testid={`py-ct-${p.id}`}>{p.clients}</span></td>
-                  <td className="py-phone">{phoneOf(p) || '—'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="py-tbl" data-testid="payers-table">
+          <div className="py-thead">
+            <button className="sortable" data-testid="py-sort-name" onClick={() => flip('name')}>Payer Name{arrow('name')}</button>
+            <button className="sortable" data-testid="py-sort-type" onClick={() => flip('type')}>Type{arrow('type')}</button>
+            <span>Service Type List</span>
+            <span>Completion Requirement</span>
+            <button className="sortable num" data-testid="py-sort-clients" onClick={() => flip('clients')}>Clients{arrow('clients')}</button>
+            <span>Phone</span>
+            <span>Status</span>
+            <span />
+          </div>
+          {view.length === 0 && <div className="py-empty py-tempty">No payers match — clear the filters or add one.</div>}
+          {view.map((p) => (
+            <div className="py-trow" key={p.id} data-testid={`py-row-${p.id}`} onClick={() => actions.setUI({ payerSel: p.id })} title="Open the payer record — profile, services & billing rules">
+              <div className="py-idcell">
+                <span className="py-av" style={{ background: colorFor(p.name) }}>{initialsOf(p.name)}<i className={`py-dot${p.status === 'active' ? '' : ' off'}`} /></span>
+                <span className="py-idtxt">
+                  <b>{p.name}</b>
+                  <InlineText testid={`py-aka-${p.id}`} value={p.aka || ''} placeholder="add also-known-as" onCommit={(v) => patch(p, { aka: String(v).trim() }, 'aka updated')} />
+                </span>
+              </div>
+              <div className="py-cell">
+                <InlineSelect testid={`py-type-${p.id}`} value={p.type || ''} options={[{ value: '', label: '—' }, ...PY_TYPES.map((t) => ({ value: t, label: t }))]} onCommit={(v) => patch(p, { type: v }, 'type updated')} />
+              </div>
+              <div className="py-cell">
+                <InlineSelect testid={`py-svclist-${p.id}`} value={p.svcList || 'None'} options={SVC_LISTS.map((t) => ({ value: t, label: t }))} onCommit={(v) => patch(p, { svcList: v }, 'service type list updated')} render={(v) => (v === 'None' || !v ? <span className="muted">None</span> : <span className="tag soft">{v}</span>)} />
+              </div>
+              <div className="py-cell">
+                <InlineSelect testid={`py-req-${p.id}`} value={p.required || 'No'} options={REQ_OPTS.map((t) => ({ value: t, label: t }))} onCommit={(v) => patch(p, { required: v }, 'completion requirement updated')} render={(v) => (v === 'No' ? <span className="muted">No</span> : <span className="tag">{v === 'Yes' ? 'Required' : 'Required after auth'}</span>)} />
+              </div>
+              <div className="py-cell num"><span className={`py-cnt${p.clients ? '' : ' z'}`} data-testid={`py-ct-${p.id}`}>{p.clients}</span></div>
+              <div className="py-cell"><InlineText testid={`py-phone-${p.id}`} value={phoneOf(p)} placeholder="add phone" onCommit={(v) => patchPhone(p, String(v).trim())} /></div>
+              <div className="py-cell">
+                <button className={`py-statustog${p.status === 'active' ? ' on' : ''}`} data-testid={`py-status-${p.id}`} title="Toggle active / inactive"
+                  onClick={(e) => { e.stopPropagation(); patch(p, { status: p.status === 'active' ? 'inactive' : 'active' }, p.status === 'active' ? 'marked inactive — hidden from client files' : 'marked active') }}>
+                  <i />{p.status === 'active' ? 'Active' : 'Inactive'}
+                </button>
+              </div>
+              <span className="py-tgo">{Icon.chevronR({ size: 13 })}</span>
+            </div>
+          ))}
           <div className="py-pager" data-testid="py-pager">
             <span className="muted">{rows.length ? `${page * PAGE_SIZE + 1}–${Math.min(rows.length, (page + 1) * PAGE_SIZE)} of ${rows.length}` : '0 payers'}</span>
             {pages > 1 && (
               <span className="py-pages">
                 {Array.from({ length: pages }, (_, i) => (
-                  <button key={i} className={`pg-num${i === page ? ' on' : ''}`} data-testid={`py-page-${i}`} onClick={() => setPage(i)}>{i + 1}</button>
+                  <button key={i} className={`pg-num${i === page ? ' on' : ''}`} data-testid={`py-page-${i}`} onClick={(e) => { e.stopPropagation(); setPage(i) }}>{i + 1}</button>
                 ))}
               </span>
             )}
