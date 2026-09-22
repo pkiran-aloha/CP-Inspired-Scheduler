@@ -16,6 +16,7 @@ import AnalyticsView from './components/AnalyticsView'
 import ReportsView from './components/ReportsView'
 import DashboardView from './components/DashboardView'
 import ClientsView from './components/ClientsView'
+import PayersView from './components/PayersView'
 import StaffView from './components/StaffView'
 import BillingView from './components/BillingView'
 import NeedsCover from './components/NeedsCover'
@@ -82,7 +83,7 @@ function Shell() {
       const tag = (e.target.tagName || '').toLowerCase()
       if (['input', 'textarea', 'select'].includes(tag) || e.metaKey || e.ctrlKey) return
       if (e.key === '?') { e.preventDefault(); setKbHelp(true); return }
-      if (/^[1-7]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard'][Number(k) - 1] })
+      if (/^[1-8]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'payers'][Number(k) - 1] })
       else if (k === 't') actions.setUI({ anchor: todayISO() })
       else if ((k === 'n' || k === 'a') && section === 'calendar') setPicking({ date: todayISO(), start: 9 * 60, end: 10 * 60 })
       else if (['d', 'w', 'm', 'g', 'h'].includes(k)) actions.setUI({ section: 'calendar', view: { d: 'day', w: 'week', m: 'month', g: 'agenda', h: 'timeline' }[k] })
@@ -200,6 +201,7 @@ function Shell() {
         {section === 'reports' && <ReportsView />}
         {section === 'dashboard' && <DashboardView onOpenDetail={setDetailId} />}
         {section === 'clients' && <ClientsView />}
+        {section === 'payers' && <PayersView />}
         {section === 'staff' && <StaffView />}
         {section === 'billing' && <BillingView />}
       </div>

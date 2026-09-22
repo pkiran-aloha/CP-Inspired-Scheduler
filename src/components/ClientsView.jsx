@@ -160,7 +160,7 @@ function ClientModal({ client, dup, onClose }) {
                 <select className="input" value={form.program} onChange={(e) => set('program', e.target.value)} data-testid="cm-program">{PROGRAMS.map((pr) => <option key={pr}>{pr}</option>)}</select>
               </F>
               <F k="insurer" label="Payer / insurer" icon="shield">
-                <select className="input" value={form.insurer} onChange={(e) => set('insurer', e.target.value)} data-testid="cm-insurer">{INSURERS.map((pr) => <option key={pr}>{pr}</option>)}</select>
+                <select className="input" value={form.insurer} onChange={(e) => set('insurer', e.target.value)} data-testid="cm-insurer">{[...new Set([...(state.payers || []).filter((pp) => pp.status === 'active').map((pp) => pp.name), ...(form.insurer && !(state.payers || []).some((pp) => pp.name === form.insurer) ? [form.insurer] : [])])].map((pr) => <option key={pr}>{pr}</option>)}</select>
               </F>
               <F k="home" label="Primary site" icon="house" />
               <F k="authWeekly" label="Authorized hrs / week" icon="clock" type="number" />

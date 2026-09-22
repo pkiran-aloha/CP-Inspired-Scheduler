@@ -2153,3 +2153,44 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
 .sh-more { font-size: 10px; color: var(--muted); padding: 2px 7px; }
 .set-health > .btn { align-self: flex-start; }
 @media (prefers-reduced-motion: reduce) { .wlx { transition: none; } }
+
+
+/* ================= chunk 29 — Payer master ================= */
+.py-frow { display: flex; align-items: center; gap: 8px; padding: 8px 18px 0; flex-wrap: wrap; }
+.py-flabel { font-size: 10.4px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 750; }
+.py-name { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.py-av { position: relative; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 10.6px; flex: none; box-shadow: 0 4px 12px -4px rgba(30, 27, 75, .35); }
+.py-dot { position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--ok); border: 2px solid var(--panel); }
+.py-dot.off { background: var(--muted-2, #9ca3af); }
+.py-nm { display: flex; flex-direction: column; min-width: 0; }
+.py-nm b { font-size: 12.6px; color: var(--accent); font-weight: 720; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.py-nm em { font-style: normal; font-size: 10.4px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.py-cnt { display: inline-block; min-width: 24px; text-align: center; font-size: 11px; font-weight: 780; color: var(--text); background: var(--panel-3); border-radius: 20px; padding: 2px 7px; font-variant-numeric: tabular-nums; }
+.py-cnt.z { color: var(--muted); background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); }
+.py-phone { font-variant-numeric: tabular-nums; color: var(--text-2); white-space: nowrap; }
+.py-empty { text-align: center; color: var(--muted); font-size: 11.5px; padding: 26px 0; }
+.py-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px 10px; border-top: 1px solid var(--line-2); font-size: 11px; }
+.py-pages { display: inline-flex; gap: 5px; }
+.pg-num { min-width: 25px; height: 25px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font-size: 11px; font-weight: 750; color: var(--text-2); cursor: pointer; }
+.pg-num:hover { border-color: var(--accent); color: var(--accent); }
+.pg-num.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.py-modal { width: 940px; max-width: 96vw; }
+.py-cols { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0 26px; }
+.py-col { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.py-sec { display: flex; align-items: center; gap: 7px; font-size: 10.4px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin: 4px 0 8px; }
+.py-sec svg { opacity: .8; }
+.py-sec-contacts, .py-sec-ids { margin-top: 16px; }
+.py-sec-contacts .btn { margin-left: auto; text-transform: none; letter-spacing: 0; }
+.py-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.py-countwrap { display: flex; justify-content: flex-end; margin: -14px 0 4px; }
+.py-count { font-size: 9.6px; font-weight: 750; color: var(--muted); background: var(--panel-3); border-radius: 8px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.py-ta { resize: vertical; min-height: 44px; font-family: inherit; }
+.py-contact { display: grid; grid-template-columns: 122px 1fr 28px; gap: 7px; align-items: center; margin-bottom: 6px; }
+.py-contact .iconbtn { opacity: .55; }
+.py-contact .iconbtn:hover { opacity: 1; color: var(--danger); }
+.py-contact .iconbtn:disabled { opacity: .18; pointer-events: none; }
+.input.err { border-color: var(--danger) !important; box-shadow: 0 0 0 3px color-mix(in srgb, var(--danger) 13%, transparent); }
+.py-foot { display: flex; align-items: center; gap: 9px; padding: 11px 18px 13px; border-top: 1px solid var(--line); background: linear-gradient(180deg, color-mix(in srgb, var(--panel-2) 60%, transparent), var(--panel-2)); }
+.py-remember { color: var(--danger); font-size: 10.8px; font-weight: 680; margin-right: auto; }
+.py-foot .btn { flex: none; }
+@media (max-width: 920px) { .py-cols { grid-template-columns: 1fr; } .py-two { grid-template-columns: 1fr; } }

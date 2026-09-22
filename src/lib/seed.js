@@ -43,6 +43,33 @@ const authWin = (i) => ({
 })
 const INSURERS = ['Blue Shield CA', 'Aetna', 'Regence BCBS', 'UnitedHealthcare', 'Medicaid (CA)', 'Self-pay']
 
+// ---- Payer master ----------------------------------------------------------------
+// One directory record per payer. Claims math keeps reading PAYER_POLICY by name
+// (untouched); the master adds identity, mailing, contacts and portal data.
+// Every INSURERS name below has exactly one master record so nothing dangles.
+const py = (name, aka, type, svcList, required, status, o = {}) => ({
+  id: 'py-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+  name, aka, type, svcList, required, status,
+  street: o.street || '', city: o.city || '', state: o.state || 'CA', zip: o.zip || '', addressNotes: o.addressNotes || '',
+  contacts: o.contacts || [{ kind: 'Main', number: o.phone || '' }].filter((c) => c.number || o.phone),
+  evvId: o.evvId || '', email: o.email || '', thirdPartyId: o.thirdPartyId || '',
+  policy: PAYER_POLICY[name] || { kind: 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 },
+})
+export const PAYERS = [
+  py('Blue Shield CA', 'BSCA', 'Insurance', 'ABA + related services', 'Yes — after authorization is on file', 'active', { street: '333 Market St', city: 'San Francisco', zip: '94111', phone: '(800) 555-0114', contacts: [{ kind: 'Main', number: '(800) 555-0114' }, { kind: 'Fax', number: '(866) 555-0114' }], email: 'behavioral.reviews@bsca.example.com', evvId: 'BSCA-4471', thirdPartyId: 'TPA-1180' }),
+  py('Aetna', 'Aetna Better Health of CA', 'Insurance', 'ABA Standard', 'Yes — after authorization is on file', 'active', { street: '360 W 1st St', city: 'Long Beach', zip: '90802', phone: '(800) 555-0127', contacts: [{ kind: 'Main', number: '(800) 555-0127' }, { kind: 'Fax', number: '(562) 555-0127' }, { kind: 'Claims portal', number: 'auths.aetna.example.com/aba' }], email: 'provider.relations@aetna.example.com', evvId: 'AET-LB-221' }),
+  py('Regence BCBS', '', 'Insurance', 'ABA + related services', 'No', 'active', { street: '700 SW 36th Ave', city: 'Tualatin', state: 'OR', zip: '97062', phone: '(800) 555-0136', contacts: [{ kind: 'Main', number: '(800) 555-0136' }, { kind: 'Fax', number: '(503) 555-0136' }], email: 'aba.intake@regence.example.com', evvId: 'REG-OR-830' }),
+  py('UnitedHealthcare', 'UHC Community Plan', 'Insurance', 'ABA Standard', 'Yes — after authorization is on file', 'active', { street: '2801 N Main St', city: 'Santa Ana', zip: '92705', phone: '(844) 555-0149', contacts: [{ kind: 'Main', number: '(844) 555-0149' }, { kind: 'Claims portal', number: 'prov-portal.uhc.example.com' }], email: 'ca.medicaidUHCP@uhc.example.com', evvId: 'UHC-CA-115', thirdPartyId: 'FACET-7741' }),
+  py('Medicaid (CA)', 'Medi-Cal', 'Government', 'ABA Standard', 'No', 'active', { street: '701 P St', city: 'Sacramento', zip: '95814', phone: '(800) 555-0158', addressNotes: 'Eligibility file via county welfare node, not state line.', email: 'dhcs.provider@ca.example.gov', evvId: 'MEDI-CAL-001' }),
+  py('Self-pay', 'Private Pay', 'Self-pay', 'None', 'No', 'active', { addressNotes: 'Family invoice mailed monthly; no payer record on file.', email: 'billing.office@aloha.example.com' }),
+  py('Fremont Unified School District', 'FUSD', 'School district', 'School-based', 'No', 'active', { street: '3315 Old Gilman St', city: 'Fremont', zip: '94538', phone: '(510) 555-0171', contacts: [{ kind: 'Main', number: '(510) 555-0171' }, { kind: 'Fax', number: '(510) 555-0172' }], email: 'special.edservices@fusd.example.edu', evvId: 'FUSD-SEPA-9' }),
+  py('Northstar Pediatric Network', 'NPN', 'Insurance', 'ABA Standard', 'Yes', 'active', { street: '510 S Buena Vista St', city: 'Burbank', zip: '91505', phone: '(818) 555-0184', email: 'pednet.auths@northstar.example.com', evvId: 'NPN-PED-330' }),
+  py('Coastline Specialty Plan', 'CSP', 'Employer plan', 'Telehealth', 'No', 'active', { street: '1 Marina Blvd', city: 'Daly City', zip: '94015', phone: '(650) 555-0193', email: 'specialtycoast@csp.example.com' }),
+  py('Valley Children’s Services', 'VCS', 'Government', 'School-based', 'No', 'inactive', { street: '1400 F St', city: 'Fresno', zip: '93721', phone: '(559) 555-0202', addressNotes: 'Contract paused pending FY re-bid.', email: 'contracts@vcs.example.gov' }),
+  py('Golden State Health Alliance', 'GSHA', 'Insurance', 'None', 'No', 'inactive', { street: '1120 N Street, Ste 3', city: 'Sacramento', zip: '95814', addressNotes: 'Wound-down plan — keep for legacy claims history.', email: 'legacy@gsha.example.com' }),
+  py('Riverside Behavioral Trust', 'RBT-9', 'Employer plan', 'ABA + related services', 'Yes', 'inactive', { street: '3850 La Sierra Ave', city: 'Riverside', zip: '92505', addressNotes: 'Awaiting employer renewal; do not route new auths.' }),
+]
+
 export const CLIENTS = [
   { id: 'c1', name: 'Justin Hsu', initials: 'JH', color: '#6366f1', program: 'EIBI · Day program', home: 'Main Center', authWeekly: 20, guardian: 'L. Hsu', geo: [37.33, -122.03] , avatar: 'bunny', phone: '(408) 555-0161'},
   { id: 'c2', name: 'Jimmy Ma', initials: 'JM', color: '#10b981', program: 'Home program · NET', home: "Jimmy Ma's home", authWeekly: 15, guardian: 'R. Ma', geo: [37.29, -121.99] , avatar: 'koala', phone: '(408) 555-0162'},

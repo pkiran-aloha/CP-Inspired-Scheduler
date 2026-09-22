@@ -13,6 +13,7 @@ const RANGE_PRESET_OPTS = RANGE_PRESETS
 export const SECTIONS = [
   { id: 'calendar', label: 'Calendar', icon: 'cal', kbd: '1', desc: 'Scheduling board, timeline & agenda' },
   { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs' },
+  { id: 'payers', label: 'Payers', icon: 'shield', kbd: '8', desc: 'Payer directory — contacts, portals & claim rules' },
   { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload' },
   { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect' },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },

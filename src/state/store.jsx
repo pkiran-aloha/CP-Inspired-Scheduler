@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import { uid } from '../lib/model'
-import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, defaultSettings } from '../lib/seed'
+import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, defaultSettings } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -19,6 +19,7 @@ export function blankState() {
     claims,
     staff: STAFF,
     clients: CLIENTS,
+    payers: PAYERS,
     teams: TEAMS,
     history: [],
     settings,
@@ -152,6 +153,12 @@ export function reducer(state, action) {
       const ui = { ...state.ui, [action.list === 'staff' ? 'staffSel' : 'clientSel']: state.ui[action.list === 'staff' ? 'staffSel' : 'clientSel'].filter((id) => id !== action.id) }
       return { ...state, [action.list]: rest, teams, appts, ui }
     }
+    case 'payer': {
+      const list = state.payers || []
+      if (action.mode === 'add') return { ...state, payers: [...list, action.item] }
+      if (action.mode === 'patch') return { ...state, payers: list.map((p) => (p.id === action.item.id ? { ...p, ...action.item } : p)) }
+      return { ...state, payers: list.filter((p) => p.id !== action.id) }
+    }
     case 'dash': {
       const cur = state.dash || { widgets: DEFAULT_DASH }
       let widgets = cur.widgets
@@ -270,6 +277,10 @@ function createActions(state, dispatch) {
     addRoster: (list, item) => dispatch({ type: 'roster', list, mode: 'add', item: { id: uid(), ...item } }),
     updateRoster: (list, item) => dispatch({ type: 'roster', list, mode: 'patch', item }),
     removeRoster: (list, id) => dispatch({ type: 'roster', list, mode: 'remove', id }),
+    // ---- payer master ----
+    addPayer: (item) => dispatch({ type: 'payer', mode: 'add', item: { id: uid(), ...item } }),
+    updatePayer: (item) => dispatch({ type: 'payer', mode: 'patch', item }),
+    removePayer: (id) => dispatch({ type: 'payer', mode: 'remove', id }),
     // ---- billing pipeline: mark lines billed/paid with an undoable snapshot ----
     markBilling: (ids, status) => {
       const patch = ids.map((id) => ({ id, billing: { ...(state.appts[id]?.billing || {}), status, billedAt: Date.now() } }))
