@@ -49,7 +49,7 @@ function PayerForm({ payer, onClose, used = 0, onRemove }) {
     return { ...(payer || {}), ...form, id: payer?.id || form.id, name, contacts: form.contacts.filter((c) => c.number.trim()) }
   }
   const Fld = ({ k, label, req, children, hint }) => (
-    <label className={`bil-fld pm-fld${k === 'street' || k === 'city' ? ' pm-wide' : ''}`}>
+    <label className="bil-fld pm-fld">
       <span>{label}{req && ' *'}</span>
       {children || <input className={`input${errs[k] ? ' err' : ''}`} value={form[k] ?? ''} placeholder={errs[k] ? '' : hint || ''} data-testid={`py-${k}`} onChange={(e) => set(k, e.target.value)} />}
       {errs[k] && <i className="pm-err">{errs[k]}</i>}

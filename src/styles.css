@@ -2175,17 +2175,18 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
 .pg-num:hover { border-color: var(--accent); color: var(--accent); }
 .pg-num.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 .py-modal { width: 940px; max-width: 96vw; }
+.py-modal .modal-body { padding: 6px 24px 16px; }
 .py-cols { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 0 26px; }
 .py-col { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .py-sec { display: flex; align-items: center; gap: 7px; font-size: 10.4px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: var(--accent); margin: 4px 0 8px; }
 .py-sec svg { opacity: .8; }
 .py-sec-contacts, .py-sec-ids { margin-top: 16px; }
 .py-sec-contacts .btn { margin-left: auto; text-transform: none; letter-spacing: 0; }
-.py-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.py-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 14px; }
 .py-countwrap { display: flex; justify-content: flex-end; margin: -14px 0 4px; }
 .py-count { font-size: 9.6px; font-weight: 750; color: var(--muted); background: var(--panel-3); border-radius: 8px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
 .py-ta { resize: vertical; min-height: 44px; font-family: inherit; }
-.py-contact { display: grid; grid-template-columns: 122px 1fr 28px; gap: 7px; align-items: center; margin-bottom: 6px; }
+.py-contact { display: grid; grid-template-columns: 122px minmax(0, 1fr) 30px; gap: 7px; align-items: center; margin-bottom: 6px; }
 .py-contact .iconbtn { opacity: .55; }
 .py-contact .iconbtn:hover { opacity: 1; color: var(--danger); }
 .py-contact .iconbtn:disabled { opacity: .18; pointer-events: none; }

@@ -143,4 +143,29 @@ describe('payer master', () => {
     const firstDesc = screen.getAllByTestId(/py-row-/)[0]
     expect(Number(firstDesc.querySelector('[data-testid^="py-ct-"]').textContent)).toBeGreaterThan(0)
   })
+
+  it('modal never overflows horizontally — with multiple contacts too (chunk 29b guard)', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-payers'))
+    await screen.findByTestId('payers-table')
+    fireEvent.click(screen.getByTestId('py-add'))
+    const body = document.querySelector('.py-modal .modal-body')
+    expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth)
+    fireEvent.click(screen.getByTestId('py-c-add'))
+    fireEvent.click(screen.getByTestId('py-c-add'))
+    fireEvent.change(screen.getByTestId('py-name'), { target: { value: 'Meridian Behavioral Health Insurance Network of Greater Los Angeles' } })
+    expect(document.querySelector('[data-testid="py-count"]').textContent).toBe('67/60')
+    expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth)
+    const rows = document.querySelectorAll('.py-contact')
+    expect(rows).toHaveLength(3)
+    for (const r of rows) expect(r.getBoundingClientRect().right).toBeLessThanOrEqual(body.getBoundingClientRect().right)
+    // overlong name must be rejected outright
+    fireEvent.change(screen.getByTestId('py-type'), { target: { value: 'Insurance' } })
+    fireEvent.change(screen.getByTestId('py-street'), { target: { value: '1 M Way' } })
+    fireEvent.change(screen.getByTestId('py-city'), { target: { value: 'LA' } })
+    fireEvent.change(screen.getByTestId('py-zip'), { target: { value: '90001' } })
+    fireEvent.change(screen.getByTestId('py-name'), { target: { value: 'Meridian Behavioral Health Insurance Network of Greater Los Angeles!' } }) // 61 chars
+    fireEvent.click(screen.getByTestId('py-save'))
+    expect(await screen.findByText('Keep the payer name under 60 characters')).toBeTruthy()
+  })
 })
