@@ -482,9 +482,24 @@ export default function DashboardView({ onOpenDetail = null }) {
   const [drag, setDrag] = useState(null) // {id, kind:'move'|'size', span?, target?:{id,after}, to?}
   useEffect(() => {
     if (!drag) return
+    const board0 = boardRef.current
+    const autoScroll = (clientY) => { // edge auto-scroll so tall boards stay draggable end-to-end
+      if (!board0 || typeof clientY !== 'number') return
+      if (board0.scrollHeight <= board0.clientHeight + 4) return
+      const r = board0.getBoundingClientRect()
+      if (clientY <= r.top || clientY >= r.bottom) return
+      const EDGE = 64
+      const dBot = r.bottom - clientY, dTop = clientY - r.top
+      if (dBot < EDGE) board0.scrollTop += Math.ceil((EDGE - dBot) / 3)
+      else if (dTop < EDGE) board0.scrollTop -= Math.ceil((EDGE - dTop) / 3)
+    }
+    // keep pushing even when the pointer rests at the edge — the last known y drives a 40ms ticker
+    const ticker = setInterval(() => autoScroll(dragRef.current?.lastY), 40)
     const onMove = (e) => {
       const d = dragRef.current
       if (!d) return
+      d.lastY = e.clientY
+      autoScroll(e.clientY)
       if (d.kind === 'size') {
         const span = Math.max(1, Math.min(6, d.span0 + Math.round((e.clientX - d.x0) / d.cell)))
         const h = Math.max(1, Math.min(3, d.h0 + Math.round((e.clientY - d.y0) / 130)))
@@ -534,7 +549,7 @@ export default function DashboardView({ onOpenDetail = null }) {
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
     window.addEventListener('keydown', onKey)
-    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); window.removeEventListener('keydown', onKey) }
+    return () => { clearInterval(ticker); window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); window.removeEventListener('pointercancel', onUp); window.removeEventListener('keydown', onKey) }
   }, [drag?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const startMove = (e, w) => {
