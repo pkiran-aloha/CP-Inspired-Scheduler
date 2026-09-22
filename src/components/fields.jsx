@@ -83,30 +83,61 @@ export function Dropdown({ value, onChange, options = [], placeholder = 'Select�
   )
 }
 
-/** Multi-select built on the same dropdown look & feel. */
+/**
+ * Multi-select with honest selection state: every picked option becomes a removable
+ * chip on the trigger (2 visible + a +n overflow chip), rows carry a filled checkbox,
+ * and the header offers a live count with Clear-all. Deselect via chip ✕, by tapping
+ * a checked row, or Clear all.
+ */
 export function MultiSelect({ values = [], onChange, options = [], placeholder = 'Select…', testid }) {
   const [open, setOpen] = useState(false)
   const anchor = useRef(null)
   const norm = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o))
+  const chosen = norm.filter((o) => values.includes(o.value))
   const toggle = (v) => onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v])
-  const label = values.length ? norm.filter((o) => values.includes(o.value)).map((o) => o.label).join(', ') : placeholder
+  const remove = (e, v) => { e.stopPropagation(); onChange(values.filter((x) => x !== v)) }
   return (
-    <div className="rel" ref={anchor}>
-      <button type="button" data-testid={testid} className="input select" style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6 }} onClick={() => setOpen((o) => !o)}>
-        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: values.length ? 'inherit' : 'var(--muted)', fontWeight: values.length ? 600 : 500 }}>
-          {label}
-          {values.length > 1 && <span className="cnt" style={{ marginLeft: 6, padding: '0 6px', borderRadius: 10, background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 10, fontWeight: 800 }}>{values.length}</span>}
+    <div className="rel ms" ref={anchor}>
+      <div
+        data-testid={testid}
+        className="input select ms-btn"
+        role="button"
+        tabIndex={0}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o) } if (e.key === 'Escape') setOpen(false) }}
+      >
+        {!chosen.length && <span className="ms-ph">{placeholder}</span>}
+        {chosen.slice(0, 2).map((o) => (
+          <span key={o.value} className="ms-chip" data-testid={`ms-chip-${testid || 'ms'}-${o.value}`}>
+            <span className="t">{o.label}</span>
+            <button type="button" aria-label={`Remove ${o.label}`} title={`Remove ${o.label}`} data-testid={`ms-unsel-${testid || 'ms'}-${o.value}`} onClick={(e) => remove(e, o.value)}>{Icon.x({ size: 10, strokeWidth: 2.6 })}</button>
+          </span>
+        ))}
+        {chosen.length > 2 && (
+          <span className="ms-chip more" title={chosen.slice(2).map((o) => o.label).join(', ')} data-testid={`ms-more-${testid || 'ms'}`}>+{chosen.length - 2}</span>
+        )}
+        <span className="ms-trail">
+          {chosen.length > 1 && <span className="cnt ms-n" data-testid={`ms-count-${testid || 'ms'}`}>{chosen.length}</span>}
+          <span className="ms-chev">{Icon.chevDown({ size: 12 })}</span>
         </span>
-        {Icon.chevDown({ size: 12 })}
-      </button>
+      </div>
       {open && (
-        <Popover anchorRect={anchor.current.getBoundingClientRect()} onClose={() => setOpen(false)} width={Math.max(230, anchor.current.offsetWidth)}>
-          {norm.map((o) => (
-            <div key={o.value} className={`pop-item ${values.includes(o.value) ? 'on' : ''}`} style={{ cursor: 'pointer' }} data-testid={`opt-${testid || 'ms'}-${o.value}`} onClick={() => toggle(o.value)}>
-              <span className={`cb`} style={{ marginRight: 2 }}>{values.includes(o.value) && Icon.check({ size: 10, strokeWidth: 3 })}</span>
-              <span className="nm" style={{ flex: 1 }}>{o.label}</span>
-            </div>
-          ))}
+        <Popover anchorRect={anchor.current.getBoundingClientRect()} onClose={() => setOpen(false)} width={Math.max(240, anchor.current.offsetWidth)}>
+          <div className="ms-head">
+            <b>{chosen.length ? `${chosen.length} selected` : 'Select all that apply'}</b>
+            {chosen.length > 0 && <button type="button" data-testid={`ms-clear-${testid || 'ms'}`} onClick={() => onChange([])}>Clear all</button>}
+          </div>
+          {norm.map((o) => {
+            const on = values.includes(o.value)
+            return (
+              <button type="button" key={o.value} className={`pop-item ms-item${on ? ' on' : ''}`} aria-pressed={on} data-testid={`opt-${testid || 'ms'}-${o.value}`} onClick={() => toggle(o.value)}>
+                <span className={`cb${on ? ' on' : ''}`}>{on && Icon.check({ size: 11, strokeWidth: 3 })}</span>
+                <span className="nm" style={{ flex: 1 }}>{o.label}</span>
+              </button>
+            )
+          })}
         </Popover>
       )}
     </div>

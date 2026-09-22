@@ -208,7 +208,7 @@ export default function ClientsView() {
   const [modal, setModal] = useState(null) // client | 'new'
   const [prof, setProf] = useState(null) // row object → profile sheet
   const [dup, setDup] = useState(null) // client to copy into a new record
-  const [mode, setMode] = useState('table') // dir-tables ⇄ people cards
+  const [mode, setMode] = useState('cards') // people cards ⇄ dir-tables
   useEffect(() => {
     if (ui?.cliAdd) { setModal('new'); actions.setUI({ cliAdd: null }) }
     // eslint-disable-next-line react-hooks/exhaustive-deps

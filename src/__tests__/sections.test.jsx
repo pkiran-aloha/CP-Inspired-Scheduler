@@ -29,9 +29,26 @@ describe('navigation rail', () => {
   it('number keys jump sections (keyboard-first parity with the old calendar shortcuts)', async () => {
     render(<App />)
     fireEvent.keyDown(window, { key: '2' })
-    expect(await screen.findByTestId('clients-table')).toBeTruthy()
+    expect(await screen.findByTestId('clients-cards')).toBeTruthy()
     fireEvent.keyDown(window, { key: '1' })
     expect(await screen.findByTestId('needs-cover')).toBeTruthy() // back on calendar chrome
+  })
+})
+
+describe('default views (chunk 28)', () => {
+  it('Clients opens on people cards, Staff too — table stays one click away', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-clients'))
+    const cards = await screen.findByTestId('clients-cards')
+    expect(cards.querySelectorAll('[data-testid^="cli-card-"]').length).toBeGreaterThan(0)
+    expect(screen.queryByTestId('clients-table')).toBeNull()
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
+    expect(screen.getByTestId('clients-table')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('nav-staff'))
+    const scards = await screen.findByTestId('staff-cards')
+    expect(scards.querySelectorAll('[data-testid^="stf-card-"]').length).toBeGreaterThan(0)
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
+    expect(screen.getByTestId('staff-table')).toBeTruthy()
   })
 })
 
@@ -39,6 +56,7 @@ describe('clients directory', () => {
   it('searches, opens detail rows and adds a client with live validation', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     expect(container.querySelectorAll('[data-testid^="cli-row-"]').length).toBe(16)
     fireEvent.change(screen.getByTestId('cli-search'), { target: { value: 'Justin' } })
@@ -63,6 +81,7 @@ describe('staff directory', () => {
   it('lists the roster with utilization and edits persist', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     expect(container.querySelectorAll('[data-testid^="stf-row-"]').length).toBe(12)
     fireEvent.click(screen.getByTestId('stf-row-s3'))
@@ -78,6 +97,7 @@ describe('reports desk', () => {
   it('clients & staff rosters switch to a modern card layout', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-mode-cards'))
     const cards = await screen.findByTestId('clients-cards')
@@ -88,6 +108,7 @@ describe('reports desk', () => {
     fireEvent.click(screen.getByTestId('cli-mode-table'))
     expect(await screen.findByTestId('clients-table')).toBeTruthy()
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     fireEvent.click(screen.getByTestId('stf-mode-cards'))
     const scards = await screen.findByTestId('staff-cards')

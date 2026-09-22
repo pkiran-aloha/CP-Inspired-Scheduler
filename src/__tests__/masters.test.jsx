@@ -14,6 +14,7 @@ describe('cute avatars on the masters', () => {
   it('every client and staff row carries a critter, seeded deterministically', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     const pav = container.querySelectorAll('[data-testid^="cli-pav-"]')
     expect(pav.length).toBe(16)
@@ -24,6 +25,7 @@ describe('cute avatars on the masters', () => {
     expect(ids.size).toBe(16)
 
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     expect(container.querySelectorAll('[data-testid^="stf-pav-"]').length).toBe(12)
     expect(container.querySelector('[data-testid="stf-pav-s1"] svg')).toBeTruthy()
@@ -32,6 +34,7 @@ describe('cute avatars on the masters', () => {
   it('card mode shows the same faces', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-mode-cards'))
     await screen.findByTestId('clients-cards')
@@ -43,6 +46,7 @@ describe('client modal — add with avatar & palette color', () => {
   it('opens from the header button, persists avatar + color on save', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-new'))
     fireEvent.change(screen.getByTestId('cm-name'), { target: { value: 'Poppy Wren' } })
@@ -62,6 +66,7 @@ describe('client modal — add with avatar & palette color', () => {
   it('editing an existing client pre-fills everything and the picker marks the current critter', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-row-c1'))
     fireEvent.click(await screen.findByTestId('cli-edit-c1'))
@@ -80,6 +85,7 @@ describe('client modal — add with avatar & palette color', () => {
   it('Escape closes the modal without saving', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-new'))
     fireEvent.keyDown(window, { key: 'Escape' })
@@ -91,6 +97,7 @@ describe('staff modal — capacity edit & two-step remove', () => {
   it('edits utilization target and calendar color from the modal', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     fireEvent.click(screen.getByTestId('stf-row-s8'))
     fireEvent.click(await screen.findByTestId('stf-edit-s8'))
@@ -108,6 +115,7 @@ describe('staff modal — capacity edit & two-step remove', () => {
   it('remove arms first, confirms on the second click, then the row disappears', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     fireEvent.click(screen.getByTestId('stf-row-s9'))
     fireEvent.click(await screen.findByTestId('stf-edit-s9'))
@@ -142,6 +150,7 @@ describe('profile sheets & faces everywhere', () => {
   it('client row eye opens the profile sheet, and Edit switches into the form', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-open-c1'))
     const pf = await screen.findByTestId('profile-modal')
@@ -161,6 +170,7 @@ describe('profile sheets & faces everywhere', () => {
   it('staff profile shows utilization, and the calendar action routes + closes', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     fireEvent.click(screen.getByTestId('stf-open-s3'))
     const pf = await screen.findByTestId('profile-modal')
@@ -176,6 +186,7 @@ describe('profile sheets & faces everywhere', () => {
     // landing view is the calendar; its sidebar roster lists staff with critters
     await waitFor(() => expect(container.querySelectorAll('.pav').length).toBeGreaterThan(4))
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     expect(container.querySelectorAll('[data-testid^="cli-pav-"]').length).toBe(16)
   })
@@ -185,6 +196,7 @@ describe('round 18 — critter set, Enter-to-save, duplicate & copy', () => {
   it('the picker now offers 18 critters + shuffle', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-new'))
     const strip = screen.getByTestId('cm-avatars')
@@ -200,6 +212,7 @@ describe('round 18 — critter set, Enter-to-save, duplicate & copy', () => {
   it('Enter in any field saves the form', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-new'))
     fireEvent.change(screen.getByTestId('cm-name'), { target: { value: 'Rowan Quill' } })
@@ -211,6 +224,7 @@ describe('round 18 — critter set, Enter-to-save, duplicate & copy', () => {
   it('duplicate from the profile prefills a (copy) record with a fresh id', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-open-c1'))
     const pf = await screen.findByTestId('profile-modal')
@@ -227,6 +241,7 @@ describe('round 18 — critter set, Enter-to-save, duplicate & copy', () => {
   it('same-name heads-up shows (non-blocking) on both masters', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-new'))
     fireEvent.change(screen.getByTestId('cm-name'), { target: { value: 'Meg Jones' } })
@@ -236,6 +251,7 @@ describe('round 18 — critter set, Enter-to-save, duplicate & copy', () => {
     await waitFor(() => expect(container.querySelectorAll('[data-testid^="cli-row-"]').length).toBe(17))
 
     fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
     await screen.findByTestId('staff-table')
     fireEvent.click(screen.getByTestId('stf-new'))
     fireEvent.change(screen.getByTestId('sm-name'), { target: { value: 'Neha Peyyeti' } })
@@ -245,6 +261,7 @@ describe('round 18 — critter set, Enter-to-save, duplicate & copy', () => {
   it('profile chips copy to clipboard with a toast', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-clients'))
+    fireEvent.click(screen.getByTestId('cli-mode-table'))
     await screen.findByTestId('clients-table')
     fireEvent.click(screen.getByTestId('cli-open-c1'))
     await screen.findByTestId('profile-modal')

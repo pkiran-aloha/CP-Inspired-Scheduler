@@ -149,7 +149,7 @@ export default function StaffView() {
   const [modal, setModal] = useState(null)
   const [prof, setProf] = useState(null)
   const [dup, setDup] = useState(null)
-  const [mode, setMode] = useState('table')
+  const [mode, setMode] = useState('cards')
   useEffect(() => {
     if (ui?.stfAdd) { setModal('new'); actions.setUI({ stfAdd: null }) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
