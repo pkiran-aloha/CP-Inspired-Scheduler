@@ -3,7 +3,8 @@ import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { Dropdown } from './fields'
 import { fmtDur, fmtTime } from '../lib/date'
-import { SERVICES, TYPES, autoBilling, findConflicts, uid } from '../lib/model'
+import { TYPES, autoBilling, findConflicts, uid } from '../lib/model'
+import { svcList, activeSvcs, payerForAppt, ensurePayer } from '../lib/master'
 
 /**
  * Drag-on-grid quick booking: ask WHO the client is and WHAT service, then book.
@@ -18,7 +19,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
   const [staffId, setStaffId] = useState(ui.staffSel.length === 1 ? ui.staffSel[0] : '')
 
   const client = clients.find((c) => c.id === clientId)
-  const service = SERVICES.find((s) => s.id === serviceId)
+  const service = svcList(state).find((s) => s.id === serviceId)
   const dur = slot.end - slot.start
   const title = service ? service.label : 'Session'
 
@@ -43,7 +44,12 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
   const book = () => {
     if (!clientId) return
     const code = service?.code || '97151'
-    const billing = autoBilling({ type: 'service', billing: { code } }, dur)
+    let billing = autoBilling({ type: 'service', billing: { code } }, dur)
+    {
+      const py = payerForAppt(state, client ? [client.id] : [])
+      const o = py && serviceId ? (ensurePayer(py).svcOv || {})[serviceId] : null
+      if (o?.charge) billing = { ...billing, rate: Number(o.charge) }
+    }
     const appt = {
       id: uid(),
       type: 'service',
@@ -105,7 +111,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
               value={serviceId}
               onChange={setServiceId}
               placeholder="Defaults to client program"
-              options={[{ value: '', label: 'Auto (from program)' }, ...SERVICES.map((s) => ({ value: s.id, label: s.label, sub: `bills under ${s.code}` }))]}
+              options={[{ value: '', label: 'Auto (from program)' }, ...activeSvcs(state).map((s) => ({ value: s.id, label: s.label, sub: `bills under ${s.code}` }))]}
             />
           </div>
           {client && (

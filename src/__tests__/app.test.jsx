@@ -525,6 +525,12 @@ describe('billing, verification & signature', () => {
     render(<App />)
     await openServiceWizard()
     await addPeople()
+    // move to a payer without a contract override (Self-pay) so the code table path is exercised
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    const items = await screen.findAllByTestId('people-item')
+    fireEvent.click(items.find((b) => b.textContent.includes('Justin Hsu')))
+    fireEvent.click(items.find((b) => b.textContent.includes('Teresa Brown')))
+    fireEvent.mouseDown(document.body)
     fireEvent.click(screen.getAllByText('Billing').find((el) => el.closest('.modal')))
     await pickDropdown('billing-code', '253MT')
     expect(await screen.findByText('$20.00')).toBeTruthy()

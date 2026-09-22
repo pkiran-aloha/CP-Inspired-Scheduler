@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { SectionBar } from './NavRail'
+import { CMS_TYPES, FORMATS } from '../lib/master'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 
@@ -19,10 +20,10 @@ const PAGE_SIZE = 12
 const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
 const initialsOf = (n) => { const w = String(n || '').replace(/[^A-Za-z ]/g, '').trim().split(/\s+/); return ((w[0]?.[0] || '?') + (w[1]?.[0] || '')).toUpperCase() }
 const colorFor = (n) => COLORS[[...String(n || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length]
-const blank = () => ({ name: '', aka: '', type: '', svcList: 'None', required: 'No', status: 'active', street: '', city: '', state: 'CA', zip: '', addressNotes: '', contacts: [{ kind: 'Main', number: '' }], evvId: '', email: '', thirdPartyId: '' })
+const blank = () => ({ name: '', aka: '', type: '', svcList: 'None', required: 'No', status: 'active', street: '', city: '', state: 'CA', zip: '', addressNotes: '', contacts: [{ kind: 'Main', number: '' }], evvId: '', email: '', thirdPartyId: '', cmsType: 'Group Health Plan', format: 'None', payerId: '', clearingHouse: 'Office Ally' })
 const phoneOf = (p) => (p.contacts || []).find((c) => c.kind === 'Main')?.number || p.contacts?.[0]?.number || ''
 
-function PayerForm({ payer, onClose, used = 0, onRemove }) {
+export function PayerForm({ payer, onClose, used = 0, onRemove }) {
   const state = useStore()
   const [form, setForm] = useState(() => (payer ? { ...blank(), ...payer, contacts: (payer.contacts || []).length ? payer.contacts.map((c) => ({ ...c })) : [{ kind: 'Main', number: '' }] } : blank()))
   const [errs, setErrs] = useState({})
@@ -74,6 +75,18 @@ function PayerForm({ payer, onClose, used = 0, onRemove }) {
                 {PY_TYPES.map((t) => <option key={t}>{t}</option>)}
               </select>
             </Fld>
+            <div className="py-two">
+              <Fld k="cmsType" label="CMS Type">
+                <select className="input" value={form.cmsType} data-testid="py-cms" onChange={(e) => set('cmsType', e.target.value)}>{CMS_TYPES.map((t) => <option key={t}>{t}</option>)}</select>
+              </Fld>
+              <Fld k="format" label="Customized Format">
+                <select className="input" value={form.format} data-testid="py-format" onChange={(e) => set('format', e.target.value)}>{FORMATS.map((t) => <option key={t}>{t}</option>)}</select>
+              </Fld>
+            </div>
+            <div className="py-two">
+              <Fld k="payerId" label="Payer ID" hint="Primary identifier for claim routing" />
+              <Fld k="clearingHouse" label="Clearing House" hint="Where claims route from" />
+            </div>
             <Fld k="svcList" label="Service Type List">
               <select className="input" value={form.svcList} data-testid="py-svc" onChange={(e) => set('svcList', e.target.value)}>{SVC_LISTS.map((t) => <option key={t}>{t}</option>)}</select>
             </Fld>
@@ -129,7 +142,7 @@ function PayerForm({ payer, onClose, used = 0, onRemove }) {
   )
 }
 
-export default function PayersView() {
+export function PayersList() {
   const state = useStore()
   const { actions } = state
   const toast = useToast()
@@ -159,28 +172,20 @@ export default function PayersView() {
 
   const save = (v) => {
     if (!v) { setModal(null); return }
-    const editing = typeof modal === 'object' && modal?.id
-    if (editing) actions.updatePayer(v)
-    else actions.addPayer({ policy: { kind: v.type === 'Self-pay' ? 'selfpay' : v.type === 'Government' ? 'medicaid' : 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 }, ...v })
+    actions.addPayer({ policy: { kind: v.type === 'Self-pay' ? 'selfpay' : v.type === 'Government' ? 'medicaid' : 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 }, ...v })
     setModal(null)
-    toast({ message: `${v.name} ${editing ? 'updated' : 'added to the payer directory'}`, kind: 'ok' })
-  }
-  const remove = (p) => {
-    const used = countFor(p.name)
-    if (used) { toast({ message: `${p.name} still has ${used} client${used === 1 ? '' : 's'} on file — reassign them before removing`, kind: 'error' }); return false }
-    actions.removePayer(p.id)
-    toast({ message: `${p.name} removed from the directory`, kind: 'info' })
-    return true
+    toast({ message: `${v.name} added to the payer directory`, kind: 'ok' })
   }
 
   const filtersOn = activeOnly || q.trim()
   return (
-    <div className="sectionpage">
-      <SectionBar icon="shield" title="Payers" sub={`${payers.length} payer${payers.length === 1 ? '' : 's'} · ${activeOnly ? 'active only' : 'all statuses'}`}>
+    <div className="py-list">
+      <div className="py-tools">
+        <span className="muted py-toolcount">{payers.length} payer{payers.length === 1 ? '' : 's'} · {activeOnly ? 'active only' : 'all statuses'}</span>
         <input className="input" style={{ width: 200, height: 30 }} placeholder="Search payers, IDs, cities…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="py-search" />
         <button className={`btn btn-sm${activeOnly ? ' btn-primary' : ''}`} data-testid="py-active-filter" onClick={() => setActiveOnly((v) => !v)} title="Show active payers only">{Icon.check({ size: 12 })} Active</button>
         <button className="btn btn-sm btn-primary" data-testid="py-add" onClick={() => setModal('new')}>{Icon.plus({ size: 12 })} Add Payer</button>
-      </SectionBar>
+      </div>
 
       {filtersOn && (
         <div className="py-frow" data-testid="py-frow">
@@ -207,7 +212,7 @@ export default function PayersView() {
             <tbody>
               {view.length === 0 && <tr><td colSpan={6} className="py-empty">No payers match — clear the filters or add one.</td></tr>}
               {view.map((p) => (
-                <tr key={p.id} data-testid={`py-row-${p.id}`} onClick={() => setModal(p)} title="Open this payer record">
+                <tr key={p.id} data-testid={`py-row-${p.id}`} onClick={() => actions.setUI({ payerSel: p.id })} title="Open the payer record — profile, services & billing rules">
                   <td>
                     <span className="py-name">
                       <span className="py-av" style={{ background: colorFor(p.name) }}>{initialsOf(p.name)}<i className={`py-dot${p.status === 'active' ? '' : ' off'}`} /></span>
@@ -238,12 +243,7 @@ export default function PayersView() {
 
       {modal && (
         <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setModal(null) }}>
-          <PayerForm
-            payer={modal === 'new' ? null : modal}
-            used={modal === 'new' ? 0 : countFor(modal.name)}
-            onRemove={modal === 'new' ? undefined : async () => { if (remove(modal)) setModal(null) }}
-            onClose={save}
-          />
+          <PayerForm payer={null} onClose={save} />
         </div>
       )}
     </div>
@@ -251,7 +251,7 @@ export default function PayersView() {
 }
 
 /** Delete lives in the footer of the open record — armed twice, blocked while clients reference it. */
-function RemoveArm({ name, used, onRemove, idp }) {
+export function RemoveArm({ name, used, onRemove, idp }) {
   const [armed, setArmed] = useState(false)
   useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(false), 3500); return () => clearTimeout(t) }, [armed])
   return (

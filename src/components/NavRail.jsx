@@ -13,7 +13,7 @@ const RANGE_PRESET_OPTS = RANGE_PRESETS
 export const SECTIONS = [
   { id: 'calendar', label: 'Calendar', icon: 'cal', kbd: '1', desc: 'Scheduling board, timeline & agenda' },
   { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs' },
-  { id: 'payers', label: 'Payers', icon: 'shield', kbd: '8', desc: 'Payer directory — contacts, portals & claim rules' },
+  { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }] },
   { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload' },
   { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect' },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
@@ -66,8 +66,8 @@ export default function NavRail() {
         {SECTIONS.map((s) => {
           const n = badges[s.id] || 0
           return (
+          <React.Fragment key={s.id}>
             <button
-              key={s.id}
               className={`nr-item ${section === s.id ? 'on' : ''}`}
               data-testid={`nav-${s.id}`}
               onClick={() => actions.setUI({ section: s.id })}
@@ -81,6 +81,23 @@ export default function NavRail() {
               {!collapsed && <span className="nr-label">{s.label}</span>}
               {!collapsed && n > 0 && <span className="nr-count">{n}</span>}
             </button>
+            {/* section sub-list (Masters → Payers / Service Types) */}
+            {s.subs && section === s.id && !collapsed && (
+              <div className="nr-sub" role="group" aria-label={`${s.label} lists`}>
+                {s.subs.map((sub) => (
+                  <button
+                    key={sub.id}
+                    className={`nr-subitem ${ui.mastersTab === sub.id ? 'on' : ''}`}
+                    data-testid={`nav-sub-${sub.id}`}
+                    onClick={() => actions.setUI({ section: s.id, mastersTab: sub.id, payerSel: null })}
+                  >
+                    <span className="nr-subdot" />
+                    {sub.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </React.Fragment>
           )
         })}
       </div>

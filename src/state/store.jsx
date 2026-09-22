@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import { uid } from '../lib/model'
-import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, defaultSettings } from '../lib/seed'
+import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -20,6 +20,7 @@ export function blankState() {
     staff: STAFF,
     clients: CLIENTS,
     payers: PAYERS,
+    svcs: SVCS,
     teams: TEAMS,
     history: [],
     settings,
@@ -27,6 +28,8 @@ export function blankState() {
     dash: { widgets: DEFAULT_DASH.map((w) => ({ ...w, cfg: { ...w.cfg } })) },
     ui: {
       section: 'calendar',
+      mastersTab: 'payers',
+      payerSel: null,
       nav: null, // null = context-adaptive: icon rail on the calendar board, expanded elsewhere
       sb: null, // null = auto-hide filter sidebar on narrow viewports
       view: 'week',
@@ -59,10 +62,11 @@ export function initial() {
           ...base,
           ...saved,
           claims: saved.claims || base.claims,
+          svcs: Array.isArray(saved.svcs) && saved.svcs.length ? saved.svcs : base.svcs,
           history: saved.history || [],
           reports: { saved: (saved.reports && saved.reports.saved) || [] },
           settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) } },
-          ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) } },
+          ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: (saved.ui?.section || 'calendar') === 'payers' ? 'masters' : saved.ui?.section || 'calendar' },
         }
       }
     }
@@ -158,6 +162,12 @@ export function reducer(state, action) {
       if (action.mode === 'add') return { ...state, payers: [...list, action.item] }
       if (action.mode === 'patch') return { ...state, payers: list.map((p) => (p.id === action.item.id ? { ...p, ...action.item } : p)) }
       return { ...state, payers: list.filter((p) => p.id !== action.id) }
+    }
+    case 'svc': {
+      const list = state.svcs || []
+      if (action.mode === 'add') return { ...state, svcs: [...list, action.item] }
+      if (action.mode === 'patch') return { ...state, svcs: list.map((x) => (x.id === action.item.id ? { ...x, ...action.item } : x)) }
+      return { ...state, svcs: list.filter((x) => x.id !== action.id) }
     }
     case 'dash': {
       const cur = state.dash || { widgets: DEFAULT_DASH }
@@ -279,6 +289,10 @@ function createActions(state, dispatch) {
     removeRoster: (list, id) => dispatch({ type: 'roster', list, mode: 'remove', id }),
     // ---- payer master ----
     addPayer: (item) => dispatch({ type: 'payer', mode: 'add', item: { id: uid(), ...item } }),
+    // ---- masters: service type list ----
+    addSvc: (item) => dispatch({ type: 'svc', mode: 'add', item: { id: uid(), status: 'active', unitMins: 30, rate: 0, rounding: 'AMA', credentials: [], note: '', ...item } }),
+    updateSvc: (item) => dispatch({ type: 'svc', mode: 'patch', item }),
+    removeSvc: (id) => dispatch({ type: 'svc', mode: 'remove', id }),
     updatePayer: (item) => dispatch({ type: 'payer', mode: 'patch', item }),
     removePayer: (id) => dispatch({ type: 'payer', mode: 'remove', id }),
     // ---- billing pipeline: mark lines billed/paid with an undoable snapshot ----

@@ -33,7 +33,7 @@ describe('payer master', () => {
 
   it('adds a payer through the form — required fields block, then save lands it in storage', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     await screen.findByTestId('payers-table')
     await waitFor(() => expect(stored().payers).toHaveLength(12))
     fireEvent.click(screen.getByTestId('py-add'))
@@ -59,7 +59,7 @@ describe('payer master', () => {
 
   it('duplicate names are rejected with an inline error', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     fireEvent.click(screen.getByTestId('py-add'))
     fireEvent.change(screen.getByTestId('py-name'), { target: { value: 'aetna' } }) // case-insensitive clash
     fireEvent.change(screen.getByTestId('py-type'), { target: { value: 'Insurance' } })
@@ -74,30 +74,40 @@ describe('payer master', () => {
 
   it('edits an existing payer: phone change persists to the row', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     await waitFor(() => expect(stored().payers).toHaveLength(12))
     fireEvent.click(await screen.findByTestId('py-row-py-regence-bcbs'))
+    await screen.findByTestId('payer-detail')
+    fireEvent.click(screen.getByTestId('pd-edit'))
     const phone = await screen.findByTestId('py-c-val-0')
     fireEvent.change(phone, { target: { value: '(503) 555-9911' } })
     fireEvent.click(screen.getByTestId('py-save'))
+    fireEvent.click(await screen.findByTestId('pd-back'))
+    await screen.findByTestId('payers-table')
     await waitFor(() => expect(screen.getByTestId('py-row-py-regence-bcbs').textContent).toContain('(503) 555-9911'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-regence-bcbs').contacts[0].number).toBe('(503) 555-9911'))
   })
 
   it('delete is blocked while clients reference the payer, works once free (two-step)', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     await waitFor(() => expect(stored().payers).toHaveLength(12))
     // in use: Aetna
     fireEvent.click(await screen.findByTestId('py-row-py-aetna'))
+    await screen.findByTestId('payer-detail')
+    fireEvent.click(screen.getByTestId('pd-edit'))
     fireEvent.click(await screen.findByTestId('py-remove-py-aetna'))
     fireEvent.click(await screen.findByTestId('py-remove-py-aetna')) // second arm → blocked by usage
     expect(await screen.findByText(/still has \d+ clients? on file/)).toBeTruthy()
     expect(stored().payers.find((p) => p.id === 'py-aetna')).toBeTruthy()
     expect(stored().payers.find((p) => p.id === 'py-aetna')).toBeTruthy() // still there, blocked
     fireEvent.keyDown(window, { key: 'Escape' })
+    fireEvent.click(await screen.findByTestId('pd-back'))
+    await screen.findByTestId('payers-table')
     // not in use: Riverside Behavioral Trust (no clients, inactive)
     fireEvent.click(await screen.findByTestId('py-row-py-riverside-behavioral-trust'))
+    await screen.findByTestId('payer-detail')
+    fireEvent.click(screen.getByTestId('pd-edit'))
     fireEvent.click(await screen.findByTestId('py-remove-py-riverside-behavioral-trust'))
     fireEvent.click(await screen.findByTestId('py-remove-py-riverside-behavioral-trust'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-riverside-behavioral-trust')).toBeUndefined())
@@ -106,7 +116,7 @@ describe('payer master', () => {
 
   it('search + Active filter behave like the screenshot (chips, clear-all, counts)', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     fireEvent.click(screen.getByTestId('py-active-filter'))
     expect(await screen.findByTestId('py-f-active')).toBeTruthy()
     fireEvent.keyDown(screen.getByTestId('py-search'), { key: 'a' })
@@ -134,7 +144,7 @@ describe('payer master', () => {
 
   it('sorting by Clients puts the busy payers on top', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     await screen.findByTestId('payers-table')
     fireEvent.click(screen.getByTestId('py-sort-clients')) // asc first: zeros on top
     const firstAsc = screen.getAllByTestId(/py-row-/)[0]
@@ -146,7 +156,7 @@ describe('payer master', () => {
 
   it('modal never overflows horizontally — with multiple contacts too (chunk 29b guard)', async () => {
     render(<App />)
-    fireEvent.click(screen.getByTestId('nav-payers'))
+    fireEvent.click(screen.getByTestId('nav-masters'))
     await screen.findByTestId('payers-table')
     fireEvent.click(screen.getByTestId('py-add'))
     const body = document.querySelector('.py-modal .modal-body')

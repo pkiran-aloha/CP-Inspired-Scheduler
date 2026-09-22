@@ -1,6 +1,6 @@
 // ---- Deterministic rich demo data, anchored to the current week ----
 import { addDays, isoDate, pad, parseISO, todayISO } from './date'
-import { uid, autoBilling, VERIFY_CHECKS } from './model'
+import { uid, autoBilling, VERIFY_CHECKS, SERVICES, BILL_CODES } from './model'
 import { SMART_DEFAULTS } from './smart'
 import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq } from './claims'
 
@@ -107,6 +107,24 @@ export const TEAM_DEFS = [
   { id: 't4', name: 'Care Team · Center AM', color: '#6366f1' },
   { id: 't5', name: 'Care Team · Center PM', color: '#8b5cf6' },
 ]
+export const SVCS = SERVICES.map((s) => {
+  const c = BILL_CODES.find((x) => x.id === s.code) || {}
+  return { ...s, status: 'active', unitMins: c.unitMins || 30, rate: c.rate || 0, rounding: 'AMA', credentials: s.id === 'sup' ? ['BCBA'] : s.id === 'social' || s.id === 'play' ? ['BCaBA', 'RBT'] : [], note: '' }
+})
+
+// master seasoning: routing ids, clearing house and a few showcase payer rules
+Object.assign(PAYERS[0], { cmsType: 'Group Health Plan', format: 'None', payerId: '00124', clearingHouse: 'Office Ally', ctList: 'ABA Standard', services: [], cf: [] })
+Object.assign(PAYERS[1], { cmsType: 'Group Health Plan', format: 'None', payerId: '87211', clearingHouse: 'Availity', ctList: 'ABA Standard', services: [], cf: [{ label: 'Prior auth dept', value: 'Behavioral Intake 2' }] })
+Object.assign(PAYERS[3], { cmsType: 'Medicaid', format: 'Custom Format 1', payerId: 'MC001', clearingHouse: 'Office Ally', ctList: 'ABA Standard', services: [], cf: [] })
+Object.assign(PAYERS[4], { cmsType: 'Medicaid', format: 'None', payerId: 'DHCS-51', clearingHouse: 'Change Healthcare', ctList: '', services: [], cf: [] })
+PAYERS[1].rules = {
+  ...PAYERS[1].rules,
+  concurrent: { allowed: false, rules: [] },
+  appt: { sigRequired: true },
+  svcOv: {},
+}
+PAYERS[1].svcOv = { dtt: { charge: 38, contract: 34, modifier: 'U6', dx1: 'F84.0', dx2: 'F84.9', rounding: 'Nearest', effective: '2025-01-01', expiration: '2026-12-31', thirdParty: '4450' } }
+
 export const TEAMS = (() => {
   const teams = TEAM_DEFS.map((t) => ({ ...t, staffIds: [], clientIds: [] }))
   // each client lands on exactly one team, each staff on 1-2 teams (randomized)

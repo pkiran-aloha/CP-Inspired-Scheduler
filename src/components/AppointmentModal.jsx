@@ -27,6 +27,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote } from '../lib/master'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -43,6 +44,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const isBreak = initial.type === 'break'
   const isUnavail = initial.type === 'unavailable'
   const showClinic = ['service', 'evaluation', 'supervision'].includes(initial.type)
+  // payer master hooks: service list from the master, contract rate overrides,
+  // concurrent-billing & signature rules read live off the first client's payer
+  const svcsAll = useMemo(() => svcList(state), [state.svcs])
+  const svcsActive = useMemo(() => svcsAll.filter((x) => x.status !== 'inactive'), [svcsAll])
   const showClientPicker = showClinic
   const isSeries = Boolean(initial.seriesId)
   const siblings = useMemo(() => (initial.seriesId ? seriesSiblings(appts, initial) : []), [appts, initial.id])
@@ -50,7 +55,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const fresh = (keep = {}) => {
     const x = { repeat: 'none', repeatCount: 8, status: 'active', verification: null, custom: {}, documents: [], ...initial, ...keep }
     x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null }
-    x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : SERVICES.find((s) => s.id === x.service)?.code || '97151')
+    x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : svcsAll.find((s) => s.id === x.service)?.code || '97151')
     x.units = x.billing ? x.billing.units : null
     x.rate = x.billing ? x.billing.rate : null
     x.distance = x.billing?.distance || 0
@@ -84,7 +89,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       load: Object.fromEntries(staff.map((x) => [x.id, 0])),
       limit: cfg.suggest.count,
       cfg,
-      code: SERVICES.find((x) => x.id === f.service)?.code || '',
+      code: svcsAll.find((x) => x.id === f.service)?.code || '',
       sameSite: f.location || '',
       weekDays: wk,
     })
@@ -134,7 +139,12 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const code = BILL_CODES.find((c) => c.id === f.billingCode) || BILL_CODES[0]
   const derivedUnits = f.type === 'drive' ? 0 : Math.max(0, Math.round((dur / code.unitMins) * 4) / 4)
   const units = f.units ?? derivedUnits
-  const rate = f.rate ?? (f.type === 'drive' ? 0 : code.rate)
+  const billPayer = payerForAppt(state, f.clientIds)
+  const billRules = billPayer ? svcRule(billPayer) : null
+  const svcOvr = billPayer && f.service ? (ensurePayer(billPayer).svcOv || {})[f.service] : null
+  const rate = f.rate ?? (f.type === 'drive' ? 0 : svcOvr?.charge ? Number(svcOvr.charge) : code.rate)
+  const sigReq = Boolean(billRules?.appt?.sigRequired)
+  const concNote = useMemo(() => concurrentNote(state, { payer: billPayer, svcId: f.service, clientId: (f.clientIds || [])[0], date: f.date, start: f.start, end: f.end, excludeId: f.id === '__draft__' ? undefined : f.id }), [f.date, f.start, f.end, f.service, JSON.stringify(f.clientIds), billPayer?.id, state.appts])
   const mileage = f.type === 'drive' ? true : !!f.mileage
   const distance = Number(f.distance) || 0
   const mileRate = settings.mileageRate ?? MILEAGE_RATE
@@ -179,6 +189,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     if (errors.length) {
       setTab('info')
       toast({ message: `Fix ${errors.length} item${errors.length > 1 ? 's' : ''} on Appointment Info`, kind: 'warn' })
+      return
+    }
+    if (sigReq && f.status === 'completed' && !signed) {
+      toast({ message: `${billPayer?.name || 'This payer'} requires a client signature to complete — capture it on the Verification tab`, kind: 'warn' })
+      setTab('verify')
       return
     }
     if (mode === 'edit') {
@@ -447,6 +462,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
 
                     <div className="panel">
                       {showClinic && (
+                      <>
                       <div className="grid2">
                         <div className="field">
                           <label>Location</label>
@@ -458,14 +474,21 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                             testid="service-select"
                             value={f.service || ''}
                             onChange={(v) => {
-                              const s = SERVICES.find((x) => x.id === v)
+                              const s = svcsAll.find((x) => x.id === v)
                               set({ service: v, billingCode: s ? s.code : f.billingCode, units: null, rate: null })
                             }}
                             placeholder="Select Service"
-                            options={[{ value: '', label: 'Select Service' }, ...SERVICES.map((s) => ({ value: s.id, label: s.label, sub: `bills under ${s.code}` }))]}
+                            options={[{ value: '', label: 'Select Service' }, ...(f.service && svcsActive.every((s) => s.id !== f.service) ? [svcsAll.find((s) => s.id === f.service) || { id: f.service, label: f.service, code: '' }] : svcsActive).map((s) => ({ value: s.id, label: s.label, sub: `bills under ${s.code}` }))]}
                           />
                         </div>
                       </div>
+                      {(concNote || svcOvr?.charge) && (
+                        <div className="am-notes">
+                          {concNote && <div className={`am-note ${concNote.level}`} data-testid="am-conc">{concNote.text}</div>}
+                          {svcOvr?.charge && <div className="am-note info" data-testid="am-rate-ovr">Charge rate ${Number(svcOvr.charge).toFixed(2)} comes from the {billPayer.name} contract for this service{svcOvr.modifier ? ` · modifier ${svcOvr.modifier}` : ''}.</div>}
+                        </div>
+                      )}
+                      </>
                     )}
                     {isDrive && (
                       <div className="grid2" style={{ marginTop: 12 }}>
@@ -594,6 +617,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       </div>
                     </div>
 
+                    {sigReq && (
+                      <div className={`am-note ${signed ? 'ok' : 'warn'}`} data-testid="am-sig-note">
+                        {signed ? `Signature captured — ${billPayer.name} completion requirement met.` : `${billPayer.name} requires a client signature to complete this appointment.`}
+                      </div>
+                    )}
                     <SignaturePad
                       value={f.verification?.signature}
                       staffName={(verifier || staffById[f.staffIds?.[0]] || {}).name}
@@ -699,7 +727,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <span className="pi">{Icon.file({ size: 14 })}</span> Billing Preview
                         </h3>
                         <div className="field" style={{ background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10, padding: '8px 10px' }}>
-                          <label>Rate Per Unit</label>
+                          <label>Rate Per Unit{svcOvr?.charge ? ' · contract' : ''}</label>
                           <input
                             type="number"
                             step={0.5}
