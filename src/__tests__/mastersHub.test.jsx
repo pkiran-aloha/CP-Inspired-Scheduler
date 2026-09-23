@@ -133,6 +133,23 @@ describe('masters — payer deep record', () => {
     expect(info.textContent).toContain('Availity')
   })
 
+  it('payers landing: structural band, stats chips and a sectioned list', async () => {
+    render(<App />)
+    await toMasters()
+    const band = await screen.findByTestId('py-band')
+    expect(band.textContent).toContain('Payer directory')
+    expect(screen.getByTestId('py-stats').textContent).toContain('in use by clients')
+    expect(screen.getByTestId('py-stats').textContent).toContain('with custom fields')
+    expect(screen.getByTestId('py-sec').textContent).toContain('Master list')
+    expect(screen.getByTestId('payers-table')).toBeTruthy()
+    expect(screen.getByTestId('py-add').textContent).toContain('Add Payer')
+    // stats are interactive: the active chip toggles the filter
+    fireEvent.click(screen.getByTestId('py-stat-active'))
+    expect(await screen.findByTestId('py-frow')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('py-stat-all'))
+    expect(screen.queryByTestId('py-frow')).toBeNull()
+  })
+
   it('Custom Fields master page: define list options and toggle labels right in the template editor', async () => {
     render(<App />)
     await toMasters('cfdefs')
@@ -206,6 +223,9 @@ describe('masters — payer deep record', () => {
     expect(await screen.findByTestId('payer-detail')).toBeTruthy()
     expect(screen.queryByTestId('pd-cf-cf-authdept')).toBeNull()
     expect((await screen.findByTestId('pd-cf')).textContent).toContain('No fields picked yet')
+    // chunk-36: ONE button on the profile, labelled exactly as asked — no second manage button
+    expect(screen.getByTestId('pd-cf-pick').textContent).toContain('Add Custom Fields')
+    expect(screen.queryByTestId('pd-cf-gomaster')).toBeNull()
     // pick from the template list — nothing else is possible here (no free-form designer)
     expect(screen.queryByTestId('pd-cf-label')).toBeNull()
     fireEvent.click(screen.getByTestId('pd-cf-pick'))
@@ -229,7 +249,15 @@ describe('masters — payer deep record', () => {
     fireEvent.click((await screen.findByTestId('pd-cfpick-cf-goals')).querySelector('input'))
     fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toEqual(['cf-authdept', 'cf-goals']))
-    // and the jump-to-master affordance works
+    // ...and the manage affordances live INSIDE that modal: edit, guarded delete, new, jump
+    fireEvent.click(screen.getByTestId('pd-cf-pick'))
+    await screen.findByTestId('pd-cf-picker')
+    expect(screen.getByTestId('pd-cfm-new')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('pd-cfm-edit-cf-goals'))
+    await screen.findByTestId('cf-modal')
+    expect(screen.getByTestId('cf-label').value).toBe('Session focus areas')
+    fireEvent.click(screen.getByTestId('cf-close'))
+    expect(screen.getByTestId('pd-cfm-del-cf-authdept').disabled).toBe(true) // picked by this payer → blocked in place
     fireEvent.click(screen.getByTestId('pd-cf-gomaster'))
     expect(await screen.findByTestId('cfdefs-table')).toBeTruthy()
   })
@@ -608,6 +636,17 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.change(screen.getByTestId('cf-on-label'), { target: { value: 'With caregiver' } })
     fireEvent.click(screen.getByTestId('cf-save'))
     await waitFor(() => expect(stored().customFields.find((d) => d.id === 'cf-present').onLabel).toBe('With caregiver'))
+    // chunk-36: appointments only see what the payer profile PICKED — pick them now
+    fireEvent.click(screen.getByTestId('masters-tab-payers'))
+    await screen.findByTestId('payers-table')
+    fireEvent.click(screen.getByTestId('py-row-py-aetna'))
+    await screen.findByTestId('payer-detail')
+    fireEvent.click(screen.getByTestId('pd-cf-pick'))
+    await screen.findByTestId('pd-cf-picker')
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-authdept')).querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cfpick-cf-present').querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').cf).toEqual(['cf-authdept', 'cf-present']))
     // book Justin (Aetna) — field panel with template controls
     fireEvent.click(screen.getByTestId('nav-calendar'))
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
@@ -778,6 +817,31 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     const justin = st.clients.find((c) => (c.insurer || '') === 'Aetna')
     const opts = svcOptionsFor({ svcs: st.svcs, payers: st.payers, clients: st.clients }, [justin.id])
     expect(opts.some((o) => o.id === rec.id && o.payerLocal)).toBe(true)
+  })
+
+  it('appointment picker is master-only — legacy inline entries never reach it', async () => {
+    render(<App />)
+    await waitFor(() => expect(stored()).toBeTruthy()) // first debounced persist has landed
+    const st = stored()
+    st.payers.find((x) => x.id === 'py-aetna').cf = ['cf-waiver', 'Free-text holdover'] // one master id + one legacy string
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(st))
+    cleanup()
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    const item = (await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu'))
+    fireEvent.click(item)
+    fireEvent.mouseDown(document.body)
+    fireEvent.click(screen.getByTestId('pick-Staff Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item'))[0])
+    fireEvent.mouseDown(document.body)
+    await screen.findByTestId('am-pcf')
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    expect(screen.getByTestId('am-pcf-pick-cf-waiver')).toBeTruthy() // master-defined → offered
+    expect(screen.queryByTestId(/am-pcf-pick-legacy/)).toBeNull() // legacy inline → never offered
   })
 
   it('payer profile keeps picked templates live: master edit renames everywhere, unlink is cheap', async () => {

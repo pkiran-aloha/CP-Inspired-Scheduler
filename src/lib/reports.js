@@ -196,19 +196,18 @@ const REPORTS_RAW = [
         }
       }
       rows.sort((a, b) => b.freeH - a.freeH)
-      const top = rows.slice(0, 120)
       return {
         columns: [
           { k: 'staff', label: 'Staff' }, { k: 'date', label: 'Date' }, { k: 'bookedH', label: 'Booked h', t: 'hrs', ...moneyCell },
           { k: 'capH', label: 'Day h', t: 'num', ...moneyCell }, { k: 'freeH', label: 'Free h', t: 'hrs', ...moneyCell }, { k: 'sellable', label: 'Sellable @ default rate', align: 'r' },
         ],
-        rows: top,
+        rows,
         summary: [
           { label: 'Gap windows', value: rows.length },
           { label: 'Total open hours', value: `${Math.round(rows.reduce((t, r) => t + r.freeH, 0))}h` },
           { label: 'Est. recoverable', value: `$${Math.round(rows.reduce((t, r) => t + (r.freeH / 30) * state.settings.defaultRate, 0)).toLocaleString()}` },
         ],
-        note: top.length < rows.length ? `Showing the 120 largest gaps of ${rows.length}.` : undefined,
+
       }
     },
   },

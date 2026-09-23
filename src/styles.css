@@ -2471,3 +2471,43 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
   box-shadow: 0 10px 28px rgba(11, 16, 32, 0.22); animation: bu-pop .25s ease; }
 .build-update:hover { background: var(--accent-soft); }
 @keyframes bu-pop { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* ================= chunk-36: structural Payers master, aligned CF pickers ================= */
+.py-band { display: flex; align-items: center; gap: 13px; padding: 14px 16px; border: 1px solid var(--line);
+  border-radius: 14px; background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 8%, var(--panel)), var(--panel) 55%); }
+.py-band-ic { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; flex: none;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--line)); }
+.py-band-t h2 { margin: 0; font-size: 16px; font-weight: 750; letter-spacing: -.01em; color: var(--text-1); }
+.py-band-t p { margin: 3px 0 0; font-size: 12px; color: var(--muted); max-width: 640px; line-height: 1.45; }
+.py-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.py-stat { display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--panel); font-size: 11.6px; color: var(--muted); }
+.py-stat b { color: var(--text-1); font-weight: 720; font-size: 12.4px; }
+button.py-stat { cursor: pointer; transition: .14s; }
+button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.py-stat.hot { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); color: var(--accent); }
+.py-dirsec { margin-top: 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); overflow: hidden; }
+.py-sech { display: flex; align-items: center; gap: 9px; padding: 10px 14px; border-bottom: 1px solid var(--line);
+  background: var(--panel-2); font-size: 12.4px; }
+.py-sech b { font-weight: 720; color: var(--text-1); }
+.py-sech i { font-style: normal; font-size: 11px; color: var(--muted); }
+.py-sech-ic { color: var(--accent); display: inline-flex; }
+.py-dirsec .py-tbl { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.py-dirsec .py-frow { margin: 10px 14px 0; }
+.py-sec .py-thead { position: sticky; top: 0; z-index: 2; }
+/* custom-field picker rows — a deliberate aligned list (payer profile + appointment modal) */
+.cf-picklist { display: flex; flex-direction: column; gap: 7px; max-height: 50vh; overflow-y: auto; padding: 2px; }
+.cf-pickrow { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: 11px;
+  border: 1px solid var(--line); border-radius: 11px; background: var(--panel); padding: 9px 12px; cursor: pointer; transition: .14s; }
+.cf-pickrow:hover { border-color: color-mix(in srgb, var(--accent) 38%, var(--line)); background: var(--panel-2); }
+.cf-pickrow.on { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); }
+.cf-pickrow.dim { opacity: .55; }
+.cf-pickrow > input { width: 15px; height: 15px; accent-color: var(--accent); margin: 0; }
+.cf-pickmain { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cf-pickname { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; min-width: 0; }
+.cf-pickname b { font-size: 12.5px; font-weight: 660; color: var(--text-1); }
+.cf-picksub { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; min-width: 0; }
+.cf-picknote { font-size: 10.8px; max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-style: normal; }
+.cf-pickacts { display: flex; align-items: center; gap: 2px; flex: none; }
+.cf-pickacts .iconbtn { width: 24px; height: 24px; }
+.py-modal .modal-foot.pm-foot { gap: 8px; }

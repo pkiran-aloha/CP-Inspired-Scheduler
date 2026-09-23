@@ -188,14 +188,39 @@ export function PayersList() {
   }
 
   const filtersOn = activeOnly || q.trim()
+  // structural overview for the page band (chunk-36)
+  const nActive = payers.filter((x) => x.status !== 'inactive').length
+  const nUsed = payers.filter((x) => countFor(x.name) > 0).length
+  const nFields = payers.filter((x) => (x.cf || []).length > 0).length
+  const nContract = payers.filter((x) => (x.services || []).length > 0).length
   return (
     <div className="py-list">
-      <div className="py-tools">
-        <span className="muted py-toolcount">{payers.length} payer{payers.length === 1 ? '' : 's'} · {activeOnly ? 'active only' : 'all statuses'} · click any cell to edit inline</span>
-        <input className="input" style={{ width: 200, height: 30 }} placeholder="Search payers, IDs, cities…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="py-search" />
-        <button className={`btn btn-sm${activeOnly ? ' btn-primary' : ''}`} data-testid="py-active-filter" onClick={() => setActiveOnly((v) => !v)} title="Show active payers only">{Icon.check({ size: 12 })} Active</button>
+      <div className="py-band" data-testid="py-band">
+        <span className="py-band-ic">{Icon.users({ size: 17 })}</span>
+        <div className="py-band-t">
+          <h2>Payer directory</h2>
+          <p>Every contract the front desk books against. Click a row for the full record — profile, services & billing rules; edit any cell in place.</p>
+        </div>
+        <span className="an-spacer" />
         <button className="btn btn-sm btn-primary" data-testid="py-add" onClick={() => setModal('new')}>{Icon.plus({ size: 12 })} Add Payer</button>
       </div>
+      <div className="py-stats" data-testid="py-stats">
+        <button className={`py-stat${!filtersOn ? ' hot' : ''}`} data-testid="py-stat-all" onClick={() => { setQ(''); setActiveOnly(false) }} title="Show all payers"><b>{payers.length}</b> payers</button>
+        <button className={`py-stat${activeOnly ? ' hot' : ''}`} data-testid="py-stat-active" onClick={() => setActiveOnly((v) => !v)} title="Toggle active-only"><b>{nActive}</b> active</button>
+        <span className="py-stat"><b>{nUsed}</b> in use by clients</span>
+        <span className="py-stat"><b>{nFields}</b> with custom fields</span>
+        <span className="py-stat"><b>{nContract}</b> with narrowed contracts</span>
+      </div>
+      <section className="py-dirsec" data-testid="py-sec">
+        <header className="py-sech">
+          <span className="py-sech-ic">{Icon.table({ size: 13 })}</span>
+          <b>Master list</b>
+          <i>sortable · inline-editable</i>
+          <span className="an-spacer" />
+          <input className="input" style={{ width: 200, height: 29 }} placeholder="Search payers, IDs, cities…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="py-search" />
+          <button className={`btn btn-sm${activeOnly ? ' btn-primary' : ''}`} data-testid="py-active-filter" onClick={() => setActiveOnly((v) => !v)} title="Show active payers only">{Icon.check({ size: 12 })} Active</button>
+          <span className="muted py-toolcount">{rows.length} of {payers.length}</span>
+        </header>
 
       {filtersOn && (
         <div className="py-frow" data-testid="py-frow">
@@ -206,7 +231,6 @@ export function PayersList() {
         </div>
       )}
 
-      <div className="an-wrap" style={{ paddingTop: 10 }}>
         <div className="py-tbl" data-testid="payers-table">
           <div className="py-thead">
             <button className="sortable" data-testid="py-sort-name" onClick={() => flip('name')}>Payer Name{arrow('name')}</button>
@@ -218,7 +242,7 @@ export function PayersList() {
             <span>Status</span>
             <span />
           </div>
-          {view.length === 0 && <div className="py-empty py-tempty">No payers match — clear the filters or add one.</div>}
+          {view.length === 0 && <div className="py-empty py-tempty">No payers match — clear the filters or add one from the top of the page.</div>}
           {view.map((p) => (
             <div className="py-trow" key={p.id} data-testid={`py-row-${p.id}`} onClick={() => actions.setUI({ payerSel: p.id })} title="Open the payer record — profile, services & billing rules">
               <div className="py-idcell">
@@ -259,7 +283,7 @@ export function PayersList() {
             )}
           </div>
         </div>
-      </div>
+      </section>
 
       {modal && (
         <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setModal(null) }}>

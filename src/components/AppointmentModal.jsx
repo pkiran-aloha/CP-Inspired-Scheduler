@@ -27,7 +27,8 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
-import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, payerFieldDefs, pcfsErrors, rateFor, cfTypeLabel } from '../lib/master'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, payerFieldDefs, pcfsErrors, rateFor } from '../lib/master'
+import { CfPickRow } from './CfPick.jsx'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -125,11 +126,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const needsStaff = isUnavail ? unavailTarget === 'staff' : ['service', 'drive', 'evaluation', 'supervision'].includes(f.type)
   const needsClient = isUnavail ? unavailTarget === 'clients' : showClientPicker && ['service', 'evaluation'].includes(f.type)
   const billPayer = payerForAppt(state, f.clientIds)
-  const pcfSel = payerFieldDefs(state, billPayer).filter((d) => d.label)
-  // chunk-35: fields are selectable everywhere, never pre-selected — if the payer hasn't
-  // picked templates yet, the appointment can still add any ACTIVE master template.
-  const pcfAll = billPayer ? (state.customFields || []).filter((d) => d.label && d.status !== 'inactive') : []
-  const pcfDefs = pcfSel.length ? pcfSel : pcfAll
+  // chunk-36: appointments offer ONLY the payer's picked, master-defined templates.
+  // Nothing pre-selects, nothing is addable that doesn't exist in the Custom Fields
+  // master, and legacy inline entries can never reach an appointment.
+  const pcfDefs = payerFieldDefs(state, billPayer).filter((d) => d.label && d.source === 'master')
   // chunk-34: custom fields are OPT-IN per appointment — nothing auto-populates.
   const pcfAdded = pcfDefs.filter((d) => (f.pcfs || {})[d.id] !== undefined)
   const errors = []
@@ -503,10 +503,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       )}
                       {showClinic && pcfDefs.length > 0 && (
                         <div className="pcf-card" data-testid="am-pcf">
-                          <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields — {billPayer.name}<i>{(pcfSel.length ? 'optional · only fields you add below are captured' : pcfDefs.length ? 'optional · pick any active master template' : 'optional · none defined on Masters → Custom Fields')}</i>
-                            <button type="button" className="btn btn-sm pcf-addbtn" data-testid="am-pcf-add" onClick={() => setCfPick(true)}>{Icon.plus({ size: 12 })} Add field</button>
+                          <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields — {billPayer.name}<i>optional · nothing pre-filled · add only what {billPayer.name}’s profile picks</i>
+                            <button type="button" className="btn btn-sm pcf-addbtn" data-testid="am-pcf-add" onClick={() => setCfPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
                           </div>
-                          {pcfAdded.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment — pick from {pcfDefs.length} payer template{pcfDefs.length === 1 ? '' : 's'} with “Add field”. Nothing is enforced unless a template itself is required.</div>}
+                          {pcfAdded.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">Nothing pre-filled — “Add Custom Fields” offers the {pcfDefs.length} field{pcfDefs.length === 1 ? '' : 's'} this payer picked on the master. Nothing is enforced unless a template itself is required.</div>}
                           {pcfAdded.map((d) => (
                             <div className={`pcf-f pcf-f-${d.type}${(f.pcfs || {})[d.id]?.value ? ' filled' : ''}`} key={d.id} data-testid={`pcf-f-${d.id}`}>
                               <label>{d.label}{d.required && ' *'}</label>
@@ -561,22 +561,17 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                               <button className="iconbtn modal-x" aria-label="Close" data-testid="am-pcf-picker-close" onClick={() => setCfPick(false)}>{Icon.x({ size: 14 })}</button>
                             </div>
                             <div className="modal-body">
-                              <div className="svc-pickrows">
+                              <div className="cf-picklist">
                                 {pcfDefs.map((d) => {
                                   const on = (f.pcfs || {})[d.id] !== undefined
                                   return (
-                                    <label key={d.id} className={`svc-pickrow${on ? ' on' : ''}`} data-testid={`am-pcf-pick-${d.id}`}>
-                                      <input type="checkbox" checked={on} onChange={(e) => {
+                                    <CfPickRow key={d.id} def={d} on={on} testid={`am-pcf-pick-${d.id}`}
+                                      onToggle={(v) => {
                                         const n = { ...(f.pcfs || {}) }
-                                        if (e.target.checked) n[d.id] = { label: d.label, type: d.type, value: d.type === 'multi' ? [] : '' }
+                                        if (v) n[d.id] = { label: d.label, type: d.type, value: d.type === 'multi' ? [] : '' }
                                         else delete n[d.id]
                                         set({ pcfs: n })
                                       }} />
-                                      <b>{d.label}</b>
-                                      <span className="pcf-type">{cfTypeLabel(d.type)}</span>
-                                      {d.required ? <span className="tag warn">Required</span> : null}
-                                      {(d.options || []).length ? <span className="muted">{d.options.join(' · ')}</span> : <span className="muted">{d.note || ''}</span>}
-                                    </label>
                                   )
                                 })}
                               </div>

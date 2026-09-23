@@ -3,6 +3,8 @@ import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { Dropdown, InlineSelect } from './fields'
+import { CfPickRow } from './CfPick.jsx'
+import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
 import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
 import { BILL_CODES, uid } from '../lib/model'
@@ -108,6 +110,7 @@ function ProfileTab({ p, patch }) {
   const state = useStore()
   const { actions } = state
   const [pick, setPick] = useState(false)
+  const [cfEdit, setCfEdit] = useState(null) // 'new' | def — full editor, opened from INSIDE the picker
   const fields = payerFieldDefs(state, p)
   const templates = state.customFields || []
   const phone = (p.contacts || []).find((c) => c.kind === 'Main')?.number || ''
@@ -115,6 +118,20 @@ function ProfileTab({ p, patch }) {
   const portal = (p.contacts || []).find((c) => c.kind === 'Claims portal')?.number || ''
   const addr = [p.street, [p.city, p.state].filter(Boolean).join(' '), p.zip].filter(Boolean).join(', ')
 
+  const toast = useToast()
+  const usedBy = (id) => (state.payers || []).filter((x) => (x.cf || []).includes(id)).length
+  const saveCf = (v) => {
+    if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setCfEdit(null); return }
+    if (cfEdit === 'new') { actions.addCfDef(v); toast({ message: `Template “${v.label}” created — tick it for ${p.name} to apply`, kind: 'ok' }) }
+    else { actions.updateCfDef({ id: cfEdit.id, ...v }); toast({ message: `Template “${v.label}” updated — every payer using it follows`, kind: 'ok' }) }
+    setCfEdit(null)
+  }
+  const delDef = (t) => {
+    const n = usedBy(t.id)
+    if (n_used) { toast({ message: `“${t.label}” is picked by ${n_used} payer${n_used === 1 ? '' : 's'} — unlink it there first`, kind: 'error' }); return }
+    actions.removeCfDef(t.id)
+    toast({ message: `Template “${t.label}” removed from the master`, kind: 'info' })
+  }
   const setFields = (ids) => patch({ cf: ids }, 'custom fields updated from the master')
   const unlink = (d) => setFields((p.cf || []).filter((x) => x !== d.defId && !(typeof x === 'object' && x && x.id === d.id)))
   const kv = (k, v) => <div className="pd-kv"><span>{k}</span><b>{v || <i className="muted">—</i>}</b></div>
@@ -148,7 +165,7 @@ function ProfileTab({ p, patch }) {
 
       <div className="an-card pd-card" data-testid="pd-cf">
         <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{fields.length > 0 && <span className="pd-cfn">{fields.length}</span>}<span className="an-spacer" />
-          <button className="btn btn-sm" data-testid="pd-cf-gomaster" title="Define templates on the Masters → Custom Fields page" onClick={() => actions.setUI({ payerSel: null, mastersTab: 'cfdefs' })}>{Icon.clipboard({ size: 11 })} Manage templates</button>
+          <span className="muted" style={{ fontSize: 10.6 }}>selectable · never pre-selected</span>
         </div>
         <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. They then appear on appointments and exports automatically.</p>
         {fields.length === 0 && <div className="muted pd-cfempty">No fields picked yet.</div>}
@@ -180,39 +197,50 @@ function ProfileTab({ p, patch }) {
           </div>
         )}
         <div className="pd-cfadd">
-          <button className="btn btn-sm btn-primary" data-testid="pd-cf-pick" onClick={() => setPick(true)}>{Icon.plus({ size: 12 })} Pick fields from the master</button>
+          <button className="btn btn-sm btn-primary" data-testid="pd-cf-pick" onClick={() => setPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
           <span className="muted" style={{ fontSize: 11.5 }}>{templates.filter((t) => t.status !== 'inactive' && !(p.cf || []).includes(t.id)).length} template(s) not yet used by this payer</span>
         </div>
       </div>
 
       {pick && (
         <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setPick(false) }}>
-          <div className="modal pm-modal py-modal" data-testid="pd-cf-picker" role="dialog" aria-modal="true" aria-label="Pick custom fields">
+          <div className="modal pm-modal py-modal" data-testid="pd-cf-picker" role="dialog" aria-modal="true" aria-label="Add custom fields">
             <div className="modal-head pm-head">
-              <h3>Custom Fields — {p.name}</h3>
-              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>tick the templates this payer requires</span>
+              <h3>Add Custom Fields — {p.name}</h3>
+              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>tick what this payer requires — or manage the definitions right here</span>
               <span className="an-spacer" />
+              <span className="muted" style={{ fontSize: 11, marginRight: 8 }}>{(p.cf || []).length} picked</span>
               <button className="iconbtn modal-x" aria-label="Close" data-testid="pd-cf-picker-close" onClick={() => setPick(false)}>{Icon.x({ size: 14 })}</button>
             </div>
             <div className="modal-body">
-              {templates.length === 0 && <div className="muted pd-cfempty">No templates defined yet — create them on Masters → Custom Fields first.</div>}
-              <div className="svc-pickrows">
+              {templates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No templates defined yet — create the first one with “Add template” below.</div>}
+              <div className="cf-picklist">
                 {templates.map((t) => {
                   const on = (p.cf || []).includes(t.id)
+                  const used = usedBy(t.id)
                   return (
-                    <label key={t.id} className={`svc-pickrow${on ? ' on' : ''}${t.status === 'inactive' && !on ? ' dim' : ''}`} data-testid={`pd-cfpick-${t.id}`}>
-                      <input type="checkbox" checked={on} disabled={t.status === 'inactive' && !on} onChange={(e) => setFields(e.target.checked ? [...(p.cf || []), t.id] : (p.cf || []).filter((x) => x !== t.id))} />
-                      <b>{t.label}</b>
-                      <span className="pcf-type">{cfTypeLabel(t.type)}</span>
-                      {t.required ? <span className="tag warn">Required</span> : null}
-                      {t.status === 'inactive' ? <span className="muted">inactive</span> : <span className="muted">{t.note || ''}</span>}
-                    </label>
+                    <CfPickRow key={t.id} def={t} on={on} disabled={t.status === 'inactive' && !on} testid={`pd-cfpick-${t.id}`}
+                      onToggle={(v) => setFields(v ? [...(p.cf || []), t.id] : (p.cf || []).filter((x) => x !== t.id))}>
+                      <button className="iconbtn" title={`Used by ${used} payer${used === 1 ? '' : 's'}`} style={{ cursor: 'default', pointerEvents: 'none', width: 'auto', padding: '0 4px' }}><i className="muted" style={{ fontSize: 10, fontStyle: 'normal' }}>×{used}</i></button>
+                      <button className="iconbtn" title="Edit this template — opens the full field editor" data-testid={`pd-cfm-edit-${t.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCfEdit(t) }}>{Icon.edit({ size: 12 })}</button>
+                      <button className="iconbtn" title={used ? 'Unlink from every payer before deleting' : 'Delete this template from the master'} data-testid={`pd-cfm-del-${t.id}`} disabled={!!used} onClick={(e) => { e.preventDefault(); e.stopPropagation(); delDef(t) }}>{Icon.trash({ size: 12 })}</button>
+                    </CfPickRow>
                   )
                 })}
               </div>
             </div>
-            <div className="modal-foot"><button className="btn btn-sm btn-primary" onClick={() => { setPick(false) }}>Done</button></div>
+            <div className="modal-foot pm-foot">
+              <button className="btn btn-sm" data-testid="pd-cfm-new" onClick={() => setCfEdit('new')}>{Icon.plus({ size: 12 })} Add template</button>
+              <button className="btn btn-sm" data-testid="pd-cf-gomaster" title="Open the full Custom Fields master page" onClick={() => { setPick(false); actions.setUI({ payerSel: null, mastersTab: 'cfdefs' }) }}>{Icon.clipboard({ size: 11 })} Full master page</button>
+              <span className="an-spacer" />
+              <button className="btn btn-sm btn-primary" data-testid="pd-cf-picker-done" onClick={() => setPick(false)}>Done</button>
+            </div>
           </div>
+        </div>
+      )}
+      {cfEdit && (
+        <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setCfEdit(null) }}>
+          <CfDefModal def={cfEdit === 'new' ? null : cfEdit} onClose={saveCf} />
         </div>
       )}
     </div>
