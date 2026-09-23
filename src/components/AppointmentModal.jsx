@@ -27,7 +27,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
-import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, cfDefs, pcfsErrors, rateFor } from '../lib/master'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, payerFieldDefs, pcfsErrors, rateFor } from '../lib/master'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -124,7 +124,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const needsStaff = isUnavail ? unavailTarget === 'staff' : ['service', 'drive', 'evaluation', 'supervision'].includes(f.type)
   const needsClient = isUnavail ? unavailTarget === 'clients' : showClientPicker && ['service', 'evaluation'].includes(f.type)
   const billPayer = payerForAppt(state, f.clientIds)
-  const pcfDefs = billPayer ? cfDefs(billPayer).filter((d) => d.label) : []
+  const pcfDefs = payerFieldDefs(state, billPayer).filter((d) => d.label)
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')
@@ -517,8 +517,12 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                                 </div>
                               )}
                               {d.type === 'toggle' && (
-                                <button role="switch" aria-checked={Boolean((f.pcfs || {})[d.id]?.value)} className={`pd-switch${(f.pcfs || {})[d.id]?.value ? ' on' : ''}`} data-testid={`pcf-toggle-${d.id}`}
-                                  onClick={() => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: !(f.pcfs || {})[d.id]?.value } } })}><i /></button>
+                                <div className="pcf-chips" data-testid={`pcf-tog-${d.id}`}>
+                                  {[d.offLabel || 'No', d.onLabel || 'Yes'].map((lb, ix) => (
+                                    <button key={lb + ix} type="button" className={`tag pick${(f.pcfs || {})[d.id]?.value === lb ? ' on' : ''}`} data-testid={`pcf-toption-${d.id}-${ix}`}
+                                      onClick={() => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: lb } } })}>{lb}</button>
+                                  ))}
+                                </div>
                               )}
                               {d.type === 'signature' && (
                                 <div className="pcf-sigbox" data-testid={`pcf-sig-${d.id}`}>

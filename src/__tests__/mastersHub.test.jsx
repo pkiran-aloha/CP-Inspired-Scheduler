@@ -19,6 +19,10 @@ async function toMasters(tab) {
     fireEvent.click(screen.getByTestId('masters-tab-svcs'))
     await screen.findByTestId('svcs-table')
   }
+  if (tab === 'cfdefs') {
+    fireEvent.click(screen.getByTestId('masters-tab-cfdefs'))
+    await screen.findByTestId('cfdefs-table')
+  }
 }
 async function openDetail(id) {
   await toMasters()
@@ -39,7 +43,7 @@ describe('masters — nav & service types', () => {
     expect(screen.queryByTestId('nav-payers')).toBeNull() // no longer a top-level section
     fireEvent.click(screen.getByTestId('nav-masters'))
     const subs = await screen.findAllByTestId(/nav-sub-/)
-    expect(subs.map((b) => b.textContent).sort()).toEqual(['Payers', 'Service Types'])
+    expect(subs.map((b) => b.textContent).sort()).toEqual(expect.arrayContaining(['Payers', 'Service Types', 'Custom Fields']))
     fireEvent.click(screen.getByTestId('nav-sub-svcs'))
     expect(await screen.findByTestId('svcs-table')).toBeTruthy()
     expect(screen.getByTestId('masters-tab-svcs').className).toContain('on')
@@ -125,29 +129,84 @@ describe('masters — payer deep record', () => {
     expect(info.textContent).toContain('Availity')
   })
 
-  it('custom fields: typed designer — add a select, its options editor, then remove', async () => {
+  it('Custom Fields master page: define list options and toggle labels right in the template editor', async () => {
+    render(<App />)
+    await toMasters('cfdefs')
+    // seeded templates render with their type, options and usage
+    expect(await screen.findByTestId('cf-row-cf-authdept')).toBeTruthy()
+    expect(screen.getByTestId('cf-row-cf-authdept').textContent).toContain('Single select (radio)')
+    expect(screen.getByTestId('cf-usedby-cf-authdept').textContent).toBe('1') // Aetna picks it
+    expect(screen.getByTestId('cf-row-cf-goals').textContent).toContain('+3') // 6 options, 3 shown
+    expect(screen.getByTestId('cf-status-cf-teleconf').textContent).toContain('Inactive')
+    // create a select template with a live option list
+    fireEvent.click(screen.getByTestId('cf-add'))
+    await screen.findByTestId('cf-modal')
+    fireEvent.click(screen.getByTestId('cf-save'))
+    expect(await screen.findByText('Give the field a label')).toBeTruthy()
+    fireEvent.change(screen.getByTestId('cf-label'), { target: { value: 'Reward menu' } })
+    await pickDropdown('cf-type', 'select')
+    expect(await screen.findByTestId('cf-opt-0')).toBeTruthy() // one editable option row by default
+    fireEvent.change(screen.getByTestId('cf-opt-0'), { target: { value: 'Stickers' } })
+    fireEvent.click(screen.getByTestId('cf-opt-add'))
+    fireEvent.change(screen.getByTestId('cf-opt-1'), { target: { value: 'Extra screen time' } })
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.some((d) => d.label === 'Reward menu')).toBe(true))
+    const nf = stored().customFields.find((d) => d.label === 'Reward menu')
+    expect(nf.options).toEqual(['Stickers', 'Extra screen time'])
+    // options are reorderable inline
+    fireEvent.click(screen.getByTestId(`cf-row-${nf.id}`))
+    await screen.findByTestId('cf-modal')
+    fireEvent.click(screen.getByTestId(`cf-opt-up-1`))
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === nf.id).options).toEqual(['Extra screen time', 'Stickers']))
+    // toggle template: its on/off labels are first-class options
+    fireEvent.click(screen.getByTestId('cf-add'))
+    await screen.findByTestId('cf-modal')
+    fireEvent.change(screen.getByTestId('cf-label'), { target: { value: 'Interp needed' } })
+    await pickDropdown('cf-type', 'toggle')
+    fireEvent.change(screen.getByTestId('cf-on-label'), { target: { value: 'Book interpreter' } })
+    fireEvent.change(screen.getByTestId('cf-off-label'), { target: { value: 'No interpreter' } })
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.find((d) => d.label === 'Interp needed')?.onLabel).toBe('Book interpreter'))
+    // inline required + status chips on the rows
+    fireEvent.click(screen.getByTestId(`cf-req-${nf.id}`))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === nf.id).required).toBe(true))
+    fireEvent.click(screen.getByTestId(`cf-status-${nf.id}`))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === nf.id).status).toBe('inactive'))
+    fireEvent.click(screen.getByTestId(`cf-status-${nf.id}`))
+    // delete: blocked while a payer still picks it, allowed once unused
+    fireEvent.click(screen.getByTestId('cf-del-cf-authdept'))
+    expect(await screen.findByText(/is picked by 1 payer/)).toBeTruthy()
+    expect(stored().customFields.find((d) => d.id === 'cf-authdept')).toBeTruthy()
+    fireEvent.click(screen.getByTestId(`cf-del-${nf.id}`))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === nf.id)).toBeUndefined())
+  })
+
+  it('payers only pick templates — no free-form definitions, legacy inline entries upgrade cleanly', async () => {
     render(<App />)
     await openDetail('py-aetna')
-    const aetna = () => stored().payers.find((p) => p.id === 'py-aetna').cf
-    const before = aetna().length
-    fireEvent.change(await screen.findByTestId('pd-cf-label'), { target: { value: 'Auth line' } })
-    fireEvent.change(screen.getByTestId('pd-cf-type'), { target: { value: 'select' } })
-    fireEvent.click(screen.getByTestId('pd-cf-add'))
-    await waitFor(() => expect(aetna()).toHaveLength(before + 1))
-    const nf = aetna()[before]
-    expect(nf.label).toBe('Auth line')
-    expect(nf.type).toBe('select')
-    expect(nf.options.length).toBeGreaterThan(0)
-    // options are editable as one-per-line list
-    fireEvent.click(screen.getByTestId(`pcf-opts-${nf.id}`))
-    fireEvent.change(await screen.findByTestId(`pcf-optedit-${nf.id}`), { target: { value: 'L1\nL2\nL3' } })
-    await waitFor(() => expect(aetna()[before].options).toEqual(['L1', 'L2', 'L3']))
-    // type can be switched inline; label inline-editable
-    fireEvent.click(screen.getByTestId(`pcf-type-${nf.id}`))
-    fireEvent.click(await screen.findByTestId(`opt-pcf-type-${nf.id}-toggle`))
-    await waitFor(() => expect(aetna()[before].type).toBe('toggle'))
-    fireEvent.click(screen.getByTestId(`pcf-del-${nf.id}`))
-    await waitFor(() => expect(aetna()).toHaveLength(before))
+    // Aetna's picked fields resolve from the master: labels come from templates
+    const row = await screen.findByTestId('pd-cf-cf-authdept')
+    expect(row.textContent).toContain('Prior auth dept')
+    expect(row.textContent).toContain('from master')
+    expect(screen.getByTestId('pd-cf-cf-present').textContent).toContain('Caregiver present')
+    // there is no designer here any more — only picking and unlinking
+    expect(screen.queryByTestId('pd-cf-label')).toBeNull()
+    // unlink a field from this payer (the template itself survives)
+    fireEvent.click(screen.getByTestId('pcf-unlink-cf-present'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toEqual(['cf-authdept']))
+    expect(stored().customFields.find((d) => d.id === 'cf-present')).toBeTruthy()
+    // pick another from the template list
+    fireEvent.click(screen.getByTestId('pd-cf-pick'))
+    const pick = await screen.findByTestId('pd-cfpick-cf-goals')
+    // inactive templates can't be newly picked
+    expect(screen.getByTestId('pd-cfpick-cf-teleconf').querySelector('input').disabled).toBe(true)
+    fireEvent.click(pick.querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toEqual(['cf-authdept', 'cf-goals']))
+    // and the jump-to-master affordance works
+    fireEvent.click(screen.getByTestId('pd-cf-gomaster'))
+    expect(await screen.findByTestId('cfdefs-table')).toBeTruthy()
   })
 
   it('services tab: default-all note, narrowing contracts via the + picker', async () => {
@@ -513,18 +572,19 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').code).toBe('97151'))
   })
 
-  it('wizard: typed payer fields render per definition, block a required one, persist snapshots', async () => {
+  it('wizard renders picked templates, required blocks completion, answers persist as snapshots', async () => {
     render(<App />)
-    await toMasters()
-    await openDetail('py-aetna')
-    // make the seeded select field required and add a toggle + signature field
-    fireEvent.click(screen.getByTestId('pd-tab-profile'))
-    await screen.findByTestId('pcf-req-authdept')
-    fireEvent.click(screen.getByTestId('pcf-req-authdept'))
-    fireEvent.change(screen.getByTestId('pd-cf-label'), { target: { value: 'Caregiver present' } })
-    fireEvent.change(screen.getByTestId('pd-cf-type'), { target: { value: 'toggle' } })
-    fireEvent.click(screen.getByTestId('pd-cf-add'))
-    // now book for Justin Hsu (Aetna)
+    await toMasters('cfdefs')
+    // make Prior auth dept required — every payer picking it enforces it now
+    fireEvent.click(await screen.findByTestId('cf-req-cf-authdept'))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === 'cf-authdept').required).toBe(true))
+    // and switch the Caregiver toggle's labels so the wizard shows them
+    fireEvent.click(screen.getByTestId('cf-row-cf-present'))
+    await screen.findByTestId('cf-modal')
+    fireEvent.change(screen.getByTestId('cf-on-label'), { target: { value: 'With caregiver' } })
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === 'cf-present').onLabel).toBe('With caregiver'))
+    // book Justin (Aetna) — field panel with template controls
     fireEvent.click(screen.getByTestId('nav-calendar'))
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
@@ -534,25 +594,47 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.click(screen.getByTestId('pick-Staff Name'))
     fireEvent.click((await screen.findAllByTestId('people-item'))[0])
     fireEvent.mouseDown(document.body)
-    // required field blocks saving
+    const panel = await screen.findByTestId('am-pcf')
+    expect(panel.textContent).toContain('Payer fields — Aetna')
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Payer field “Prior auth dept” is required/)).toBeTruthy()
-    // answer it via radio chips, flip the toggle, create
-    const defs = stored().payers.find((p) => p.id === 'py-aetna').cf
-    const tog = defs.find((d) => d.label === 'Caregiver present')
-    fireEvent.click(screen.getByTestId('pcf-opt-authdept-Behavioral Intake 2'))
-    fireEvent.click(screen.getByTestId(`pcf-toggle-${tog.id}`))
+    // answer via radio chips; toggle offers the template's labelled options
+    fireEvent.click(screen.getByTestId('pcf-opt-cf-authdept-Behavioral Intake 2'))
+    fireEvent.click(screen.getByTestId('pcf-toption-cf-present-1'))
+    expect(screen.getByTestId('pcf-toption-cf-present-1').textContent).toBe('With caregiver')
     fireEvent.click(screen.getByTestId('save-appt'))
     await screen.findByText('Appointment created')
     await waitFor(() => {
-      const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs.authdept)
+      const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs['cf-authdept'])
       expect(created).toBeTruthy()
-      expect(created.pcfs.authdept.value).toBe('Behavioral Intake 2')
-      expect(created.pcfs.authdept.label).toBe('Prior auth dept')
-      expect(created.pcfs[tog.id].value).toBe(true)
+      expect(created.pcfs['cf-authdept'].value).toBe('Behavioral Intake 2')
+      expect(created.pcfs['cf-authdept'].label).toBe('Prior auth dept')
+      expect(created.pcfs['cf-present'].value).toBe('With caregiver')
     })
   })
 
+  it('legacy inline custom fields still render and can be promoted to a template', async () => {
+    render(<App />)
+    await openDetail('py-aetna')
+    expect((await screen.findByTestId('pd-cf-cf-authdept')).textContent).toContain('from master')
+    // simulate a pre-template payer: legacy string entry, then remount to load it
+    const st = stored()
+    st.payers.find((x) => x.id === 'py-aetna').cf = ['Behavioral Intake line']
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(st))
+    cleanup()
+    render(<App />)
+    await toMasters()
+    fireEvent.click(await screen.findByTestId('py-row-py-aetna'))
+    await screen.findByTestId('payer-detail')
+    const legacy = await screen.findByTestId('pd-cf-0')
+    expect(legacy.textContent).toContain('Behavioral Intake line')
+    expect(legacy.textContent).toContain('legacy')
+    fireEvent.click(screen.getByTestId('pcf-upgrade-legacy-0'))
+    await waitFor(() => expect(stored().customFields.some((d) => d.label === 'Behavioral Intake line')).toBe(true))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf.length).toBe(1))
+    expect(stored().payers.find((p) => p.id === 'py-aetna').cf[0]).toContain('cf-') // now a template id
+    expect(await screen.findByTestId('pd-cf-cf-behavioral-intake-line')).toBeTruthy()
+  })
   it('wizard books a payer-only service at its own contract rate', async () => {
     render(<App />)
     await toMasters()
@@ -594,5 +676,71 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     const st2 = { ...st, payers: [{ ...payerForAppt(st, [aetnaClient.id]), svcs: [{ id: 'pl1', label: 'Zoo ABA', code: '97152', charge: 66, status: 'active' }] }] }
     expect(svcById(st2, 'pl1').label).toBe('Zoo ABA')
     expect(rateFor(st2, payerForAppt(st2, [aetnaClient.id]), 'pl1', '97152').rate).toBe(66)
+  })
+})
+
+describe('chunk 33 — payer service edit & add regressions', () => {
+  it('linked service line: changing just the charge saves — no unrelated required fields block it', async () => {
+    render(<App />)
+    await openDetail('py-aetna')
+    fireEvent.click(screen.getByTestId('pd-tab-services'))
+    fireEvent.click(await screen.findByTestId('pd-ovr-net'))
+    await screen.findByTestId('ovr-modal')
+    fireEvent.change(screen.getByTestId('ovr-charge'), { target: { value: '34' } })
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcOv.net.charge).toBe(34))
+    expect(screen.queryByText('Primary Dx code is required')).toBeNull()
+    expect((await screen.findByTestId('pd-svc-net')).textContent).toContain('$34.00')
+    // blanking the rate again inherits, not errors
+    fireEvent.click(screen.getByTestId('pd-ovr-net'))
+    fireEvent.change(await screen.findByTestId('ovr-charge'), { target: { value: '' } })
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcOv.net.charge).toBe(''))
+    await waitFor(() => expect(document.querySelector('.ovr-form')).toBeNull())
+    expect((await screen.findByTestId('pd-svc-net')).textContent).toContain('$32.00') // inherits master rate
+  })
+
+  it('Add Service button (toolbar, not only the FAB flow) creates the payer-only line', async () => {
+    render(<App />)
+    await openDetail('py-aetna')
+    fireEvent.click(screen.getByTestId('pd-tab-services'))
+    fireEvent.click(await screen.findByTestId('pd-svc-add'))
+    await screen.findByTestId('ovr-modal')
+    // creation keeps the starred-field checks — with a toast so it never looks dead
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    expect(await screen.findByText('Name the service')).toBeTruthy()
+    expect(screen.getByText('Charge rate is required (use 0 for none)')).toBeTruthy()
+    expect(await screen.findByText('Check 3 highlighted fields before saving')).toBeTruthy()
+    fireEvent.change(screen.getByTestId('ovr-label'), { target: { value: 'Zoo ABA' } })
+    fireEvent.change(screen.getByTestId('ovr-charge'), { target: { value: '40' } })
+    fireEvent.change(screen.getByTestId('ovr-dx1'), { target: { value: 'F84.0' } })
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcs).toHaveLength(1))
+    const rec = stored().payers.find((p) => p.id === 'py-aetna').svcs[0]
+    expect(rec).toMatchObject({ label: 'Zoo ABA', charge: 40, code: '97151', unitSize: '30 Minutes', status: 'active' })
+    const card = await screen.findByTestId(`pd-svc-${rec.id}`)
+    expect(card.textContent).toContain('$40.00')
+    expect(card.textContent).toContain('payer-only')
+    // and it lands in the payer's contract sheet list used by wizard option code paths
+    const { svcOptionsFor } = await import('../lib/master')
+    const st = stored()
+    const justin = st.clients.find((c) => (c.insurer || '') === 'Aetna')
+    const opts = svcOptionsFor({ svcs: st.svcs, payers: st.payers, clients: st.clients }, [justin.id])
+    expect(opts.some((o) => o.id === rec.id && o.payerLocal)).toBe(true)
+  })
+
+  it('payer profile keeps picked templates live: master edit renames everywhere, unlink is cheap', async () => {
+    render(<App />)
+    await toMasters('cfdefs')
+    fireEvent.click(await screen.findByTestId('cf-row-cf-present'))
+    await screen.findByTestId('cf-modal')
+    fireEvent.change(screen.getByTestId('cf-label'), { target: { value: 'Caregiver on site' } })
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === 'cf-present').label).toBe('Caregiver on site'))
+    fireEvent.click(screen.getByTestId('masters-tab-payers'))
+    await screen.findByTestId('payers-table')
+    fireEvent.click(screen.getByTestId('py-row-py-aetna'))
+    await screen.findByTestId('payer-detail')
+    expect((await screen.findByTestId('pd-cf-cf-present')).textContent).toContain('Caregiver on site')
   })
 })

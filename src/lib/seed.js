@@ -107,6 +107,16 @@ export const TEAM_DEFS = [
   { id: 't4', name: 'Care Team · Center AM', color: '#6366f1' },
   { id: 't5', name: 'Care Team · Center PM', color: '#8b5cf6' },
 ]
+// Custom Fields master — reusable typed templates; payers only reference these ids
+export const CF_DEFS = [
+  { id: 'cf-authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3', 'School Liaison'], required: false, note: 'Which department issued the auth — printed on the claim remarks.', status: 'active' },
+  { id: 'cf-waiver', label: 'Service waiver on file', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Copay/coinsurance waiver documentation received.', status: 'active' },
+  { id: 'cf-present', label: 'Caregiver present', type: 'toggle', onLabel: 'Present', offLabel: 'Not present', required: false, note: '', status: 'active' },
+  { id: 'cf-goals', label: 'Session focus areas', type: 'multi', options: ['Mandec', 'Toilet training', 'Sleep routine', 'Play skills', 'Feeding', 'Safety skills'], required: false, note: 'Tick every goal targeted during the session.', status: 'active' },
+  { id: 'cf-parentsig', label: 'Parent/Caregiver signature', type: 'signature', required: true, note: 'Capture at the end of any parent-training session.', status: 'active' },
+  { id: 'cf-teleconf', label: 'Telehealth consent confirmed', type: 'text', required: false, note: 'Verbal consent wording or link sent.', status: 'inactive' },
+]
+
 export const SVCS = SERVICES.map((s) => {
   const c = BILL_CODES.find((x) => x.id === s.code) || {}
   return { ...s, status: 'active', unitMins: c.unitMins || 30, rate: c.rate || 0, rounding: 'AMA', credentials: s.id === 'sup' ? ['BCBA'] : s.id === 'social' || s.id === 'play' ? ['BCaBA', 'RBT'] : [], note: '' }
@@ -114,12 +124,9 @@ export const SVCS = SERVICES.map((s) => {
 
 // master seasoning: routing ids, clearing house and a few showcase payer rules
 Object.assign(PAYERS[0], { cmsType: 'Group Health Plan', format: 'None', payerId: '00124', clearingHouse: 'Office Ally', ctList: 'ABA Standard', services: [], cf: [] })
-Object.assign(PAYERS[1], { cmsType: 'Group Health Plan', format: 'None', payerId: '87211', clearingHouse: 'Availity', ctList: 'ABA Standard', services: [], cf: [
-    { id: 'authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3'], required: false },
-    { id: 'waiver', label: 'Service waiver on file', type: 'toggle', required: false },
-  ] })
+Object.assign(PAYERS[1], { cmsType: 'Group Health Plan', format: 'None', payerId: '87211', clearingHouse: 'Availity', ctList: 'ABA Standard', services: [], cf: ['cf-authdept', 'cf-present'] })
 Object.assign(PAYERS[3], { cmsType: 'Medicaid', format: 'Custom Format 1', payerId: 'MC001', clearingHouse: 'Office Ally', ctList: 'ABA Standard', services: [], cf: [] })
-Object.assign(PAYERS[4], { cmsType: 'Medicaid', format: 'None', payerId: 'DHCS-51', clearingHouse: 'Change Healthcare', ctList: '', services: [], cf: [] })
+Object.assign(PAYERS[4], { cmsType: 'Medicaid', format: 'None', payerId: 'DHCS-51', clearingHouse: 'Change Healthcare', ctList: '', services: [], cf: ['cf-parentsig'] })
 PAYERS[1].rules = {
   ...PAYERS[1].rules,
   concurrent: { allowed: false, rules: [] },

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import { uid } from '../lib/model'
-import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings } from '../lib/seed'
+import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -21,6 +21,7 @@ export function blankState() {
     clients: CLIENTS,
     payers: PAYERS,
     svcs: SVCS,
+    customFields: CF_DEFS,
     teams: TEAMS,
     history: [],
     settings,
@@ -63,6 +64,7 @@ export function initial() {
           ...saved,
           claims: saved.claims || base.claims,
           svcs: Array.isArray(saved.svcs) && saved.svcs.length ? saved.svcs : base.svcs,
+          customFields: Array.isArray(saved.customFields) ? saved.customFields : base.customFields,
           history: saved.history || [],
           reports: { saved: (saved.reports && saved.reports.saved) || [] },
           settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) } },
@@ -168,6 +170,12 @@ export function reducer(state, action) {
       if (action.mode === 'add') return { ...state, svcs: [...list, action.item] }
       if (action.mode === 'patch') return { ...state, svcs: list.map((x) => (x.id === action.item.id ? { ...x, ...action.item } : x)) }
       return { ...state, svcs: list.filter((x) => x.id !== action.id) }
+    }
+    case 'cfdef': {
+      const list = state.customFields || []
+      if (action.mode === 'add') return { ...state, customFields: [...list, action.item] }
+      if (action.mode === 'patch') return { ...state, customFields: list.map((x) => (x.id === action.item.id ? { ...x, ...action.item } : x)) }
+      return { ...state, customFields: list.filter((x) => x.id !== action.id) }
     }
     case 'dash': {
       const cur = state.dash || { widgets: DEFAULT_DASH }
@@ -293,6 +301,9 @@ function createActions(state, dispatch) {
     addSvc: (item) => dispatch({ type: 'svc', mode: 'add', item: { id: uid(), status: 'active', unitMins: 30, rate: 0, rounding: 'AMA', credentials: [], note: '', ...item } }),
     updateSvc: (item) => dispatch({ type: 'svc', mode: 'patch', item }),
     removeSvc: (id) => dispatch({ type: 'svc', mode: 'remove', id }),
+    addCfDef: (item) => dispatch({ type: 'cfdef', mode: 'add', item: { id: uid(), status: 'active', required: false, options: [], onLabel: 'Yes', offLabel: 'No', note: '', ...item } }),
+    updateCfDef: (item) => dispatch({ type: 'cfdef', mode: 'patch', item }),
+    removeCfDef: (id) => dispatch({ type: 'cfdef', mode: 'remove', id }),
     updatePayer: (item) => dispatch({ type: 'payer', mode: 'patch', item }),
     removePayer: (id) => dispatch({ type: 'payer', mode: 'remove', id }),
     // ---- billing pipeline: mark lines billed/paid with an undoable snapshot ----

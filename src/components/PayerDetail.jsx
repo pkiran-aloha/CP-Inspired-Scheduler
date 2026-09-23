@@ -4,7 +4,7 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { Dropdown, InlineSelect } from './fields'
 import { PayerForm, RemoveArm } from './PayersView'
-import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfDefs } from '../lib/master'
+import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
 import { BILL_CODES, uid } from '../lib/model'
 
 /**
@@ -105,23 +105,18 @@ function RuleNavButton({ r, on, onClick }) {
 
 /* ── Profile ─────────────────────────────────────────────────────────── */
 function ProfileTab({ p, patch }) {
-  const [draft, setDraft] = useState({ label: '', type: 'text' })
-  const [optEdit, setOptEdit] = useState(null) // field id being option-edited
-  const defs = cfDefs(p)
+  const state = useStore()
+  const { actions } = state
+  const [pick, setPick] = useState(false)
+  const fields = payerFieldDefs(state, p)
+  const templates = state.customFields || []
   const phone = (p.contacts || []).find((c) => c.kind === 'Main')?.number || ''
   const fax = (p.contacts || []).find((c) => c.kind === 'Fax')?.number || ''
   const portal = (p.contacts || []).find((c) => c.kind === 'Claims portal')?.number || ''
   const addr = [p.street, [p.city, p.state].filter(Boolean).join(' '), p.zip].filter(Boolean).join(', ')
 
-  const write = (next) => patch({ cf: next }, 'custom fields saved')
-  const addField = () => {
-    const label = draft.label.trim()
-    if (!label) return
-    write([...(p.cf || []), { id: uid(), label, type: draft.type, options: ['select', 'multi'].includes(draft.type) ? ['Option 1', 'Option 2'] : [], required: false }])
-    setDraft({ label: '', type: 'text' })
-  }
-  const upd = (id, changes) => write((p.cf || []).map((f, i) => ((f.id || `legacy-${i}`) === id ? { ...cfDefs(p)[i], ...changes } : f)))
-  const del = (id) => write((p.cf || []).filter((f, i) => (f.id || `legacy-${i}`) !== id))
+  const setFields = (ids) => patch({ cf: ids }, 'custom fields updated from the master')
+  const unlink = (d) => setFields((p.cf || []).filter((x) => x !== d.defId && !(typeof x === 'object' && x && x.id === d.id)))
   const kv = (k, v) => <div className="pd-kv"><span>{k}</span><b>{v || <i className="muted">—</i>}</b></div>
   return (
     <div className="pd-body">
@@ -152,37 +147,74 @@ function ProfileTab({ p, patch }) {
       </div>
 
       <div className="an-card pd-card" data-testid="pd-cf">
-        <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{(p.cf || []).length > 0 && <span className="pd-cfn">{p.cf.length}</span>}</div>
-        <p className="pd-note">Typed fields this payer requires — they surface wherever the payer’s clients are booked: appointment intake, verification and exports.</p>
-        {defs.length === 0 && <div className="muted pd-cfempty">No custom fields yet — add one below to start collecting it on appointments.</div>}
-        {defs.length > 0 && (
+        <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{fields.length > 0 && <span className="pd-cfn">{fields.length}</span>}<span className="an-spacer" />
+          <button className="btn btn-sm" data-testid="pd-cf-gomaster" title="Define templates on the Masters → Custom Fields page" onClick={() => actions.setUI({ payerSel: null, mastersTab: 'cfdefs' })}>{Icon.clipboard({ size: 11 })} Manage templates</button>
+        </div>
+        <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. They then appear on appointments and exports automatically.</p>
+        {fields.length === 0 && <div className="muted pd-cfempty">No fields picked yet.</div>}
+        {fields.length > 0 && (
           <div className="pcf-rows" data-testid="pd-cf-list">
-            {defs.map((d) => (
-              <div className="pcf-row" key={d.id} data-testid={`pd-cf-${defs.indexOf(d)}`}>
-                <InlineSelect testid={`pcf-type-${d.id}`} value={d.type} options={CF_TYPES.map((t) => ({ value: t.id, label: t.label }))} onCommit={(v) => upd(d.id, { type: v, options: ['select', 'multi'].includes(v) ? (d.options.length ? d.options : ['Option 1', 'Option 2']) : [] })} render={(v) => <span className="pcf-type">{CF_TYPES.find((t) => t.id === v)?.label || 'Free text'}</span>} />
-                <input className="input pcf-label" value={d.label} data-testid={`pcf-label-${d.id}`} onChange={(e) => upd(d.id, { label: e.target.value })} />
-                {['select', 'multi'].includes(d.type) ? (
-                  <button className="btn btn-sm pcf-opts" data-testid={`pcf-opts-${d.id}`} onClick={() => setOptEdit(optEdit === d.id ? null : d.id)}>Options <i>{d.options.length}</i></button>
-                ) : <span className="pcf-opts muted">—</span>}
-                {optEdit === d.id && (
-                  <textarea className="input pcf-optedit" rows={3} data-testid={`pcf-optedit-${d.id}`} value={d.options.join('\n')} placeholder="One option per line"
-                    onChange={(e) => upd(d.id, { options: e.target.value.split('\n').map((x) => x.trim()).filter(Boolean) })} />
+            {fields.map((d, i) => (
+              <div className="pcf-row" key={d.defId || `i${i}`} data-testid={`pd-cf-${d.defId || i}`}>
+                <span className="pcf-type">{cfTypeLabel(d.type)}</span>
+                <b className="pcf-name">{d.label}</b>
+                {d.type === 'toggle' ? <span className="tag soft">{d.onLabel || 'Yes'}</span> : null}
+                {d.type === 'toggle' ? <span className="tag soft">{d.offLabel || 'No'}</span> : null}
+                {(d.type === 'select' || d.type === 'multi') && (d.options || []).slice(0, 3).map((o) => <span className="tag soft" key={o}>{o}</span>)}
+                {(d.options || []).length > 3 && <i className="muted cf-optmore">+{d.options.length - 3}</i>}
+                {d.required ? <span className="tag warn">Required</span> : <span className="muted">Optional</span>}
+                {d.source === 'inline' ? <span className="tag" title="Defined inline before templates existed — promote it to the master to reuse">legacy</span> : <span className="tag soft">from master</span>}
+                {d.source === 'inline' && (
+                  <button className="btn btn-sm cf-upbtn" data-testid={`pcf-upgrade-${d.id}`} title="Save as a reusable template in the Custom Fields master"
+                    onClick={() => {
+                      const slug = 'cf-' + String(d.label).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 28)
+                      actions.addCfDef({ id: slug, label: d.label, type: d.type || 'text', options: d.options || [], onLabel: d.onLabel || 'Yes', offLabel: d.offLabel || 'No', required: Boolean(d.required), note: d.note || '' })
+                      setFields((p.cf || []).map((x) => (x === d.label || (typeof x === 'object' && x && x.id === d.id) ? slug : x)))
+                    }}>
+                    {Icon.badge({ size: 11 })} Make template
+                  </button>
                 )}
-                <label className="pcf-req"><input type="checkbox" checked={Boolean(d.required)} data-testid={`pcf-req-${d.id}`} onChange={(e) => upd(d.id, { required: e.target.checked })} />Required</label>
-                {d.value ? <span className="tag soft" title="default captured on the record">{String(d.value).slice(0, 24)}</span> : null}
-                <button className="iconbtn" title="Remove field" data-testid={`pcf-del-${d.id}`} onClick={() => del(d.id)}>{Icon.trash({ size: 12 })}</button>
+                <button className="iconbtn" title="Unlink from this payer" data-testid={`pcf-unlink-${d.defId || d.id}`} onClick={() => unlink(d)}>{Icon.x({ size: 12 })}</button>
               </div>
             ))}
           </div>
         )}
         <div className="pd-cfadd">
-          <input className="input" placeholder="Field label" value={draft.label} data-testid="pd-cf-label" onChange={(e) => setDraft((c) => ({ ...c, label: e.target.value }))} onKeyDown={(e) => e.key === 'Enter' && addField()} />
-          <select className="input pcf-typesel" value={draft.type} data-testid="pd-cf-type" onChange={(e) => setDraft((c) => ({ ...c, type: e.target.value }))}>
-            {CF_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
-          <button className="btn btn-sm btn-primary" data-testid="pd-cf-add" onClick={addField}>{Icon.plus({ size: 12 })} Add field</button>
+          <button className="btn btn-sm btn-primary" data-testid="pd-cf-pick" onClick={() => setPick(true)}>{Icon.plus({ size: 12 })} Pick fields from the master</button>
+          <span className="muted" style={{ fontSize: 11.5 }}>{templates.filter((t) => t.status !== 'inactive' && !(p.cf || []).includes(t.id)).length} template(s) not yet used by this payer</span>
         </div>
       </div>
+
+      {pick && (
+        <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setPick(false) }}>
+          <div className="modal pm-modal py-modal" data-testid="pd-cf-picker" role="dialog" aria-modal="true" aria-label="Pick custom fields">
+            <div className="modal-head pm-head">
+              <h3>Custom Fields — {p.name}</h3>
+              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>tick the templates this payer requires</span>
+              <span className="an-spacer" />
+              <button className="iconbtn modal-x" aria-label="Close" data-testid="pd-cf-picker-close" onClick={() => setPick(false)}>{Icon.x({ size: 14 })}</button>
+            </div>
+            <div className="modal-body">
+              {templates.length === 0 && <div className="muted pd-cfempty">No templates defined yet — create them on Masters → Custom Fields first.</div>}
+              <div className="svc-pickrows">
+                {templates.map((t) => {
+                  const on = (p.cf || []).includes(t.id)
+                  return (
+                    <label key={t.id} className={`svc-pickrow${on ? ' on' : ''}${t.status === 'inactive' && !on ? ' dim' : ''}`} data-testid={`pd-cfpick-${t.id}`}>
+                      <input type="checkbox" checked={on} disabled={t.status === 'inactive' && !on} onChange={(e) => setFields(e.target.checked ? [...(p.cf || []), t.id] : (p.cf || []).filter((x) => x !== t.id))} />
+                      <b>{t.label}</b>
+                      <span className="pcf-type">{cfTypeLabel(t.type)}</span>
+                      {t.required ? <span className="tag warn">Required</span> : null}
+                      {t.status === 'inactive' ? <span className="muted">inactive</span> : <span className="muted">{t.note || ''}</span>}
+                    </label>
+                  )
+                })}
+              </div>
+            </div>
+            <div className="modal-foot"><button className="btn btn-sm btn-primary" onClick={() => { setPick(false) }}>Done</button></div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -236,7 +268,12 @@ function ServicesTab({ p, patch }) {
   }
   return (
     <div className="pd-body">
-      {!p.services.length && <div className="pd-note pd-allnote" data-testid="pd-svc-all">{Icon.info({ size: 12 })} No explicit contract — billing treats every active service type as contracted. Use “+” to narrow the list or add payer-only services.</div>}
+      <div className="pd-svctools">
+        {!p.services.length && <div className="pd-note pd-allnote" data-testid="pd-svc-all">{Icon.info({ size: 12 })} No explicit contract — billing treats every active service type as contracted. “Contract services” narrows the list; “Add Service” creates one only for {p.name}.</div>}
+        <span className="an-spacer" />
+        <button className="btn btn-sm" data-testid="pd-svc-contract" onClick={() => setPicker(true)}>{Icon.clipboard({ size: 12 })} Contract services</button>
+        <button className="btn btn-sm btn-primary" data-testid="pd-svc-add" onClick={() => setForm({ mode: 'new' })}>{Icon.plus({ size: 12 })} Add Service</button>
+      </div>
       <div className="svc-cards" data-testid="pd-svc-cards">
         {cards.length === 0 && <div className="muted pd-cfempty">Nothing contracted yet — use “+” to attach service types from the master or add one just for this payer.</div>}
         {cards.map((c) => {
@@ -265,7 +302,7 @@ function ServicesTab({ p, patch }) {
                 <div><span>Dx Code 1</span><b>{o.dx1 || '—'}</b></div>
                 <div><span>Dx Code 2</span><b>{o.dx2 || '—'}</b></div>
                 <div><span>Unit Size</span><b>{o.unitSize || (c.master ? `${c.master.unitMins} Minutes` : '—')}</b></div>
-                <div><span>Charge Rate</span><b className={hasOvr || c.kind === 'local' ? 'ovr' : ''}>{money(o.charge ?? c.master?.rate)}</b></div>
+                <div><span>Charge Rate</span><b className={hasOvr || c.kind === 'local' ? 'ovr' : ''}>{money(o.charge === '' || o.charge == null ? (c.master ? c.master.rate : 0) : o.charge)}</b></div>
                 <div><span>Rounding</span><b>{o.rounding || c.master?.rounding || 'AMA'}</b></div>
                 <div><span>Contract Rate</span><b>{o.contract ? money(o.contract) : '—'}</b></div>
                 <div><span>Modifier</span><b>{o.modifier || '—'}</b></div>
@@ -319,6 +356,7 @@ function ServicesTab({ p, patch }) {
 
 /** The Add/Edit Service modal — payer-scoped contract line, per the practice's service form. */
 function PayerSvcForm({ payer, form, onClose, onSave }) {
+  const toast = useToast()
   const linked = form.mode === 'linked'
   const o = linked ? ((payer.svcOv || {})[form.svc.id] || {}) : (form.svc || {})
   const [f, setF] = useState(() => ({
@@ -341,15 +379,29 @@ function PayerSvcForm({ payer, form, onClose, onSave }) {
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   const set = (k, v) => { setF((x) => ({ ...x, [k]: v })); setErrs((e) => ({ ...e, [k]: undefined })) }
+  const creating = form.mode === 'new'
   const save = () => {
     const E = {}
-    if (!linked && !String(f.label).trim()) E.label = 'Name the service'
-    if (f.charge === '' || f.charge == null || !Number.isFinite(Number(f.charge))) E.charge = 'Charge rate is required (use 0 for none)'
-    if (!f.unitSize) E.unitSize = 'Unit size is required'
-    if (!f.code) E.code = 'Pick a billing code'
-    if (!String(f.dx1).trim()) E.dx1 = 'Primary Dx code is required'
-    if (Object.keys(E).length) { setErrs(E); return }
-    onSave({ ...f, label: String(f.label).trim(), charge: Number(f.charge) })
+    // Creating a payer-only service mirrors the intake form: the starred fields must be filled.
+    // Editing an existing line (linked or local) never blocks — blank rates simply inherit.
+    if (creating) {
+      if (!String(f.label).trim()) E.label = 'Name the service'
+      if (f.charge === '' || f.charge == null || !Number.isFinite(Number(f.charge))) E.charge = 'Charge rate is required (use 0 for none)'
+      if (!f.unitSize) E.unitSize = 'Unit size is required'
+      if (!f.code) E.code = 'Pick a billing code'
+      if (!String(f.dx1).trim()) E.dx1 = 'Primary Dx code is required'
+    } else {
+      if (String(f.charge).trim() !== '' && !Number.isFinite(Number(f.charge))) E.charge = 'Charge rate must be a number'
+      if (String(f.contract).trim() !== '' && !Number.isFinite(Number(f.contract))) E.contract = 'Contract rate must be a number'
+    }
+    if (Object.keys(E).length) {
+      setErrs(E)
+      toast({ message: `Check ${Object.keys(E).length} highlighted field${Object.keys(E).length === 1 ? '' : 's'} before saving`, kind: 'error' })
+      setTimeout(() => document.querySelector('.ovr-form .pm-err')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 30)
+      return
+    }
+    const num = (v) => (String(v).trim() === '' ? '' : Number(v))
+    onSave({ ...f, label: String(f.label).trim(), charge: creating ? Number(f.charge || 0) : num(f.charge), contract: num(f.contract) })
   }
   const Fld = ({ k, label, req, children, hint, half }) => (
     <label className={`bil-fld pm-fld${half ? '' : ' pcf-full'}`}>

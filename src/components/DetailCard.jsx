@@ -282,7 +282,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                 {Object.entries(appt.pcfs).map(([id, f]) => (
                   <span className="pcf-chip" key={id}>
                     <b>{f.label}</b>
-                    <i>{f.type === 'toggle' ? (f.value ? 'Yes' : 'No') : f.type === 'multi' ? ((f.value || []).join(', ') || '—') : f.type === 'signature' ? (f.value ? `Signed — ${f.value.staffName || f.value.name || 'captured'}` : '—') : (f.value === '' || f.value == null ? '—' : String(f.value))}</i>
+                    <i>{f.type === 'multi' ? ((f.value || []).join(', ') || '—') : f.type === 'signature' ? (f.value ? `Signed — ${f.value.staffName || f.value.name || 'captured'}` : '—') : (f.value === '' || f.value == null || f.value === false ? '—' : String(f.value === true ? 'Yes' : f.value))}</i>
                   </span>
                 ))}
               </span>
