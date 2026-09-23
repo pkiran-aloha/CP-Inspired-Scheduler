@@ -279,11 +279,14 @@ function Shell() {
   )
 }
 
+import BuildWatcher from './components/BuildWatcher.jsx'
+
 export default function App() {
   return (
     <ToastProvider>
       <StoreProvider>
         <Shell />
+        <BuildWatcher />
       </StoreProvider>
     </ToastProvider>
   )

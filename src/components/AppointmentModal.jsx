@@ -27,7 +27,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
-import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, payerFieldDefs, pcfsErrors, rateFor } from '../lib/master'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, payerFieldDefs, pcfsErrors, rateFor, cfTypeLabel } from '../lib/master'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import SignaturePad from '../ui/SignaturePad'
 
@@ -97,6 +97,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const [tab, setTab] = useState('info')
   const [showErrs, setShowErrs] = useState(false)
   const [titleTouched, setTitleTouched] = useState(Boolean(initial.title))
+  const [cfPick, setCfPick] = useState(false) // chunk-34: opt-in custom-field picker
   const [dirty, setDirty] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
   const [scope, setScope] = useState('one') // one | following | all
@@ -124,13 +125,19 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const needsStaff = isUnavail ? unavailTarget === 'staff' : ['service', 'drive', 'evaluation', 'supervision'].includes(f.type)
   const needsClient = isUnavail ? unavailTarget === 'clients' : showClientPicker && ['service', 'evaluation'].includes(f.type)
   const billPayer = payerForAppt(state, f.clientIds)
-  const pcfDefs = payerFieldDefs(state, billPayer).filter((d) => d.label)
+  const pcfSel = payerFieldDefs(state, billPayer).filter((d) => d.label)
+  // chunk-35: fields are selectable everywhere, never pre-selected — if the payer hasn't
+  // picked templates yet, the appointment can still add any ACTIVE master template.
+  const pcfAll = billPayer ? (state.customFields || []).filter((d) => d.label && d.status !== 'inactive') : []
+  const pcfDefs = pcfSel.length ? pcfSel : pcfAll
+  // chunk-34: custom fields are OPT-IN per appointment — nothing auto-populates.
+  const pcfAdded = pcfDefs.filter((d) => (f.pcfs || {})[d.id] !== undefined)
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')
   if (needsStaff && !f.staffIds.length) errors.push('Add at least one staff member')
   if (needsClient && !f.clientIds.length) errors.push('Add a client')
-  if (showClinic && pcfDefs.length) errors.push(...pcfsErrors(pcfDefs, f.pcfs))
+  if (showClinic && pcfAdded.length) errors.push(...pcfsErrors(pcfAdded, f.pcfs))
 
   const conflicts = useMemo(() => {
     if (dur <= 0 || !f.date) return []
@@ -496,8 +503,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       )}
                       {showClinic && pcfDefs.length > 0 && (
                         <div className="pcf-card" data-testid="am-pcf">
-                          <div className="pcf-head">{Icon.badge({ size: 12 })} Payer fields — {billPayer.name}<i>required by this payer on every session</i></div>
-                          {pcfDefs.map((d) => (
+                          <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields — {billPayer.name}<i>{(pcfSel.length ? 'optional · only fields you add below are captured' : pcfDefs.length ? 'optional · pick any active master template' : 'optional · none defined on Masters → Custom Fields')}</i>
+                            <button type="button" className="btn btn-sm pcf-addbtn" data-testid="am-pcf-add" onClick={() => setCfPick(true)}>{Icon.plus({ size: 12 })} Add field</button>
+                          </div>
+                          {pcfAdded.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment — pick from {pcfDefs.length} payer template{pcfDefs.length === 1 ? '' : 's'} with “Add field”. Nothing is enforced unless a template itself is required.</div>}
+                          {pcfAdded.map((d) => (
                             <div className={`pcf-f pcf-f-${d.type}${(f.pcfs || {})[d.id]?.value ? ' filled' : ''}`} key={d.id} data-testid={`pcf-f-${d.id}`}>
                               <label>{d.label}{d.required && ' *'}</label>
                               {d.type === 'text' && <input className="input" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
@@ -535,8 +545,44 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                                   />
                                 </div>
                               )}
+                              <button type="button" className="iconbtn pcf-x" aria-label="Remove custom field" data-testid={`pcf-del-${d.id}`}
+                                onClick={() => { const n = { ...(f.pcfs || {}) }; delete n[d.id]; set({ pcfs: n }) }}>{Icon.x({ size: 12 })}</button>
                             </div>
                           ))}
+                        </div>
+                      )}
+                      {cfPick && showClinic && pcfDefs.length > 0 && (
+                        <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setCfPick(false) }}>
+                          <div className="modal pm-modal py-modal" data-testid="am-pcf-picker" role="dialog" aria-modal="true" aria-label="Add custom fields">
+                            <div className="modal-head pm-head">
+                              <h3>Add custom fields — {billPayer.name}</h3>
+                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>tick the payer's templates to capture on this session</span>
+                              <span className="an-spacer" />
+                              <button className="iconbtn modal-x" aria-label="Close" data-testid="am-pcf-picker-close" onClick={() => setCfPick(false)}>{Icon.x({ size: 14 })}</button>
+                            </div>
+                            <div className="modal-body">
+                              <div className="svc-pickrows">
+                                {pcfDefs.map((d) => {
+                                  const on = (f.pcfs || {})[d.id] !== undefined
+                                  return (
+                                    <label key={d.id} className={`svc-pickrow${on ? ' on' : ''}`} data-testid={`am-pcf-pick-${d.id}`}>
+                                      <input type="checkbox" checked={on} onChange={(e) => {
+                                        const n = { ...(f.pcfs || {}) }
+                                        if (e.target.checked) n[d.id] = { label: d.label, type: d.type, value: d.type === 'multi' ? [] : '' }
+                                        else delete n[d.id]
+                                        set({ pcfs: n })
+                                      }} />
+                                      <b>{d.label}</b>
+                                      <span className="pcf-type">{cfTypeLabel(d.type)}</span>
+                                      {d.required ? <span className="tag warn">Required</span> : null}
+                                      {(d.options || []).length ? <span className="muted">{d.options.join(' · ')}</span> : <span className="muted">{d.note || ''}</span>}
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                            <div className="modal-foot"><button className="btn btn-sm btn-primary" data-testid="am-pcf-picker-done" onClick={() => setCfPick(false)}>Done</button></div>
+                          </div>
                         </div>
                       )}
                       </>

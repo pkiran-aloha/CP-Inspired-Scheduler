@@ -275,7 +275,7 @@ function ServicesTab({ p, patch }) {
         <button className="btn btn-sm btn-primary" data-testid="pd-svc-add" onClick={() => setForm({ mode: 'new' })}>{Icon.plus({ size: 12 })} Add Service</button>
       </div>
       <div className="svc-cards" data-testid="pd-svc-cards">
-        {cards.length === 0 && <div className="muted pd-cfempty">Nothing contracted yet — use “+” to attach service types from the master or add one just for this payer.</div>}
+        {cards.length === 0 && <div className="muted pd-cfempty">No services on this payer yet — use “Add Service” above to create a payer-specific one, or “Contract services” to attach service types from the master.</div>}
         {cards.map((c) => {
           const o = c.kind === 'linked' ? ((p.svcOv || {})[c.master.id] || {}) : c.local
           const label = c.kind === 'linked' ? (o.label || c.master.label) : c.local.label
@@ -313,7 +313,7 @@ function ServicesTab({ p, patch }) {
                 <div>{(c.local?.credentials || c.master?.credentials || []).length ? (c.local?.credentials || c.master?.credentials).map((x) => <span className="tag" key={x}>{x}</span>) : <i className="muted">None</i>}</div>
               </div>
               <button className="btn btn-sm svc-ovrbtn" data-testid={`pd-ovrbtn-${c.id}`} onClick={() => setForm(c.kind === 'linked' ? { mode: 'linked', svc: c.master } : { mode: 'local', svc: c.local })}>
-                {Icon.edit({ size: 12 })} Modifier, Charge &amp; Contract Rate{hasOvr || c.kind === 'local' ? '' : ' — none set'}
+                {Icon.edit({ size: 12 })} Edit this service line{hasOvr || c.kind === 'local' ? ' — overrides active' : ' — set modifier, charge &amp; contract rate'}
               </button>
             </div>
           )

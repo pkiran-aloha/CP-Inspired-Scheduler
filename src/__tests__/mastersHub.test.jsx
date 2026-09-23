@@ -13,7 +13,11 @@ afterEach(() => cleanup())
 async function toMasters(tab) {
   fireEvent.click(screen.getByTestId('nav-collapse')) // force the rail expanded so sub-items exist
   fireEvent.click(screen.getByTestId('nav-masters'))
-  await screen.findByTestId('payers-table') // the Payers tab is the default landing list
+  const tabPayers = screen.queryByTestId('masters-tab-payers')
+  if (tabPayers) fireEvent.click(tabPayers) // explicit: ui.mastersTab can persist on another tab
+  const back = screen.queryByTestId('pd-back')
+  if (back) fireEvent.click(back) // a payer detail view hides the list — close it
+  await screen.findByTestId('payers-table')
   await waitFor(() => expect(stored()).toBeTruthy()) // first debounced persist has landed
   if (tab === 'svcs') {
     fireEvent.click(screen.getByTestId('masters-tab-svcs'))
@@ -135,7 +139,7 @@ describe('masters — payer deep record', () => {
     // seeded templates render with their type, options and usage
     expect(await screen.findByTestId('cf-row-cf-authdept')).toBeTruthy()
     expect(screen.getByTestId('cf-row-cf-authdept').textContent).toContain('Single select (radio)')
-    expect(screen.getByTestId('cf-usedby-cf-authdept').textContent).toBe('1') // Aetna picks it
+    expect(screen.getByTestId('cf-usedby-cf-authdept').textContent).toBe('0') // chunk-35: nothing pre-picked
     expect(screen.getByTestId('cf-row-cf-goals').textContent).toContain('+3') // 6 options, 3 shown
     expect(screen.getByTestId('cf-status-cf-teleconf').textContent).toContain('Inactive')
     // create a select template with a live option list
@@ -174,10 +178,23 @@ describe('masters — payer deep record', () => {
     fireEvent.click(screen.getByTestId(`cf-status-${nf.id}`))
     await waitFor(() => expect(stored().customFields.find((d) => d.id === nf.id).status).toBe('inactive'))
     fireEvent.click(screen.getByTestId(`cf-status-${nf.id}`))
-    // delete: blocked while a payer still picks it, allowed once unused
+    // delete: blocked while a payer still picks it, allowed once unused — so pick it first
+    await openDetail('py-aetna')
+    fireEvent.click(await screen.findByTestId('pd-cf-pick'))
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-authdept')).querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').cf).toEqual(['cf-authdept']))
+    await toMasters('cfdefs')
+    await screen.findByTestId('cfdefs-table')
+    expect((await screen.findByTestId('cf-usedby-cf-authdept')).textContent).toBe('1')
     fireEvent.click(screen.getByTestId('cf-del-cf-authdept'))
     expect(await screen.findByText(/is picked by 1 payer/)).toBeTruthy()
     expect(stored().customFields.find((d) => d.id === 'cf-authdept')).toBeTruthy()
+    await openDetail('py-aetna')
+    fireEvent.click(await screen.findByTestId('pcf-unlink-cf-authdept'))
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').cf).toEqual([]))
+    await toMasters('cfdefs')
+    await screen.findByTestId('cfdefs-table')
     fireEvent.click(screen.getByTestId(`cf-del-${nf.id}`))
     await waitFor(() => expect(stored().customFields.find((d) => d.id === nf.id)).toBeUndefined())
   })
@@ -185,23 +202,31 @@ describe('masters — payer deep record', () => {
   it('payers only pick templates — no free-form definitions, legacy inline entries upgrade cleanly', async () => {
     render(<App />)
     await openDetail('py-aetna')
-    // Aetna's picked fields resolve from the master: labels come from templates
+    // chunk-35: seeded payers carry NO pre-picked fields — selectable only
+    expect(await screen.findByTestId('payer-detail')).toBeTruthy()
+    expect(screen.queryByTestId('pd-cf-cf-authdept')).toBeNull()
+    expect((await screen.findByTestId('pd-cf')).textContent).toContain('No fields picked yet')
+    // pick from the template list — nothing else is possible here (no free-form designer)
+    expect(screen.queryByTestId('pd-cf-label')).toBeNull()
+    fireEvent.click(screen.getByTestId('pd-cf-pick'))
+    const pickA = await screen.findByTestId('pd-cfpick-cf-authdept')
+    fireEvent.click(pickA.querySelector('input'))
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-present')).querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toEqual(['cf-authdept', 'cf-present']))
+    // picked fields resolve their labels from the master
     const row = await screen.findByTestId('pd-cf-cf-authdept')
     expect(row.textContent).toContain('Prior auth dept')
     expect(row.textContent).toContain('from master')
     expect(screen.getByTestId('pd-cf-cf-present').textContent).toContain('Caregiver present')
-    // there is no designer here any more — only picking and unlinking
-    expect(screen.queryByTestId('pd-cf-label')).toBeNull()
-    // unlink a field from this payer (the template itself survives)
+    // unlinking only detaches from this payer — the template survives
     fireEvent.click(screen.getByTestId('pcf-unlink-cf-present'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toEqual(['cf-authdept']))
     expect(stored().customFields.find((d) => d.id === 'cf-present')).toBeTruthy()
-    // pick another from the template list
+    // pick another; inactive templates can't be newly picked
     fireEvent.click(screen.getByTestId('pd-cf-pick'))
-    const pick = await screen.findByTestId('pd-cfpick-cf-goals')
-    // inactive templates can't be newly picked
     expect(screen.getByTestId('pd-cfpick-cf-teleconf').querySelector('input').disabled).toBe(true)
-    fireEvent.click(pick.querySelector('input'))
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-goals')).querySelector('input'))
     fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf).toEqual(['cf-authdept', 'cf-goals']))
     // and the jump-to-master affordance works
@@ -395,7 +420,6 @@ describe('masters — platform relationships', () => {
     expect(note.textContent).toContain('Aetna')
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
     fireEvent.click(screen.getByTestId('save-appt'))
-    await screen.findByText('Appointment created')
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.date === '2026-12-23' && a.service === 'dtt')
       expect(created).toBeTruthy()
@@ -594,8 +618,37 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.click(screen.getByTestId('pick-Staff Name'))
     fireEvent.click((await screen.findAllByTestId('people-item'))[0])
     fireEvent.mouseDown(document.body)
+    // chunk-34: the panel is opt-in — nothing auto-populates on a new appointment
     const panel = await screen.findByTestId('am-pcf')
-    expect(panel.textContent).toContain('Payer fields — Aetna')
+    expect(panel.textContent).toContain('Custom fields — Aetna')
+    expect(screen.queryByTestId('pcf-f-cf-authdept')).toBeNull()
+    expect(screen.getByTestId('am-pcf-empty')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('save-appt')) // no added fields → not blocked
+    expect(await screen.findByText('Appointment created')).toBeTruthy()
+    // reopen… simpler: a fresh booking to exercise the picker flow
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu')))
+    fireEvent.mouseDown(document.body)
+    fireEvent.click(screen.getByTestId('pick-Staff Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item'))[0])
+    fireEvent.mouseDown(document.body)
+    await screen.findByTestId('am-pcf')
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    fireEvent.click(screen.getByTestId('am-pcf-pick-cf-authdept').querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-pick-cf-present').querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    expect(screen.queryByTestId('am-pcf-empty')).toBeNull()
+    expect(screen.getByTestId('pcf-f-cf-present')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('pcf-del-cf-present')) // removable again — it's optional
+    expect(screen.queryByTestId('pcf-f-cf-present')).toBeNull()
+    fireEvent.click(screen.getByTestId('am-pcf-add')) // re-add from the picker
+    fireEvent.click(await screen.findByTestId('am-pcf-pick-cf-present').then((el) => el.querySelector('input')))
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    expect(screen.getByTestId('pcf-f-cf-present')).toBeTruthy()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Payer field “Prior auth dept” is required/)).toBeTruthy()
     // answer via radio chips; toggle offers the template's labelled options
@@ -603,7 +656,6 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.click(screen.getByTestId('pcf-toption-cf-present-1'))
     expect(screen.getByTestId('pcf-toption-cf-present-1').textContent).toBe('With caregiver')
     fireEvent.click(screen.getByTestId('save-appt'))
-    await screen.findByText('Appointment created')
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs['cf-authdept'])
       expect(created).toBeTruthy()
@@ -616,7 +668,6 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
   it('legacy inline custom fields still render and can be promoted to a template', async () => {
     render(<App />)
     await openDetail('py-aetna')
-    expect((await screen.findByTestId('pd-cf-cf-authdept')).textContent).toContain('from master')
     // simulate a pre-template payer: legacy string entry, then remount to load it
     const st = stored()
     st.payers.find((x) => x.id === 'py-aetna').cf = ['Behavioral Intake line']
@@ -741,6 +792,10 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     await screen.findByTestId('payers-table')
     fireEvent.click(screen.getByTestId('py-row-py-aetna'))
     await screen.findByTestId('payer-detail')
+    // chunk-35: payers start with nothing picked — pick, then the label tracks the master
+    fireEvent.click(screen.getByTestId('pd-cf-pick'))
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-present')).querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
     expect((await screen.findByTestId('pd-cf-cf-present')).textContent).toContain('Caregiver on site')
   })
 })
