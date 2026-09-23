@@ -397,7 +397,7 @@ function PayerSvcForm({ payer, form, onClose, onSave }) {
     if (Object.keys(E).length) {
       setErrs(E)
       toast({ message: `Check ${Object.keys(E).length} highlighted field${Object.keys(E).length === 1 ? '' : 's'} before saving`, kind: 'error' })
-      setTimeout(() => document.querySelector('.ovr-form .pm-err')?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 30)
+      setTimeout(() => document.querySelector('.ovr-form .pm-err')?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }), 30)
       return
     }
     const num = (v) => (String(v).trim() === '' ? '' : Number(v))
