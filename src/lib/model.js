@@ -62,15 +62,26 @@ export const SERVICES = [
 ]
 
 // A unit = unitMins of the service. charge = units × rate (+ mileage for travel)
+// chunk-40 (U2): the ABA Adaptive Behavior Services set — real descriptors, who may render
+// each code (cred), how it bills (billedThrough the supervising BCBA when the technician
+// renders), and the provider-level modifier that carries the credential (HO/HN/HP/HM).
+// Rates are practice config per appointment; the list is the coding reference.
 export const BILL_CODES = [
-  { id: '97151', label: '97151 · Treatment session w/ technician', unitMins: 30, rate: 32 },
-  { id: '97152', label: '97152 · Treatment session w/ supervisor', unitMins: 30, rate: 74 },
-  { id: '97153', label: '97153 · Group treatment (2–5 clients)', unitMins: 30, rate: 18 },
-  { id: '97154', label: '97154 · Group w/ technician', unitMins: 30, rate: 16 },
-  { id: '0362T', label: '0362T · HCPS / EIBI emerging behavior', unitMins: 30, rate: 58 },
-  { id: '253MT', label: '253MT · Modified treatment (clinic code)', unitMins: 30, rate: 10 },
-  { id: 'H2019', label: 'H2019 · Health & rehab case mgmt', unitMins: 60, rate: 45 },
+  { id: '97151', label: '97151 · Behavior ID assessment', unitMins: 30, rate: 32, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97152', label: '97152 · Supervised behavior treatment', unitMins: 30, rate: 74, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97153', label: '97153 · Adaptive behavior treatment by protocol (1:1 tech)', unitMins: 30, rate: 18, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM' },
+  { id: '97154', label: '97154 · Group adaptive behavior treatment (2+ per tech)', unitMins: 30, rate: 16, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM' },
+  { id: '97155', label: '97155 · Protocol modification by BCBA', unitMins: 30, rate: 88, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97156', label: '97156 · Family adaptive behavior guidance (BCBA-led)', unitMins: 30, rate: 70, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97157', label: '97157 · Family group adaptive behavior guidance', unitMins: 30, rate: 18, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97158', label: '97158 · Group protocol modification by BCBA', unitMins: 30, rate: 18, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '0362T', label: '0362T · Adaptive behavior treatment, technician (Category III · EOL 2027-01-01)', unitMins: 30, rate: 58, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM', eol: '2027-01-01' },
+  { id: '0373T', label: '0373T · Protocol modification by BCBA w/ 2+ technicians (Category III · EOL 2027-01-01)', unitMins: 30, rate: 92, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO', eol: '2027-01-01' },
+  { id: '253MT', label: '253MT · Modified treatment (clinic code)', unitMins: 30, rate: 10, cred: ['RBT', 'BCaBA', 'BCBA'], billedThrough: 'BCBA', mod: '' },
+  { id: 'H2019', label: 'H2019 · Health & rehab case mgmt', unitMins: 60, rate: 45, cred: ['BCBA', 'Psychologist'], billedThrough: 'BCBA', mod: '' },
 ]
+// provider-level modifiers that carry the credential on ABA claims
+export const CRED_MODIFIERS = { BCBA: 'HO', BCaBA: 'HN', Psychologist: 'HP', RBT: 'HM', Other: '' }
 
 export const MILEAGE_RATE = 0.7 // $ / mile default for drive time
 export const PAY_TAGS = ['Assessment report', 'Session note', 'IEP / IFSP', 'Consent / auth', 'Medical', 'Data export', 'Insurance']

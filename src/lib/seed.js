@@ -2,7 +2,7 @@
 import { addDays, isoDate, pad, parseISO, todayISO } from './date'
 import { uid, autoBilling, VERIFY_CHECKS, SERVICES, BILL_CODES } from './model'
 import { SMART_DEFAULTS } from './smart'
-import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq } from './claims'
+import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq, npiOf } from './claims'
 
 function mulberry32(a) {
   return function () {
@@ -50,6 +50,7 @@ const INSURERS = ['Blue Shield CA', 'Aetna', 'Regence BCBS', 'UnitedHealthcare',
 const py = (name, aka, type, svcList, required, status, o = {}) => ({
   id: 'py-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
   name, aka, type, svcList, required, status,
+  ext: { group: '', plan: '', subId: '', ticareId: '', medicaidId: '', bhpnId: '', filingDeadlineDays: null, requiresSecondaryBox18: true },
   street: o.street || '', city: o.city || '', state: o.state || 'CA', zip: o.zip || '', addressNotes: o.addressNotes || '',
   contacts: o.contacts || [{ kind: 'Main', number: o.phone || '' }].filter((c) => c.number || o.phone),
   evvId: o.evvId || '', email: o.email || '', thirdPartyId: o.thirdPartyId || '',
@@ -159,6 +160,29 @@ export const LOCATIONS = [
   'Community park session', 'Library community session', 'Telehealth (video)', 'Clinic Room 2', 'Assessment Lab',
 ]
 
+// chunk-40 (U2): the provider identifier master — one row per NPI. Offices may carry
+// several NPIs (like real ABA offices); staff carry one each with the matching taxonomy.
+export function seedProviders(staff, org) {
+  const now = Date.now()
+  const out = [{
+    id: 'pr-org', name: org.name || 'Practice', kind: 'office', refId: null,
+    credential: 'Office', degree: '', npi: org.npi || '', taxonomy: '101YP00000X',
+    roles: { rendering: false, billing: true, facility: true },
+    payerIds: { ticare: '', medicaid: '', bhpn: '', referrers: '' }, active: true, createdAt: now,
+  }]
+  for (const st of staff) {
+    const cred = /BCaBA/.test(st.role) ? 'BCaBA' : /BCBA/.test(st.role) ? 'BCBA' : /Psycholog/.test(st.role) ? 'Psychologist' : 'RBT'
+    out.push({
+      id: `pr-st-${st.id}`, name: st.name, kind: 'staff', refId: st.id, credential: cred,
+      degree: st.cert || '', npi: npiOf(st.id),
+      taxonomy: cred === 'RBT' ? '363AP0207X' : cred === 'Psychologist' ? '207Q00000X' : '101YP00000X',
+      roles: { rendering: true, billing: cred === 'BCBA', facility: false },
+      payerIds: { ticare: '', medicaid: '', bhpn: '', referrers: '' }, active: true, createdAt: now,
+    })
+  }
+  return out
+}
+
 export const defaultSettings = () => ({
   theme: 'light',
   weekStart: 0,
@@ -170,8 +194,9 @@ export const defaultSettings = () => ({
   mileageRate: 0.7,
   workday: [8, 18],
   smart: SMART_DEFAULTS,
-  org: { name: 'Aloha ABA Center', taxId: '94-3172055', npi: '1720418390', address: '1140 Sunset Crest Way, San Jose, CA 95124', phone: '(408) 555-0134' },
-  billing: { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true },
+  org: { name: 'Aloha ABA Center', taxId: '94-3172055', npi: '1720418395', address: '1140 Sunset Crest Way, San Jose, CA 95124', phone: '(408) 555-0134' },
+  providers: seedProviders(STAFF, { npi: '1720418395', name: 'Aloha ABA Center' }),
+  billing: { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org' },
   analytics: { preset: 'last4', gran: 'auto', metric: 'sessions', dim: 'staff', chart: 'line', compare: true, agg: 'sum' },
 })
 

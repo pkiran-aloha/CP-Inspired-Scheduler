@@ -15,7 +15,7 @@ export const SECTIONS = [
   { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs' },
   { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }, { id: 'cfdefs', label: 'Custom Fields' }] },
   { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload' },
-  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect' },
+  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
   { id: 'reports', label: 'Reports', icon: 'file', kbd: '6', desc: 'Exportable PMS reports & validations' },
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
@@ -65,14 +65,15 @@ export default function NavRail() {
       <div className="nr-items">
         {SECTIONS.map((s) => {
           const n = badges[s.id] || 0
+          const active = section === s.id || (s.subs || []).some((x) => x.to === section)
           return (
           <React.Fragment key={s.id}>
             <button
-              className={`nr-item ${section === s.id ? 'on' : ''}`}
+              className={`nr-item ${active ? 'on' : ''}`}
               data-testid={`nav-${s.id}`}
               onClick={() => actions.setUI({ section: s.id })}
               title={`${s.label}${collapsed ? ` — ${s.desc}` : ''}  (${s.kbd})`}
-              aria-current={section === s.id ? 'page' : undefined}
+              aria-current={active ? 'page' : undefined}
             >
               <span className="nr-ic">
                 {Icon[s.icon]({ size: 16 })}
@@ -81,15 +82,15 @@ export default function NavRail() {
               {!collapsed && <span className="nr-label">{s.label}</span>}
               {!collapsed && n > 0 && <span className="nr-count">{n}</span>}
             </button>
-            {/* section sub-list (Masters → Payers / Service Types) */}
-            {s.subs && section === s.id && !collapsed && (
+            {/* section sub-list (Masters → Payers / Service Types · Billing → desk / provider ids) */}
+            {s.subs && active && !collapsed && (
               <div className="nr-sub" role="group" aria-label={`${s.label} lists`}>
                 {s.subs.map((sub) => (
                   <button
                     key={sub.id}
-                    className={`nr-subitem ${ui.mastersTab === sub.id ? 'on' : ''}`}
+                    className={`nr-subitem ${sub.to ? sub.to === section : (section === s.id && ui.mastersTab === sub.id) ? 'on' : ''}`}
                     data-testid={`nav-sub-${sub.id}`}
-                    onClick={() => actions.setUI({ section: s.id, mastersTab: sub.id, payerSel: null })}
+                    onClick={() => actions.setUI({ section: sub.to || s.id, mastersTab: sub.id, payerSel: null })}
                   >
                     <span className="nr-subdot" />
                     {sub.label}
@@ -119,7 +120,7 @@ export default function NavRail() {
           {!collapsed && <span className="nr-label">Settings</span>}
         </button>
         <div className="nr-build" data-testid="app-build" title={"Build running in this tab — if a newer one is deployed, you’ll be offered a refresh"}>
-          {collapsed ? 'v14' : `v14 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
+          {collapsed ? 'v15' : `v15 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>
         <button className="nr-item" onClick={() => actions.setUI({ nav: !collapsed })} data-testid="nav-collapse" title={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
           <span className="nr-ic">{collapsed ? Icon.chevronR({ size: 14 }) : Icon.chevronL({ size: 14 })}</span>

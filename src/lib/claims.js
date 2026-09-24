@@ -42,7 +42,10 @@ function hashNum(s) {
 }
 export const memberIdOf = (c) => `${(c.insurer || 'SP').replace(/[^A-Z]/gi, '').slice(0, 3).toUpperCase()}${String(1000000 + (hashNum(c.id) % 8999999))}`
 export const authNoOf = (c) => `AUTH-${c.authStart?.slice(0, 4) || '2026'}-${String(40000 + (hashNum(c.id) % 9999)).padStart(5, '0')}`
-export const npiOf = (staffId) => `19${String(12000000 + (hashNum(staffId || 'x') % 79999999)).padStart(10, '0')}`
+export const npiOf = (staffId) => {
+  const base = ('1' + String(12000000 + (hashNum(staffId || 'x') % 79999999)).padStart(8, '0')).slice(0, 9)
+  return base + npiCheck(base)
+}
 
 const DX_POOL = [
   [/EIBI/, ['F84.0', 'R41.82']],
@@ -168,9 +171,12 @@ export function submitPatch(state, claim) {
 export function payPatch(claim, { amount, checkNo, adj, note, paidAt = Date.now() }) {
   const at = paidAt
   const nextAdj = r2(Math.max(0, adj || 0))
-  const due = r2(claim.charges - nextAdj - amount)
+  const due = r2(claim.charges - nextAdj - (claim.paid || 0) - amount)
   const rem = { checkNo, amount, adj: nextAdj, note, at }
-  return { claim: { ...claim, status: 'paid', paid: amount, adj: nextAdj, remittance: rem, closedAt: at, history: [...claim.history, ev(`Payment posted — $${amount.toLocaleString()} via ${checkNo}${nextAdj ? ` (${nextAdj.toLocaleString()} adjustment)` : ''}`, at)] } }
+  // chunk-40 (U5): a payment that leaves a patient-responsibility remainder keeps the claim
+  // open as partially_paid — it only closes at zero due (secondary or patient invoice follows)
+  const status = due <= 0 ? 'paid' : 'partially_paid'
+  return { claim: { ...claim, status, paid: r2((claim.paid || 0) + amount), adj: nextAdj, remittance: rem, closedAt: due <= 0 ? at : claim.closedAt, history: [...claim.history, ev(`Payment posted — $${amount.toLocaleString()} via ${checkNo}${nextAdj ? ` (${nextAdj.toLocaleString()} adjustment)` : ''}${due > 0 ? ` · $${due} still open` : ''}`, at)] } }
 }
 export function denyPatch(claim, { code, note }) {
   const at = Date.now()
@@ -218,7 +224,7 @@ export function rebillPatch(state, claim, dropIds, { seqStart } = {}) {
 }
 
 // ---------- money helpers for the form footer ----------
-export const dueOf = (c) => r2(c.charges - (c.adj || 0) - (c.status === 'paid' ? c.paid : 0))
+export const dueOf = (c) => r2(c.charges - (c.adj || 0) - (c.paid || 0))
 export const copayOf = (c, client) => (c.mode === 'insurance' ? Math.min(payerPolicy(c.payer).copay * c.lines.length, c.charges) : 0)
 
 export function agingOf(c, today = isoDate(new Date())) {
@@ -289,5 +295,115 @@ export function quickPosts(state, claim, client) {
   if (claim.mode === 'insurance') out.push({ id: 'contract', label: `Contract ${Math.round(pol.coins * 100)}%`, amount: r2(coins - cp), adj: r2(claim.charges - coins), note: 'Contractual adjustment' })
   if (cp) out.push({ id: 'copay', label: 'After copay', amount: r2(claim.charges - cp), adj: 0, note: `Copays collected: $${cp}` })
   out.push({ id: 'writeoff', label: 'Write off', amount: 0, adj: claim.charges, note: 'Uncollectible' })
+  return out
+}
+
+// =====================================================================
+// chunk-40 — Billing v2 foundations (U1 state v4 + U2 provider master)
+// =====================================================================
+
+// ---------- provider identifier reference ----------
+export const TAXONOMIES = [
+  { code: '101YP00000X', label: 'Behavior Analyst, BCBA (clinical)' },
+  { code: '101Y01000X', label: 'Behavior Analyst (non-clinical)' },
+  { code: '363AP0207X', label: 'Registered Behavior Technician (RBT)' },
+  { code: '207Q00000X', label: 'Psychologist' },
+  { code: '261QM0800X', label: 'Physical Therapist (referring)' },
+]
+export const PAYER_ID_TABS = [
+  { id: 'general', label: 'General' },
+  { id: 'ticare', label: 'Ticare ID' },
+  { id: 'medicaid', label: 'Medicaid ID' },
+  { id: 'bhpn', label: 'BHPN ID' },
+  { id: 'referrers', label: 'Referring Provider' },
+]
+
+// NPI check digit — Luhn mod-10 exactly as CMS specifies it: computed as if the
+// 80840 card-issuer prefix were present (hence the +24 constant), doubling from the
+// rightmost digit of the 9-digit base.
+export function npiCheck(base9) {
+  let sum = 24
+  for (let i = 0; i < 9; i++) { const d = Number(base9[i]) * (i % 2 === 0 ? 2 : 1); sum += d > 9 ? d - 9 : d }
+  return String((10 - (sum % 10)) % 10)
+}
+export function validNpi(npi) {
+  const n = String(npi || '').replace(/[^0-9]/g, '')
+  return n.length === 10 && npiCheck(n.slice(0, 9)) === n[9]
+}
+
+// credential bucket from a staff role string ('BCBA · Clinical Supervisor' → 'BCBA')
+export function credOf(role) {
+  const r = String(role || '')
+  if (/BCaBA/.test(r)) return 'BCaBA'
+  if (/BCBA|Behavior Analyst/.test(r)) return 'BCBA'
+  if (/RBT|Technician|Student/.test(r)) return 'RBT'
+  if (/Psycholog/.test(r)) return 'Psychologist'
+  return 'Other'
+}
+
+// ---------- credential matrix: who may render a code (spec §7.1) ----------
+// seniority ladder — a higher credential may perform work a lower one is listed for
+// (a BCBA always may render an RBT-level line; an RBT may NOT bill 97151/97155).
+const CRED_RANK = { RBT: 1, BCaBA: 2, BCBA: 3, Psychologist: 3, Other: 0 }
+export function credentialIssue(code, staffCred) {
+  const def = BILL_CODES.find((c) => c.id === code)
+  if (!def || !def.cred) return null
+  const minRank = Math.min(...def.cred.map((c) => CRED_RANK[c] || 0))
+  if ((CRED_RANK[staffCred] || 0) >= minRank) return null
+  const need = def.cred.map((c) => ({ BCBA: 'a BCBA', BCaBA: 'a BCaBA', RBT: 'an RBT/technician', Psychologist: 'a Psychologist' }[c])).join(' or ')
+  return `${code} requires ${need} — rendered by ${staffCred || 'unknown'}`
+}
+
+// ---------- provider resolution (spec §4.1 / §6.2) ----------
+// rendering = the line's staff member (staff row w/ NPI, else null → gate);
+// billing = a staff row flagged roles.billing (in line-staff order) → default billing
+// provider (settings.billing.defaultBilling) → the office row;
+// facility = a row flagged roles.facility → default facility (settings.billing.defaultFacility) → office.
+export function resolveProviders(state, claim) {
+  const prov = (state.settings?.providers || []).filter((p) => p.active)
+  const office = prov.find((p) => p.kind === 'office' && p.npi)
+  const staffOf = Object.fromEntries((state.staff || []).map((x) => [x.id, x]))
+  const billDefault = prov.find((p) => p.id === state.settings?.billing?.defaultBilling) || prov.find((p) => p.kind === 'staff' && p.roles?.billing && p.npi)
+  const facDefault = prov.find((p) => p.id === state.settings?.billing?.defaultFacility) || prov.find((p) => p.roles?.facility && p.npi) || office
+  return claim.lines.map((l) => {
+    const a = state.appts[l.apptId]
+    const lineStaff = (a?.staffIds || []).map((id) => prov.find((p) => p.kind === 'staff' && p.refId === id && p.npi)).filter(Boolean)
+    const render = lineStaff[0] || null
+    const bill = lineStaff.find((p) => p.roles?.billing) || billDefault || office || null
+    const fac = facDefault || office || null
+    return { renderId: render?.id || null, billId: bill?.id || null, facId: fac?.id || null, staff: names(a?.staffIds || [], staffOf) }
+  })
+}
+
+// ---------- claim v2 backfill (idempotent defaults; used by migration + new assembly) ----------
+export function claimV2Defaults(c, state) {
+  const pol = payerPolicy(c.payer)
+  const maxDos = c.lines.reduce((m, l) => (l.dos > m ? l.dos : m), c.dosTo || '')
+  const filing = state.payers?.find?.((p) => p.name === c.payer)?.ext?.filingDeadlineDays || pol.timely || 120
+  const timelyDue = maxDos ? isoDate(new Date(parseISO(maxDos).getTime() + filing * 86400000)) : null
+  return {
+    method: c.method || (c.status === 'draft' ? null : c.mode === 'selfpay' ? 'selfpay' : 'ch'),
+    reject: c.reject || null,
+    timelyDue: c.timelyDue || timelyDue,
+    secondary: c.secondary || null,
+    lines: c.lines.map((l) => ({ ...l, provider: l.provider || null })),
+  }
+}
+
+// ---------- payment records: derive from legacy inline remittances (migration + fresh seed) ----------
+export function paymentsFromClaims(claims, { at = Date.now() } = {}) {
+  const out = {}
+  for (const c of claims) {
+    if (!c.remittance) continue
+    const rem = c.remittance
+    const kind = rem.checkNo && /^CHK/i.test(rem.checkNo) ? 'check' : rem.kind || 'eob'
+    out[`pay-${c.id}`] = {
+      id: `pay-${c.id}`, claimId: c.id, clientId: c.clientId, payer: c.payer,
+      kind, amount: r2(rem.amount || 0), adj: r2(rem.adj || 0), patientResp: 0,
+      ref: rem.checkNo || '—', date: c.closedAt ? isoDate(new Date(c.closedAt)) : isoDate(new Date(at)),
+      reconciled: false, note: rem.note || '', attachments: [],
+      source: null, reversalOf: null, createdAt: at, createdBy: 'Aloha (local)',
+    }
+  }
   return out
 }

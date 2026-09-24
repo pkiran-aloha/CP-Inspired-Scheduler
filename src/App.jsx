@@ -19,6 +19,7 @@ import ClientsView from './components/ClientsView'
 import MastersView from './components/MastersView'
 import StaffView from './components/StaffView'
 import BillingView from './components/BillingView'
+import ProviderIdView from './components/ProviderIdView'
 import NeedsCover from './components/NeedsCover'
 import SettingsModal from './components/SettingsModal'
 import CommandPalette from './components/CommandPalette'
@@ -91,6 +92,16 @@ function Shell() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.meta?.legacyCustomCleared, state.meta?.legacyCustomClearedSeen])
+
+  // chunk-40: announce the one-time billing v2 migration
+  useEffect(() => {
+    const m = state.meta
+    if (m?.billingV2 && !m.billingV2Seen && (m.billingV2Count || 0) > 0) {
+      toast({ message: `Billing v2 — payments & provider IDs now tracked on their own ledgers (${m.billingV2Count} records migrated)`, kind: 'info' })
+      actions.setMeta({ billingV2Seen: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.meta?.billingV2, state.meta?.billingV2Seen])
 
   // ---- global keyboard shortcuts ----
   useEffect(() => {
@@ -224,6 +235,7 @@ function Shell() {
         {section === 'masters' && <MastersView />}
         {section === 'staff' && <StaffView />}
         {section === 'billing' && <BillingView />}
+        {section === 'bil-providers' && <ProviderIdView />}
       </div>
 
       {picking && (

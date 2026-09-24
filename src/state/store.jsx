@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
 import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
-import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
+import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
-import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom } from '../lib/master'
+import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2 } from '../lib/master'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 
 const KEY = 'aloha-aba.v3'
@@ -18,6 +18,12 @@ export function blankState() {
   return {
     appts: apptsWithClaims,
     claims,
+    payments: paymentsFromClaims(Object.values(claims), { at: Date.now() }),
+    invoices: {},
+    verificationForms: {},
+    eraImports: {},
+    billedFiles: {},
+    meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true },
     staff: STAFF,
     clients: CLIENTS,
     payers: PAYERS,
@@ -68,13 +74,18 @@ export function initial() {
           customFields: Array.isArray(saved.customFields) ? saved.customFields : base.customFields,
           history: saved.history || [],
           reports: { saved: (saved.reports && saved.reports.saved) || [] },
+          payments: saved.payments || {},
+          invoices: saved.invoices || {},
+          verificationForms: saved.verificationForms || {},
+          eraImports: saved.eraImports || {},
+          billedFiles: saved.billedFiles || {},
           settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) } },
           ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: (saved.ui?.section || 'calendar') === 'payers' ? 'masters' : saved.ui?.section || 'calendar' },
         }
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
         // promoted or dropped, write the fixed snapshot back immediately so the repair is durable
         // chunk-38: one-time clear of pre-loaded appointment pcfs (flagged in meta, idempotent)
-        const merged = normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(mergedRaw, uid)))
+        const merged = normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(mergedRaw, uid))))
         if (merged !== mergedRaw) { try { localStorage.setItem(KEY, JSON.stringify(merged)) } catch { /* off for A/B */ } }
         return merged
       }
@@ -108,7 +119,8 @@ export function reducer(state, action) {
       if (!snap) return state
       // snapshots taken before the claims engine only covered appointments
       if (!snap.appts) return { ...state, appts: snap, history: hist }
-      return { ...state, appts: snap.appts, claims: snap.claims || {}, history: hist }
+      const payments = snap.payments !== undefined ? snap.payments : state.payments
+      return { ...state, appts: snap.appts, claims: snap.claims || {}, payments, history: hist }
     }
     case 'claimsTx': {
       const appts = { ...state.appts }
@@ -116,7 +128,12 @@ export function reducer(state, action) {
       const claims = { ...state.claims }
       for (const c of action.claimUpserts || []) claims[c.id] = c
       for (const id of action.claimDel || []) delete claims[id]
-      return { ...state, appts, claims, history: pushSnap(state) }
+      const payments = action.payments ? { ...(state.payments || {}), ...action.payments } : state.payments
+      return { ...state, appts, claims, payments, history: pushSnap(state) }
+    }
+    case 'record': {
+      const cur = state[action.coll] || {}
+      return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item } }
     }
     case 'setUI':
       return { ...state, ui: { ...state.ui, ...action.patch } }
@@ -246,7 +263,7 @@ export function reducer(state, action) {
 }
 
 // one undo step snapshots BOTH the ledger (appts) and the claim desk (claims)
-const pushSnap = (state) => [...state.history.slice(-24), { appts: { ...state.appts }, claims: { ...state.claims } }]
+const pushSnap = (state) => [...state.history.slice(-24), { appts: { ...state.appts }, claims: { ...state.claims }, payments: { ...(state.payments || {}) } }]
 
 const Ctx = createContext(null)
 export const useStore = () => useContext(Ctx)
@@ -353,9 +370,47 @@ function createActions(state, dispatch) {
     postPayment: (id, payload) => {
       const c = state.claims[id]
       if (!c) return { ok: false, msg: 'Claim not found' }
-      dispatch({ type: 'claimsTx', claimUpserts: [payPatch(c, payload).claim] })
-      return { ok: true, msg: `${c.no} paid — $${payload.amount.toLocaleString()} posted${payload.adj ? ` (+$${Math.round(payload.adj).toLocaleString()} adjustment)` : ''}` }
+      const p = { amount: 0, adj: 0, patientResp: 0, checkNo: '—', note: '', kind: null, date: null, reconciled: false, source: null, ...payload }
+      const at = Date.now()
+      const tx = payPatch(c, { amount: p.amount, checkNo: p.checkNo, adj: p.adj, note: p.note, paidAt: at })
+      const payment = {
+        id: uid(), claimId: c.id, clientId: c.clientId, payer: c.payer,
+        kind: p.kind || (p.checkNo && /^CHK/i.test(p.checkNo) ? 'check' : 'manual'),
+        amount: Math.round(p.amount * 100) / 100, adj: Math.round(p.adj * 100) / 100, patientResp: Math.round((p.patientResp || 0) * 100) / 100,
+        ref: p.checkNo, date: p.date || todayISO(), reconciled: !!p.reconciled, note: p.note || '', attachments: [],
+        source: p.source || null, reversalOf: null, createdAt: at, createdBy: 'Aloha (local)',
+      }
+      dispatch({ type: 'claimsTx', claimUpserts: [tx.claim], apptPatches: [], payments: { [payment.id]: payment } })
+      const still = Math.max(0, Math.round((c.charges - (c.adj || 0) - (c.paid || 0) - p.amount) * 100) / 100)
+      return { ok: true, msg: still > 0
+        ? `${c.no} — $${p.amount.toLocaleString()} posted${p.adj ? ` (+$${Math.round(p.adj).toLocaleString()} adj)` : ''} · $${still.toLocaleString()} still open`
+        : `${c.no} paid — $${p.amount.toLocaleString()} posted${p.adj ? ` (+$${Math.round(p.adj).toLocaleString()} adjustment)` : ''}` }
     },
+    voidPayment: (paymentId) => {
+      const pay = (state.payments || {})[paymentId]
+      if (!pay) return { ok: false, msg: 'Payment not found' }
+      const c = state.claims[pay.claimId]
+      if (!c) return { ok: false, msg: 'Claim not found' }
+      const r2 = (n) => Math.round((n || 0) * 100) / 100
+      const reverted = {
+        ...c,
+        status: c.status === 'paid' ? (c.submittedAt ? 'submitted' : 'draft') : c.status,
+        paid: r2(Math.max(0, (c.paid || 0) - pay.amount)),
+        adj: r2(Math.max(0, (c.adj || 0) - pay.adj)),
+        remittance: c.remittance && c.remittance.checkNo === pay.ref ? null : c.remittance,
+        closedAt: null,
+        history: [...c.history, { at: Date.now(), ev: `Payment voided — $${pay.amount.toLocaleString()} reversed (${pay.ref})` }],
+      }
+      const reversal = { ...pay, id: uid(), amount: r2(-pay.amount), adj: r2(-pay.adj), patientResp: r2(-pay.patientResp), ref: `VOID-${pay.ref}`, reversalOf: pay.id, note: `Reversal of ${pay.ref}`, date: todayISO(), reconciled: false, createdAt: Date.now() }
+      dispatch({ type: 'claimsTx', claimUpserts: [reverted], apptPatches: [], payments: { [reversal.id]: reversal } })
+      return { ok: true, msg: `Payment ${pay.ref} voided — reversal posted` }
+    },
+    // ---- provider identifier master (U2) ----
+    addProvider: (row) => dispatch({ type: 'setSettings', patch: { providers: [...(state.settings.providers || []), { id: uid(), kind: 'staff', credential: 'Other', degree: '', npi: '', taxonomy: '101YP00000X', roles: { rendering: false, billing: false, facility: false }, payerIds: { ticare: '', medicaid: '', bhpn: '', referrers: '' }, active: true, createdAt: Date.now(), ...row }] } }),
+    updateProvider: (id, patch) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) } }),
+    removeProvider: (id) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).filter((p) => p.id !== id) } }),
+    // ---- document/artifact ledgers (billed files, invoices, verification forms, ERA imports) ----
+    record: (coll, item) => dispatch({ type: 'record', coll, item: { id: uid(), ...item } }),
     denyClaim: (id, payload) => {
       const c = state.claims[id]
       if (!c) return { ok: false, msg: 'Claim not found' }

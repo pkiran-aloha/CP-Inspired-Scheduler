@@ -1,3 +1,67 @@
+import { claimV2Defaults } from './claims'
+import { seedProviders } from './seed'
+/**
+ * chunk-40 (U1) — billing v2 load-time migration, exactly once (meta.billingV2):
+ *   • create the new ledger collections (payments / invoices / verificationForms /
+ *     eraImports / billedFiles) when a v3 save lacks them;
+ *   • remap every legacy inline claim remittance into a first-class payment record;
+ *   • backfill claim v2 fields (method / reject / timelyDue / secondary / lines[].provider);
+ *   • seed the provider identifier master (settings.providers) when absent;
+ *   • default payer.ext for payers missing it.
+ * Idempotent: a second pass is a no-op.
+ */
+export function normalizeBillingV2(state) {
+  if (state.meta && state.meta.billingV2) return state
+  let changed = false
+  let count = 0
+  let next = state
+  const collections = ['payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles']
+  for (const key of collections) if (!next[key]) { next = { ...next, [key]: {} }; changed = true }
+  // 1) inline remittances → payment records
+  const claims = {}
+  let remapped = 0
+  const payments = { ...next.payments }
+  for (const [id, c] of Object.entries(next.claims || {})) {
+    if (c.remittance && !payments[`pay-${id}`]) { payments[`pay-${id}`] = mkPayment(c); remapped++ }
+  }
+  if (remapped) { next = { ...next, payments }; changed = true; count += remapped }
+  // 2) claim v2 backfill
+  const claims2 = {}
+  let backfilled = 0
+  for (const [id, c] of Object.entries(next.claims || {})) {
+    const d = claimV2Defaults(c, next)
+    const patched = c.method || c.reject || c.timelyDue || c.secondary || c.lines.some((l) => l.provider) ? c : { ...c, ...d }
+    if (patched !== c) backfilled++
+    claims2[id] = patched
+  }
+  if (backfilled) { next = { ...next, claims: claims2 }; changed = true }
+  // 3) provider master
+  if (!Array.isArray(next.settings?.providers) || !next.settings.providers.length) {
+    const prov = seedProviders(next.staff || [], next.settings?.org || {})
+    next = { ...next, settings: { ...next.settings, providers: prov } }
+    changed = true
+  }
+  // 4) payer.ext defaults
+  const payers = (next.payers || []).map((p) => {
+    if (p.ext && typeof p.ext === 'object') return p
+    return { ...p, ext: { group: '', plan: '', subId: '', ticareId: '', medicaidId: '', bhpnId: '', filingDeadlineDays: null, requiresSecondaryBox18: true } }
+  })
+  if (payers.some((p, i) => p !== (next.payers || [])[i])) { next = { ...next, payers }; changed = true }
+  return { ...next, meta: { ...(next.meta || {}), billingV2: true, billingV2Count: count } }
+}
+const mkPayment = (c) => {
+  const rem = c.remittance
+  const r2 = (n) => Math.round((n || 0) * 100) / 100
+  const iso = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+  return {
+    id: `pay-${c.id}`, claimId: c.id, clientId: c.clientId, payer: c.payer,
+    kind: rem.checkNo && /^CHK/i.test(rem.checkNo) ? 'check' : 'eob',
+    amount: r2(rem.amount), adj: r2(rem.adj), patientResp: 0,
+    ref: rem.checkNo || '—', date: c.closedAt ? iso(c.closedAt) : iso(Date.now()),
+    reconciled: false, note: rem.note || '', attachments: [],
+    source: null, reversalOf: null, createdAt: Date.now(), createdBy: 'Aloha (local)',
+  }
+}
 // ── Masters layer ────────────────────────────────────────────────────────────
 // Store-backed master lists (service types) + payer master records: contracted
 // services, per-service overrides and the billing-rules suite. Old persisted
