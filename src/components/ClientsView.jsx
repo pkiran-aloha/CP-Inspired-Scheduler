@@ -91,15 +91,17 @@ function ClientModal({ client, dup, onClose }) {
   const editing = !!client
   const src = client || dup
   const [form, setForm] = useState(() => {
-    if (!src) return { name: '', guardian: '', program: PROGRAMS[0], home: '', insurer: INSURERS[0], phone: '', authWeekly: 12, authStart: todayISO(), authEnd: isoDate(addDays(new Date(), 120)), avatar: AVATAR_KEYS[Math.floor(Math.random() * AVATAR_KEYS.length)] }
+    if (!src) return { name: '', guardian: '', program: PROGRAMS[0], home: '', insurer: INSURERS[0], phone: '', authWeekly: 12, authStart: todayISO(), authEnd: isoDate(addDays(new Date(), 120)), avatar: AVATAR_KEYS[Math.floor(Math.random() * AVATAR_KEYS.length)], secondary: null }
     if (dup) {
       const { id: _drop, ...rest } = src
       return { ...rest, name: `${src.name} (copy)`, avatar: src.avatar || avatarKeyFor(src) }
     }
-    return { ...src, avatar: src.avatar || avatarKeyFor(src) }
+    return { ...src, secondary: src.secondary || null, avatar: src.avatar || avatarKeyFor(src) }
   })
   const dupName = !editing && form.name.trim().length > 1 && state.clients.some((x) => x.name.trim().toLowerCase() === form.name.trim().toLowerCase())
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const setSec = (k, v) => setForm((f) => ({ ...f, secondary: { ...(f.secondary||{ payerId:'', memberId:'', authNo:'', relation:'secondary', since:'', until:'', note:'' }), [k]: v } }))
+  const activePayers = (state.payers||[]).filter((p)=>p.status==='active')
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', h)
@@ -112,10 +114,12 @@ function ClientModal({ client, dup, onClose }) {
   const save = () => {
     if (Object.keys(errs).length) return
     if (editing) {
-      actions.updateRoster('clients', { ...form })
+      const sec = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
+      actions.updateRoster('clients', { ...form, secondary: sec && sec.payerId ? sec : null })
       toast({ message: `${form.name} updated — analytics & reports pick it up instantly`, kind: 'ok' })
     } else {
-      actions.addRoster('clients', { id: uid(), initials: form.name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), color: AV_COLORS[state.clients.length % AV_COLORS.length], geo: [37.34, -121.97], ...form })
+      const secAdd = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
+      actions.addRoster('clients', { id: uid(), initials: form.name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), color: AV_COLORS[state.clients.length % AV_COLORS.length], geo: [37.34, -121.97], ...form, secondary: secAdd && secAdd.payerId ? secAdd : null })
       toast({ message: dup ? `Duplicated — ${form.name} added to the caseload` : `${form.name} added to the caseload`, kind: 'ok' })
     }
     onClose()
@@ -166,6 +170,23 @@ function ClientModal({ client, dup, onClose }) {
               <F k="authWeekly" label="Authorized hrs / week" icon="clock" type="number" />
               <F k="authStart" label="Auth start" icon="cal" type="date" />
               <F k="authEnd" label="Auth end" icon="cal" type="date" />
+            </div>
+          </section>
+          <section className="pm-sect" data-testid="cm-sec-secondary">
+            <h5>{Icon.shield({ size: 12 })} Secondary insurance <em>— coordination of benefits</em>{form.secondary&&<span className="tag ok" style={{ marginLeft:8 }}>active</span>}</h5>
+            <div className="pm-grid">
+              <label className="bil-fld pm-fld"><span>Enable secondary</span><div style={{ display:'flex', alignItems:'center', gap:8 }}><button type="button" className={`toggle ${form.secondary?'on':''}`} data-testid="cm-sec-enable" onClick={()=>set('secondary', form.secondary?null:{ payerId: (activePayers[0]?.id||''), memberId:'', authNo:'', relation:'secondary', since:'', until:'', note:'' })} /><span className="muted" style={{ fontSize:11 }}>{form.secondary?'Secondary attached':'No secondary'}</span></div></label>
+              {form.secondary && (
+                <>
+                  <label className="bil-fld pm-fld"><span>Secondary payer *</span><select className="input" value={form.secondary.payerId||''} data-testid="cm-sec-payer" onChange={(e)=>setSec('payerId', e.target.value)}>{activePayers.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}{!activePayers.length&&<option value="">No active payers</option>}</select></label>
+                  <Field k="sec-member" label="Member / group #" form={{ 'sec-member': form.secondary.memberId||'' }} set={(_,v)=>setSec('memberId', v)} errs={{}}><input className="input" value={form.secondary.memberId||''} placeholder="SEC-…" data-testid="cm-sec-member" onChange={(e)=>setSec('memberId', e.target.value)} /></Field>
+                  <Field k="sec-auth" label="Auth #" form={{ 'sec-auth': form.secondary.authNo||'' }} set={(_,v)=>setSec('authNo', v)} errs={{}}><input className="input" value={form.secondary.authNo||''} placeholder="AUTH-S-…" data-testid="cm-sec-auth" onChange={(e)=>setSec('authNo', e.target.value)} /></Field>
+                  <label className="bil-fld pm-fld"><span>Relationship</span><select className="input" value={form.secondary.relation||'secondary'} data-testid="cm-sec-rel" onChange={(e)=>setSec('relation', e.target.value)}><option value="secondary">Secondary</option><option value="primary">Primary</option><option value="tertiary">Tertiary</option><option value="spouse">Spouse</option><option value="child">Child</option></select></label>
+                  <Field k="sec-since" label="Active since" type="date" form={{ 'sec-since': form.secondary.since||'' }} set={(_,v)=>setSec('since', v)} errs={{}}><input className="input" type="date" value={form.secondary.since||''} data-testid="cm-sec-since" onChange={(e)=>setSec('since', e.target.value)} /></Field>
+                  <Field k="sec-until" label="Active until" type="date" form={{ 'sec-until': form.secondary.until||'' }} set={(_,v)=>setSec('until', v)} errs={{}}><input className="input" type="date" value={form.secondary.until||''} data-testid="cm-sec-until" onChange={(e)=>setSec('until', e.target.value)} /></Field>
+                  <label className="bil-fld pm-fld pm-wide"><span>Note</span><input className="input" value={form.secondary.note||''} placeholder="COB details…" data-testid="cm-sec-note" onChange={(e)=>setSec('note', e.target.value)} /></label>
+                </>
+              )}
             </div>
           </section>
           <section className="pm-sect pm-colorrow">
@@ -419,6 +440,7 @@ export default function ClientsView() {
               { icon: 'phone', label: 'Phone', value: c.phone || '—', href: c.phone ? `tel:${c.phone.replace(/\D/g, '')}` : null, copy: c.phone ? 'phone' : null },
               { icon: 'mail', label: 'Email', value: c.email || '—', href: c.email ? `mailto:${c.email}` : null, copy: c.email ? 'email' : null },
               { icon: 'shield', label: 'Payer', value: c.insurer || '—' },
+              ...(c.secondary ? [{ icon: 'shield', label: 'Secondary', value: `${(state.payers||[]).find((pp)=>pp.id===c.secondary.payerId)?.name||c.secondary.payerId} · ${c.secondary.memberId||'no member'}${c.secondary.authNo?' · '+c.secondary.authNo:''}` }] : []),
               { icon: 'cake', label: 'DOB', value: c.dob || 'missing' },
               { icon: 'badge', label: 'Claims member', value: memberIdOf(c) },
             ]}

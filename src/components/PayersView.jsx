@@ -20,12 +20,12 @@ const PAGE_SIZE = 12
 const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
 const initialsOf = (n) => { const w = String(n || '').replace(/[^A-Za-z ]/g, '').trim().split(/\s+/); return ((w[0]?.[0] || '?') + (w[1]?.[0] || '')).toUpperCase() }
 const colorFor = (n) => COLORS[[...String(n || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % COLORS.length]
-const blank = () => ({ name: '', aka: '', type: '', svcList: 'None', required: 'No', status: 'active', street: '', city: '', state: 'CA', zip: '', addressNotes: '', contacts: [{ kind: 'Main', number: '' }], evvId: '', email: '', thirdPartyId: '', cmsType: 'Group Health Plan', format: 'None', payerId: '', clearingHouse: 'Office Ally' })
+const blank = () => ({ name: '', aka: '', type: '', svcList: 'None', required: 'No', status: 'active', street: '', city: '', state: 'CA', zip: '', addressNotes: '', contacts: [{ kind: 'Main', number: '' }], evvId: '', email: '', thirdPartyId: '', cmsType: 'Group Health Plan', format: 'None', payerId: '', clearingHouse: 'Office Ally', ext: { group: '', plan: '', subId: '', ticareId: '', medicaidId: '', bhpnId: '', filingDeadlineDays: null, requiresSecondaryBox18: true } })
 const phoneOf = (p) => (p.contacts || []).find((c) => c.kind === 'Main')?.number || p.contacts?.[0]?.number || ''
 
 export function PayerForm({ payer, onClose, used = 0, onRemove }) {
   const state = useStore()
-  const [form, setForm] = useState(() => (payer ? { ...blank(), ...payer, contacts: (payer.contacts || []).length ? payer.contacts.map((c) => ({ ...c })) : [{ kind: 'Main', number: '' }] } : blank()))
+  const [form, setForm] = useState(() => (payer ? { ...blank(), ...payer, ext: { ...blank().ext, ...(payer.ext||{}) }, contacts: (payer.contacts || []).length ? payer.contacts.map((c) => ({ ...c })) : [{ kind: 'Main', number: '' }] } : blank()))
   const [errs, setErrs] = useState({})
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -34,6 +34,7 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
   }, [onClose])
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setErrs((e) => ({ ...e, [k]: undefined })) }
   const setContact = (i, k, v) => set('contacts', form.contacts.map((c, j) => (j === i ? { ...c, [k]: v } : c)))
+  const setExt = (k, v) => set('ext', { ...(form.ext||{}), [k]: v })
 
   const save = () => {
     const E = {}
@@ -46,8 +47,12 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
     if (!form.city.trim()) E.city = 'City is required'
     if (!form.state) E.state = 'State is required'
     if (!/^\d{5}(-\d{4})?$/.test(form.zip.trim())) E.zip = 'Enter a 5-digit ZIP'
+    const fd = form.ext?.filingDeadlineDays
+    if (fd != null && fd !== '') { const n = Number(fd); if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0 || n > 999) E.filingDeadlineDays = '0–999 integer days' }
     if (Object.keys(E).length) { setErrs(E); return }
-    return { ...(payer || {}), ...form, id: payer?.id || form.id, name, contacts: form.contacts.filter((c) => c.number.trim()) }
+    const extClean = { group: String(form.ext?.group||'').trim(), plan: String(form.ext?.plan||'').trim(), subId: String(form.ext?.subId||'').trim(), ticareId: String(form.ext?.ticareId||'').trim(), medicaidId: String(form.ext?.medicaidId||'').trim(), bhpnId: String(form.ext?.bhpnId||'').trim(), filingDeadlineDays: form.ext?.filingDeadlineDays===''||form.ext?.filingDeadlineDays==null?null:Number(form.ext?.filingDeadlineDays), requiresSecondaryBox18: form.ext?.requiresSecondaryBox18!==false }
+    if (extClean.filingDeadlineDays!=null && (!Number.isFinite(extClean.filingDeadlineDays) || extClean.filingDeadlineDays<0)) extClean.filingDeadlineDays=null
+    return { ...(payer || {}), ...form, ext: extClean, id: payer?.id || form.id, name, contacts: form.contacts.filter((c) => c.number.trim()) }
   }
   const Fld = ({ k, label, req, children, hint }) => (
     <label className="bil-fld pm-fld">
@@ -128,6 +133,17 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
               <Fld k="evvId" label="EVV Payer ID" hint="EVV-0000" />
               <Fld k="email" label="Email Address" hint="provider.relations@payer.example.com" />
               <Fld k="thirdPartyId" label="Third party ID" hint="TPA-0000" />
+            </div>
+            <div className="py-sec py-sec-billids">{Icon.dollar({ size: 12 })} Billing identifiers</div>
+            <div className="py-two">
+              <Fld k="ext-group" label="Group #"><input className="input" value={form.ext?.group||''} placeholder="GRP-…" data-testid="py-ext-group" onChange={(e)=>setExt('group', e.target.value)} /></Fld>
+              <Fld k="ext-plan" label="Plan #"><input className="input" value={form.ext?.plan||''} placeholder="PLAN-…" data-testid="py-ext-plan" onChange={(e)=>setExt('plan', e.target.value)} /></Fld>
+              <Fld k="ext-subId" label="Sub ID"><input className="input" value={form.ext?.subId||''} placeholder="SUB-…" data-testid="py-ext-sub" onChange={(e)=>setExt('subId', e.target.value)} /></Fld>
+              <Fld k="ext-ticare" label="Ticare ID"><input className="input" value={form.ext?.ticareId||''} placeholder="TICARE-…" data-testid="py-ext-ticare" onChange={(e)=>setExt('ticareId', e.target.value)} /></Fld>
+              <Fld k="ext-medicaid" label="Medicaid ID"><input className="input" value={form.ext?.medicaidId||''} placeholder="MED-…" data-testid="py-ext-medicaid" onChange={(e)=>setExt('medicaidId', e.target.value)} /></Fld>
+              <Fld k="ext-bhpn" label="BHPN ID"><input className="input" value={form.ext?.bhpnId||''} placeholder="BHPN-…" data-testid="py-ext-bhpn" onChange={(e)=>setExt('bhpnId', e.target.value)} /></Fld>
+              <Fld k="filingDeadlineDays" label="Filing deadline (days)"><input className={`input${errs.filingDeadlineDays?' err':''}`} type="number" min={0} max={999} value={form.ext?.filingDeadlineDays??''} placeholder="payer default" data-testid="py-ext-filing" onChange={(e)=>{ const v=e.target.value.trim()===''?null:Number(e.target.value); setExt('filingDeadlineDays', Number.isFinite(v)?v:null) }} />{errs.filingDeadlineDays&&<i className="pm-err">{errs.filingDeadlineDays}</i>}</Fld>
+              <label className="bil-fld pm-fld"><span>Requires Secondary Box 18</span><div style={{ display:'flex', alignItems:'center', gap:8 }}><button type="button" className={`toggle ${form.ext?.requiresSecondaryBox18!==false?'on':''}`} data-testid="py-ext-box18" onClick={()=>setExt('requiresSecondaryBox18', !(form.ext?.requiresSecondaryBox18!==false))} /><span className="muted" style={{ fontSize:11 }}>{form.ext?.requiresSecondaryBox18!==false?'Require on secondary':'Skip'}</span></div></label>
             </div>
           </div>
         </div>

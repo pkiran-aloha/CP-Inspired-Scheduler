@@ -20,6 +20,7 @@ export const payerPolicy = (payer) => PAYER_POLICY[payer] || { kind: 'commercial
 export const CLAIM_STATUSES = {
   draft: { label: 'Draft', ink: 'var(--muted)', bg: 'var(--panel-3)' },
   submitted: { label: 'Submitted', ink: '#0369a1', bg: '#e0f2fe' },
+  partially_paid: { label: 'Partially paid', ink: '#a16207', bg: '#fef3c7' },
   paid: { label: 'Paid', ink: '#047857', bg: '#d7f5e8' },
   denied: { label: 'Denied', ink: '#b91c1c', bg: '#fee2e2' },
   void: { label: 'Void', ink: 'var(--muted)', bg: 'var(--panel-3)' },
@@ -67,6 +68,8 @@ export const dxFor = (client) => {
 // ---------- staging: everything claim-ready right now ----------
 export function stagedAppts(state, days) {
   const needVer = state.settings.billing?.requireVerification !== false
+  const strictAuth = state.settings.billing?.strictAuth === true
+  const clientById = Object.fromEntries((state.clients||[]).map((c)=>[c.id,c]))
   const clientIds = new Set((state.clients || []).map((c) => c.id))
   const list = Object.values(state.appts)
     .filter((a) => a.clientIds?.[0] && clientIds.has(a.clientIds[0]))
@@ -74,6 +77,15 @@ export function stagedAppts(state, days) {
     .filter((a) => TYPES[a.type]?.billable && a.status === 'completed' && !a.billing?.status)
     .filter((a) => (a.billing?.units > 0) || (a.billing?.mileage && a.billing?.distance > 0))
     .filter((a) => !needVer || !TYPES[a.type].hasVerification || a.verification?.verifyStatus === 'verified')
+    .filter((a) => {
+      if (!strictAuth) return true
+      const c = clientById[a.clientIds?.[0]]
+      if (!c) return true
+      if (c.authStart && a.date < c.authStart) return false
+      if (c.authEnd && a.date > c.authEnd) return false
+      if (!c.authStart || !c.authEnd) return false
+      return true
+    })
   return list.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.start - b.start))
 }
 
@@ -147,6 +159,9 @@ export function assembleClaims(state, plans, { seqStart, at = Date.now() } = {})
 // ---------- submission gate (mirrors the validation rules at claim level) ----------
 export function claimGate(state, claim) {
   const needVer = state.settings.billing?.requireVerification !== false
+  const strictAuth = state.settings.billing?.strictAuth === true
+  const supCheck = state.settings.billing?.supervisionCheck !== false
+  const today = isoDate(new Date())
   const bad = []
   for (const l of claim.lines) {
     const a = state.appts[l.apptId]
@@ -154,6 +169,24 @@ export function claimGate(state, claim) {
     if (a.billing?.status === 'billed') { bad.push({ line: l, why: 'Line was already billed outside a claim' }); continue }
     if (!(a.billing?.units > 0) && !(a.billing?.mileage && a.billing?.distance > 0)) bad.push({ line: l, why: `Missing billable units on ${l.dos}` })
     if (needVer && TYPES[a.type]?.hasVerification && a.verification?.verifyStatus !== 'verified') bad.push({ line: l, why: `Verification flag not cleared on ${l.dos} — open the session & verify` })
+    // timely filing gate (U3)
+    if (claim.timelyDue && today > claim.timelyDue) bad.push({ line: l, why: `Timely filing exceeded — due ${claim.timelyDue} (DOS ${l.dos})` })
+    // strict auth gate (D2)
+    if (strictAuth) {
+      const client = (state.clients||[]).find((c)=>c.id===claim.clientId)
+      if (client) {
+        if (client.authStart && l.dos < client.authStart) bad.push({ line: l, why: `Auth not yet active on ${l.dos} — starts ${client.authStart}` })
+        if (client.authEnd && l.dos > client.authEnd) bad.push({ line: l, why: `Authorization lapsed on ${l.dos} — ended ${client.authEnd}` })
+        if (!client.authStart || !client.authEnd) bad.push({ line: l, why: `No active authorization window on file for ${client.name||'client'} (DOS ${l.dos})` })
+      }
+    }
+    // supervision check (D2)
+    if (supCheck && a) {
+      const staff = (state.staff||[]).filter((s)=>(a.staffIds||[]).includes(s.id))
+      const hasRBT = staff.some((s)=>/RBT/.test(s.role||''))
+      const hasBCBA = staff.some((s)=>/BCBA/.test(s.role||''))
+      if (hasRBT && !hasBCBA) bad.push({ line: l, why: `Supervision required — RBT-only session on ${l.dos} without BCBA` })
+    }
   }
   return { ok: !bad.length, bad }
 }
@@ -373,6 +406,58 @@ export function resolveProviders(state, claim) {
     const fac = facDefault || office || null
     return { renderId: render?.id || null, billId: bill?.id || null, facId: fac?.id || null, staff: names(a?.staffIds || [], staffOf) }
   })
+}
+
+// ---------- secondary claim (COB) creation ----------
+export function secondaryEligible(state, claim) {
+  if (!claim) return false
+  if (claim.status !== 'partially_paid' && claim.status !== 'paid') return false
+  if (claim.secondary) return false
+  const client = (state.clients||[]).find((x)=>x.id===claim.clientId)
+  if (!client?.secondary) return false
+  const due = dueOf(claim)
+  return due > 0.5 || claim.status === 'partially_paid'
+}
+export function secondaryClaimPatch(state, primary) {
+  const client = (state.clients||[]).find((c)=>c.id===primary.clientId)
+  if (!client?.secondary) return null
+  const secPayer = (state.payers||[]).find((p)=>p.id===client.secondary.payerId)
+  const payerName = secPayer?.name || client.secondary.payerId || 'Secondary'
+  const at = Date.now()
+  const due = dueOf(primary)
+  const pol = payerPolicy(payerName)
+  const filingDays = secPayer?.ext?.filingDeadlineDays ?? state.settings?.billing?.defaultFilingDays ?? pol.timely ?? 90
+  const maxDos = primary.lines.reduce((m,l)=> l.dos > m ? l.dos : m, primary.dosTo||'')
+  const timelyDue = maxDos ? isoDate(new Date(parseISO(maxDos).getTime() + filingDays*86400000)) : null
+  const secondary = {
+    id: `${primary.id}-sec-${at.toString(36)}`,
+    no: `${primary.no}-S`,
+    clientId: primary.clientId,
+    payer: payerName,
+    mode: 'insurance',
+    method: 'secondary',
+    secondary: primary.id,
+    dosFrom: primary.dosFrom,
+    dosTo: primary.dosTo,
+    lines: primary.lines.map((l)=>({ ...l, provider: l.provider||null })),
+    status: 'draft',
+    charges: due > 0 ? due : primary.charges,
+    units: primary.units,
+    adj: 0,
+    paid: 0,
+    remittance: null,
+    denial: null,
+    parentNo: primary.no,
+    version: 1,
+    timelyDue,
+    submittedAt: null,
+    closedAt: null,
+    createdAt: at,
+    note: `Secondary from ${primary.no} — COB ${client.secondary.memberId||''}`,
+    history: [{ at, ev: `Secondary claim from ${primary.no} — $${(due>0?due:primary.charges).toFixed(2)} remaining, payer ${payerName} · member ${client.secondary.memberId||''}` }],
+  }
+  const primaryPatched = { ...primary, secondary: secondary.id, history: [...primary.history, { at, ev: `Secondary filing created → ${secondary.no} (${payerName})` }] }
+  return { primary: primaryPatched, secondary }
 }
 
 // ---------- claim v2 backfill (idempotent defaults; used by migration + new assembly) ----------

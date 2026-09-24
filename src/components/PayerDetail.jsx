@@ -163,6 +163,21 @@ function ProfileTab({ p, patch }) {
         </div>
       </div>
 
+      <div className="an-card pd-card" data-testid="pd-billids">
+        <div className="an-head">{Icon.dollar({ size: 13 })} Billing identifiers<span className="an-spacer" /><span className="muted" style={{ fontSize: 10.6 }}>group / plan / payer-specific IDs · filing window</span></div>
+        <div className="pd-kvgrid">
+          <div className="pd-kv"><span>Group #</span><span><InlineText testid={`pd-ext-group-${p.id}`} value={(p.ext||{}).group||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), group:String(v).trim() } }, 'group # saved')} /></span></div>
+          <div className="pd-kv"><span>Plan #</span><span><InlineText testid={`pd-ext-plan-${p.id}`} value={(p.ext||{}).plan||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), plan:String(v).trim() } }, 'plan # saved')} /></span></div>
+          <div className="pd-kv"><span>Sub ID</span><span><InlineText testid={`pd-ext-sub-${p.id}`} value={(p.ext||{}).subId||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), subId:String(v).trim() } }, 'sub ID saved')} /></span></div>
+          <div className="pd-kv"><span>Ticare ID</span><span><InlineText testid={`pd-ext-ticare-${p.id}`} value={(p.ext||{}).ticareId||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), ticareId:String(v).trim() } }, 'Ticare ID saved')} /></span></div>
+          <div className="pd-kv"><span>Medicaid ID</span><span><InlineText testid={`pd-ext-medicaid-${p.id}`} value={(p.ext||{}).medicaidId||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), medicaidId:String(v).trim() } }, 'Medicaid ID saved')} /></span></div>
+          <div className="pd-kv"><span>BHPN ID</span><span><InlineText testid={`pd-ext-bhpn-${p.id}`} value={(p.ext||{}).bhpnId||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), bhpnId:String(v).trim() } }, 'BHPN ID saved')} /></span></div>
+          <div className="pd-kv"><span>Filing deadline (days)</span><span><InlineText testid={`pd-ext-filing-${p.id}`} value={(p.ext||{}).filingDeadlineDays??''} placeholder="payer default" onCommit={(v)=>{ const n=String(v).trim()===''?null:Number(v); patch({ ext:{ ...(p.ext||{}), filingDeadlineDays: Number.isFinite(n)?n:null } }, n?'filing window saved':'filing window cleared') }} /></span></div>
+          <div className="pd-kv"><span>Secondary Box 18</span><span style={{ display:'flex', alignItems:'center', gap:8 }}><button type="button" className={`toggle ${(p.ext||{}).requiresSecondaryBox18!==false?'on':''}`} data-testid={`pd-ext-box18-${p.id}`} onClick={()=>patch({ ext:{ ...(p.ext||{}), requiresSecondaryBox18: !((p.ext||{}).requiresSecondaryBox18!==false) } }, 'Box 18 flag saved')} /><i className="muted" style={{ fontSize:11 }}>{(p.ext||{}).requiresSecondaryBox18!==false?'Require on secondary':'Skip'}</i></span></div>
+        </div>
+        <p className="pd-note" style={{ marginTop:8 }}>These IDs flow into claim routing (837P / CMS-1500 box 11) and into the timely-filing gate. Leave blank to use the payer’s default.</p>
+      </div>
+
       <div className="an-card pd-card" data-testid="pd-cf">
         <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{fields.length > 0 && <span className="pd-cfn">{fields.length}</span>}<span className="an-spacer" />
           <span className="muted" style={{ fontSize: 10.6 }}>selectable · never pre-selected</span>

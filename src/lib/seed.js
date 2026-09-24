@@ -196,7 +196,7 @@ export const defaultSettings = () => ({
   smart: SMART_DEFAULTS,
   org: { name: 'Aloha ABA Center', taxId: '94-3172055', npi: '1720418395', address: '1140 Sunset Crest Way, San Jose, CA 95124', phone: '(408) 555-0134' },
   providers: seedProviders(STAFF, { npi: '1720418395', name: 'Aloha ABA Center' }),
-  billing: { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org' },
+  billing: { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org', strictAuth: false, supervisionCheck: false, invoiceSeq: 1, defaultFilingDays: 90 },
   analytics: { preset: 'last4', gran: 'auto', metric: 'sessions', dim: 'staff', chart: 'line', compare: true, agg: 'sum' },
 })
 

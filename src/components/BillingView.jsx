@@ -12,6 +12,7 @@ import { addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import {
   stagedAppts, planClaims, claimGate, claimStats, claimCsv, claimsCsv, quickPosts,
   CLAIM_STATUSES, DENIAL_REASONS, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, payerPolicy,
+  secondaryEligible,
 } from '../lib/claims'
 import { claimTo1500, claimsTo1500, cms1500Data } from '../lib/cms1500'
 
@@ -186,6 +187,7 @@ export default function BillingView() {
         <div className="batch-strip" style={{ alignItems: 'center' }}>
           <Tab id="stage" label="Staging" n={staged.length} />
           <Tab id="claims" label="Claim desk" n={openCount} warn={stats.denied.n > 0} />
+          <Tab id="secondary" label="Secondary" n={Object.values(claims).filter((c)=>secondaryEligible(state,c)).length} />
           <Tab id="blocked" label="Blocked" n={blocked.length} warn />
           <Tab id="setup" label="Setup" />
           <span style={{ width: 1, height: 20, background: 'var(--line)' }} />
@@ -294,6 +296,61 @@ export default function BillingView() {
               clientOf={clientOf} staffOf={staffOf} /> : (
               <div className="clm-empty panel">{Icon.dollar({ size: 30 })}<h3>The desk is empty</h3><p>Assemble staging lines into claim forms and they’ll queue here for submission, payment posting and denials.</p><button className="btn btn-sm btn-primary" onClick={() => setTab('stage')}>Go to staging</button></div>
             )}
+          </div>
+        )}
+
+        {/* ================= SECONDARY (COB) ================= */}
+        {tab === 'secondary' && (
+          <div className="bil-lines panel" data-testid="bil-secondary" style={{ borderRadius: 'var(--r-md)', border: '1px solid var(--line)', boxShadow: 'var(--shadow-1)' }}>
+            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', display:'flex', alignItems:'center', gap:10 }}>
+              <b>{Icon.shield({ size:13 })} Secondary queue</b>
+              <span className="muted" style={{ fontSize:11 }}>clients with secondary + partially-paid claims ready to file</span>
+              <span className="an-spacer" />
+              <span className="muted" style={{ fontSize:11 }}>{(state.clients||[]).filter((c)=>c.secondary).length} clients have secondary · {Object.values(claims).filter((c)=>secondaryEligible(state,c)).length} claims eligible</span>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, padding:12 }}>
+              <div>
+                <h4 style={{ fontSize:12, margin:'0 0 8px' }}>COB clients</h4>
+                <div className="sec-clients-render" data-testid="sec-clients-render">
+                  {(state.clients||[]).filter((c)=>c.secondary).map((c)=>{
+                    const sec=c.secondary; const payer=(state.payers||[]).find((p)=>p.id===sec.payerId)
+                    return (
+                      <div className="bil-line" key={c.id} data-testid={`sec-client-${c.id}`}>
+                        <PersonAvatar p={c} size={22} />
+                        <span style={{ minWidth:110 }}><b>{c.name}</b><i style={{ display:'block', fontSize:10.5, color:'var(--muted)' }}>{c.insurer} → {payer?.name||sec.payerId}</i></span>
+                        <span className="ln-code">{sec.memberId||'—'}</span>
+                        <span className="muted" style={{ fontSize:11 }}>{sec.authNo||''}</span>
+                        <span className="tag soft">{sec.relation}</span>
+                      </div>
+                    )
+                  })}
+                  {!(state.clients||[]).some((c)=>c.secondary) && <div className="bil-empty">No secondary clients — add from Clients directory</div>}
+                </div>
+              </div>
+              <div>
+                <h4 style={{ fontSize:12, margin:'0 0 8px' }}>Eligible claims (partially paid → secondary)</h4>
+                <div data-testid="sec-claims">
+                  {Object.values(claims).filter((c)=>secondaryEligible(state,c)).map((c)=>{
+                    const cl=clientOf(c.clientId)
+                    const secClient=(state.clients||[]).find((x)=>x.id===c.clientId)
+                    const secPayerName=secClient?.secondary ? (state.payers||[]).find((p)=>p.id===secClient.secondary.payerId)?.name || secClient.secondary.payerId : '—'
+                    return (
+                      <div className="bil-line" key={c.id} data-testid={`sec-claim-${c.id}`}>
+                        <b>{c.no}</b>
+                        <span>{cl.name||'—'}</span>
+                        <span className="muted">{c.payer} → {secPayerName}</span>
+                        <span className="r money">{money(dueOf(c))} due</span>
+                        <button className="btn btn-sm btn-primary" data-testid={`sec-file-${c.id}`} onClick={()=>{ const r=actions.fileSecondaryClaim(c.id); toast({ message: r.msg, kind: r.ok?'ok':'warn' }); if(r.ok&&r.newId){ setTab('claims'); setSel(r.newId) } }}>{Icon.file({ size:11 })} File secondary</button>
+                      </div>
+                    )
+                  })}
+                  {!Object.values(claims).filter((c)=>secondaryEligible(state,c)).length && <div className="bil-empty">No claims need secondary filing — partially-paid claims with a client secondary appear here</div>}
+                </div>
+              </div>
+            </div>
+            <div className="muted" style={{ fontSize:11, padding:'8px 14px', borderTop:'1px dashed var(--line)' }}>
+              Secondary claims inherit the primary's charge lines, set method=secondary, and link back via secondary field. Filing deadline uses the secondary payer's ext.filingDeadlineDays or the global default.
+            </div>
           </div>
         )}
 
@@ -438,6 +495,9 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
               <button className="btn btn-sm" data-testid="clm-deny" onClick={() => setDenyOpen(true)}>{Icon.ban({ size: 12 })} Record denial</button>
             </>
           )}
+          {claim.status === 'partially_paid' && client?.secondary && !claim.secondary && (
+            <button className="btn btn-sm btn-primary" data-testid="clm-file-sec" onClick={()=>{ const r=actions.fileSecondaryClaim(claim.id); toast({ message: r.msg, kind: r.ok?'ok':'warn' }) }}>{Icon.file({ size: 12 })} File secondary</button>
+          )}
           {claim.status === 'denied' && (
             <>
               <button className="btn btn-sm btn-primary" data-testid="clm-rebill" onClick={onRebill}>{Icon.repeat({ size: 12 })} Rebill{disputed.size ? ` (drop ${disputed.size})` : ''}</button>
@@ -471,10 +531,14 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
       </div>
 
       <div className={`cd-banner ${claim.status === 'denied' ? 'danger' : claim.status === 'paid' ? 'ok' : gated ? 'warn' : 'info'}`} data-testid="clm-banner">
+        {claim.timelyDue && (()=>{ const today=new Date().toISOString().slice(0,10); const overdue=today>claim.timelyDue; return overdue ? <><span className="sev-pill sev-error" style={{ marginRight:6 }}>timely filing past due {claim.timelyDue}</span></> : <><span className="sev-pill sev-notice" style={{ marginRight:6 }}>filing due {claim.timelyDue}</span></> })()}
+        {claim.method==='secondary' && <><span className="tag" style={{ marginRight:6 }}>secondary of {claim.parentNo||claim.secondary||''}</span></>}
+        {claim.secondary && claim.method!=='secondary' && <><span className="tag ok" style={{ marginRight:6 }}>secondary filed → {typeof claim.secondary==='string' && claim.secondary.startsWith('clm-') ? (state.claims[claim.secondary]?.no||claim.secondary) : claim.secondary}</span></>}
         {claim.status === 'denied' && <>{Icon.alert({ size: 13 })}<span><b>{claim.denial.reason}.</b> {claim.denial.fix}. {claim.denial.at ? `Denied ${relDay(claim.denial.at)}.` : ''} {claim.lines.length > disputed.size && disputed.size > 0 ? `${disputed.size} line(s) marked disputed — Rebill drops them to staging, keeps the rest.` : disputed.size ? 'Rebill will drop every marked line back to staging.' : 'Rebill re-drafts this claim for resubmission.'}</span></>}
         {claim.status === 'paid' && <>{Icon.checkCircle({ size: 13 })}<span><b>{money(claim.paid)}</b> via {claim.remittance?.checkNo || '—'} · deposited {relDay(claim.remittance?.at)}{claim.adj ? ` · ${money(claim.adj)} contractual adjustment` : ''}{shortPay ? ' — posting left a balance; re-review or bill the family.' : ''}</span></>}
         {claim.status === 'submitted' && <>{Icon.clock({ size: 13 })}<span>Waiting on {claim.mode === 'selfpay' ? 'family payment' : claim.payer}{age ? ` — ${age.days} days out, their median cycle is ${payerPolicy(claim.payer).avgDays} days` : ''}. Post the remittance when it lands.</span></>}
         {claim.status === 'draft' && gated ? <>{Icon.alert({ size: 13 })}<span><b>Submission held:</b> {gate.bad.map((b) => b.why).slice(0, 2).join(' · ')}. Fix on the source session (click the line below) or drop the line.</span></> : null}
+        {claim.status === 'partially_paid' && <>{Icon.dollar({ size: 13 })}<span><b>Partially paid</b> — {money(due)} still open{client?.secondary ? <> · secondary {client.secondary.payerId ? (state.payers||[]).find((p)=>p.id===client.secondary.payerId)?.name||'on file' : 'on file'} ready to file</> : ' · no secondary on file'}</span></>}
         {claim.status === 'void' && <>{Icon.ban({ size: 13 })}<span>Voided — all {claim.lines.length} line(s) returned to staging for a fresh form.</span></>}
       </div>
 

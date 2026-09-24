@@ -3,7 +3,7 @@ import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
-import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2 } from '../lib/master'
+import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 
 const KEY = 'aloha-aba.v3'
@@ -15,6 +15,12 @@ export function blankState() {
   const appts = buildSeed(todayISO())
   const settings = defaultSettings()
   const { claims, appts: apptsWithClaims } = buildDemoClaims(appts, CLIENTS, settings, todayISO())
+  // chunk-41: seed secondary insurance on first two clients for the COB queue
+  const clientsWithSec = CLIENTS.map((c, idx) => {
+    if (idx === 0 && PAYERS[1]) return { ...c, secondary: { payerId: PAYERS[1].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0001', relation: 'secondary', since: '2026-01-01', until: null, note: 'Seeded secondary for COB testing' } }
+    if (idx === 1 && PAYERS[2]) return { ...c, secondary: { payerId: PAYERS[2].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0002', relation: 'secondary', since: '2026-02-01', until: null, note: '' } }
+    return { ...c, secondary: null }
+  })
   return {
     appts: apptsWithClaims,
     claims,
@@ -25,7 +31,7 @@ export function blankState() {
     billedFiles: {},
     meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true },
     staff: STAFF,
-    clients: CLIENTS,
+    clients: clientsWithSec,
     payers: PAYERS,
     svcs: SVCS,
     customFields: CF_DEFS,
@@ -85,7 +91,7 @@ export function initial() {
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
         // promoted or dropped, write the fixed snapshot back immediately so the repair is durable
         // chunk-38: one-time clear of pre-loaded appointment pcfs (flagged in meta, idempotent)
-        const merged = normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(mergedRaw, uid))))
+        const merged = normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(mergedRaw, uid)))))
         if (merged !== mergedRaw) { try { localStorage.setItem(KEY, JSON.stringify(merged)) } catch { /* off for A/B */ } }
         return merged
       }
@@ -129,7 +135,8 @@ export function reducer(state, action) {
       for (const c of action.claimUpserts || []) claims[c.id] = c
       for (const id of action.claimDel || []) delete claims[id]
       const payments = action.payments ? { ...(state.payments || {}), ...action.payments } : state.payments
-      return { ...state, appts, claims, payments, history: pushSnap(state) }
+      const invoices = action.invoices ? { ...(state.invoices || {}), ...action.invoices } : state.invoices
+      return { ...state, appts, claims, payments, invoices, history: pushSnap(state) }
     }
     case 'record': {
       const cur = state[action.coll] || {}
@@ -344,7 +351,26 @@ function createActions(state, dispatch) {
       const plans = planClaims(state, pool)
       if (!plans.length) return { ok: false, msg: 'Nothing claim-ready to assemble — fix Blocked lines first' }
       const { claims, apptPatch } = assembleClaims(state, plans)
-      dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch })
+      // invoiceSeq bump for selfpay invoices (D2)
+      const selfPayCount = claims.filter((c)=>c.mode==='selfpay').length
+      if (selfPayCount) {
+        const cur = state.settings?.billing?.invoiceSeq || 1
+        // dispatch settings bump separately (pure bump, not undoable as part of claim tx, but we include in same batch via settings patch)
+        // we will bump via setSettings after claimsTx to keep undo simple — first bump then claims
+        const nextSeq = cur + selfPayCount
+        // record invoices
+        const invoices = {}
+        let seq = cur
+        for (const c of claims) if (c.mode==='selfpay') {
+          const invNo = `${state.settings?.billing?.invoicePrefix||'INV'}-${String(seq).padStart(4,'0')}`
+          invoices[`inv-${c.id}`] = { id: `inv-${c.id}`, claimId: c.id, no: invNo, clientId: c.clientId, amount: c.charges, due: c.charges, status: 'open', createdAt: Date.now() }
+          seq++
+        }
+        dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch, invoices })
+        dispatch({ type: 'setSettings', patch: { billing: { ...(state.settings?.billing||{}), invoiceSeq: nextSeq } } })
+      } else {
+        dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch })
+      }
       const lines = claims.reduce((t, c) => t + c.lines.length, 0)
       return { ok: true, msg: `${claims.length} claim form${claims.length > 1 ? 's' : ''} assembled — ${lines} charge lines staged → drafted`, ids: claims.map((c) => c.id) }
     },
@@ -443,6 +469,50 @@ function createActions(state, dispatch) {
       }
       dispatch({ type: 'claimsTx', claimUpserts: [r.claim], apptPatches })
       return { ok: true, msg: `Line moved back to staging — ${c.no} re-totaled` }
+    },
+    fileSecondaryClaim: (id) => {
+      const c = state.claims[id]
+      if (!c) return { ok: false, msg: 'Claim not found' }
+      // import is already available via closure? We'll require via dynamic
+      const client = (state.clients||[]).find((x)=>x.id===c.clientId)
+      if (!client?.secondary) return { ok: false, msg: 'No secondary on file' }
+      if (c.secondary) return { ok: false, msg: 'Secondary already filed' }
+      // use secondaryClaimPatch from claims lib (imported at top of file if present, else inline)
+      // we will compute here without import to avoid circular: duplicate logic minimal
+      const secPayer = (state.payers||[]).find((p)=>p.id===client.secondary.payerId)
+      const payerName = secPayer?.name || client.secondary.payerId || 'Secondary'
+      const at = Date.now()
+      const due = Math.round((c.charges - (c.adj||0) - (c.paid||0))*100)/100
+      const secondary = {
+        id: `${c.id}-sec-${at.toString(36)}`,
+        no: `${c.no}-S`,
+        clientId: c.clientId,
+        payer: payerName,
+        mode: 'insurance',
+        method: 'secondary',
+        secondary: c.id,
+        dosFrom: c.dosFrom,
+        dosTo: c.dosTo,
+        lines: c.lines.map((l)=>({ ...l, provider: l.provider||null })),
+        status: 'draft',
+        charges: due>0?due:c.charges,
+        units: c.units,
+        adj: 0,
+        paid: 0,
+        remittance: null,
+        denial: null,
+        parentNo: c.no,
+        version: 1,
+        timelyDue: c.timelyDue,
+        submittedAt: null,
+        closedAt: null,
+        createdAt: at,
+        note: `Secondary from ${c.no} — COB ${client.secondary.memberId||''}`,
+        history: [{ at, ev: `Secondary claim from ${c.no} — $${(due>0?due:c.charges).toFixed(2)} remaining, payer ${payerName} · member ${client.secondary.memberId||''}` }],
+      }
+      const primaryPatched = { ...c, secondary: secondary.id, history: [...c.history, { at, ev: `Secondary filing created → ${secondary.no} (${payerName})` }] }
+      dispatch({ type: 'claimsTx', claimUpserts: [primaryPatched, secondary] })
+      return { ok: true, msg: `${secondary.no} drafted from ${c.no} → ${payerName}`, newId: secondary.id }
     },
     addClaimNote: (id, text) => {
       const c = state.claims[id]

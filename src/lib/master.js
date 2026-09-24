@@ -43,11 +43,62 @@ export function normalizeBillingV2(state) {
   }
   // 4) payer.ext defaults
   const payers = (next.payers || []).map((p) => {
-    if (p.ext && typeof p.ext === 'object') return p
-    return { ...p, ext: { group: '', plan: '', subId: '', ticareId: '', medicaidId: '', bhpnId: '', filingDeadlineDays: null, requiresSecondaryBox18: true } }
+    if (p.ext && typeof p.ext === 'object' && 'group' in p.ext) return p
+    const old = p.ext && typeof p.ext === 'object' ? p.ext : {}
+    return { ...p, ext: { group: '', plan: '', subId: '', ticareId: '', medicaidId: '', bhpnId: '', filingDeadlineDays: null, requiresSecondaryBox18: true, ...old } }
   })
   if (payers.some((p, i) => p !== (next.payers || [])[i])) { next = { ...next, payers }; changed = true }
+  // 5) billing settings defaults (chunk-41 D2)
+  const bDef = { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org', strictAuth: false, supervisionCheck: false, invoiceSeq: 1, defaultFilingDays: 90 }
+  if (!next.settings?.billing || Object.keys(bDef).some((k) => !(k in (next.settings.billing || {})))) {
+    next = { ...next, settings: { ...next.settings, billing: { ...bDef, ...(next.settings?.billing || {}) } } }
+    changed = true
+  }
   return { ...next, meta: { ...(next.meta || {}), billingV2: true, billingV2Count: count } }
+}
+
+/**
+ * chunk-41 (U3+U4) — payer billing identifiers + client secondary insurance.
+ * Idempotent, runs on every load (no early-return flag) so new ext fields
+ * added in later chunks get backfilled even after billingV2 is set.
+ */
+export function normalizeBillingIds(state) {
+  let next = state
+  let changed = false
+  // billing settings backfill (strictAuth/supervisionCheck/invoiceSeq/defaultFilingDays)
+  const bDef2 = { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org', strictAuth: false, supervisionCheck: false, invoiceSeq: 1, defaultFilingDays: 90 }
+  if (!next.settings?.billing || Object.keys(bDef2).some((k) => !(k in (next.settings.billing||{})))) {
+    next = { ...next, settings: { ...next.settings, billing: { ...bDef2, ...(next.settings?.billing||{}) } } }
+    changed = true
+  }
+  // payer.ext completeness
+  const payers = (next.payers || []).map((p) => {
+    const ext = p.ext && typeof p.ext === 'object' ? p.ext : {}
+    const need = ['group', 'plan', 'subId', 'ticareId', 'medicaidId', 'bhpnId', 'filingDeadlineDays', 'requiresSecondaryBox18']
+    if (need.every((k) => k in ext)) return p
+    return { ...p, ext: { group: '', plan: '', subId: '', ticareId: '', medicaidId: '', bhpnId: '', filingDeadlineDays: null, requiresSecondaryBox18: true, ...ext } }
+  })
+  if (payers.some((p, i) => p !== (next.payers || [])[i])) { next = { ...next, payers }; changed = true }
+  // client.secondary defaults + seed two COB clients for the secondary queue (spec §4.3 / D5)
+  const hadSecondaryKey = (next.clients||[]).some((c)=>('secondary' in c))
+  let clients = (next.clients || []).map((c) => {
+    if ('secondary' in c) return c
+    return { ...c, secondary: null }
+  })
+  if (clients.some((c, i) => c !== (next.clients || [])[i])) changed = true
+  if (!hadSecondaryKey && !(clients||[]).some((c)=>c.secondary)) {
+    // legacy save: no secondary key anywhere → seed two COB clients
+    clients = clients.map((c, idx) => {
+      if (idx === 0 && next.payers?.[1]) return { ...c, secondary: { payerId: next.payers[1].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: `AUTH-S-0001`, relation: 'secondary', since: '2026-01-01', until: null, note: 'Seeded secondary for COB testing' } }
+      if (idx === 1 && next.payers?.[2]) return { ...c, secondary: { payerId: next.payers[2].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: `AUTH-S-0002`, relation: 'secondary', since: '2026-02-01', until: null, note: '' } }
+      return c
+    })
+    changed = true
+  }
+  if (changed) { next = { ...next, clients }
+    changed = true
+  }
+  return changed ? next : state
 }
 const mkPayment = (c) => {
   const rem = c.remittance

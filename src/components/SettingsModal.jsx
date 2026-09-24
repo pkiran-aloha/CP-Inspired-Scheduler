@@ -274,6 +274,11 @@ export default function SettingsModal({ onClose }) {
               <Slider label="Workload balance" value={sm.weights.load} onChange={(v) => patch('weights', { load: v })} hint="Spread sessions across the team" />
               <button className="btn btn-ghost btn-sm" style={{ marginTop: 4 }} onClick={() => patch('weights', { team: 60, history: 55, fit: 55, load: 45 })}>{Icon.undo({ size: 12 })} Reset weights</button>
             </div>
+            <div className="menu-h" style={{ paddingTop: 14 }}>Billing</div>
+            <Row label="Strict authorization (block billing without auth)"><button className={`toggle ${settings.billing?.strictAuth ? 'on' : ''}`} data-testid="set-bill-strictAuth" onClick={()=>actions.setSettings({ billing: { ...settings.billing, strictAuth: !settings.billing?.strictAuth } })} aria-pressed={!!settings.billing?.strictAuth} /></Row>
+            <Row label="Supervision check (require supervisor for RBT)"><button className={`toggle ${settings.billing?.supervisionCheck!==false ? 'on' : ''}`} data-testid="set-bill-supervision" onClick={()=>actions.setSettings({ billing: { ...settings.billing, supervisionCheck: !(settings.billing?.supervisionCheck!==false) } })} aria-pressed={settings.billing?.supervisionCheck!==false} /></Row>
+            <Row label="Invoice sequence"><Num value={settings.billing?.invoiceSeq ?? 1} onChange={(v)=>actions.setSettings({ billing: { ...settings.billing, invoiceSeq: Math.max(1, Math.round(v)||1) } })} /></Row>
+            <Row label="Default filing deadline"><Num value={settings.billing?.defaultFilingDays ?? 90} onChange={(v)=>actions.setSettings({ billing: { ...settings.billing, defaultFilingDays: Math.max(0, Math.round(v)||0) } })} suffix="days" /></Row>
             <p className="muted" style={{ fontSize: 11, lineHeight: 1.5, margin: '12px 0 0' }}>
               This demo persists to your browser's local storage. Connect a backend by replacing the persistence effect in <code>src/state/store.jsx</code>.
             </p>
