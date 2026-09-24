@@ -240,7 +240,14 @@ describe('billing workspace', () => {
     await screen.findByTestId('clm-row-0')
     await waitFor(() => expect(Object.values(stored().appts).some((a) => a.billing?.status === 'claimed')).toBe(true))
 
-    // submit the selected (clean) draft → gates pass → status flips on the form
+    // target the Aetna draft explicitly — assembly order is payer-keyed and row 0 can
+    // land on the self-pay invoice depending on what else the suite did to state
+    const deskCards = [...container.querySelectorAll('[data-testid^="clm-row-"]')]
+    const aetnaCard = deskCards.find((el) => el.textContent.includes('Aetna'))
+    expect(aetnaCard).toBeTruthy()
+    fireEvent.click(aetnaCard)
+    await waitFor(() => expect(screen.getByTestId('clm-form').textContent).toMatch(/Aetna/))
+    // submit it → gates pass → status flips on the form
     fireEvent.click(screen.getByTestId('clm-submit'))
     expect(await screen.findByText(/submitted to Aetna/)).toBeTruthy() // status label (not the toast) — deterministic
     await waitFor(() => expect(screen.getByTestId('clm-form').textContent).toMatch(/Submitted/))

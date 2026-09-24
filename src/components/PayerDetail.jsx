@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
-import { Dropdown, InlineSelect } from './fields'
+import { Dropdown, InlineSelect, InlineText } from './fields'
 import { CfPickRow } from './CfPick.jsx'
 import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
@@ -257,6 +257,16 @@ function ServicesTab({ p, patch }) {
   const mine = localSvcs(p)
   const linkedIds = p.services.length ? p.services : all.filter((s) => s.status !== 'inactive').map((s) => s.id)
   const linked = all.filter((s) => linkedIds.includes(s.id))
+  const LBL = { billingCode: 'Billing code', dx1: 'Dx 1', dx2: 'Dx 2', unitSize: 'Unit size', charge: 'Charge rate', rounding: 'Rounding', contract: 'Contract rate', modifier: 'Modifier', thirdParty: 'Third-party ID', effective: 'Effective date', expiration: 'Expiration date', label: 'Label' }
+  // inline cell write: linked rows upsert their svcOv override, payer-only rows edit their record
+  const setCell = (c, key, val) => {
+    if (c.kind === 'linked') {
+      const prev = (p.svcOv || {})[c.master.id] || {}
+      patch({ svcOv: { ...(p.svcOv || {}), [c.master.id]: { ...prev, [key]: val } } }, `${LBL[key] || key} on ${c.master.label} — saved for ${p.name}`)
+    } else {
+      patch({ svcs: mine.map((x) => (x.id === c.local.id ? { ...x, [key]: val } : x)) }, `${LBL[key] || key} on ${c.local.label} — updated`)
+    }
+  }
   const cards = [
     ...linked.map((s) => ({ kind: 'linked', key: `L${s.id}`, master: s, id: s.id })),
     ...mine.map((s) => ({ kind: 'local', key: `P${s.id}`, local: s, id: s.id })),
@@ -300,10 +310,10 @@ function ServicesTab({ p, patch }) {
         {!p.services.length && <div className="pd-note pd-allnote" data-testid="pd-svc-all">{Icon.info({ size: 12 })} No explicit contract — billing treats every active service type as contracted. “Contract services” narrows the list; “Add Service” creates one only for {p.name}.</div>}
         <span className="an-spacer" />
         <button className="btn btn-sm" data-testid="pd-svc-contract" onClick={() => setPicker(true)}>{Icon.clipboard({ size: 12 })} Contract services</button>
-        <button className="btn btn-sm btn-primary" data-testid="pd-svc-add" onClick={() => setForm({ mode: 'new' })}>{Icon.plus({ size: 12 })} Add Service</button>
+        <button className="btn btn-sm btn-primary" data-testid="pd-svc-add" onClick={() => setForm({ mode: 'new' })}>{Icon.plus({ size: 12 })} New Payer-Only Service</button>
       </div>
       <div className="svc-cards" data-testid="pd-svc-cards">
-        {cards.length === 0 && <div className="muted pd-cfempty">No services on this payer yet — use “Add Service” above to create a payer-specific one, or “Contract services” to attach service types from the master.</div>}
+        {cards.length === 0 && <div className="muted pd-cfempty">No services on this payer yet — use “New Payer-Only Service” above to create one just for this payer, or “Contract services” to attach master service types.</div>}
         {cards.map((c) => {
           const o = c.kind === 'linked' ? ((p.svcOv || {})[c.master.id] || {}) : c.local
           const label = c.kind === 'linked' ? (o.label || c.master.label) : c.local.label
@@ -326,15 +336,17 @@ function ServicesTab({ p, patch }) {
                 {inactive && <span className="svc-date off">Inactive — hidden in booking</span>}
               </div>
               <div className="svc-rows">
-                <div><span>Billing Code</span><b>{o.billingCode || o.code || c.master?.code || '—'}</b></div>
-                <div><span>Dx Code 1</span><b>{o.dx1 || '—'}</b></div>
-                <div><span>Dx Code 2</span><b>{o.dx2 || '—'}</b></div>
-                <div><span>Unit Size</span><b>{o.unitSize || (c.master ? `${c.master.unitMins} Minutes` : '—')}</b></div>
-                <div><span>Charge Rate</span><b className={hasOvr || c.kind === 'local' ? 'ovr' : ''}>{money(o.charge === '' || o.charge == null ? (c.master ? c.master.rate : 0) : o.charge)}</b></div>
-                <div><span>Rounding</span><b>{o.rounding || c.master?.rounding || 'AMA'}</b></div>
-                <div><span>Contract Rate</span><b>{o.contract ? money(o.contract) : '—'}</b></div>
-                <div><span>Modifier</span><b>{o.modifier || '—'}</b></div>
-                <div><span>Third Party ID</span><b>{o.thirdParty || '—'}</b></div>
+                <div><span>Billing Code</span><InlineText testid={`pd-cell-code-${c.id}`} numeric={false} value={o.billingCode || ''} placeholder={o.code || c.master?.code || 'override master'} onCommit={(v) => setCell(c, 'billingCode', String(v).trim().toUpperCase())} /></div>
+                <div><span>Dx Code 1</span><InlineText testid={`pd-cell-dx1-${c.id}`} value={o.dx1 || ''} placeholder="add" onCommit={(v) => setCell(c, 'dx1', String(v).trim().toUpperCase())} /></div>
+                <div><span>Dx Code 2</span><InlineText testid={`pd-cell-dx2-${c.id}`} value={o.dx2 || ''} placeholder="add" onCommit={(v) => setCell(c, 'dx2', String(v).trim().toUpperCase())} /></div>
+                <div><span>Unit Size</span><InlineSelect testid={`pd-cell-unit-${c.id}`} value={o.unitSize || (c.master ? `${c.master.unitMins} Minutes` : '')} options={UNITS_OPTS.map((u) => ({ value: u, label: u }))} onCommit={(v) => setCell(c, 'unitSize', v)} /></div>
+                <div><span>Charge Rate</span><InlineText testid={`pd-cell-charge-${c.id}`} value={o.charge === '' || o.charge == null ? '' : money(Number(o.charge))} placeholder={c.master ? money(c.master.rate) : '0'} onCommit={(v) => { const n = String(v).replace(/[^0-9.]/g, ''); setCell(c, 'charge', n ? Number(n) : '') }} /></div>
+                <div><span>Rounding</span><InlineSelect testid={`pd-cell-round-${c.id}`} value={o.rounding || c.master?.rounding || 'AMA'} options={ROUNDINGS.map((r) => ({ value: r, label: r }))} onCommit={(v) => setCell(c, 'rounding', v)} /></div>
+                <div><span>Contract Rate</span><InlineText testid={`pd-cell-contract-${c.id}`} value={o.contract == null || o.contract === '' ? '' : money(Number(o.contract))} placeholder="—" onCommit={(v) => { const n = String(v).replace(/[^0-9.]/g, ''); setCell(c, 'contract', n ? Number(n) : '') }} /></div>
+                <div><span>Modifier</span><InlineSelect testid={`pd-cell-mod-${c.id}`} value={o.modifier || ''} options={[{ value: '', label: '—' }, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} onCommit={(v) => setCell(c, 'modifier', v)} /></div>
+                <div><span>Third Party ID</span><InlineText testid={`pd-cell-tp-${c.id}`} value={o.thirdParty || ''} placeholder="—" onCommit={(v) => setCell(c, 'thirdParty', String(v).trim())} /></div>
+                <div><span>Effective</span><InlineText testid={`pd-cell-eff-${c.id}`} value={o.effective || ''} placeholder="YYYY-MM-DD" onCommit={(v) => setCell(c, 'effective', String(v).trim())} /></div>
+                <div><span>Expires</span><InlineText testid={`pd-cell-exp-${c.id}`} value={o.expiration || ''} placeholder="YYYY-MM-DD" onCommit={(v) => setCell(c, 'expiration', String(v).trim())} /></div>
               </div>
               <div className="svc-creds">
                 <span>Required Credentials (AND)</span>

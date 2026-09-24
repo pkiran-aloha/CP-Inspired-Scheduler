@@ -704,26 +704,34 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     })
   })
 
-  it('legacy inline custom fields still render and can be promoted to a template', async () => {
+  it('load migration enforces master-only everywhere: promote inline defs, drop dangling strings', async () => {
     render(<App />)
     await openDetail('py-aetna')
-    // simulate a pre-template payer: legacy string entry, then remount to load it
+    // a stale pre-template save: one legacy label string, one inline definition object,
+    // one dangling string that matches nothing in the master
     const st = stored()
-    st.payers.find((x) => x.id === 'py-aetna').cf = ['Behavioral Intake line']
+    st.payers.find((x) => x.id === 'py-aetna').cf = [
+      'Prior auth dept', // label of an existing master template → re-pointed to its id
+      { label: 'Auth note', type: 'text', required: true }, // inline def → auto-promoted to a template
+      'Free-text holdover', // matches nothing → dropped
+    ]
     localStorage.setItem('aloha-aba.v3', JSON.stringify(st))
     cleanup()
     render(<App />)
+    await waitFor(() => expect(stored()).toBeTruthy())
+    // THE RULE: after load, every reference is a master id, and promoted defs exist there
+    const cf = stored().payers.find((x) => x.id === 'py-aetna').cf
+    expect(cf.every((id) => id.startsWith('cf-'))).toBe(true)
+    expect(cf).toContain('cf-authdept')
+    expect(stored().customFields.some((d) => d.label === 'Auth note' && d.required)).toBe(true)
+    expect(cf.length).toBe(2)
+    // the profile now shows only from-master rows — no legacy chip anywhere
     await toMasters()
     fireEvent.click(await screen.findByTestId('py-row-py-aetna'))
     await screen.findByTestId('payer-detail')
-    const legacy = await screen.findByTestId('pd-cf-0')
-    expect(legacy.textContent).toContain('Behavioral Intake line')
-    expect(legacy.textContent).toContain('legacy')
-    fireEvent.click(screen.getByTestId('pcf-upgrade-legacy-0'))
-    await waitFor(() => expect(stored().customFields.some((d) => d.label === 'Behavioral Intake line')).toBe(true))
-    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').cf.length).toBe(1))
-    expect(stored().payers.find((p) => p.id === 'py-aetna').cf[0]).toContain('cf-') // now a template id
-    expect(await screen.findByTestId('pd-cf-cf-behavioral-intake-line')).toBeTruthy()
+    expect(screen.getByTestId('pd-cf-cf-authdept').textContent).toContain('from master')
+    expect(screen.queryByText('legacy')).toBeNull()
+    expect(screen.queryByText('Free-text holdover')).toBeNull()
   })
   it('wizard books a payer-only service at its own contract rate', async () => {
     render(<App />)
@@ -819,6 +827,86 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     expect(opts.some((o) => o.id === rec.id && o.payerLocal)).toBe(true)
   })
 
+  it('service lines edit INLINE on the payer card — every cell commits to the live record', async () => {
+    render(<App />)
+    await openDetail('py-aetna')
+    fireEvent.click(screen.getByTestId('pd-tab-services'))
+    await screen.findByTestId('pd-svc-net')
+    // the toolbar button is labelled exactly as the flow demands
+    expect(screen.getByTestId('pd-svc-add').textContent).toContain('New Payer-Only Service')
+    // charge override inline on a linked row
+    fireEvent.click(screen.getByTestId('pd-cell-charge-net'))
+    const inp = await screen.findByTestId('pd-cell-charge-net-input')
+    fireEvent.change(inp, { target: { value: '27.5' } })
+    fireEvent.keyDown(inp, { key: 'Enter' })
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').svcOv.net.charge).toBe(27.5))
+    // dx1 + unit + rounding all write straight through
+    fireEvent.click(screen.getByTestId('pd-cell-dx1-net'))
+    const dx = await screen.findByTestId('pd-cell-dx1-net-input')
+    fireEvent.change(dx, { target: { value: 'f84.0' } })
+    fireEvent.keyDown(dx, { key: 'Enter' })
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').svcOv.net.dx1).toBe('F84.0'))
+    fireEvent.click(screen.getByTestId('pd-cell-unit-net'))
+    fireEvent.click(await screen.findByTestId(`opt-pd-cell-unit-net-60 Minutes`))
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').svcOv.net.unitSize).toBe('60 Minutes'))
+    // a payer-only row edits its own record (not an override)
+    fireEvent.click(screen.getByTestId('pd-svc-add'))
+    await screen.findByTestId('ovr-modal')
+    fireEvent.change(screen.getByTestId('ovr-label'), { target: { value: 'Inline Target' } })
+    fireEvent.change(screen.getByTestId('ovr-charge'), { target: { value: '40' } })
+    fireEvent.change(screen.getByTestId('ovr-dx1'), { target: { value: 'F84.0' } })
+    fireEvent.click(screen.getByTestId('ovr-save'))
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').svcs.some((sv) => sv.label === 'Inline Target')).toBe(true))
+    const lid = stored().payers.find((x) => x.id === 'py-aetna').svcs.find((sv) => sv.label === 'Inline Target').id
+    fireEvent.click(screen.getByTestId(`pd-cell-charge-${lid}`))
+    const li = await screen.findByTestId(`pd-cell-charge-${lid}-input`)
+    fireEvent.change(li, { target: { value: '44' } })
+    fireEvent.keyDown(li, { key: 'Enter' })
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').svcs[0].charge).toBe(44))
+  })
+
+  it('appointment modal can NEVER start with pre-filled fields — even a payer WITH picked templates', async () => {
+    render(<App />)
+    // Aetna picks two master templates (one hostile: required) — appointments must still start EMPTY
+    await openDetail('py-aetna')
+    fireEvent.click(await screen.findByTestId('pd-cf-pick'))
+    await screen.findByTestId('pd-cf-picker')
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-authdept')).querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cfpick-cf-present').querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cfm-edit-cf-present'))
+    await screen.findByTestId('cf-modal')
+    fireEvent.click(screen.getByTestId('cf-required'))
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.find((d) => d.id === 'cf-present').required).toBe(true))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    const item = (await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu'))
+    fireEvent.click(item)
+    fireEvent.mouseDown(document.body)
+    fireEvent.click(screen.getByTestId('pick-Staff Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item'))[0])
+    fireEvent.mouseDown(document.body)
+    // the section exists, lists NOTHING, and saving without adding anything just works
+    await screen.findByTestId('am-pcf-empty')
+    expect(screen.queryAllByTestId(/^pcf-f-cf-/)).toHaveLength(0)
+    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-27' } })
+    fireEvent.click(screen.getByTestId('save-appt'))
+    await waitFor(() => {
+      const created = Object.values(stored().appts).find((a) => a.date === '2026-12-27')
+      expect(created).toBeTruthy()
+      expect(Object.keys(created.pcfs || {}).length).toBe(0) // required-but-not-added never captured, never blocked
+    })
+  })
+
+  it('payers landing shows the running build stamp (no stale-tab surprises)', async () => {
+    render(<App />)
+    await toMasters()
+    expect((await screen.findByTestId('app-build')).textContent).toContain('build')
+  })
+
   it('appointment picker is master-only — legacy inline entries never reach it', async () => {
     render(<App />)
     await waitFor(() => expect(stored()).toBeTruthy()) // first debounced persist has landed
@@ -840,8 +928,9 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     await screen.findByTestId('am-pcf')
     fireEvent.click(screen.getByTestId('am-pcf-add'))
     await screen.findByTestId('am-pcf-picker')
-    expect(screen.getByTestId('am-pcf-pick-cf-waiver')).toBeTruthy() // master-defined → offered
-    expect(screen.queryByTestId(/am-pcf-pick-legacy/)).toBeNull() // legacy inline → never offered
+    expect(screen.getByTestId('am-pcf-pick-cf-waiver')).toBeTruthy() // master id survives and is offered
+    expect(screen.queryByTestId(/am-pcf-pick-legacy/)).toBeNull() // the dangling string died at load
+    expect(stored().payers.find((x) => x.id === 'py-aetna').cf).toEqual(['cf-waiver'])
   })
 
   it('payer profile keeps picked templates live: master edit renames everywhere, unlink is cheap', async () => {

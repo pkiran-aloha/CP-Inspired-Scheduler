@@ -190,3 +190,45 @@ export function concurrentNote(state, { payer, svcId, clientId, date, start, end
   }
   return null
 }
+
+/**
+ * chunk-37 — THE master-only rule, enforced at load: every custom field that
+ * exists anywhere must be defined in the Custom Fields master. Older saves may
+ * still carry bare label strings or full inline definitions on payers. Those are
+ * reconciled once, silently, at startup:
+ *   • a template id already in the master            → kept as-is
+ *   • a label string that matches a master template  → re-pointed at the template
+ *   • a label string with no template                → dropped (cannot exist)
+ *   • an inline definition object                    → promoted into the master and referenced by id
+ * After this, no consumer (appointment modal, exports, detail cards) can ever
+ * encounter a field that the master doesn't define — pre-population or otherwise.
+ */
+export function normalizePayerCf(state, mkId) {
+  const defs = (state.customFields || []).slice()
+  const byLabel = new Map(defs.map((d) => [String(d.label || '').toLowerCase(), d]))
+  const idSet = new Set(defs.map((d) => d.id))
+  let changed = false
+  const payers = (state.payers || []).map((p) => {
+    const cf = p.cf || []
+    if (!cf.length) return p
+    const out = []
+    let dirty = false
+    for (const entry of cf) {
+      if (typeof entry === 'string' && idSet.has(entry)) { out.push(entry); continue }
+      dirty = true
+      if (typeof entry === 'string') {
+        const m = byLabel.get(entry.toLowerCase())
+        if (m) out.push(m.id) // else: dangling — a field outside the master cannot exist
+      } else if (entry && typeof entry === 'object' && entry.label) {
+        let m = byLabel.get(String(entry.label).toLowerCase())
+        if (!m) {
+          m = { id: 'cf-' + String(mkId()).replace(/[^a-z0-9]/gi, '').slice(0, 10), label: String(entry.label), type: entry.type || 'text', options: entry.options || [], onLabel: entry.onLabel || 'Yes', offLabel: entry.offLabel || 'No', required: Boolean(entry.required), note: entry.note || '', status: 'active' }
+          defs.push(m); idSet.add(m.id); byLabel.set(m.label.toLowerCase(), m)
+        }
+        out.push(m.id)
+      }
+    }
+    return dirty ? { ...p, cf: out } : p
+  })
+  return changed || payers.some((x, i) => x !== (state.payers || [])[i]) ? { ...state, payers, customFields: defs } : state
+}

@@ -3,6 +3,7 @@ import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
 import { todayISO } from '../lib/date'
+import { normalizePayerCf } from '../lib/master'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 
 const KEY = 'aloha-aba.v3'
@@ -59,7 +60,7 @@ export function initial() {
       if (saved && saved.appts) {
         // merge every sub-object against defaults so older saves keep working as the schema grows
         const d = defaultSettings()
-        return {
+        const mergedRaw = {
           ...base,
           ...saved,
           claims: saved.claims || base.claims,
@@ -70,6 +71,11 @@ export function initial() {
           settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) } },
           ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: (saved.ui?.section || 'calendar') === 'payers' ? 'masters' : saved.ui?.section || 'calendar' },
         }
+        // chunk-37: master-only migration for legacy custom-field entries — if anything was
+        // promoted or dropped, write the fixed snapshot back immediately so the repair is durable
+        const merged = normalizePayerCf(mergedRaw, uid)
+        if (merged !== mergedRaw) { try { localStorage.setItem(KEY, JSON.stringify(merged)) } catch { /* off for A/B */ } }
+        return merged
       }
     }
   } catch (e) {

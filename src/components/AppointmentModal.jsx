@@ -55,6 +55,9 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
 
   const fresh = (keep = {}) => {
     const x = { repeat: 'none', repeatCount: 8, status: 'active', verification: null, custom: {}, pcfs: {}, documents: [], ...initial, ...keep }
+    // chunk-37: in NO way may a NEW appointment carry custom fields — even if some entry
+    // point (duplicate/series/keep) tried to pass them through, the new modal starts empty.
+    if (mode !== 'edit') x.pcfs = {}
     x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null }
     x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : svcById(state, x.service)?.code || '97151')
     x.units = x.billing ? x.billing.units : null
@@ -132,6 +135,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const pcfDefs = payerFieldDefs(state, billPayer).filter((d) => d.label && d.source === 'master')
   // chunk-34: custom fields are OPT-IN per appointment — nothing auto-populates.
   const pcfAdded = pcfDefs.filter((d) => (f.pcfs || {})[d.id] !== undefined)
+  // switching client/payer can leave fields captured for the OLD payer — never keep those
+  React.useEffect(() => {
+    const cur = f.pcfs || {}
+    const orphans = Object.keys(cur).filter((k) => !pcfDefs.some((d) => d.id === k))
+    if (orphans.length) set({ pcfs: Object.fromEntries(Object.entries(cur).filter(([k]) => !orphans.includes(k))) })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [billPayer?.id, showClinic])
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')

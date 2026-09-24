@@ -14,7 +14,14 @@ export default function BuildWatcher() {
         if (!r.ok) return
         const j = await r.json().catch(() => null)
         if (!j || !j.build) return
-        if (seen.current == null) { seen.current = j.build; return }
+        if (seen.current == null) {
+          seen.current = j.build
+          // chunk-37: ALSO compare against the id baked into THIS bundle at build time —
+          // a tab restored from cache serving an old index.html now self-detects staleness.
+          const mine = typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : null
+          if (mine && mine !== 'dev' && j.build !== mine && !dead) setStale(true)
+          return
+        }
         if (seen.current !== j.build && !dead) setStale(true)
       } catch { /* dev server / offline — stay quiet */ }
     }

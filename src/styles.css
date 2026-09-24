@@ -2511,3 +2511,8 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .cf-pickacts { display: flex; align-items: center; gap: 2px; flex: none; }
 .cf-pickacts .iconbtn { width: 24px; height: 24px; }
 .py-modal .modal-foot.pm-foot { gap: 8px; }
+
+/* ---- chunk-37: build stamp + inline service cells ---- */
+.nr-build { display: block; text-align: center; font-size: 9.5px; color: var(--muted); letter-spacing: .04em; padding: 3px 4px 1px; opacity: .85; cursor: default; border-top: 1px solid color-mix(in srgb, var(--line) 55%, transparent); margin-top: 4px; }
+.svc-rows .ile { font-weight: 640; color: var(--text-1); }
+.svc-card:focus-within { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
