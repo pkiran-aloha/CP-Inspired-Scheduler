@@ -72,6 +72,16 @@ function Shell() {
     if (ui.view === 'analytics') actions.setUI({ view: 'week', section: 'analytics' })
   }, [ui.view, actions])
 
+  // chunk-38: announce the one-time cleanup of pre-loaded appointment custom fields
+  useEffect(() => {
+    const m = state.meta
+    if (m?.pcfCleared && !m.pcfClearedSeen && (m.pcfClearedCount || 0) > 0) {
+      toast({ message: `v13 cleanup — cleared ${m.pcfClearedCount} pre-loaded custom-field value${m.pcfClearedCount === 1 ? '' : 's'} from earlier appointments; new appointments start with none`, kind: 'info' })
+      actions.setMeta({ pcfClearedSeen: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.meta?.pcfCleared, state.meta?.pcfClearedSeen])
+
   // ---- global keyboard shortcuts ----
   useEffect(() => {
     const onKey = (e) => {

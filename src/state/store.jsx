@@ -3,7 +3,7 @@ import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
 import { todayISO } from '../lib/date'
-import { normalizePayerCf } from '../lib/master'
+import { normalizePayerCf, normalizeApptPcfs } from '../lib/master'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 
 const KEY = 'aloha-aba.v3'
@@ -73,7 +73,8 @@ export function initial() {
         }
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
         // promoted or dropped, write the fixed snapshot back immediately so the repair is durable
-        const merged = normalizePayerCf(mergedRaw, uid)
+        // chunk-38: one-time clear of pre-loaded appointment pcfs (flagged in meta, idempotent)
+        const merged = normalizeApptPcfs(normalizePayerCf(mergedRaw, uid))
         if (merged !== mergedRaw) { try { localStorage.setItem(KEY, JSON.stringify(merged)) } catch { /* off for A/B */ } }
         return merged
       }
@@ -121,6 +122,8 @@ export function reducer(state, action) {
       return { ...state, ui: { ...state.ui, ...action.patch } }
     case 'setSettings':
       return { ...state, settings: { ...state.settings, ...action.patch } }
+    case 'meta':
+      return { ...state, meta: { ...(state.meta || {}), ...action.patch } }
     case 'toggleSel': {
       const { list, id, all } = action
       const cur = state.ui[list]
@@ -272,6 +275,7 @@ function createActions(state, dispatch) {
   return {
     setUI: (patch) => dispatch({ type: 'setUI', patch }),
     setSettings: (patch) => dispatch({ type: 'setSettings', patch }),
+    setMeta: (patch) => dispatch({ type: 'meta', patch }),
     replace: (payload) => dispatch({ type: 'replace', payload }),
     dash: (mode, payload = {}) => dispatch({ type: 'dash', mode, ...payload }),
     relabel: () => dispatch({ type: 'relabel' }),

@@ -232,3 +232,25 @@ export function normalizePayerCf(state, mkId) {
   })
   return changed || payers.some((x, i) => x !== (state.payers || [])[i]) ? { ...state, payers, customFields: defs } : state
 }
+
+/**
+ * chunk-38 — one-time cleanup of PRE-LOADED appointment custom fields.
+ * Pre-v13 saves may hold pcfs values that the app itself captured in the old
+ * auto-populate era (or that leaked in through the payer-inherited field set).
+ * Appointments must carry ONLY fields their user explicitly added, so the first
+ * v13 load clears every appointment's pcfs exactly once, flags it in
+ * state.meta.pcfCleared (idempotent afterwards) and records pcfClearedCount so
+ * the UI can announce it. Payer picks are untouched — the payer flow keeps its data.
+ */
+export function normalizeApptPcfs(state) {
+  if (state.meta && state.meta.pcfCleared) return state
+  let cleared = 0
+  let changed = false
+  const appts = {}
+  for (const [id, a] of Object.entries(state.appts || {})) {
+    if (a && a.pcfs && Object.keys(a.pcfs).length) { cleared++; changed = true; appts[id] = { ...a, pcfs: null } }
+    else appts[id] = a
+  }
+  const meta = { ...(state.meta || {}), pcfCleared: true, pcfClearedCount: cleared }
+  return changed ? { ...state, appts, meta } : { ...state, meta }
+}

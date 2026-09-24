@@ -511,6 +511,9 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow-3);
   display: flex; flex-direction: column; overflow: hidden; animation: pop 0.2s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
+/* the template editor can open ON TOP of the CF picker overlay (z-100) — in the payer
+   profile and inside the appointment wizard alike — so it must stack above it */
+.cf-modal { position: relative; z-index: 110; }
 @keyframes pop { from { transform: translateY(10px) scale(0.985); opacity: 0; } }
 .modal-head { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid var(--line); background: linear-gradient(180deg, var(--panel-2), var(--panel)); flex: none; }
 .modal-head h2 { font-size: 16.5px; margin: 0; letter-spacing: -0.02em; }

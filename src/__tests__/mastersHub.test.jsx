@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import App from '../App'
 import { ensurePayer, svcList, rateFor, concurrentNote, payerForAppt, svcOptionsFor, svcById } from '../lib/master'
 
@@ -37,6 +37,20 @@ async function openDetail(id) {
 async function pickDropdown(triggerTestId, optionValue) {
   fireEvent.click(await screen.findByTestId(triggerTestId))
   fireEvent.click(await screen.findByTestId(`opt-${triggerTestId}-${optionValue}`))
+}
+// books a plain Justin Hsu (Aetna) service appointment through the wizard, lands on the modal
+async function bookJustin() {
+  fireEvent.click(screen.getByTestId('nav-calendar'))
+  fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+  fireEvent.click(await screen.findByTestId('type-service'))
+  fireEvent.click(screen.getByTestId('pick-Client Name'))
+  const item = (await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu'))
+  fireEvent.click(item)
+  fireEvent.mouseDown(document.body)
+  fireEvent.click(screen.getByTestId('pick-Staff Name'))
+  fireEvent.click((await screen.findAllByTestId('people-item'))[0])
+  fireEvent.mouseDown(document.body)
+  await screen.findByTestId('am-pcf')
 }
 
 describe('masters — nav & service types', () => {
@@ -657,9 +671,11 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.click(screen.getByTestId('pick-Staff Name'))
     fireEvent.click((await screen.findAllByTestId('people-item'))[0])
     fireEvent.mouseDown(document.body)
-    // chunk-34: the panel is opt-in — nothing auto-populates on a new appointment
+    // chunk-38: the panel is the APPOINTMENT's own — nothing auto-populates and the
+    // payer's picks no longer even appear as a pre-rendered field set
     const panel = await screen.findByTestId('am-pcf')
-    expect(panel.textContent).toContain('Custom fields — Aetna')
+    expect(panel.textContent).toContain('Custom fields')
+    expect(panel.textContent).toContain('add only what you capture')
     expect(screen.queryByTestId('pcf-f-cf-authdept')).toBeNull()
     expect(screen.getByTestId('am-pcf-empty')).toBeTruthy()
     fireEvent.click(screen.getByTestId('save-appt')) // no added fields → not blocked
@@ -677,6 +693,8 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     await screen.findByTestId('am-pcf')
     fireEvent.click(screen.getByTestId('am-pcf-add'))
     await screen.findByTestId('am-pcf-picker')
+    expect(screen.getByTestId('am-pcf-pick-cf-waiver')).toBeTruthy() // a master field Aetna NEVER picked — offered per-appointment
+    expect(screen.getByTestId('am-pcf-pick-cf-goals')).toBeTruthy() // same: the whole master is on offer
     fireEvent.click(screen.getByTestId('am-pcf-pick-cf-authdept').querySelector('input'))
     fireEvent.click(screen.getByTestId('am-pcf-pick-cf-present').querySelector('input'))
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
@@ -928,9 +946,172 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     await screen.findByTestId('am-pcf')
     fireEvent.click(screen.getByTestId('am-pcf-add'))
     await screen.findByTestId('am-pcf-picker')
-    expect(screen.getByTestId('am-pcf-pick-cf-waiver')).toBeTruthy() // master id survives and is offered
+    expect(screen.getByTestId('am-pcf-pick-cf-waiver')).toBeTruthy() // master id survives the load migration and is offered
     expect(screen.queryByTestId(/am-pcf-pick-legacy/)).toBeNull() // the dangling string died at load
+    expect(screen.queryByTestId('am-pcf-pick-Free-text holdover')).toBeNull() // no picker row is ever built from a raw label
     expect(stored().payers.find((x) => x.id === 'py-aetna').cf).toEqual(['cf-waiver'])
+  })
+
+  it('appointment custom fields are its own: payer picks never leak in, own pick persists through edit', async () => {
+    render(<App />)
+    // Aetna picks a template on its profile — it must NOT leak into appointments
+    await openDetail('py-aetna')
+    fireEvent.click(await screen.findByTestId('pd-cf-pick'))
+    await screen.findByTestId('pd-cf-picker')
+    fireEvent.click((await screen.findByTestId('pd-cfpick-cf-waiver')).querySelector('input'))
+    fireEvent.click(screen.getByTestId('pd-cf-picker-close'))
+    await waitFor(() => expect(stored().payers.find((x) => x.id === 'py-aetna').cf).toEqual(['cf-waiver']))
+    // book Justin (Aetna) — ZERO fields despite the payer's pick
+    await bookJustin()
+    expect(screen.getByTestId('am-pcf-empty')).toBeTruthy()
+    expect(screen.queryAllByTestId(/^pcf-f-/)).toHaveLength(0)
+    // explicitly add cf-waiver, answer it, save
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    fireEvent.click(screen.getByTestId('am-pcf-pick-cf-waiver').querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    fireEvent.click(screen.getByTestId('pcf-toption-cf-waiver-1')) // "Yes"
+    fireEvent.click(screen.getByTestId('save-appt'))
+    const detail = await screen.findByTestId('detail-card')
+    const id = await waitFor(() => {
+      const a = Object.values(stored().appts).find((x) => x.pcfs && x.pcfs['cf-waiver'])
+      expect(a).toBeTruthy()
+      return a.id
+    })
+    expect(Object.keys(stored().appts[id].pcfs)).toEqual(['cf-waiver'])
+    expect(detail.querySelector('[data-testid="dc-pcf"]').textContent).toContain('Service waiver on file')
+    // reopen in edit — exactly its own field, value intact, nothing else
+    fireEvent.click(within(detail).getByRole('button', { name: /Edit/ }))
+    await screen.findByTestId('am-pcf')
+    expect(screen.queryByTestId('am-pcf-empty')).toBeNull()
+    expect(screen.getByTestId('pcf-f-cf-waiver')).toBeTruthy()
+    expect((await screen.findByTestId('pcf-toption-cf-waiver-1')).classList.contains('on')).toBe(true)
+    expect(screen.queryByTestId('pcf-f-cf-present')).toBeNull()
+  })
+
+  it('define a brand-new custom field from the appointment picker (like the payer flow)', async () => {
+    render(<App />)
+    await bookJustin()
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    fireEvent.click(screen.getByTestId('am-cfm-new'))
+    await screen.findByTestId('cf-modal')
+    fireEvent.change(screen.getByTestId('cf-label'), { target: { value: 'Transport note' } })
+    fireEvent.click(screen.getByTestId('cf-save'))
+    await waitFor(() => expect(stored().customFields.some((d) => d.label === 'Transport note')).toBe(true))
+    const nid = stored().customFields.find((d) => d.label === 'Transport note').id
+    // the new template is offered in the SAME picker — tick it, save the appointment
+    fireEvent.click((await screen.findByTestId(`am-pcf-pick-${nid}`)).querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    fireEvent.click(screen.getByTestId('save-appt'))
+    await waitFor(() => {
+      const a = Object.values(stored().appts).find((x) => x.pcfs && x.pcfs[nid])
+      expect(a).toBeTruthy()
+      expect(a.pcfs[nid].label).toBe('Transport note')
+    })
+  })
+
+  it('delete a template from the appointment picker — master loses it, other captured values persist', async () => {
+    render(<App />)
+    await bookJustin()
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    fireEvent.click(screen.getByTestId('am-pcf-pick-cf-waiver').querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-pick-cf-present').querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    fireEvent.click(screen.getByTestId('pcf-toption-cf-waiver-1')) // "Yes"
+    fireEvent.click(screen.getByTestId('pcf-toption-cf-present-1')) // "Present"
+    fireEvent.click(screen.getByTestId('save-appt'))
+    const detail = await screen.findByTestId('detail-card')
+    // reopen in edit and delete the cf-waiver template from the picker
+    fireEvent.click(within(detail).getByRole('button', { name: /Edit/ }))
+    await screen.findByTestId('am-pcf')
+    expect(screen.getByTestId('pcf-f-cf-waiver')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    fireEvent.click(screen.getByTestId('am-cfm-del-cf-waiver'))
+    await waitFor(() => expect(stored().customFields.some((d) => d.id === 'cf-waiver')).toBe(false))
+    expect(screen.queryByTestId('pcf-f-cf-waiver')).toBeNull() // gone from this draft
+    expect(screen.getByTestId('pcf-f-cf-present')).toBeTruthy() // the other capture survived
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    fireEvent.click(screen.getByTestId('save-appt'))
+    await waitFor(() => {
+      const a = Object.values(stored().appts).find((x) => x.pcfs && x.pcfs['cf-present'])
+      expect(a).toBeTruthy()
+      expect(a.pcfs['cf-waiver']).toBeUndefined()
+    })
+  })
+
+  it('template deleted from the master keeps its captured value readable on the appointment', async () => {
+    render(<App />)
+    await bookJustin()
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    fireEvent.click(screen.getByTestId('am-pcf-pick-cf-waiver').querySelector('input'))
+    fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
+    fireEvent.click(screen.getByTestId('pcf-toption-cf-waiver-1')) // "Yes"
+    fireEvent.click(screen.getByTestId('save-appt'))
+    const detail = await screen.findByTestId('detail-card')
+    fireEvent.click(detail.querySelector('.modal-x'))
+    await waitFor(() => expect(screen.queryByTestId('detail-card')).toBeNull())
+    // delete the template from the full master page
+    await toMasters('cfdefs')
+    fireEvent.click(screen.getByTestId('cf-del-cf-waiver'))
+    await waitFor(() => expect(stored().customFields.some((d) => d.id === 'cf-waiver')).toBe(false))
+    // reopen the SAME appointment from the grid → edit: the captured value is kept as saved
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    const chip = await waitFor(() => {
+      const c = Array.from(document.querySelectorAll('.chip')).find((x) => {
+        const t = x.getAttribute('title') || ''
+        return t.includes('Hsu, Justin') || t.includes('Justin Hsu') // ehr vs plain naming styles
+      })
+      if (!c) throw new Error('chip not found yet')
+      return c
+    })
+    fireEvent.pointerDown(chip, { button: 0 })
+    fireEvent.pointerUp(chip)
+    const again = await screen.findByTestId('detail-card')
+    fireEvent.click(within(again).getByRole('button', { name: /Edit/ }))
+    const stale = await screen.findByTestId('pcf-f-cf-waiver')
+    expect(stale.textContent).toContain('kept as saved')
+    expect(stale.textContent).toContain('Yes')
+    expect(stale.querySelector('input')).toBeNull() // read-only — the template no longer exists
+  })
+
+  it('v13 load migration clears pre-loaded appointment pcfs exactly once', async () => {
+    render(<App />)
+    await waitFor(() => expect(stored()).toBeTruthy())
+    const st = stored()
+    const ids = Object.keys(st.appts).filter((k) => st.appts[k].clientIds && st.appts[k].clientIds.length)
+    const [k1, k2] = ids
+    st.appts[k1] = { ...st.appts[k1], pcfs: { 'cf-present': { label: 'Caregiver present', type: 'toggle', value: 'Present' } } }
+    st.appts[k2] = { ...st.appts[k2], pcfs: { 'cf-authdept': { label: 'Prior auth dept', type: 'select', value: 'Auth Review Unit 3' } } }
+    if (st.meta) delete st.meta.pcfCleared // hostile: a pre-v13 snapshot
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(st))
+    cleanup()
+    render(<App />)
+    await waitFor(() => {
+      const st2 = stored()
+      expect(Object.values(st2.appts).every((a) => !a.pcfs || Object.keys(a.pcfs).length === 0)).toBe(true)
+    })
+    const st2 = stored()
+    expect(st2.meta.pcfCleared).toBe(true)
+    expect(st2.meta.pcfClearedCount).toBe(2)
+    // payer picks are untouched — the payer flow keeps its data
+    expect(st2.payers.find((x) => x.id === 'py-aetna').cf).toEqual(st.payers.find((x) => x.id === 'py-aetna').cf)
+    // idempotent: a second load does not re-clear
+    cleanup()
+    render(<App />)
+    await waitFor(() => expect(stored().meta.pcfCleared).toBe(true))
+    expect(stored().meta.pcfClearedCount).toBe(2)
+  })
+
+  it('seed data ships zero pre-loaded custom fields: no appointment pcfs, no payer picks', async () => {
+    render(<App />)
+    await waitFor(() => expect(stored()).toBeTruthy())
+    const st = stored()
+    expect(Object.values(st.appts).every((a) => !a.pcfs || Object.keys(a.pcfs).length === 0)).toBe(true)
+    expect(st.payers.every((p) => !p.cf || p.cf.length === 0)).toBe(true)
   })
 
   it('payer profile keeps picked templates live: master edit renames everywhere, unlink is cheap', async () => {

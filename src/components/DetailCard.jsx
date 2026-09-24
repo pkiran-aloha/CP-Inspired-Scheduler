@@ -281,7 +281,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               <span className="v pcf-readout">
                 {Object.entries(appt.pcfs).map(([id, f]) => (
                   <span className="pcf-chip" key={id}>
-                    <b>{f.label}</b>
+                    <b>{(state.customFields || []).find((d) => d.id === id)?.label || f.label}</b>
                     <i>{f.type === 'multi' ? ((f.value || []).join(', ') || '—') : f.type === 'signature' ? (f.value ? `Signed — ${f.value.staffName || f.value.name || 'captured'}` : '—') : (f.value === '' || f.value == null || f.value === false ? '—' : String(f.value === true ? 'Yes' : f.value))}</i>
                   </span>
                 ))}
