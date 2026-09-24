@@ -115,6 +115,12 @@ export const CF_DEFS = [
   { id: 'cf-goals', label: 'Session focus areas', type: 'multi', options: ['Mandec', 'Toilet training', 'Sleep routine', 'Play skills', 'Feeding', 'Safety skills'], required: false, note: 'Tick every goal targeted during the session.', status: 'active' },
   { id: 'cf-parentsig', label: 'Parent/Caregiver signature', type: 'signature', required: true, note: 'Capture at the end of any parent-training session.', status: 'active' },
   { id: 'cf-teleconf', label: 'Telehealth consent confirmed', type: 'text', required: false, note: 'Verbal consent wording or link sent.', status: 'inactive' },
+  // chunk-39: the old built-in appointment fields live here now — defined in the master,
+  // addable per appointment, NEVER pre-rendered ("Meg Test" deliberately not promoted)
+  { id: 'cf-mycare', label: 'My Care', type: 'multi', options: ['Sensory Diet', 'Feeding Therapy', 'Sleep Protocol', 'Toileting Plan', 'Behavior Support', 'AAC Training', 'Mand Training'], required: false, note: 'Focus areas carried over from the old built-in appointment fields.', status: 'active' },
+  { id: 'cf-yesno', label: 'Yes or No', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+  { id: 'cf-grade', label: 'Grade', type: 'select', options: ['A', 'B', 'C', 'D', 'E', 'N/A'], required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+  { id: 'cf-reval', label: 'Re-eval Notes', type: 'text', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
 ]
 
 export const SVCS = SERVICES.map((s) => {
@@ -213,8 +219,6 @@ const DOC_POOL = [
   ['Session Note {d}.pdf', 60, 'Session note'], ['Data Sheet {d}.csv', 12, 'Data export'], ['Parent Debrief Notes.docx', 34, 'Session note'],
   ['VB-MAPP Milestones {d}.pdf', 220, 'Assessment report'], ['Insurance Auth — {y}.pdf', 90, 'Consent / auth'], ['IEP Snapshot.png', 480, 'IEP / IFSP'], ['BIP Revision Draft.pdf', 150, 'Assessment report'],
 ]
-const MYCARE = ['Sensory Diet', 'Feeding Therapy', 'Sleep Protocol', 'Toileting Plan', 'Behavior Support', 'AAC Training', 'Mand Training']
-const MEG = ['Not started', 'Baseline', 'Pass 1', 'Pass 2', 'Complete']
 
 function docsFor(rnd, date, title) {
   if (rnd() < 0.45) return []
@@ -352,13 +356,7 @@ export function buildSeed(todayISO) {
           seriesId,
           edited: isException || undefined,
           billing,
-          custom: {
-            megTest: rnd() < 0.55 ? pick(rnd, MEG) : '',
-            myCare: rnd() < 0.5 ? [pick(rnd, MYCARE), ...(rnd() < 0.4 ? [pick(rnd, MYCARE)] : [])].filter((v, i, a) => a.indexOf(v) === i) : [],
-            yesNo: rnd() < 0.5,
-            grade: rnd() < 0.4 ? pick(rnd, ['A', 'B', 'C', 'B', 'A']) : '',
-            reEval: rnd() < 0.12 ? 'Re-eval packet to insurer by month end.' : '',
-          },
+          custom: {},
           documents: docsFor(rnd, di, s.svc),
           verification,
         })
@@ -377,7 +375,7 @@ export function buildSeed(todayISO) {
               location: 'En route', recurrence: 'weekly', seriesId: `${seriesId}-d${off < 0 ? 'a' : 'b'}`,
               notes: rnd() < 0.25 ? 'Traffic delay logged — drove straight from previous school site.' : '',
               billing: { code: 'H2019', unitMins: 60, minutes: 20, units: 0, rate: 0, mileage: true, distance: dist, mileageRate: 0.7 },
-              custom: rnd() < 0.2 ? { yesNo: rnd() < 0.5, myCare: [] } : {},
+              custom: {},
             })
           }
         }
@@ -390,7 +388,7 @@ export function buildSeed(todayISO) {
             push({
               type: 'break', date: di, start: bs, end: bs + blen, title: 'Break — reset & restock',
               staffIds, clientIds: [], status: 'active', notes: pick(rnd, ['Reinforcer prep for afternoon block.', 'Water + 5 min decompress.']),
-              custom: { yesNo: rnd() < 0.5 },
+              custom: {},
             })
           }
         }
@@ -407,7 +405,7 @@ export function buildSeed(todayISO) {
           type: 'service', date: cdi, start: cs, end: cs + 60, title: SVC_LABEL.caregiver,
           staffIds: ['s2'], clientIds: [c.id], status: date < todayISO ? 'completed' : 'confirmed', location: 'Telehealth (video)', service: 'caregiver',
           notes: 'Parents practiced DRT at home; reviewed token board setup.', billing: autoBilling({}, 60), abaHr: true, recurrence: 'biweekly',
-          seriesId: `sr-${c.id}-cg`, custom: { yesNo: true, myCare: ['Behavior Support'] }, documents: [],
+          seriesId: `sr-${c.id}-cg`, custom: {}, documents: [],
           verification: null,
         })
       }
@@ -423,7 +421,7 @@ export function buildSeed(todayISO) {
       push({
         type: 'unavailable', date: mdi, start: ms, end: ms + 60, title: 'Team meeting — programming review',
         staffIds: mids, clientIds: [], status: 'active', location: 'Clinic Room 2',
-        notes: 'Agenda: caseload moves, auth expirations, safety drill.', recurrence: 'weekly', seriesId: 'sr-meeting', custom: { yesNo: rnd() < 0.5 },
+        notes: 'Agenda: caseload moves, auth expirations, safety drill.', recurrence: 'weekly', seriesId: 'sr-meeting', custom: {},
       })
     }
     // supervision slots: BCBA ↔ RBT, weekly series
@@ -439,7 +437,7 @@ export function buildSeed(todayISO) {
         type: 'supervision', date: sdi, start: ss, end: ss + 60, title: 'Monthly supervision (BCBA→RBT)',
         staffIds: [sup, rbt], clientIds: [], status: d < todayISO ? 'completed' : 'active', location: 'Main Center',
         notes: rnd() < 0.6 ? 'Fidelity 92% — focused feedback on MOT procedures.' : '', billing: { ...autoBilling({ billing: { code: '97152' } }, 60) },
-        recurrence: 'weekly', seriesId: `sr-sup-${sup}-${rbt}`, custom: { grade: rnd() < 0.3 ? 'A' : '' },
+        recurrence: 'weekly', seriesId: `sr-sup-${sup}-${rbt}`, custom: {},
       })
     }
   }
@@ -464,7 +462,7 @@ export function buildSeed(todayISO) {
         type: 'unavailable', date: di, start: shapes[0], end: shapes[1],
         title: ptoTitle, staffIds: [st.id], clientIds: [], status: 'active',
         notes: 'Approved by scheduler — covered by float staff.', recurrence: 'none',
-        custom: { yesNo: rnd() < 0.5, reEval: rnd() < 0.2 ? 'Make-up hour requested.' : '' },
+        custom: {},
       })
     }
   }
@@ -484,7 +482,7 @@ export function buildSeed(todayISO) {
       location: 'Assessment Lab', service: 'reassess', notes: di < todayISO ? 'Report drafted; narrative scoring pending.' : 'Materials printed; reinforcer prefprefs pre-session.',
       abaHr: false, recurrence: 'none',
       billing: { ...autoBilling({ billing: { code: '97152' } }, dur), rate: 74 },
-      custom: { megTest: pick(rnd, MEG), grade: pick(rnd, ['A', 'B']), reEval: 'Send re-eval justification to insurer.' },
+      custom: {},
       documents: di < todayISO ? [{ id: uid(), name: `Assessment Summary ${di}.pdf`, size: 480_000, tag: 'Assessment report' }, { id: uid(), name: 'Scoring Workbook.xlsx', size: 120_000, tag: 'Data export' }] : [],
       verification: di < todayISO ? { completedBy: 's6', checks: { data: true, safety: true, materials: true, caregiver: false }, verifyStatus: 'verified', note: 'Client tolerated full protocol.' } : null,
     })

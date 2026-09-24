@@ -7,7 +7,6 @@ import { PeoplePicker, Dropdown, MultiSelect } from './fields'
 import { fmtDur, fmtTime, hmToMin, minToHM, startOfWeek, addDays, isoDate, parseISO } from '../lib/date'
 import {
   BILL_CODES,
-  CUSTOM_FIELDS,
   MILEAGE_RATE,
   PAY_TAGS,
   RECURRENCES,
@@ -665,47 +664,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       </div>
                     </div>
 
-                    <div className="panel">
-                      <h3>
-                        <span className="pi">{Icon.spark({ size: 14 })}</span> Custom Fields
-                      </h3>
-                      <div className="grid2">
-                        {CUSTOM_FIELDS.map((cf) => {
-                          const v = f.custom?.[cf.id]
-                          const upd = (nv) => set({ custom: { ...f.custom, [cf.id]: nv } })
-                          if (cf.kind === 'select')
-                            return (
-                              <div className="field" key={cf.id}>
-                                <label>{cf.label}</label>
-                                <Dropdown testid={`cf-${cf.id}`} value={v || ''} onChange={upd} placeholder="—" options={[{ value: '', label: '—' }, ...cf.options.map((o) => ({ value: o, label: o }))]} />
-                              </div>
-                            )
-                          if (cf.kind === 'multiselect')
-                            return (
-                              <div className="field" key={cf.id}>
-                                <label>{cf.label}</label>
-                                <MultiSelect testid={`cf-${cf.id}`} values={Array.isArray(v) ? v : []} onChange={upd} options={cf.options} placeholder="Pick focus areas…" />
-                              </div>
-                            )
-                          if (cf.kind === 'toggle')
-                            return (
-                              <div className="field" key={cf.id}>
-                                <label>{cf.label}</label>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '2px 0' }}>
-                                  <button type="button" className={`toggle ${v ? 'on' : ''}`} onClick={() => upd(!v)} />
-                                  <span className="muted" style={{ fontSize: 11.5 }}>{v ? 'Yes' : 'No'}</span>
-                                </div>
-                              </div>
-                            )
-                          return (
-                            <div className="field" key={cf.id}>
-                              <label>{cf.label}</label>
-                              <input className="input" value={v || ''} placeholder="Text…" onChange={(e) => upd(e.target.value)} />
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </div>
+
                   </>
                 )}
 

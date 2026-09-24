@@ -36,9 +36,8 @@ describe('initial state', () => {
     expect(vals.some((a) => a.documents?.length >= 2 && a.documents[0].tag)).toBe(true)
     expect(vals.some((a) => a.verification?.signature?.certification && a.verification.signature.geo)).toBe(true)
     expect(vals.some((a) => a.verification?.verifyStatus === 'flagged')).toBe(true)
-    expect(vals.some((a) => a.custom?.myCare?.length >= 2)).toBe(true)
-    expect(vals.some((a) => a.custom?.megTest && a.custom?.grade)).toBe(true)
-    expect(vals.some((a) => a.custom?.reEval)).toBe(true)
+    // chunk-39: NO pre-loaded custom field values anywhere in the seed data
+    expect(vals.every((a) => !a.custom || Object.keys(a.custom).length === 0)).toBe(true)
     expect(vals.some((a) => a.recurrence === 'weekly' && a.seriesId)).toBe(true)
     expect(vals.some((a) => a.edited)).toBe(true) // seeded series exceptions
     expect(vals.some((a) => a.type === 'drive' && a.billing?.mileage && a.billing.distance > 0)).toBe(true)

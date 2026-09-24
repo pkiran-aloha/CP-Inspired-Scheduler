@@ -89,14 +89,6 @@ export const VERIFY_CHECKS = [
   { id: 'caregiver', label: 'Caregiver / school debrief done' },
 ]
 
-// Custom fields support several input kinds and are seeded across appointment types.
-export const CUSTOM_FIELDS = [
-  { id: 'megTest', label: 'Meg Test', kind: 'select', options: ['Not started', 'Baseline', 'Pass 1', 'Pass 2', 'Complete'] },
-  { id: 'myCare', label: 'My Care', kind: 'multiselect', options: ['Sensory Diet', 'Feeding Therapy', 'Sleep Protocol', 'Toileting Plan', 'Behavior Support', 'AAC Training', 'Mand Training'] },
-  { id: 'yesNo', label: 'Yes or No', kind: 'toggle' },
-  { id: 'grade', label: 'Grade', kind: 'select', options: ['A', 'B', 'C', 'D', 'E', 'N/A'] },
-  { id: 'reEval', label: 'Re-eval Notes', kind: 'text' },
-]
 
 export const uid = () =>
   (crypto?.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36))

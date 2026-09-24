@@ -82,6 +82,16 @@ function Shell() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.meta?.pcfCleared, state.meta?.pcfClearedSeen])
 
+  // chunk-39: announce the one-time removal of the old built-in custom fields
+  useEffect(() => {
+    const m = state.meta
+    if (m?.legacyCustomCleared && !m.legacyCustomClearedSeen && (m.legacyCustomClearedCount || 0) > 0) {
+      toast({ message: `v14 cleanup — removed pre-loaded legacy custom fields from ${m.legacyCustomClearedCount} appointment${m.legacyCustomClearedCount === 1 ? '' : 's'} (My Care, Yes or No, Grade, Re-eval Notes); they're now add-on-demand fields under “Add Custom Fields”`, kind: 'info' })
+      actions.setMeta({ legacyCustomClearedSeen: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.meta?.legacyCustomCleared, state.meta?.legacyCustomClearedSeen])
+
   // ---- global keyboard shortcuts ----
   useEffect(() => {
     const onKey = (e) => {

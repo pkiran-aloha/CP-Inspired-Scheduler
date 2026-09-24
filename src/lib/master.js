@@ -242,6 +242,38 @@ export function normalizePayerCf(state, mkId) {
  * state.meta.pcfCleared (idempotent afterwards) and records pcfClearedCount so
  * the UI can announce it. Payer picks are untouched — the payer flow keeps its data.
  */
+/**
+ * chunk-39 — the OLD built-in appointment "Custom Fields" panel (Meg Test / My Care /
+ * Yes or No / Grade / Re-eval Notes) is gone for good. Two load-time repairs:
+ *   • the four meaningful legacy fields are promoted into the master as regular
+ *     templates (by label, so a user's own definition always wins) — "Meg Test"
+ *     (a debug leftover) is deliberately NOT promoted;
+ *   • every appointment's legacy `custom` values are cleared exactly once
+ *     (flagged in state.meta.legacyCustomCleared), announced via toast in App.
+ */
+export function normalizeLegacyCustom(state) {
+  if (state.meta && state.meta.legacyCustomCleared) return state
+  const defs = (state.customFields || []).slice()
+  const byLabel = new Map(defs.map((d) => [String(d.label || '').toLowerCase(), d]))
+  const LEGACY = [
+    { id: 'cf-mycare', label: 'My Care', type: 'multi', options: ['Sensory Diet', 'Feeding Therapy', 'Sleep Protocol', 'Toileting Plan', 'Behavior Support', 'AAC Training', 'Mand Training'], onLabel: 'Yes', offLabel: 'No', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+    { id: 'cf-yesno', label: 'Yes or No', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+    { id: 'cf-grade', label: 'Grade', type: 'select', options: ['A', 'B', 'C', 'D', 'E', 'N/A'], required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+    { id: 'cf-reval', label: 'Re-eval Notes', type: 'text', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+  ]
+  for (const t of LEGACY) if (!byLabel.has(t.label.toLowerCase())) { defs.push(t); byLabel.set(t.label.toLowerCase(), t) }
+  let cleared = 0
+  let changed = false
+  const appts = {}
+  for (const [id, a] of Object.entries(state.appts || {})) {
+    if (a && a.custom && Object.keys(a.custom).length) { cleared++; changed = true; appts[id] = { ...a, custom: {} } }
+    else appts[id] = a
+  }
+  const meta = { ...(state.meta || {}), legacyCustomCleared: true, legacyCustomClearedCount: cleared }
+  const fieldsChanged = defs.length !== (state.customFields || []).length
+  return changed || fieldsChanged ? { ...state, appts, customFields: defs, meta } : { ...state, meta }
+}
+
 export function normalizeApptPcfs(state) {
   if (state.meta && state.meta.pcfCleared) return state
   let cleared = 0

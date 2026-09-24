@@ -1106,12 +1106,67 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     expect(stored().meta.pcfClearedCount).toBe(2)
   })
 
-  it('seed data ships zero pre-loaded custom fields: no appointment pcfs, no payer picks', async () => {
+  it('seed data ships zero pre-loaded custom fields: no appointment pcfs, no legacy custom, no payer picks', async () => {
     render(<App />)
     await waitFor(() => expect(stored()).toBeTruthy())
     const st = stored()
     expect(Object.values(st.appts).every((a) => !a.pcfs || Object.keys(a.pcfs).length === 0)).toBe(true)
+    expect(Object.values(st.appts).every((a) => !a.custom || Object.keys(a.custom).length === 0)).toBe(true)
     expect(st.payers.every((p) => !p.cf || p.cf.length === 0)).toBe(true)
+  })
+
+  it('new appointment has NO legacy built-in fields (Meg Test / My Care / Yes or No / Grade / Re-eval Notes)', async () => {
+    render(<App />)
+    await bookJustin()
+    for (const id of ['cf-megTest', 'cf-myCare', 'cf-yesNo', 'cf-grade', 'cf-reEval']) {
+      expect(screen.queryByTestId(id)).toBeNull()
+    }
+    // the only custom-fields section is the master-based one, and it starts empty
+    expect(await screen.findByTestId('am-pcf-empty')).toBeTruthy()
+    expect(screen.queryAllByTestId(/^pcf-f-/)).toHaveLength(0)
+  })
+
+  it('legacy built-in fields are promoted into the master (except Meg Test), addable on demand', async () => {
+    render(<App />)
+    await waitFor(() => expect(stored()).toBeTruthy())
+    const labels = stored().customFields.map((d) => d.label)
+    for (const l of ['My Care', 'Yes or No', 'Grade', 'Re-eval Notes']) expect(labels).toContain(l)
+    expect(labels).not.toContain('Meg Test')
+    // and the appointment picker offers them like any other defined field
+    await bookJustin()
+    fireEvent.click(screen.getByTestId('am-pcf-add'))
+    await screen.findByTestId('am-pcf-picker')
+    expect(screen.getByTestId('am-pcf-pick-cf-mycare')).toBeTruthy()
+    expect(screen.getByTestId('am-pcf-pick-cf-reval')).toBeTruthy()
+    expect(screen.queryByTestId(/am-pcf-pick-.*meg/i)).toBeNull()
+  })
+
+  it('v14 migration clears pre-loaded legacy custom values exactly once', async () => {
+    render(<App />)
+    await waitFor(() => expect(stored()).toBeTruthy())
+    const st = stored()
+    const ids = Object.keys(st.appts).filter((k) => st.appts[k].clientIds && st.appts[k].clientIds.length)
+    const [k1, k2] = ids
+    st.appts[k1] = { ...st.appts[k1], custom: { megTest: 'Baseline', yesNo: true, myCare: ['Behavior Support'], grade: 'A', reEval: 'send packet' } }
+    st.appts[k2] = { ...st.appts[k2], custom: { grade: 'B' } }
+    if (st.meta) delete st.meta.legacyCustomCleared
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(st))
+    cleanup()
+    render(<App />)
+    await waitFor(() => {
+      const s2 = stored()
+      expect(Object.values(s2.appts).every((a) => !a.custom || Object.keys(a.custom).length === 0)).toBe(true)
+    })
+    const s2 = stored()
+    expect(s2.meta.legacyCustomCleared).toBe(true)
+    expect(s2.meta.legacyCustomClearedCount).toBe(2)
+    // the four meaningful fields now exist as master templates
+    expect(s2.customFields.map((d) => d.label)).toEqual(expect.arrayContaining(['My Care', 'Yes or No', 'Grade', 'Re-eval Notes']))
+    // idempotent on a second load
+    cleanup()
+    render(<App />)
+    await waitFor(() => expect(stored().meta.legacyCustomCleared).toBe(true))
+    expect(stored().meta.legacyCustomClearedCount).toBe(2)
   })
 
   it('payer profile keeps picked templates live: master edit renames everywhere, unlink is cheap', async () => {

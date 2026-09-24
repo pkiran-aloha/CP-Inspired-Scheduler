@@ -3,7 +3,7 @@ import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf } from '../lib/claims'
 import { todayISO } from '../lib/date'
-import { normalizePayerCf, normalizeApptPcfs } from '../lib/master'
+import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom } from '../lib/master'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 
 const KEY = 'aloha-aba.v3'
@@ -74,7 +74,7 @@ export function initial() {
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
         // promoted or dropped, write the fixed snapshot back immediately so the repair is durable
         // chunk-38: one-time clear of pre-loaded appointment pcfs (flagged in meta, idempotent)
-        const merged = normalizeApptPcfs(normalizePayerCf(mergedRaw, uid))
+        const merged = normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(mergedRaw, uid)))
         if (merged !== mergedRaw) { try { localStorage.setItem(KEY, JSON.stringify(merged)) } catch { /* off for A/B */ } }
         return merged
       }
