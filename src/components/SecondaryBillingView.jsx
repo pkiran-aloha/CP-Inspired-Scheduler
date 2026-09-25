@@ -4,15 +4,15 @@ import { SectionBar, RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
-import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
 import { dueOf, secondaryEligible } from '../lib/claims'
+import { PersonAvatar } from '../ui/avatars'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
 export default function SecondaryBillingView() {
   const state = useStore()
-  const { ui, actions, settings, claims, clients, payers } = state
+  const { ui, actions, settings, claims, clients } = state
   const toast = useToast()
   const preset = ui.secPreset || 'last4'
   const range = useMemo(() => resolveRange(preset, ui.anchor, settings.weekStart), [preset, ui.anchor, settings.weekStart])
@@ -28,205 +28,131 @@ export default function SecondaryBillingView() {
     const rows = []
     for (const c of readyPrimaries) {
       const client = clients.find((x) => x.id === c.clientId) || {}
-      const sec = client.secondary
-      const secPayer = sec ? payers.find((p) => p.id === sec.payerId) : null
-      rows.push({ id: c.id, kind: 'ready', primary: c, secondary: null, client, sec, secPayer, remaining: dueOf(c), status: 'ready' })
+      const sec = client.secondary || {}
+      const secPayer = (state.payers || []).find((p) => p.id === sec.payerId)
+      rows.push({ kind: 'ready', claim: c, client, sec, secPayer })
     }
     for (const c of secondaryClaims) {
-      const primary = claims[c.secondary] || allClaims.find((x) => x.no === c.parentNo) || null
       const client = clients.find((x) => x.id === c.clientId) || {}
-      const sec = client.secondary
-      const secPayer = sec ? payers.find((p) => p.id === sec.payerId) : payers.find((p) => p.name === c.payer) || null
-      rows.push({ id: c.id, kind: 'secondary', primary: primary || c, secondary: c, client, sec, secPayer, remaining: dueOf(c), status: c.status })
+      rows.push({ kind: 'secondary', claim: c, client })
     }
     return rows
-  }, [readyPrimaries, secondaryClaims, clients, payers, claims, allClaims])
+  }, [readyPrimaries, secondaryClaims, clients, state.payers])
 
   const filtered = useMemo(() => {
     let out = queue
-    if (statusF !== 'all') out = out.filter((r) => r.status === statusF)
+    if (statusF !== 'all') out = out.filter((r) => (statusF === 'ready' ? r.kind === 'ready' : r.claim.status === statusF))
     if (q.trim()) {
       const t = q.trim().toLowerCase()
-      out = out.filter((r) => `${r.client?.name || ''} ${r.primary?.no || ''} ${r.secondary?.no || ''} ${r.secPayer?.name || ''} ${r.primary?.payer || ''}`.toLowerCase().includes(t))
+      out = out.filter((r) => `${r.claim.no} ${r.client.name} ${r.claim.payer}`.toLowerCase().includes(t))
     }
-    out = out.filter((r) => {
-      const dos = r.primary?.dosFrom
-      if (!dos) return true
-      return dos >= range.days[0] && dos <= range.days[range.days.length - 1]
-    })
-    return out.sort((a, b) => (a.primary?.dosFrom || '') < (b.primary?.dosFrom || '') ? -1 : 1)
-  }, [queue, statusF, q, range])
+    return out
+  }, [queue, statusF, q])
 
-  const stats = useMemo(() => {
-    const ready = queue.filter((r) => r.status === 'ready').length
-    const submitted = queue.filter((r) => r.status === 'submitted').length
-    const paid = queue.filter((r) => r.status === 'paid').length
-    const denied = queue.filter((r) => r.status === 'denied').length
-    const totalRemaining = queue.reduce((s, r) => s + r.remaining, 0)
-    return { ready, submitted, paid, denied, total: queue.length, totalRemaining }
-  }, [queue])
+  const stats = {
+    ready: readyPrimaries.length,
+    submitted: allClaims.filter((c) => c.method === 'secondary' && c.status === 'submitted').length,
+    paid: allClaims.filter((c) => c.method === 'secondary' && c.status === 'paid').length,
+    denied: allClaims.filter((c) => c.method === 'secondary' && c.status === 'denied').length,
+    totalRemaining: readyPrimaries.reduce((s, c) => s + dueOf(c), 0),
+  }
 
-  const handleRelease = (row) => {
-    if (row.kind === 'ready') {
-      const r = actions.voidClaim(row.primary.id)
-      toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' })
-    } else {
-      const sec = row.secondary
-      const primary = row.primary
-      const r = actions.voidClaim(sec.id)
-      if (primary && primary.secondary === sec.id) {
-        const patched = { ...primary, secondary: null, history: [...primary.history, { at: Date.now(), ev: `Secondary ${sec.no} released — back to staging` }] }
-        state.dispatch({ type: 'claimsTx', claimUpserts: [patched] })
-      }
-      toast({ message: r.msg + ' — secondary chain released', kind: r.ok ? 'ok' : 'warn' })
-    }
-  }
-  const handleSkip = (row) => {
-    const primary = row.primary
-    const at = Date.now()
-    const patched = { ...primary, secondary: 'skipped', history: [...primary.history, { at, ev: `Secondary skipped — ${money(row.remaining)} to patient balance` }] }
-    state.dispatch({ type: 'claimsTx', claimUpserts: [patched] })
-    toast({ message: `${primary.no} secondary skipped — ${money(row.remaining)} to patient balance`, kind: 'info' })
-  }
-  const handleSubmit = (row, method) => {
-    const primary = row.primary
-    const client = row.client
-    const sec = row.sec
-    const secPayer = row.secPayer
-    const at = Date.now()
-    const existingSecs = allClaims.filter((c) => c.parentNo === primary.no || c.secondary === primary.id || (c.no && c.no.startsWith(primary.no + '-S')))
-    let nextNum = 1
-    if (existingSecs.length) {
-      const nums = existingSecs.map((c) => { const m = /-S(\d+)$/.exec(c.no || ''); return m ? Number(m[1]) : 0 })
-      nextNum = Math.max(0, ...nums) + 1
-    }
-    const secNo = `${primary.no}-S${nextNum}`
-    const secondary = {
-      id: `${primary.id}-sec-${at.toString(36)}-${nextNum}`, no: secNo, clientId: primary.clientId, payer: secPayer?.name || sec?.payerId || 'Secondary',
-      mode: 'insurance', method: 'secondary', secondary: primary.id, dosFrom: primary.dosFrom, dosTo: primary.dosTo,
-      lines: primary.lines.map((l) => ({ ...l })), status: 'submitted', charges: row.remaining > 0 ? row.remaining : primary.charges, units: primary.units,
-      adj: 0, paid: 0, remittance: null, denial: null, parentNo: primary.no, version: 1, timelyDue: primary.timelyDue, submittedAt: at, closedAt: null, createdAt: at,
-      submitMethod: method, note: `Secondary from ${primary.no} via ${method}`, history: [{ at, ev: `Secondary ${secNo} submitted via ${method} — $${(row.remaining > 0 ? row.remaining : primary.charges).toFixed(2)} remaining` }],
-    }
-    const primaryPatched = { ...primary, secondary: secondary.id, history: [...primary.history, { at, ev: `Secondary filing ${secNo} via ${method} → ${secPayer?.name || sec?.payerId || ''}` }] }
-    const fileBase = secNo
-    let artifacts = []
-    if (method === 'ch') {
-      const csv = `claim,payer,client,dos_from,dos_to,charges,method,secondary_no,Box 18\n${secondary.no},${secondary.payer},"${client.name || ''}",${secondary.dosFrom},${secondary.dosTo},${secondary.charges},${method},${secNo},X — Box 18 = X`
-      artifacts.push({ fileName: `${fileBase}-837P.csv`, content: csv, format: '837p' })
-      artifacts.push({ fileName: `${fileBase}-CMS1500.pdf`, content: `CMS-1500 Secondary ${secNo} Box 18 X Box 11B ${secondary.payer} Method ${method}`, format: 'cms1500' })
-    } else if (method === 'paper_bg') {
-      const bg = `Primary remittance snapshot for ${primary.no} — paid $${(primary.paid || 0).toFixed(2)}`
-      artifacts.push({ fileName: `${fileBase}-CMS1500-bg.pdf`, content: `CMS-1500 Secondary ${secNo} Box 18 X Background Attached\n${bg}`, format: 'cms1500' })
-      artifacts.push({ fileName: `${fileBase}-remit-bg.txt`, content: bg, format: 'remit_bg' })
-    } else {
-      artifacts.push({ fileName: `${fileBase}-CMS1500-nobg.pdf`, content: `CMS-1500 Secondary ${secNo} Box 18 X No Background Method ${method}`, format: 'cms1500' })
-    }
-    const billedFiles = {}
-    for (const art of artifacts) {
-      const bfId = `bf-${at.toString(36)}-${Math.random().toString(36).slice(2, 6)}`
-      billedFiles[bfId] = { id: bfId, fileName: art.fileName, payer: secondary.payer, clientCount: 1, claimCount: 1, claimIds: [secondary.id], date: todayISO(), sendCount: 1, content: art.content, createdAt: at, format: art.format, status: 'sent', billedThrough: secondary.dosTo }
-    }
-    state.dispatch({ type: 'claimsTx', claimUpserts: [primaryPatched, secondary], billedFiles })
-    toast({ message: `${secNo} submitted via ${method} — ${artifacts.length} artifact(s)`, kind: 'ok' })
+  const handleRelease = (id) => { const r = actions.fileSecondaryClaim(id); toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' }) }
+  const handleSkip = (id) => { const r = actions.skipSecondary(id); toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' }) }
+  const handleSubmit = (id, method) => {
+    const r = actions.submitSecondaryClaim(id, method)
+    toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' })
     setOpenSubmit(null)
   }
 
   return (
-    <div className="sectionpage" data-testid="sb-sec">
-      <SectionBar icon="shield" title="Secondary Billing" sub={`${stats.ready} ready · ${stats.submitted} submitted · ${stats.total} total · ${money(stats.totalRemaining)} remaining · ${range.label}`}>
+    <div className="sectionpage" data-testid="sb-sec" style={{ background: 'var(--bg)' }}>
+      <SectionBar icon="shield" title="Secondary Billing" sub={`🔗 COB · ${stats.ready} ready · ${stats.submitted} submitted · ${stats.paid} paid · ${money(stats.totalRemaining)} remaining · ${range.label}`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ secPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
-        <div className="viewseg" data-testid="sb-status-filter">
-          {['all', 'ready', 'submitted', 'paid', 'denied'].map((s) => (
-            <button key={s} className={statusF === s ? 'on' : ''} data-testid={`sb-filter-${s}`} onClick={() => setStatusF(s)}>{s}</button>
-          ))}
-        </div>
-        <div className="sb-search" style={{ minWidth: 200 }}>
+        <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
-          <input placeholder="Search client / claim / payer…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="sb-search" />
+          <input placeholder="🔍 Search claim, client, payer…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="sb-search" />
         </div>
       </SectionBar>
 
-      <div className="batch-strip" data-testid="sb-kpis" style={{ padding: '12px 16px', gap: 10, flexWrap: 'wrap' }}>
-        <div className="rp-sumchip on" data-testid="sb-kpi-ready" style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: '#f59e0b', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.clock({ size: 12 })}</span>
-          <div><b>{stats.ready}</b><span>Ready</span><i>Primary settled, COB eligible</i></div>
-        </div>
-        <div className="rp-sumchip" data-testid="sb-kpi-submitted" style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: '#0ea5e9', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 12 })}</span>
-          <div><b>{stats.submitted}</b><span>Submitted</span><i>Secondary filed</i></div>
-        </div>
-        <div className="rp-sumchip" data-testid="sb-kpi-paid" style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: '#10b981', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.checkCircle({ size: 12 })}</span>
-          <div><b>{stats.paid}</b><span>Paid</span><i>Secondary closed</i></div>
-        </div>
-        <div className="rp-sumchip" data-testid="sb-kpi-denied" style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: '#ef4444', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.ban({ size: 12 })}</span>
-          <div><b>{stats.denied}</b><span>Denied</span><i>Needs action</i></div>
-        </div>
-        <div className="rp-sumchip" data-testid="sb-kpi-remaining" style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
-          <span style={{ width: 28, height: 28, borderRadius: 8, background: '#6366f1', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.dollar({ size: 12 })}</span>
-          <div><b>{money(stats.totalRemaining)}</b><span>Remaining</span><i>Total secondary AR</i></div>
-        </div>
+      <div className="batch-strip" style={{ padding: '12px 16px', gap: 10, flexWrap: 'wrap', background: 'linear-gradient(135deg,var(--panel),var(--panel-2))', borderBottom: '1px solid var(--line)' }} data-testid="sb-kpis">
+        {[
+          ['Ready', stats.ready, '#6366f1', '🔗', 'sb-kpi-ready'],
+          ['Submitted', stats.submitted, '#0ea5e9', '📤', 'sb-kpi-submitted'],
+          ['Paid', stats.paid, '#10b981', '✅', 'sb-kpi-paid'],
+          ['Denied', stats.denied, '#ef4444', '🚫', 'sb-kpi-denied'],
+          ['Remaining', money(stats.totalRemaining), '#f59e0b', '💰', 'sb-kpi-remaining'],
+        ].map(([label, val, color, ic, testId]) => (
+          <span key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 8, alignItems: 'center', borderRadius: 12, padding: '8px 14px', boxShadow: 'var(--shadow-1)' }}>
+            <span style={{ width: 28, height: 28, borderRadius: 8, background: color, color: '#fff', display: 'grid', placeItems: 'center', fontSize: 12 }}>{ic}</span>
+            <span><b style={{ fontSize: 13 }}>{val}</b><span style={{ display: 'block', fontSize: 10, color: 'var(--muted)' }}>{label}</span></span>
+          </span>
+        ))}
+        <span className="muted" style={{ marginLeft: 'auto', fontSize: 11, background: 'var(--panel-2)', padding: '6px 12px', borderRadius: 20, display: 'flex', alignItems: 'center', gap: 6 }}>💡 Primary partial → secondary eligible · Box 18 = X · CH / Paper</span>
       </div>
 
-      {filtered.length === 0 ? (
-        <div className="panel" style={{ margin: 16, borderRadius: 12, overflow: 'hidden' }}>
-          <div className="py-empty" data-testid="sb-empty" style={{ padding: 48, textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--panel-2)', display: 'grid', placeItems: 'center', margin: '0 auto 16px', fontSize: 32 }}>🛡️</div>
-            <b style={{ fontSize: 14 }}>No secondary claims waiting</b>
-            <div className="muted" style={{ fontSize: 12, marginTop: 8, maxWidth: 480, marginInline: 'auto' }}>When a primary payment settles with a payer balance and the client carries secondary coverage, it queues here. Add secondary insurance to a client and partially pay a primary claim to see it here.</div>
-          </div>
+      <div className="batch-strip" style={{ padding: '10px 16px', gap: 8, background: 'var(--panel)', borderBottom: '1px solid var(--line)' }}>
+        <div className="viewseg" style={{ borderRadius: 12, padding: 3, background: 'var(--panel-2)', border: '1px solid var(--line)' }} data-testid="sb-status-tabs">
+          {[
+            ['all', 'All', '📋'],
+            ['ready', 'Ready', '🔗'],
+            ['submitted', 'Submitted', '📤'],
+            ['paid', 'Paid', '✅'],
+            ['denied', 'Denied', '🚫'],
+          ].map(([id, label, ic]) => (
+            <button key={id} className={statusF === id ? 'on' : ''} data-testid={`sb-filter-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, display: 'flex', alignItems: 'center', gap: 4 }}>{ic} {label}</button>
+          ))}
         </div>
-      ) : (
-        <div style={{ padding: 16 }}>
-          <div className="panel" style={{ borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-1)' }}>
-            <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 8, background: 'var(--panel-2)' }}>
-              <span style={{ width: 24, height: 24, borderRadius: 6, background: '#f59e0b', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 12 })}</span>
-              <b style={{ fontSize: 12 }}>Secondary Queue — {filtered.length} items</b>
-              <span className="tag soft" style={{ marginLeft: 8 }}>{stats.ready} ready</span>
-            </div>
-            <div className="py-tbl" data-testid="sb-table" style={{ overflow: 'auto' }}>
-              <div className="py-thead" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 0.9fr 0.9fr 0.8fr 0.9fr 0.8fr 0.6fr 1.6fr', background: 'var(--panel-2)', fontSize: 11 }}>
-                <span>Client</span><span>Primary #</span><span>Payer (primary)</span><span>Secondary payer</span><span>Member</span><span>Remaining</span><span>DOS</span><span>Submitted</span><span>Auth #</span><span>Status</span><span>Actions</span>
-              </div>
-              {filtered.slice(0, 100).map((row) => (
-                <div key={row.id} className="py-trow" data-testid={`sb-row-${row.id}`} style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 0.9fr 0.9fr 0.8fr 0.9fr 0.8fr 0.6fr 1.6fr', fontSize: 12 }}>
-                  <div className="py-idcell"><b>{row.client?.name || '—'}</b><span className="muted" style={{ fontSize: 10 }}>{row.client?.id || ''}</span></div>
-                  <div className="py-cell"><span className="ln-code">{row.primary?.no || '—'}</span></div>
-                  <div className="py-cell"><span className="tag soft" style={{ fontSize: 10 }}>{row.primary?.payer || '—'}</span></div>
-                  <div className="py-cell"><span className="tag" style={{ fontSize: 10 }}>{row.secPayer?.name || row.sec?.payerId || row.secondary?.payer || '—'}</span></div>
-                  <div className="py-cell muted" style={{ fontSize: 11 }}>{row.sec?.memberId || '—'}</div>
-                  <div className="py-cell num" data-testid={`sb-remaining-${row.id}`}><b>{money(row.remaining)}</b></div>
-                  <div className="py-cell muted" style={{ fontSize: 11 }}>{row.primary?.dosFrom || '—'}</div>
-                  <div className="py-cell muted" style={{ fontSize: 11 }}>{row.primary?.submittedAt ? fmtDayLabel(isoDate(new Date(row.primary.submittedAt))) : '—'}</div>
-                  <div className="py-cell muted" style={{ fontSize: 11 }}>{row.sec?.authNo || '—'}</div>
-                  <div className="py-cell"><span className="pill" style={{ background: row.status === 'ready' ? '#fef3c7' : row.status === 'submitted' ? '#e0f2fe' : row.status === 'paid' ? '#d7f5e8' : '#fee2e2', fontSize: 10 }}>{row.status}</span></div>
-                  <div className="py-cell" style={{ display: 'flex', gap: 4, flexWrap: 'wrap', position: 'relative' }}>
-                    <button className="btn btn-xs" data-testid={`sb-release-${row.id}`} onClick={() => handleRelease(row)}>{Icon.undo({ size: 10 })} Release</button>
-                    <button className="btn btn-xs" data-testid={`sb-skip-${row.id}`} onClick={() => handleSkip(row)}>{Icon.x({ size: 10 })} Skip</button>
-                    <div style={{ position: 'relative' }}>
-                      <button className="btn btn-xs btn-primary" data-testid={`sb-submit-${row.id}`} onClick={() => setOpenSubmit(openSubmit === row.id ? null : row.id)}>{Icon.file({ size: 10 })} Submit ▾</button>
-                      {openSubmit === row.id && (
-                        <div className="panel" data-testid={`sb-submit-menu-${row.id}`} style={{ position: 'absolute', right: 0, top: '100%', zIndex: 20, width: 260, padding: 10, borderRadius: 10, boxShadow: 'var(--shadow-2)', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          <button className="btn btn-sm" data-testid={`sb-submit-ch-${row.id}`} onClick={() => handleSubmit(row, 'ch')}>{Icon.zap({ size: 11 })} Clearing House (CH)</button>
-                          <button className="btn btn-sm" data-testid={`sb-submit-bg-${row.id}`} onClick={() => handleSubmit(row, 'paper_bg')}>{Icon.file({ size: 11 })} Paper with Background</button>
-                          <button className="btn btn-sm" data-testid={`sb-submit-nobg-${row.id}`} onClick={() => handleSubmit(row, 'paper_nobg')}>{Icon.file({ size: 11 })} Paper without Background</button>
-                          <div className="muted" style={{ fontSize: 10, marginTop: 6, lineHeight: 1.4 }}>Box 18 = X on all · background snapshot only for paper_bg · numbering -S1/-S2</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+        <span className="muted" style={{ fontSize: 11, marginLeft: 8 }}>🔗 {filtered.length} in queue · COB flow Primary → Secondary</span>
+      </div>
+
+      <div style={{ padding: 16 }}>
+        <div className="panel" style={{ borderRadius: 16, overflow: 'hidden', boxShadow: 'var(--shadow-1)', border: '1px solid var(--line)' }}>
+          <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(135deg,#6366f111,#8b5cf611)' }}>
+            <span style={{ width: 36, height: 36, borderRadius: 12, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 16 })}</span>
+            <div><b style={{ fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>🔗 Secondary Queue <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 20, background: '#6366f1', color: '#fff' }}>{filtered.length} rows</span></b><div className="muted" style={{ fontSize: 11 }}>Primary partially paid + client has secondary → file secondary claim with Box 18 X</div></div>
+          </div>
+
+          <div className="py-tbl" data-testid="sb-table" style={{ overflowX: 'auto' }}>
+            <div className="py-thead" style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 0.9fr 0.8fr 0.8fr 1.1fr 1fr 0.9fr 1.4fr', background: 'var(--panel-2)', fontSize: 11, minWidth: 1100 }}><span>👤 Client</span><span>📄 Primary #</span><span>🏥 Primary Payer</span><span>🏥 Secondary Payer</span><span>💰 Primary Paid</span><span>💰 Remaining</span><span>📅 DOS</span><span>🔗 COB Info</span><span>🚦 Status</span><span>📊 Type</span><span>⚡ Actions</span></div>
+            {filtered.slice(0, 100).map((r) => (
+              <div key={r.claim.id} className="py-trow" data-testid={`sb-row-${r.claim.id}`} style={{ gridTemplateColumns: '1.2fr 1fr 1fr 1fr 0.9fr 0.8fr 0.8fr 1.1fr 1fr 0.9fr 1.4fr', fontSize: 11, minWidth: 1100 }}>
+                <div className="py-idcell"><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PersonAvatar p={r.client} size={24} /><b style={{ fontSize: 11 }}>{r.client.name || r.client.id}</b></div></div>
+                <div className="py-cell"><span className="ln-code" style={{ background: 'var(--panel-2)', padding: '2px 6px', borderRadius: 6 }}>📄 {r.claim.no}</span></div>
+                <div className="py-cell"><span className="tag soft" style={{ borderRadius: 20, fontSize: 10 }}>🏥 {r.claim.payer}</span></div>
+                <div className="py-cell"><span className="tag soft" style={{ borderRadius: 20, fontSize: 10, background: '#6366f111' }}>🔗 {r.secPayer?.name || r.sec?.payerId || (r.kind === 'secondary' ? r.claim.payer : '—')}</span></div>
+                <div className="py-cell muted">💵 {money(r.claim.paid || 0)}</div>
+                <div className="py-cell num"><b style={{ color: '#059669' }}>💰 {money(dueOf(r.claim))}</b></div>
+                <div className="py-cell muted">📅 {r.claim.dosFrom}</div>
+                <div className="py-cell muted" style={{ fontSize: 10 }}>{r.sec?.memberId ? `🆔 ${r.sec.memberId}` : '—'} {r.sec?.relation ? `· ${r.sec.relation}` : ''}</div>
+                <div className="py-cell"><span className="pill" style={{ fontSize: 10, borderRadius: 20, background: r.claim.status === 'paid' ? '#ecfdf5' : r.claim.status === 'denied' ? '#fef2f2' : '#eff6ff', color: r.claim.status === 'paid' ? '#059669' : r.claim.status === 'denied' ? '#dc2626' : '#2563eb' }}>{r.claim.status === 'paid' ? '✅' : r.claim.status === 'denied' ? '🚫' : r.kind === 'ready' ? '🔗' : '📤'} {r.claim.status}</span></div>
+                <div className="py-cell"><span className="tag" style={{ fontSize: 10, borderRadius: 20 }}>{r.kind === 'ready' ? '🔗 Ready' : '📤 Secondary'}</span></div>
+                <div className="py-cell" style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {r.kind === 'ready' && (
+                    <>
+                      <button className="btn btn-xs btn-primary" data-testid={`sb-release-${r.claim.id}`} onClick={() => handleRelease(r.claim.id)} style={{ borderRadius: 8 }}>🔗 Release</button>
+                      <button className="btn btn-xs" data-testid={`sb-skip-${r.claim.id}`} onClick={() => handleSkip(r.claim.id)} style={{ borderRadius: 8 }}>⏭️ Skip</button>
+                      <div style={{ position: 'relative' }}>
+                        <button className="btn btn-xs" data-testid={`sb-submit-${r.claim.id}`} onClick={() => setOpenSubmit(openSubmit === r.claim.id ? null : r.claim.id)} style={{ borderRadius: 8 }}>📤 Submit ▾</button>
+                        {openSubmit === r.claim.id && (
+                          <div style={{ position: 'absolute', top: '100%', right: 0, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, zIndex: 10, boxShadow: 'var(--shadow-2)', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+                            <button className="btn btn-xs" data-testid={`sb-submit-ch-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'ch')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>🏥 Clearinghouse (CH)</button>
+                            <button className="btn btn-xs" data-testid={`sb-submit-paper-bg-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'paper_bg')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>📄 Paper with Background</button>
+                            <button className="btn btn-xs" data-testid={`sb-submit-paper-nobg-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'paper_nobg')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>📃 Paper without BG</button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  {r.kind === 'secondary' && <span className="muted" style={{ fontSize: 10 }}>🔗 {r.claim.no} {r.claim.secondary ? `→ ${r.claim.secondary}` : ''}</span>}
                 </div>
-              ))}
-              <div className="py-pager" style={{ padding: '10px 14px', borderTop: '1px solid var(--line)', background: 'var(--panel-2)', fontSize: 11, display: 'flex', justifyContent: 'space-between' }}>
-                <span className="muted">Showing {Math.min(filtered.length, 100)} of {filtered.length} · {stats.ready} ready, {stats.submitted} submitted</span>
-                <span className="muted">Total remaining {money(stats.totalRemaining)}</span>
               </div>
-            </div>
+            ))}
+            {!filtered.length && <div className="py-empty" style={{ padding: 40, textAlign: 'center' }} data-testid="sb-empty"><div style={{ width: 64, height: 64, borderRadius: 16, background: 'var(--panel-2)', display: 'grid', placeItems: 'center', margin: '0 auto 12px', fontSize: 28 }}>🔗</div><b>No secondary queue</b><div className="muted" style={{ fontSize: 11 }}>Partially-paid primaries with COB clients appear here</div></div>}
+            <div className="footer" style={{ padding: '10px 16px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 11 }}><span>🔗 {filtered.length} rows · Ready {stats.ready} · Submitted {stats.submitted}</span><span>💰 {money(stats.totalRemaining)} remaining · Box 18 = X</span></div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }
