@@ -22,6 +22,7 @@ import BillingView from './components/BillingView'
 import BilledFilesView from './components/BilledFilesView'
 import ArManagerView from './components/ArManagerView'
 import GenerateInvoiceView from './components/GenerateInvoiceView'
+import SecondaryBillingView from './components/SecondaryBillingView'
 import PaymentCenterView from './components/PaymentCenterView'
 import ProviderIdView from './components/ProviderIdView'
 import NeedsCover from './components/NeedsCover'
@@ -240,7 +241,7 @@ function Shell() {
         {section === 'staff' && <StaffView />}
         {section === 'billing' && <BillingView />}
         {section === 'bil-files' && <BilledFilesView />}
-        {section === 'bil-secondary' && <BillingView initialTab="secondary" />}
+        {section === 'bil-secondary' && <SecondaryBillingView />}
         {section === 'bil-payments' && <PaymentCenterView />}
         {section === 'bil-ar' && <ArManagerView />}
         {section === 'bil-invoice' && <GenerateInvoiceView />}
