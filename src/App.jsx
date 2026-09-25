@@ -23,6 +23,7 @@ import BilledFilesView from './components/BilledFilesView'
 import ArManagerView from './components/ArManagerView'
 import GenerateInvoiceView from './components/GenerateInvoiceView'
 import SecondaryBillingView from './components/SecondaryBillingView'
+import VerificationFormsView from './components/VerificationFormsView'
 import PaymentCenterView from './components/PaymentCenterView'
 import ProviderIdView from './components/ProviderIdView'
 import NeedsCover from './components/NeedsCover'
@@ -245,6 +246,8 @@ function Shell() {
         {section === 'bil-payments' && <PaymentCenterView />}
         {section === 'bil-ar' && <ArManagerView />}
         {section === 'bil-invoice' && <GenerateInvoiceView />}
+        {section === 'bil-verify' && <VerificationFormsView />}
+        {section === 'bil-qbo' && <div className="sectionpage" data-testid="qbo-sec"><h2>QuickBooks — coming in next chunk</h2></div>}
         {section === 'bil-providers' && <ProviderIdView />}
       </div>
 
