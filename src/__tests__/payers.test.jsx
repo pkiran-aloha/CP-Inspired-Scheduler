@@ -114,7 +114,7 @@ describe('payer master', () => {
     expect(stored().payers).toHaveLength(11)
   })
 
-  it('search + Active filter behave like the screenshot (chips, clear-all, counts)', async () => {
+  it('search + Active filter behave with chips, clear-all, counts', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-masters'))
     fireEvent.click(screen.getByTestId('py-active-filter'))
