@@ -293,6 +293,107 @@ export function claimStats(state, days) {
   }
 }
 
+
+// ---------- AR engine (U5 / C4) ----------
+export function arOf(state, asOfISO = isoDate(new Date())) {
+  const asOf = parseISO(asOfISO)
+  const claims = Object.values(state.claims || {})
+  const payments = Object.values(state.payments || {})
+  const clients = state.clients || []
+  const clientById = Object.fromEntries(clients.map((c)=>[c.id,c]))
+
+  const openClaims = claims.filter((c)=>{
+    if (c.status==='void' || c.status==='draft') return false
+    const due = dueOf(c)
+    return due > 0.5
+  })
+
+  const bucketsFor = (days) => {
+    if (days <= 30) return 'current'
+    if (days <= 60) return '31-60'
+    if (days <= 90) return '61-90'
+    if (days <= 120) return '91-120'
+    return '121+'
+  }
+
+  const byClientMap = {}
+  const byPayerMap = {}
+  const totals = { current:0, '31-60':0, '61-90':0, '91-120':0, '121+':0, totalAR:0, over90:0 }
+
+  // last payment per client
+  const lastPayByClient = {}
+  for (const p of payments) {
+    if (p.reversalOf) continue
+    if (p.amount <=0 && p.kind!=='writeoff') continue
+    const d = p.date
+    if (!d) continue
+    if (!lastPayByClient[p.clientId] || d > lastPayByClient[p.clientId].date) {
+      lastPayByClient[p.clientId] = { date: d, kind: p.kind, ref: p.ref }
+    }
+  }
+
+  for (const c of openClaims) {
+    const due = dueOf(c)
+    let openSince = null
+    if (c.submittedAt) openSince = new Date(c.submittedAt)
+    else if (c.dosTo) openSince = parseISO(c.dosTo)
+    else openSince = new Date(c.createdAt)
+    const days = Math.max(0, Math.round((asOf - openSince)/86400000))
+    const bucket = bucketsFor(days)
+
+    // byClient
+    if (!byClientMap[c.clientId]) {
+      const cl = clientById[c.clientId] || { id:c.clientId, name:c.clientId }
+      byClientMap[c.clientId] = { clientId:c.clientId, clientName: cl.name||c.clientId, buckets:{ current:0,'31-60':0,'61-90':0,'91-120':0,'121+':0 }, balance:0, claims:[], lastPayment: lastPayByClient[c.clientId]||null }
+    }
+    byClientMap[c.clientId].buckets[bucket] = r2((byClientMap[c.clientId].buckets[bucket]||0)+due)
+    byClientMap[c.clientId].balance = r2(byClientMap[c.clientId].balance+due)
+    byClientMap[c.clientId].claims.push(c)
+
+    // byPayer
+    if (!byPayerMap[c.payer]) {
+      byPayerMap[c.payer] = { payer:c.payer, buckets:{ current:0,'31-60':0,'61-90':0,'91-120':0,'121+':0 }, balance:0, clientIds:new Set(), claims:[] }
+    }
+    byPayerMap[c.payer].buckets[bucket] = r2((byPayerMap[c.payer].buckets[bucket]||0)+due)
+    byPayerMap[c.payer].balance = r2(byPayerMap[c.payer].balance+due)
+    byPayerMap[c.payer].clientIds.add(c.clientId)
+    byPayerMap[c.payer].claims.push(c)
+
+    // totals
+    totals[bucket] = r2((totals[bucket]||0)+due)
+    totals.totalAR = r2(totals.totalAR+due)
+    if (bucket==='91-120' || bucket==='121+') totals.over90 = r2(totals.over90+due)
+  }
+
+  const byClient = Object.values(byClientMap).map((row)=>{
+    const over90 = r2((row.buckets['91-120']||0)+(row.buckets['121+']||0))
+    const over90Pct = row.balance>0 ? Math.round((over90/row.balance)*100) : 0
+    return { ...row, over90, over90Pct }
+  }).sort((a,b)=>b.balance-a.balance)
+
+  const byPayer = Object.values(byPayerMap).map((row)=>{
+    const over90 = r2((row.buckets['91-120']||0)+(row.buckets['121+']||0))
+    return { ...row, clientCount: row.clientIds.size, over90, claims: row.claims }
+  }).sort((a,b)=>b.balance-a.balance)
+
+  // DSO + collections rate + writeoff YTD
+  const ninetyAgo = new Date(asOf.getTime() - 90*86400000)
+  const yearStart = `${asOfISO.slice(0,4)}-01-01`
+  let billed90 = 0, paid90 = 0, writeOffYTD = 0
+  for (const c of claims) {
+    if (c.dosFrom && c.dosFrom >= isoDate(ninetyAgo)) billed90 += c.charges
+  }
+  for (const p of payments) {
+    if (p.reversalOf) continue
+    if (p.date && p.date >= isoDate(ninetyAgo) && p.amount>0) paid90 += p.amount
+    if (p.kind==='writeoff' && p.date && p.date >= yearStart) writeOffYTD += Math.abs(p.adj||p.amount||0)
+  }
+  const dso = billed90>0 ? Math.round((totals.totalAR / (billed90/90))) : null
+  const collectionsRate = (paid90+totals.totalAR)>0 ? Math.round((paid90/(paid90+totals.totalAR))*100) : null
+
+  return { byClient, byPayer, totals: { ...totals, dso, collectionsRate, writeOffYTD: r2(writeOffYTD), billed90: r2(billed90), paid90: r2(paid90) }, asOf: asOfISO }
+}
+
 // ---------- exports (CSV for payers / accountants) ----------
 export function claimCsv(state, claim) {
   const org = state.settings.org || {}
