@@ -25,6 +25,7 @@ import GenerateInvoiceView from './components/GenerateInvoiceView'
 import SecondaryBillingView from './components/SecondaryBillingView'
 import VerificationFormsView from './components/VerificationFormsView'
 import QuickBooksView from './components/QuickBooksView'
+import AppealsView from './components/AppealsView'
 import PaymentCenterView from './components/PaymentCenterView'
 import ProviderIdView from './components/ProviderIdView'
 import NeedsCover from './components/NeedsCover'
@@ -249,6 +250,7 @@ function Shell() {
         {section === 'bil-invoice' && <GenerateInvoiceView />}
         {section === 'bil-verify' && <VerificationFormsView />}
         {section === 'bil-qbo' && <QuickBooksView />}
+        {section === 'bil-appeals' && <AppealsView />}
         {section === 'bil-providers' && <ProviderIdView />}
       </div>
 
