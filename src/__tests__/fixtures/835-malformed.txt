@@ -1,0 +1,10 @@
+ISA*00*          *ZZ*BROKEN~
+GS*HP*SENDER~
+ST*835*0001~
+BPR*I*BAD*AMOUNT~
+CLP*NO-STATUS-AND-AMOUNTS~
+CAS*CO*~
+This is not a valid 835 file at all — just garbage text without segment terminators or structure
+SE*5*0001~
+GE*1*1~
+IEA*1*000000001~

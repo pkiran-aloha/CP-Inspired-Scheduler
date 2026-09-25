@@ -455,6 +455,7 @@ export default function ClientsView() {
             flags={flags}
             actionsRow={[
               { id: 'pf-cal', icon: 'cal', label: 'In calendar', run: () => { actions.setUI({ section: 'calendar', view: 'week', clientSel: [c.id], staffSel: [], teamSel: [], anchor: todayISO() }); setProf(null) } },
+              { id: 'pf-billing', icon: 'dollar', label: 'Open in Billing', run: () => { actions.setUI({ section: 'billing', bilPreset:'last4' }); setProf(null) } },
               { id: 'pf-report', icon: 'file', label: 'Auth report', run: () => { actions.setUI({ section: 'reports', repPreset: 'last4', repDim: 'client', repKey: c.id }); setProf(null) } },
             ]}
             onDup={() => { setDup(prof.c); setProf(null) }}

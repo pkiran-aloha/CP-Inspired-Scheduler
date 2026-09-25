@@ -38,11 +38,11 @@ const StatusChip = ({ s }) => (
  * is one undo (U) away from being rewound, and every line jumps back to the
  * calendar row it came from.
  */
-export default function BillingView() {
+export default function BillingView({ initialTab }) {
   const state = useStore()
   const { ui, actions, settings, appts, claims, clients, staff } = state
   const toast = useToast()
-  const [tab, setTab] = useState('stage') // stage | claims | blocked | setup
+  const [tab, setTab] = useState(initialTab || 'stage') // stage | claims | blocked | setup
   const [picked, setPicked] = useState(() => new Set())
   const [sel, setSel] = useState(ui.bilJump || null)
   useEffect(() => {
@@ -53,6 +53,7 @@ export default function BillingView() {
     }
   }, [ui.bilJump])
   const [q, setQ] = useState('')
+  const [payerPick, setPayerPick] = useState([]) // multiselect payer filter for staging
   const [statusF, setStatusF] = useState('all')
   const [sort, setSort] = useState('recent')
   const [payOpen, setPayOpen] = useState(false)
@@ -64,7 +65,12 @@ export default function BillingView() {
   const ctx = useMemo(() => ({ days: range.days, gran: 'week', buckets: [], scope: {} }), [range])
   const blocked = useMemo(() => runReport(state, 'blocked', ctx).rows, [state.appts, ctx])
 
-  const staged = useMemo(() => stagedAppts(state, range.days), [state, range])
+  const stagedRaw = useMemo(() => stagedAppts(state, range.days), [state, range])
+  const staged = useMemo(() => {
+    if (!payerPick.length) return stagedRaw
+    const clientById = Object.fromEntries((clients||[]).map((c)=>[c.id,c]))
+    return stagedRaw.filter((a)=> payerPick.includes(clientById[a.clientIds?.[0]]?.insurer || 'Self-pay'))
+  }, [stagedRaw, payerPick, clients])
   const plans = useMemo(() => planClaims(state, staged), [state, staged])
   const stats = useMemo(() => claimStats(state, range.days), [state, range])
   const bill = settings.billing || {}
@@ -108,6 +114,20 @@ export default function BillingView() {
     const r = actions.generateClaims(picked.size ? [...picked] : null)
     toast({ message: `${r.msg} — press U to dissolve`, kind: r.ok ? 'ok' : 'warn' })
     if (r.ok) { setPicked(new Set()); setTab('claims'); setStatusF('all'); if (r.ids?.length) setSel(r.ids[0]) }
+  }
+  const processBilling = () => {
+    const readyIds = Object.values(claims).filter((c)=>c.status==='draft').filter((c)=>{ const g=claimGate(state,c); return g.ok }).map((c)=>c.id)
+    if (!readyIds.length) { toast({ message:'No gate-clean drafts to process — fix gated drafts first', kind:'warn' }); return }
+    const r = actions.submitClaims(readyIds)
+    // auto-generate billed file for submitted
+    if (r.ok && r.sent?.length) {
+      const submittedClaims = readyIds.map((id)=>claims[id] || state.claims[id]).filter(Boolean)
+      // Actually after submit, claims are submitted — create file
+      const fileName = `837P-${todayISO()}-${String(Object.keys(state.billedFiles||{}).length+1).padStart(3,'0')}.txt`
+      const content = submittedClaims.map((c)=>`${c.no}|${c.payer}|${c.charges}`).join('\n')
+      actions.record('billedFiles', { id:`bf-${Date.now().toString(36)}`, fileName, payer: submittedClaims[0]?.payer||'Mixed', clientCount: new Set(submittedClaims.map((c)=>c.clientId)).size, claimCount: submittedClaims.length, claimIds: submittedClaims.map((c)=>c.id), date: todayISO(), sendCount:1, content, createdAt: Date.now() })
+    }
+    toast({ message: `${r.msg} — billed file generated`, kind: r.ok?'ok':'warn' })
   }
   const exportStageCsv = () => {
     const inv = `${bill.invoicePrefix || 'INV'}-${range.days[0].slice(0, 7).replace('-', '')}`
@@ -156,8 +176,16 @@ export default function BillingView() {
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ bilPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         {tab === 'stage' && (
           <>
+            <div className="viewseg" style={{ marginRight:8 }} data-testid="bil-payer-pick">
+              {['Blue Shield CA','Aetna','Regence BCBS','UnitedHealthcare','Medicaid (CA)','Self-pay'].map((p)=>{
+                const on=payerPick.includes(p)
+                return <button key={p} className={on?'on':''} data-testid={`bil-payer-${p.replace(/[^A-Za-z]/g,'')}`} onClick={()=>setPayerPick((cur)=>cur.includes(p)?cur.filter((x)=>x!==p):[...cur,p])}>{p.split(' ')[0]}</button>
+              })}
+              {payerPick.length>0 && <button className="btn-ghost" data-testid="bil-payer-clear" onClick={()=>setPayerPick([])}>Clear</button>}
+            </div>
             <button className="btn btn-sm" onClick={exportStageCsv} data-testid="bil-export">{Icon.download({ size: 13 })} Export staging</button>
             <button className="btn btn-sm btn-primary" disabled={!staged.length} onClick={generate} data-testid="bil-generate">{Icon.file({ size: 12 })} Assemble {picked.size || staged.length} line{picked.size || staged.length > 1 ? 's' : ''} → {picked.size ? 'claims' : plans.length} claim form{plans.length === 1 ? '' : 's'}</button>
+            <button className="btn btn-sm" data-testid="bil-process" onClick={processBilling} title="Submit all gate-clean drafts + generate billed file">{Icon.zap({ size:12 })} Process Billing</button>
           </>
         )}
         {tab === 'claims' && (
@@ -214,8 +242,10 @@ export default function BillingView() {
               </div>
               {staged.map((a, i) => {
                 const c = clientOf(a.clientIds?.[0])
+                const prov = (settings.providers||[]).find((p)=>p.kind==='staff' && p.refId===a.staffIds?.[0])
+                const timely = (()=>{ const pol = payerPolicy(c.insurer||'Self-pay'); const filing = (state.payers||[]).find((pp)=>pp.name===(c.insurer||''))?.ext?.filingDeadlineDays ?? bill.defaultFilingDays ?? pol.timely ?? 90; const due = isoDate(new Date(new Date(a.date).getTime()+filing*86400000)); const today=todayISO(); const daysLeft=Math.round((new Date(due)-new Date(today))/86400000); return { due, daysLeft, amber: daysLeft<=21 && daysLeft>=0, over: daysLeft<0 } })()
                 return (
-                  <div className="bil-line" key={a.id} data-testid={`bil-row-${i}`}>
+                  <div className="bil-line" key={a.id} data-testid={`bil-row-${i}`} style={{ gridTemplateColumns:'28px 80px 110px 110px 70px 90px 80px 80px 90px 24px' }}>
                     <span className={`cb ${picked.has(a.id) ? 'on' : ''}`} onClick={() => toggle(a.id)} role="checkbox" aria-checked={picked.has(a.id)} data-testid={`bil-pick-${i}`}>
                       {picked.has(a.id) && Icon.check({ size: 10, strokeWidth: 3 })}
                     </span>
@@ -224,8 +254,11 @@ export default function BillingView() {
                     <span className="muted">{c.insurer || 'Self-pay'}</span>
                     <span className="ln-code">{a.billing?.mileage && !a.billing?.units ? '14220' : a.billing?.code || '—'}</span>
                     <span className="muted">{a.billing?.mileage && !a.billing?.units ? `${a.billing?.distance} mi` : `${a.billing?.units}u × $${a.billing?.rate}`}</span>
+                    <span className="muted" style={{ fontSize:11 }} title={prov?.npi||'No NPI'}>{prov?.name?.split(' ')[0]||a.staffIds?.[0]||'—'}<i style={{ display:'block', fontSize:10 }}>{prov?.npi ? `NPI ${prov.npi.slice(-4)}` : 'no NPI'}</i></span>
+                    <span className={`muted ${timely.amber?'warn':''} ${timely.over?'danger':''}`} style={{ fontSize:11 }} title={`Filing due ${timely.due}`}>{timely.over?`overdue ${-timely.daysLeft}d`:timely.amber?`file in ${timely.daysLeft}d`:`${timely.daysLeft}d`}</span>
                     <span className="r money">{money(computeBilling(a))}</span>
                     <button className="iconbtn" style={{ width: 24, height: 24 }} title="Open the source appointment" onClick={() => actions.setUI({ section: 'calendar', anchor: a.date, openAppt: a.id })}>{Icon.chevronR({ size: 12 })}</button>
+                    <button className="iconbtn" style={{ width:24, height:24 }} title={prov?`Open ${prov.name} in Provider Identifier`:'No provider'} data-testid={`bil-npi-${i}`} onClick={()=>{ if(prov) actions.setUI({ section:'bil-providers' }) }}>{Icon.badge({ size:11 })}</button>
                   </div>
                 )
               })}

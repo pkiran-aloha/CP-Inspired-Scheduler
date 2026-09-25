@@ -136,7 +136,9 @@ export function reducer(state, action) {
       for (const id of action.claimDel || []) delete claims[id]
       const payments = action.payments ? { ...(state.payments || {}), ...action.payments } : state.payments
       const invoices = action.invoices ? { ...(state.invoices || {}), ...action.invoices } : state.invoices
-      return { ...state, appts, claims, payments, invoices, history: pushSnap(state) }
+      const eraImports = action.eraImports ? { ...(state.eraImports || {}), ...action.eraImports } : state.eraImports
+      const billedFiles = action.billedFiles ? { ...(state.billedFiles || {}), ...action.billedFiles } : state.billedFiles
+      return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, history: pushSnap(state) }
     }
     case 'record': {
       const cur = state[action.coll] || {}

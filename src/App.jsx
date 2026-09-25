@@ -19,6 +19,8 @@ import ClientsView from './components/ClientsView'
 import MastersView from './components/MastersView'
 import StaffView from './components/StaffView'
 import BillingView from './components/BillingView'
+import BilledFilesView from './components/BilledFilesView'
+import PaymentCenterView from './components/PaymentCenterView'
 import ProviderIdView from './components/ProviderIdView'
 import NeedsCover from './components/NeedsCover'
 import SettingsModal from './components/SettingsModal'
@@ -235,6 +237,9 @@ function Shell() {
         {section === 'masters' && <MastersView />}
         {section === 'staff' && <StaffView />}
         {section === 'billing' && <BillingView />}
+        {section === 'bil-files' && <BilledFilesView />}
+        {section === 'bil-secondary' && <BillingView initialTab="secondary" />}
+        {section === 'bil-payments' && <PaymentCenterView />}
         {section === 'bil-providers' && <ProviderIdView />}
       </div>
 

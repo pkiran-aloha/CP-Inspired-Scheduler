@@ -11,12 +11,20 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   const state = useStore()
   const { appts, staff, clients, settings, actions } = state
   const claimOfAppt = appt.claimId ? state.claims?.[appt.claimId] : null
+  const client = appt.clientIds?.[0] ? (clients||[]).find((c)=>c.id===appt.clientIds[0]) : null
+  const clientClaims = client ? Object.values(state.claims||{}).filter((c)=>c.clientId===client.id) : []
+  const clientDue = clientClaims.reduce((t,c)=> t + Math.max(0, c.charges - (c.adj||0) - (c.paid||0)), 0)
+  const arStatus = clientDue>120 ? '120+' : clientDue>60 ? '60+' : clientDue>0 ? 'Current' : 'Clear'
   const toast = useToast()
   const [confirmDel, setConfirmDel] = useState(false)
   const t = TYPES[appt.type] || TYPES.service
   const staffById = Object.fromEntries(staff.map((s) => [s.id, s]))
   const clientById = Object.fromEntries(clients.map((c) => [c.id, c]))
   const bill = computeBilling(appt)
+  const openInBilling = () => {
+    if (claimOfAppt) { actions.setUI({ section:'billing', bilJump: claimOfAppt.id }); onClose() }
+    else if (client) { actions.setUI({ section:'billing', bilPreset:'last4' }); onClose() }
+  }
   const conflicts = useMemo(() => findConflicts(appts, appt, staffById, clientById), [appts, appt.id, appt.date, appt.start, appt.end])
   const series = useMemo(() => (appt.seriesId ? seriesSiblings(appts, appt) : []), [appts, appt.seriesId, appt.id])
   const nowIso = todayISO()
@@ -181,6 +189,17 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               )}
             </span>
           </div>
+          {client && (
+            <div className="kv" data-testid="dc-balance-row">
+              <span className="k">Balance</span>
+              <span className="v" style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+                <span className={`sev-pill sev-${arStatus==='Clear'?'ok':arStatus==='Current'?'notice':arStatus==='60+'?'warn':'error'}`} data-testid="dc-balance-status">{arStatus} AR</span>
+                <b className="money" data-testid="dc-balance-amt">${Math.round(clientDue).toLocaleString()} due</b>
+                {client.secondary && <span className="tag soft" data-testid="dc-secondary-chip">secondary { (state.payers||[]).find((p)=>p.id===client.secondary.payerId)?.name || 'on file' }</span>}
+                <button className="btn btn-sm" data-testid="dc-open-billing" onClick={openInBilling}>{Icon.dollar({ size:11 })} Open in Billing</button>
+              </span>
+            </div>
+          )}
           <div className="kv">
             <span className="k">Staff</span>
             <span className="v">

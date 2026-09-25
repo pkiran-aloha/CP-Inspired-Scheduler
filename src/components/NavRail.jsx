@@ -15,7 +15,7 @@ export const SECTIONS = [
   { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs' },
   { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }, { id: 'cfdefs', label: 'Custom Fields' }] },
   { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload' },
-  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
+  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
   { id: 'reports', label: 'Reports', icon: 'file', kbd: '6', desc: 'Exportable PMS reports & validations' },
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
@@ -120,7 +120,7 @@ export default function NavRail() {
           {!collapsed && <span className="nr-label">Settings</span>}
         </button>
         <div className="nr-build" data-testid="app-build" title={"Build running in this tab — if a newer one is deployed, you’ll be offered a refresh"}>
-          {collapsed ? 'v17' : `v17 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
+          {collapsed ? 'v19' : `v19 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>
         <button className="nr-item" onClick={() => actions.setUI({ nav: !collapsed })} data-testid="nav-collapse" title={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
           <span className="nr-ic">{collapsed ? Icon.chevronR({ size: 14 }) : Icon.chevronL({ size: 14 })}</span>

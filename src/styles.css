@@ -2544,3 +2544,15 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .tbl-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .sec-body { overflow-x: hidden; }
+
+/* ---- chunk 44: Payment Center ---- */
+.fab { position: fixed; right: 28px; bottom: 28px; width: 56px; height: 56px; border-radius: 16px; border: 0; background: var(--accent); color: #fff; font-size: 28px; line-height: 1; display: grid; place-items: center; cursor: pointer; box-shadow: 0 12px 28px -8px rgb(79 70 229 / 60%); z-index: 20; transition: transform .12s; }
+.fab:hover { transform: translateY(-2px) scale(1.04); }
+.modal-overlay { position: fixed; inset: 0; background: color-mix(in srgb, #0b1020 46%, transparent); backdrop-filter: blur(5px); display: grid; place-items: center; z-index: 120; }
+.modal-overlay .modal { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
+.dropzone { transition: border-color .15s, background .15s; }
+.dropzone:hover { border-color: var(--accent) !important; background: var(--panel-2); }
+
+/* pc- specific tweaks */
+.tablewrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+.tablewrap .footer { padding: 8px 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); }
