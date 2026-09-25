@@ -567,7 +567,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
         {claim.status === 'void' && <><span style={{ width: 20, height: 20, borderRadius: 6, background: '#9ca3af', color: '#fff', display: 'grid', placeItems: 'center' }}>{Icon.ban({ size: 10 })}</span><span>Voided — all {claim.lines.length} line(s) returned to staging.</span></>}
       </div>
 
-      <div className="py-tbl" data-testid="clm-lines">
+      <div className="py-tbl cd-lines" data-testid="clm-lines">
         <div className="py-thead" style={{ gridTemplateColumns: `${editable && claim.status === 'denied' ? '28px ' : ''}24px 70px 70px 70px 1fr 60px 40px 1fr 60px 70px 56px`, background: 'var(--panel-2)', fontSize: 11 }}>
           {editable && claim.status === 'denied' ? <span className="no-print" /> : null}<span>#</span><span>Date</span><span>Time</span><span>HCPCS</span><span>Description</span><span>ICD</span><span>Units</span><span>Rendered by</span><span className="r">Rate</span><span className="r">Charge</span><span className="no-print" />
         </div>
