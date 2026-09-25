@@ -2556,3 +2556,75 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 /* pc- specific tweaks */
 .tablewrap { overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
 .tablewrap .footer { padding: 8px 12px; font-size: 11px; color: var(--muted); border-top: 1px solid var(--line); }
+
+/* ---------- chunk 52: billing modules scrollability fix ---------- */
+.sectionpage {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+.sectionpage .secbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  backdrop-filter: blur(12px);
+}
+.sectionpage .batch-strip {
+  position: sticky;
+  top: 52px;
+  z-index: 15;
+}
+.sectionpage > div[style*="padding: 16"],
+.sectionpage > div[style*="padding: 14px"],
+.sectionpage > div[style*="padding: 12px"] {
+  flex-shrink: 0;
+}
+/* billing grids should stack on narrow viewports instead of locking behind */
+.stage-grid,
+.clm-wrap,
+.bil-grid,
+.sec-body {
+  min-width: 0;
+  overflow: visible;
+}
+.clm-list {
+  max-height: min(720px, calc(100vh - 260px));
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.py-tbl {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.py-thead,
+.py-trow {
+  min-width: 0;
+}
+/* ensure modals and panels inside sectionpage don't create nested lock */
+.sectionpage .panel {
+  overflow: visible;
+}
+.sectionpage .panel[style*="overflow: hidden"] {
+  overflow: hidden !important;
+}
+.sectionpage .panel .py-tbl,
+.sectionpage .panel .tablewrap {
+  overflow: auto;
+}
+@media (max-width: 1100px) {
+  .stage-grid,
+  .clm-wrap,
+  .bil-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .clm-list {
+    position: static !important;
+    max-height: 420px;
+  }
+  .sectionpage .panel[style*="position: sticky"] {
+    position: static !important;
+  }
+}
