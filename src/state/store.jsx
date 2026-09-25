@@ -29,6 +29,7 @@ export function blankState() {
     verificationForms: {},
     eraImports: {},
     billedFiles: {},
+    qbo: {},
     meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true },
     staff: STAFF,
     clients: clientsWithSec,
@@ -85,6 +86,7 @@ export function initial() {
           verificationForms: saved.verificationForms || {},
           eraImports: saved.eraImports || {},
           billedFiles: saved.billedFiles || {},
+          qbo: saved.qbo || {},
           settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) } },
           ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: (saved.ui?.section || 'calendar') === 'payers' ? 'masters' : saved.ui?.section || 'calendar' },
         }
@@ -138,7 +140,9 @@ export function reducer(state, action) {
       const invoices = action.invoices ? { ...(state.invoices || {}), ...action.invoices } : state.invoices
       const eraImports = action.eraImports ? { ...(state.eraImports || {}), ...action.eraImports } : state.eraImports
       const billedFiles = action.billedFiles ? { ...(state.billedFiles || {}), ...action.billedFiles } : state.billedFiles
-      return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, history: pushSnap(state) }
+      const qbo = action.qbo ? { ...(state.qbo || {}), ...action.qbo } : state.qbo
+      const verificationForms = action.verificationForms ? { ...(state.verificationForms || {}), ...action.verificationForms } : state.verificationForms
+      return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, qbo, verificationForms, history: pushSnap(state) }
     }
     case 'record': {
       const cur = state[action.coll] || {}
@@ -437,8 +441,140 @@ function createActions(state, dispatch) {
     addProvider: (row) => dispatch({ type: 'setSettings', patch: { providers: [...(state.settings.providers || []), { id: uid(), kind: 'staff', credential: 'Other', degree: '', npi: '', taxonomy: '101YP00000X', roles: { rendering: false, billing: false, facility: false }, payerIds: { ticare: '', medicaid: '', bhpn: '', referrers: '' }, active: true, createdAt: Date.now(), ...row }] } }),
     updateProvider: (id, patch) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) } }),
     removeProvider: (id) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).filter((p) => p.id !== id) } }),
+    deleteProvider: (id) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).filter((p) => p.id !== id) } }),
     // ---- document/artifact ledgers (billed files, invoices, verification forms, ERA imports) ----
     record: (coll, item) => dispatch({ type: 'record', coll, item: { id: uid(), ...item } }),
+    // ---- v33 billing suite helpers (payment center, secondary, appeals, qbo, verification) ----
+    skipSecondary: (id) => {
+      const c = state.claims[id]
+      if (!c) return { ok: false, msg: 'Claim not found' }
+      const patched = { ...c, secondarySkipped: true, history: [...(c.history || []), { at: Date.now(), ev: 'Secondary skipped' }] }
+      dispatch({ type: 'claimsTx', claimUpserts: [patched] })
+      return { ok: true, msg: `${c.no} secondary skipped` }
+    },
+    submitSecondaryClaim: (id, method) => {
+      const c = state.claims[id]
+      if (!c) return { ok: false, msg: 'Claim not found' }
+      // if it's a primary that needs secondary, file it first
+      const client = (state.clients || []).find((x) => x.id === c.clientId)
+      let target = c
+      if (c.method !== 'secondary' && client?.secondary) {
+        const secPayer = (state.payers || []).find((p) => p.id === client.secondary.payerId)
+        const payerName = secPayer?.name || client.secondary.payerId || 'Secondary'
+        const at = Date.now()
+        const due = Math.round((c.charges - (c.adj || 0) - (c.paid || 0)) * 100) / 100
+        const secondary = {
+          id: `${c.id}-sec-${at.toString(36)}`,
+          no: `${c.no}-S`,
+          clientId: c.clientId,
+          payer: payerName,
+          mode: 'insurance',
+          method: 'secondary',
+          secondary: c.id,
+          dosFrom: c.dosFrom,
+          dosTo: c.dosTo,
+          lines: c.lines.map((l) => ({ ...l })),
+          status: 'submitted',
+          charges: due > 0 ? due : c.charges,
+          units: c.units,
+          adj: 0,
+          paid: 0,
+          remittance: null,
+          denial: null,
+          parentNo: c.no,
+          version: 1,
+          timelyDue: c.timelyDue,
+          submittedAt: at,
+          closedAt: null,
+          createdAt: at,
+          submitMethod: method || 'ch',
+          note: `Secondary from ${c.no}`,
+          history: [{ at, ev: `Secondary submitted via ${method || 'ch'}` }],
+        }
+        const primaryPatched = { ...c, secondary: secondary.id, history: [...(c.history || []), { at, ev: `Secondary submitted → ${secondary.no}` }] }
+        dispatch({ type: 'claimsTx', claimUpserts: [primaryPatched, secondary] })
+        return { ok: true, msg: `${secondary.no} submitted via ${method || 'ch'}` }
+      }
+      const at = Date.now()
+      target = { ...c, status: 'submitted', submitMethod: method || c.submitMethod || 'ch', submittedAt: at, history: [...(c.history || []), { at, ev: `Submitted via ${method || 'ch'}` }] }
+      dispatch({ type: 'claimsTx', claimUpserts: [target] })
+      return { ok: true, msg: `${c.no} submitted via ${method || 'ch'}` }
+    },
+    recordPayment: (payload) => {
+      const id = uid()
+      const pay = { id, amount: Number(payload.amount || 0), clientId: payload.clientId, payer: payload.payer, date: payload.date || todayISO(), method: payload.method || 'check', ref: payload.ref || '', note: payload.note || '', kind: payload.method || 'manual', claimId: payload.claimId || null, createdAt: Date.now() }
+      dispatch({ type: 'record', coll: 'payments', item: pay })
+      if (payload.claimId && state.claims[payload.claimId]) {
+        const c = state.claims[payload.claimId]
+        const tx = payPatch(c, { amount: pay.amount, checkNo: pay.ref, adj: 0, note: pay.note, paidAt: Date.now() })
+        dispatch({ type: 'claimsTx', claimUpserts: [tx.claim] })
+      }
+      return { ok: true, id }
+    },
+    importEra: ({ fileName, lines }) => {
+      const at = Date.now()
+      const eraId = uid()
+      const era = { id: eraId, fileName: fileName || `ERA-${at}`, lines: lines || [], createdAt: at }
+      const claimUpserts = []
+      const payments = {}
+      for (const ln of lines || []) {
+        const c = state.claims[ln.claimId]
+        if (!c) continue
+        const tx = payPatch(c, { amount: ln.amount, checkNo: fileName, adj: ln.adj || 0, note: `ERA ${fileName}`, paidAt: at })
+        if (ln.status === 'denied') {
+          const d = denyPatch(c, { code: 'ERA_DENY', reason: 'ERA denial', payer: c.payer })
+          claimUpserts.push(d.claim)
+        } else {
+          claimUpserts.push(tx.claim)
+        }
+        const pid = uid()
+        payments[pid] = { id: pid, claimId: c.id, clientId: c.clientId, payer: c.payer, kind: 'era', amount: ln.amount, adj: ln.adj || 0, ref: fileName, date: todayISO(), note: `ERA ${fileName}`, createdAt: at }
+      }
+      dispatch({ type: 'claimsTx', claimUpserts, payments, eraImports: { [eraId]: era } })
+      return { ok: true, id: eraId }
+    },
+    fileAppeal: (id, payload) => {
+      const c = state.claims[id]
+      if (!c) return { ok: false, msg: 'Claim not found' }
+      const at = Date.now()
+      const appeal = { date: payload.date || todayISO(), template: payload.template || 'med_necessity', note: payload.note || '', outcome: null, createdAt: at }
+      const patched = { ...c, appeal, status: 'appealed', history: [...(c.history || []), { at, ev: `Appeal filed — ${appeal.template}` }] }
+      dispatch({ type: 'claimsTx', claimUpserts: [patched] })
+      return { ok: true, msg: `${c.no} appeal filed` }
+    },
+    updateClaim: (id, patch) => {
+      const c = state.claims[id]
+      if (!c) return { ok: false }
+      dispatch({ type: 'claimsTx', claimUpserts: [{ ...c, ...patch, history: [...(c.history || []), { at: Date.now(), ev: 'Claim updated' }] }] })
+      return { ok: true }
+    },
+    addVerificationForm: (item) => {
+      const id = item.id || uid()
+      dispatch({ type: 'record', coll: 'verificationForms', item: { id, ...item, createdAt: Date.now() } })
+      return { ok: true, id }
+    },
+    updateVerificationForm: (id, patch) => {
+      const cur = (state.verificationForms || {})[id]
+      if (!cur) return { ok: false }
+      dispatch({ type: 'record', coll: 'verificationForms', item: { ...cur, ...patch, id, updatedAt: Date.now() } })
+      return { ok: true }
+    },
+    updateQbo: (id, patch) => {
+      const cur = (state.qbo || {})[id] || (state.invoices || {})[id] || { id }
+      const coll = state.qbo ? 'qbo' : 'invoices'
+      // if qbo collection doesn't exist, use invoices as backing but also write qbo for new code
+      const item = { ...cur, ...patch, id, updatedAt: Date.now() }
+      if (state.qbo !== undefined || coll === 'qbo') {
+        dispatch({ type: 'record', coll: 'qbo', item })
+      } else {
+        dispatch({ type: 'record', coll: 'invoices', item })
+      }
+      // also keep billedFiles/invoices in sync for tests
+      if (state.invoices && state.invoices[id]) {
+        dispatch({ type: 'record', coll: 'invoices', item: { ...state.invoices[id], ...patch, id } })
+      }
+      return { ok: true }
+    },
     denyClaim: (id, payload) => {
       const c = state.claims[id]
       if (!c) return { ok: false, msg: 'Claim not found' }

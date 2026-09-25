@@ -2582,7 +2582,6 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .sectionpage > div[style*="padding: 12px"] {
   flex-shrink: 0;
 }
-/* billing grids should stack on narrow viewports instead of locking behind */
 .stage-grid,
 .clm-wrap,
 .bil-grid,
@@ -2603,7 +2602,6 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .py-trow {
   min-width: 0;
 }
-/* ensure modals and panels inside sectionpage don't create nested lock */
 .sectionpage .panel {
   overflow: visible;
 }
@@ -2627,4 +2625,81 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .sectionpage .panel[style*="position: sticky"] {
     position: static !important;
   }
+}
+
+/* ---------- chunk 53: v33 professional clean — readability pass ---------- */
+/* Typography floor: primary 12.5px / 13px, secondary 11px-11.5px, never 9-10 in cells */
+.sectionpage .py-tbl .py-cell,
+.sectionpage .py-tbl .py-idcell,
+.sectionpage .table .py-cell {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.sectionpage .py-tbl .py-cell .muted,
+.sectionpage .py-tbl .py-cell span[style*="color: var(--muted)"],
+.sectionpage .py-tbl .py-idcell div[style*="color: var(--muted)"] {
+  font-size: 11.5px;
+}
+.sectionpage .py-thead {
+  font-size: 11px !important;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+/* Row height 52-60px minimum for breathing room */
+.sectionpage .py-trow {
+  min-height: 56px !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+}
+/* KPI flat clean: no gradient / shadow / top-accent — enforced via inline but backup here */
+.rp-sumchip.on,
+.batch-strip .rp-sumchip {
+  border: 1px solid var(--line) !important;
+  background: var(--panel) !important;
+  box-shadow: none !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
+}
+.rp-sumchip.on::before,
+.rp-sumchip.on::after {
+  display: none !important;
+}
+/* Batch strip clean: padding 16/20 border 1px radius 14 */
+.sectionpage .batch-strip {
+  padding: 14px 16px !important;
+  gap: 12px !important;
+  border-radius: 12px !important;
+  background: var(--panel) !important;
+  border: 1px solid var(--line) !important;
+}
+/* Panel padding 20 gap16 */
+.sectionpage .panel {
+  border-radius: 14px !important;
+  border: 1px solid var(--line) !important;
+}
+.sectionpage .panel[style*="padding: 16"],
+.sectionpage .panel[style*="padding: 20"] {
+  padding: 20px !important;
+}
+/* Search inputs 13px */
+.sb-search input,
+.sectionpage input[type="text"],
+.sectionpage input[type="search"] {
+  font-size: 13px !important;
+}
+/* No emoji in thead/tbody — emoji only in section headers/empty states (enforced in JSX) */
+/* Actions: 1 primary + menu — secondary actions as ghost btn-xs radius 8 */
+.sectionpage .btn-xs {
+  border-radius: 8px !important;
+  font-size: 12px !important;
+}
+/* Claim desk flat */
+.cd-lines th {
+  font-size: 11px !important;
+  letter-spacing: 0.06em !important;
+}
+.cd-lines td {
+  font-size: 13px !important;
+  padding: 10px 8px !important;
 }
