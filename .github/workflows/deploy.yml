@@ -19,8 +19,27 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
-      - run: npm test
+          cache-dependency-path: '**/package-lock.json'
+      - name: Install deps (ci if lock exists, install if not)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            echo "package-lock.json not found at root, running npm install"
+            ls -la
+            if [ -f CP-Inspired-Scheduler/package-lock.json ]; then
+              echo "Found nested lock file, moving to root"
+              mv CP-Inspired-Scheduler/* . 2>/dev/null || true
+              mv CP-Inspired-Scheduler/.* . 2>/dev/null || true
+              rmdir CP-Inspired-Scheduler 2>/dev/null || true
+            fi
+            if [ -f aba-scheduler/package-lock.json ]; then
+              mv aba-scheduler/* . 2>/dev/null || true
+              rmdir aba-scheduler 2>/dev/null || true
+            fi
+            npm install
+          fi
+      - run: npm test -- --run
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
         with:
