@@ -8,7 +8,7 @@ import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/workspaceBackup'
 import { previewEra, planEraImport, planParkedEraPost } from '../lib/eraPosting'
 import { planSecondaryFiling, planSecondarySkip, planSecondaryCancel, normalizeCobLedger } from '../lib/secondaryLedger'
-import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt } from '../lib/paymentLedger'
+import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt, planPatientReceipt } from '../lib/paymentLedger'
 
 const KEY = 'aloha-aba.v3'
 import { apptAutoTitle, needsRework } from '../lib/apptName'
@@ -171,7 +171,13 @@ export function reducer(state, action) {
     }
     case 'claimVoidPaymentTx': {
       const tx = planVoidClaimPayment(state, action.id, action.options)
-      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments }) : state
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments,
+        ...(Object.keys(tx.invoices || {}).length ? { invoices: tx.invoices } : {}) }) : state
+    }
+    case 'patientReceiptTx': {
+      const tx = planPatientReceipt(state, action.id, action.payload, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments,
+        ...(Object.keys(tx.invoices).length ? { invoices: tx.invoices } : {}) }) : state
     }
     case 'unappliedPaymentTx': {
       const tx = planUnappliedReceipt(state, action.payload, action.options)
@@ -212,7 +218,9 @@ export function reducer(state, action) {
       return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, qbo, verificationForms, settings, history: touched.length ? pushSnap(state, touched, action.billing) : state.history }
     }
     case 'record': {
-      if (!['payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo'].includes(action.coll) || !action.item?.id) return state
+      // Money must go through a guarded claim/receipt transaction, never a
+      // generic document write that leaves the claim aggregate out of sync.
+      if (!['invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo'].includes(action.coll) || !action.item?.id) return state
       const cur = state[action.coll] || {}
       return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
     }
@@ -504,6 +512,13 @@ function createActions(state, dispatch) {
       dispatch({ type: 'claimVoidPaymentTx', id, options })
       return { ok: true, msg: plan.msg, id: options.reversalId }
     },
+    recordPatientReceipt: (payload) => {
+      const options = { at: Date.now(), paymentId: uid() }
+      const plan = planPatientReceipt(state, payload.claimId, payload, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'patientReceiptTx', id: payload.claimId, payload, options })
+      return { ok: true, msg: plan.msg, id: options.paymentId }
+    },
     // ---- provider identifier master (U2) ----
     addProvider: (row) => dispatch({ type: 'setSettings', patch: { providers: [...(state.settings.providers || []), { id: uid(), kind: 'staff', credential: 'Other', degree: '', npi: '', taxonomy: '101YP00000X', roles: { rendering: false, billing: false, facility: false }, payerIds: { ticare: '', medicaid: '', bhpn: '', referrers: '' }, active: true, createdAt: Date.now(), ...row }] } }),
     updateProvider: (id, patch) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) } }),
@@ -600,7 +615,7 @@ function createActions(state, dispatch) {
     updateClaim: (id, patch) => {
       const c = state.claims[id]
       if (!c) return { ok: false }
-      const financial = ['charges', 'paid', 'adj', 'secondaryPaid', 'secondary', 'method', 'remittance', 'patientResp']
+      const financial = ['charges', 'paid', 'adj', 'secondaryPaid', 'patientPaid', 'secondary', 'method', 'remittance', 'patientResp']
       if (financial.some((key) => Object.hasOwn(patch, key)) ||
           ((c.method === 'secondary' || c.secondary) && Object.hasOwn(patch, 'status'))) {
         return { ok: false, msg: 'Use a guarded remittance or COB action to change financial state' }

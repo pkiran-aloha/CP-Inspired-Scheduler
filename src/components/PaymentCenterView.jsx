@@ -5,10 +5,11 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO, todayISO } from '../lib/date'
-import { dueOf } from '../lib/claims'
+import { dueOf, isPrimaryReceivable, patientResponsibilityOf, PATIENT_AR_BUCKET } from '../lib/claims'
 import { parse835 } from '../lib/era'
 import { previewEra } from '../lib/eraPosting'
 import { build835ErrorReport } from '../lib/billingDocs'
+import { buildPatientReceiptAudit } from '../lib/paymentLedger'
 import { download } from '../lib/ics'
 import { PersonAvatar } from '../ui/avatars'
 
@@ -22,11 +23,11 @@ const readLocalFile = (file) => typeof file.text === 'function' ? file.text() : 
   reader.readAsText(file)
 })
 
-function ManualForm({ state, onSaved }) {
+function ManualForm({ state, onSaved, initialApply = 'unapplied' }) {
   const { clients, payers, claims, actions } = state
-  const prefill = claims[state.ui.paymentClaimId]
+  const prefill = claims[initialApply === 'patient' ? state.ui.patientClaimId : state.ui.paymentClaimId]
   const [clientId, setClientId] = useState(prefill?.clientId || clients[0]?.id || '')
-  const [apply, setApply] = useState(prefill ? 'claim' : 'unapplied')
+  const [apply, setApply] = useState(initialApply)
   const [claimId, setClaimId] = useState(prefill?.id || '')
   const [payer, setPayer] = useState(payers[0]?.name || '')
   const [amount, setAmount] = useState('')
@@ -38,38 +39,47 @@ function ManualForm({ state, onSaved }) {
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
   const eligible = Object.values(claims).filter((c) => c.clientId === clientId && ['submitted', 'partially_paid'].includes(c.status) &&
-    (c.method === 'secondary' ? claims[c.secondary]?.secondary === c.id : !c.secondary))
-  const selected = eligible.find((c) => c.id === claimId) || eligible[0]
+    (apply === 'patient' ? isPrimaryReceivable(c) && patientResponsibilityOf(state, c) > 0 :
+      c.method === 'secondary' ? claims[c.secondary]?.secondary === c.id : !c.secondary))
+  // A patient receipt must name a primary explicitly. Do not silently allocate
+  // money to the first eligible claim when opened from the Payment Center.
+  const selected = eligible.find((c) => c.id === claimId) || (apply === 'patient' ? null : eligible[0])
   const save = () => {
     setError('')
-    if (apply === 'claim' && !selected) { setError('No open, unlinked claim is available for this client.'); return }
-    const result = actions.recordPayment({ clientId, payer: apply === 'claim' ? selected.payer : payer,
-      claimId: apply === 'claim' ? selected.id : null, amount, adj: apply === 'claim' ? adj : 0,
-      patientResp: apply === 'claim' ? patientResp : 0, date, method, ref, note })
+    if (apply !== 'unapplied' && !selected) {
+      setError(apply === 'patient' ? eligible.length ? 'Select a primary claim with documented patient share.' : 'No documented patient share is available for this client.' : 'No open, unlinked claim is available for this client.')
+      return
+    }
+    const result = apply === 'patient'
+      ? actions.recordPatientReceipt({ clientId, claimId: selected.id, amount, date, method, ref, note })
+      : actions.recordPayment({ clientId, payer: apply === 'claim' ? selected.payer : payer,
+        claimId: apply === 'claim' ? selected.id : null, amount, adj: apply === 'claim' ? adj : 0,
+        patientResp: apply === 'claim' ? patientResp : 0, date, method, ref, note })
     if (result.ok) onSaved(result)
     else setError(result.msg || 'Receipt was not recorded')
   }
   return (
     <div className="pc-form">
-      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Manual receipt only. Choose a claim to apply payer money and update A/R, or leave it unapplied. Secondary 835 CLPs are not auto-posted.</p>
-      <label className="field"><span>Apply to</span><select value={apply} onChange={(e) => { setApply(e.target.value); setError('') }} data-testid="pc-man-apply"><option value="unapplied">Unapplied receipt (no claim change)</option><option value="claim">Open claim (updates ledger)</option></select></label>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Record money already received elsewhere. Payer remittances, claim-linked patient receipts and unapplied receipts have different ledger effects. No payment processing, refund or bank reconciliation occurs here.</p>
+      <label className="field"><span>Apply to</span><select value={apply} onChange={(e) => { setApply(e.target.value); setClaimId(''); setMethod('check'); setError('') }} data-testid="pc-man-apply"><option value="unapplied">Unapplied receipt (no claim change)</option><option value="claim">Payer remittance on open claim</option><option value="patient">Patient share on primary claim</option></select></label>
       <div className="pc-form-grid">
         <label className="field"><span>Client</span><select value={clientId} onChange={(e) => { setClientId(e.target.value); setClaimId(''); setError('') }} data-testid="pc-man-client"><option value="">— Select —</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        {apply === 'claim' ? <label className="field"><span>Open claim</span><select value={selected?.id || ''} onChange={(e) => setClaimId(e.target.value)} data-testid="pc-man-claim"><option value="">— Select —</option>{eligible.map((c) => <option key={c.id} value={c.id}>{c.no} {c.method === 'secondary' ? '(secondary)' : ''} — {money(dueOf(c))} open</option>)}</select></label> : null}
-        <label className="field"><span>Payer</span>{apply === 'claim' ? <input value={selected?.payer || ''} readOnly data-testid="pc-man-payer" /> : <select value={payer} onChange={(e) => setPayer(e.target.value)} data-testid="pc-man-payer">{payers.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>}</label>
+        {apply !== 'unapplied' ? <label className="field"><span>{apply === 'patient' ? 'Primary claim with patient share' : 'Open claim'}</span><select value={selected?.id || ''} onChange={(e) => setClaimId(e.target.value)} data-testid="pc-man-claim"><option value="">— Select —</option>{eligible.map((c) => <option key={c.id} value={c.id}>{c.no} {c.method === 'secondary' ? '(secondary)' : ''} — {money(apply === 'patient' ? patientResponsibilityOf(state, c) : dueOf(c))} {apply === 'patient' ? 'patient share' : 'open'}</option>)}</select></label> : null}
+        <label className="field"><span>{apply === 'patient' ? 'Receipt from' : 'Payer'}</span>{apply !== 'unapplied' ? <input value={apply === 'patient' ? PATIENT_AR_BUCKET : selected?.payer || ''} readOnly data-testid="pc-man-payer" /> : <select value={payer} onChange={(e) => setPayer(e.target.value)} data-testid="pc-man-payer">{payers.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>}</label>
         <label className="field"><span>Amount</span><input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" data-testid="pc-man-amount" /></label>
         {apply === 'claim' && <>
           <label className="field"><span>Payer adjustment (not a primary write-off for secondary)</span><input type="number" min="0" step="0.01" value={adj} onChange={(e) => setAdj(e.target.value)} data-testid="pc-man-adj" /></label>
           <label className="field"><span>Reported patient responsibility (leave blank if unknown)</span><input type="number" min="0" step="0.01" value={patientResp} onChange={(e) => setPatientResp(e.target.value)} data-testid="pc-man-patient" /></label>
         </>}
         <label className="field"><span>Date</span><input type="date" value={date} onChange={(e) => setDate(e.target.value)} data-testid="pc-man-date" /></label>
-        <label className="field"><span>Method</span><select value={method} onChange={(e) => setMethod(e.target.value)} data-testid="pc-man-method"><option value="check">Check</option><option value="eft">EFT</option><option value="era">Manually keyed ERA</option>{(apply !== 'claim' || selected?.mode === 'selfpay') && <><option value="cash">Cash</option><option value="card">Card</option></>}</select></label>
-        <label className="field"><span>Reference # (required)</span><input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="CHK / EFT #" data-testid="pc-man-ref" /></label>
+        <label className="field"><span>Method</span><select value={method} onChange={(e) => setMethod(e.target.value)} data-testid="pc-man-method"><option value="check">Check</option><option value="eft">EFT</option>{apply !== 'patient' && <option value="era">Manually keyed ERA</option>}{(apply !== 'claim' || selected?.mode === 'selfpay') && <><option value="cash">Cash</option><option value="card">Card</option></>}</select></label>
+        <label className="field"><span>Reference # (required)</span><input value={ref} onChange={(e) => setRef(e.target.value)} placeholder={apply === 'patient' ? 'External receipt / check reference' : 'CHK / EFT #'} data-testid="pc-man-ref" /></label>
       </div>
       {selected && apply === 'claim' && <p className="muted" style={{ fontSize: 12 }}>Applying to {selected.no} · {money(dueOf(selected))} open. {selected.method === 'secondary' ? `Linked primary ${claims[selected.secondary]?.no || 'missing'} holds the sole receivable; only payer money reduces it.` : 'If COB is filed, use the linked secondary instead.'}</p>}
+      {apply === 'patient' && <p className="muted" data-testid="pc-man-patient-limit" style={{ fontSize: 12 }}>Only documented patient responsibility or self-pay can be collected. {selected ? `${selected.no} has ${money(patientResponsibilityOf(state, selected))} remaining patient share; the payer and secondary cash ledgers will not change.` : eligible.length ? 'Select a primary claim to allocate the receipt.' : 'No eligible claim for this client.'} A reversal here does not issue a refund.</p>}
       <label className="field"><span>Note</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} data-testid="pc-man-note" /></label>
       {error && <div className="pc-era-error" role="alert" data-testid="pc-man-error">{error}</div>}
-      <div className="pc-form-actions"><button className="btn btn-sm btn-primary" data-testid="pc-man-save" onClick={save}>Save {apply === 'claim' ? 'claim remittance' : 'unapplied receipt'}</button><button className="btn btn-sm" onClick={() => onSaved(null)}>Cancel</button></div>
+      <div className="pc-form-actions"><button className="btn btn-sm btn-primary" data-testid="pc-man-save" onClick={save}>Save {apply === 'patient' ? 'patient receipt' : apply === 'claim' ? 'claim remittance' : 'unapplied receipt'}</button><button className="btn btn-sm" onClick={() => onSaved(null)}>Cancel</button></div>
     </div>
   )
 }
@@ -250,8 +260,14 @@ export default function PaymentCenterView() {
   const [q, setQ] = useState('')
   const [statusF, setStatusF] = useState('all')
   const [openMan, setOpenMan] = useState(false)
+  const [manualApply, setManualApply] = useState('unapplied')
   const [openEra, setOpenEra] = useState(false)
-  useEffect(() => { if (ui.paymentClaimId) setOpenMan(true) }, [ui.paymentClaimId])
+  useEffect(() => {
+    if (ui.paymentClaimId || ui.patientClaimId) {
+      setManualApply(ui.patientClaimId ? 'patient' : 'claim')
+      setOpenMan(true)
+    }
+  }, [ui.paymentClaimId, ui.patientClaimId])
   const [entryMode, setEntryMode] = useState('upload')
 
   const allPayments = useMemo(() => Object.values(payments).sort((a, b) => (b.date || '').localeCompare(a.date || '')), [payments])
@@ -270,11 +286,12 @@ export default function PaymentCenterView() {
     const check = inRange.filter((p) => p.method === 'check').reduce((s, p) => s + p.amount, 0)
     const eft = inRange.filter((p) => p.method === 'eft' || p.method === 'era').reduce((s, p) => s + p.amount, 0)
     const unapplied = Math.max(0, allPayments.filter((p) => !p.claimId && p.kind === 'unapplied').reduce((s, p) => s + (p.amount || 0), 0))
-    return { total, check, eft, unapplied, count: inRange.length }
+    const patient = inRange.filter((p) => p.kind === 'patient').reduce((s, p) => s + p.amount, 0)
+    return { total, check, eft, unapplied, patient, count: inRange.length }
   }, [allPayments, range])
   const closeManual = () => {
     setOpenMan(false)
-    if (ui.paymentClaimId) actions.setUI({ paymentClaimId: null })
+    if (ui.paymentClaimId || ui.patientClaimId) actions.setUI({ paymentClaimId: null, patientClaimId: null })
   }
   const done = (result) => {
     if (!result) { closeManual(); setOpenEra(false); return }
@@ -288,7 +305,9 @@ export default function PaymentCenterView() {
     <SectionBar icon="dollar" title="Payment Center" sub={`${range.label} · ${kpis.count} payments · ${money(kpis.total)} · ${money(kpis.unapplied)} unapplied`}>
       <RangePicker preset={preset} onPreset={(p) => actions.setUI({ payPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
       <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}><span className="sic">{Icon.search({ size: 12 })}</span><input placeholder={tab === 'eras' ? 'Search ERA file or trace' : 'Search payer, client, ref'} value={q} onChange={(e) => setQ(e.target.value)} data-testid="pc-search" style={{ fontSize: 13 }} /></div>
-      <button className="btn btn-sm btn-primary" data-testid="pc-open-man" onClick={() => setOpenMan(true)} style={{ borderRadius: 10 }}>+ Manual Payment</button>
+      <button className="btn btn-sm btn-primary" data-testid="pc-open-man" onClick={() => { setManualApply('unapplied'); setOpenMan(true) }} style={{ borderRadius: 10 }}>+ Manual Payment</button>
+      <button className="btn btn-sm" data-testid="pc-open-patient" onClick={() => { setManualApply('patient'); setOpenMan(true) }} style={{ borderRadius: 10 }}>+ Patient receipt</button>
+      <button className="btn btn-sm" data-testid="pc-export-patient" onClick={() => { download(`Patient-receipts-${todayISO()}.csv`, buildPatientReceiptAudit(state), 'text/csv'); toast({ message: 'Local patient receipt audit downloaded — verify against external deposits', kind: 'ok' }) }} style={{ borderRadius: 10 }}>Patient audit CSV</button>
       <button className="btn btn-sm" data-testid="pc-open-era" onClick={() => { setEntryMode('upload'); setOpenEra(true) }} style={{ borderRadius: 10 }}>Upload ERA (835)</button>
     </SectionBar>
     <div className="batch-strip pc-tabs" data-testid="pc-tabs"><button className={tab === 'payments' ? 'on' : ''} data-testid="pc-tab-payments" onClick={() => setTab('payments')}>Payments</button><button className={tab === 'eras' ? 'on' : ''} data-testid="pc-tab-eras" onClick={() => setTab('eras')}>ERAs ({Object.keys(state.eraImports || {}).length})</button></div>
@@ -299,17 +318,18 @@ export default function PaymentCenterView() {
           ['Check', money(kpis.check), 'Paper', '#0ea5e9', 'pc-kpi-check'],
           ['EFT / ERA', money(kpis.eft), 'Electronic', '#10b981', 'pc-kpi-eft'],
           ['Unapplied receipts', money(kpis.unapplied), 'Not allocated to claims', '#f59e0b', 'pc-kpi-unapplied'],
+          ['Patient cash', money(kpis.patient), 'Net local receipts in range', '#0d9488', 'pc-kpi-patient'],
         ].map(([label, val, sub, color, testId]) => <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 160, borderRadius: 12, padding: '12px 16px' }}><span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.dollar({ size: 14 })}</span><div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div></div>)}
       </div>
-      <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}><div className="viewseg" style={{ borderRadius: 10, padding: 3 }} data-testid="pc-filter">{[['all', 'All'], ['check', 'Check'], ['eft', 'EFT'], ['era', 'ERA'], ['cash', 'Cash']].map(([id, label]) => <button key={id} className={statusF === id ? 'on' : ''} data-testid={`pc-filter-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, fontSize: 13 }}>{label}</button>)}</div><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{filtered.length} payments</span></div>
+      <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}><div className="viewseg" style={{ borderRadius: 10, padding: 3 }} data-testid="pc-filter">{[['all', 'All'], ['patient', 'Patient'], ['check', 'Check'], ['eft', 'EFT'], ['era', 'ERA'], ['cash', 'Cash']].map(([id, label]) => <button key={id} className={statusF === id ? 'on' : ''} data-testid={`pc-filter-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, fontSize: 13 }}>{label}</button>)}</div><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{filtered.length} payments</span></div>
       <div style={{ padding: '0 16px 16px' }}><div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}><div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}><span style={{ width: 32, height: 32, borderRadius: 9, background: '#10b98114', color: '#10b981', display: 'grid', placeItems: 'center' }}>{Icon.dollar({ size: 16 })}</span><div><b style={{ fontSize: 14 }}>Payments</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} rows</div></div></div>
         <div className="py-tbl" data-testid="pc-table" style={{ overflowX: 'auto' }}><div className="py-thead" style={{ gridTemplateColumns: '110px 1.4fr 1fr 100px 100px 1fr 100px', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}><span>Date</span><span>Client</span><span>Payer</span><span>Amount</span><span>Method</span><span>Ref / Note</span><span>Claim</span></div>
-          {filtered.slice(0, 100).map((p) => { const cl = clients.find((c) => c.id === p.clientId); return <div key={p.id} className="py-trow" data-testid={`pc-pay-row-${p.id}`} style={{ gridTemplateColumns: '110px 1.4fr 1fr 100px 100px 1fr 100px', minHeight: 52, padding: '10px 16px' }}><div className="py-cell" style={{ fontSize: 12 }}>{p.date}</div><div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl} size={24} /><b style={{ fontSize: 13 }}>{cl?.name || p.clientId}</b></div></div><div className="py-cell" style={{ fontSize: 12 }}>{p.payer}</div><div className="py-cell"><b style={{ fontSize: 13, color: '#059669' }}>{money(p.amount)}</b></div><div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: 'var(--panel-2)' }}>{p.method || p.kind}</span></div><div className="py-cell" style={{ fontSize: 12, color: 'var(--muted)' }}>{p.ref || ''} {p.note ? `· ${p.note}` : ''}</div><div className="py-cell" style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{p.claimId ? <span className="ln-code">{claims[p.claimId]?.no || p.claimId.slice(0, 8)}</span> : <span>Unapplied</span>}{!p.reversalOf && !p.eraId && (p.claimId || p.kind === 'unapplied') && !Object.values(payments).some((r) => r.reversalOf === p.id) && <button className="btn btn-xs" data-testid={`pc-void-${p.id}`} onClick={() => { const r = actions.voidPayment(p.id); toast({ message: r.ok ? `${r.msg} — press U to undo` : r.msg, kind: r.ok ? 'ok' : 'warn' }) }}>Void</button>}</div></div> })}
+          {filtered.slice(0, 100).map((p) => { const cl = clients.find((c) => c.id === p.clientId); return <div key={p.id} className="py-trow" data-testid={`pc-pay-row-${p.id}`} style={{ gridTemplateColumns: '110px 1.4fr 1fr 100px 100px 1fr 100px', minHeight: 52, padding: '10px 16px' }}><div className="py-cell" style={{ fontSize: 12 }}>{p.date}</div><div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl} size={24} /><b style={{ fontSize: 13 }}>{cl?.name || p.clientId}</b></div></div><div className="py-cell" style={{ fontSize: 12 }}>{p.payer}</div><div className="py-cell"><b style={{ fontSize: 13, color: '#059669' }}>{money(p.amount)}</b></div><div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: 'var(--panel-2)' }}>{p.kind === 'patient' ? p.reversalOf ? 'Patient reversal' : 'Patient receipt' : p.method || p.kind}</span></div><div className="py-cell" style={{ fontSize: 12, color: 'var(--muted)' }}>{p.ref || ''} {p.note ? `· ${p.note}` : ''}</div><div className="py-cell" style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{p.claimId ? <span className="ln-code">{claims[p.claimId]?.no || p.claimId.slice(0, 8)}</span> : <span>Unapplied</span>}{!p.reversalOf && !p.eraId && (p.claimId || p.kind === 'unapplied') && !Object.values(payments).some((r) => r.reversalOf === p.id) && <button className="btn btn-xs" data-testid={`pc-void-${p.id}`} onClick={() => { const r = actions.voidPayment(p.id); toast({ message: r.ok ? `${r.msg} — press U to undo` : r.msg, kind: r.ok ? 'ok' : 'warn' }) }}>{p.kind === 'patient' ? 'Reverse locally' : 'Void'}</button>}</div></div> })}
           {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="pc-empty"><b>No payments</b><div className="muted" style={{ fontSize: 12 }}>Record a manual payment or import an ERA.</div></div>}
           <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} payments · {money(filtered.reduce((s, p) => s + p.amount, 0))} total</span><span>Unapplied {money(kpis.unapplied)}</span></div></div>
       </div></div>
     </> : <EraHistory state={state} query={q} range={range} onImport={() => { setEntryMode('upload'); setOpenEra(true) }} />}
-    {openMan && <div className="pc-dialog-backdrop" data-testid="pc-man-modal"><div className="pc-dialog" role="dialog" aria-modal="true" aria-label="Manual Payment"><div className="pc-dialog-head"><b>Manual Payment</b><button className="iconbtn" aria-label="Close" onClick={closeManual}>{Icon.x({ size: 12 })}</button></div><div className="pc-dialog-body"><ManualForm state={state} onSaved={done} /></div></div></div>}
+    {openMan && <div className="pc-dialog-backdrop" data-testid="pc-man-modal"><div className="pc-dialog" role="dialog" aria-modal="true" aria-label="Manual Payment"><div className="pc-dialog-head"><b>{manualApply === 'patient' ? 'Record patient receipt' : 'Manual Payment'}</b><button className="iconbtn" aria-label="Close" onClick={closeManual}>{Icon.x({ size: 12 })}</button></div><div className="pc-dialog-body"><ManualForm key={`${manualApply}:${ui.paymentClaimId || ui.patientClaimId || ''}`} state={state} initialApply={manualApply} onSaved={done} /></div></div></div>}
     {openEra && <div className="pc-dialog-backdrop" data-testid="pc-era-modal"><div className="pc-dialog pc-dialog-wide" role="dialog" aria-modal="true" aria-label="ERA Import (835)"><div className="pc-dialog-head"><b>ERA Import (835)</b><button className="iconbtn" aria-label="Close" onClick={() => setOpenEra(false)}>{Icon.x({ size: 12 })}</button></div><div className="pc-entry-toggle"><button className={entryMode === 'upload' ? 'on' : ''} data-testid="pc-era-mode-upload" onClick={() => setEntryMode('upload')}>Upload 835</button><button className={entryMode === 'typed' ? 'on' : ''} data-testid="pc-era-mode-typed" onClick={() => setEntryMode('typed')}>Type ERA lines</button></div><div className="pc-dialog-body">{entryMode === 'upload' ? <UploadEraForm state={state} onSaved={done} /> : <TypedEraForm state={state} onSaved={done} />}</div></div></div>}
   </div>
 }

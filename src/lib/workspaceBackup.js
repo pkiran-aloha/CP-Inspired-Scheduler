@@ -56,6 +56,37 @@ function validate(data, fields) {
       data.payers.some((p) => typeof p.name !== 'string')) {
     throw new Error('Backup has invalid financial or roster records')
   }
+  // The new patient cash aggregate is stored on the primary for dueOf(), but
+  // every cent must also have one active receipt in the existing payment ledger.
+  // Reject a partial/corrupt import instead of inventing patient A/R or cash.
+  const cents = (value) => typeof value === 'number' && Number.isFinite(value) &&
+    value >= 0 && Math.abs(value * 100 - Math.round(value * 100)) < 0.000001 ? Math.round(value * 100) : null
+  const patientPayments = Object.values(data.payments).filter((p) => p.kind === 'patient')
+  const reversals = new Set()
+  for (const p of patientPayments) {
+    const claim = data.claims[p.claimId]
+    if (!claim || claim.method === 'secondary' || p.clientId !== claim.clientId ||
+        !['check', 'eft', 'cash', 'card'].includes(p.method) || !String(p.ref || '').trim() ||
+        (p.patientSourceClaimId && !data.claims[p.patientSourceClaimId])) throw new Error('Backup has an invalid patient receipt')
+    if (p.reversalOf) {
+      const original = data.payments[p.reversalOf]
+      if (!original || original.kind !== 'patient' || original.reversalOf || original.claimId !== p.claimId ||
+          original.clientId !== p.clientId || cents(-p.amount) !== cents(original.amount) || reversals.has(original.id)) {
+        throw new Error('Backup has an invalid patient receipt reversal')
+      }
+      reversals.add(original.id)
+    } else if (!cents(p.amount)) throw new Error('Backup has an invalid patient receipt amount')
+  }
+  for (const claim of Object.values(data.claims)) {
+    const total = cents(claim.patientPaid ?? 0)
+    const beforePatient = claim.charges - (claim.paid || 0) - (claim.adj || 0) - (claim.secondaryPaid || 0)
+    if (total === null || (total > 0 && (!Number.isFinite(beforePatient) || total > Math.round(beforePatient * 100))) ||
+        ((claim.method === 'secondary' || claim.status === 'void') && total) ||
+        total !== patientPayments.filter((p) => p.claimId === claim.id && !p.reversalOf && !reversals.has(p.id))
+          .reduce((sum, p) => sum + cents(p.amount), 0)) {
+      throw new Error('Backup has an unreconciled patient receipt ledger')
+    }
+  }
 }
 
 export const validateWorkspaceData = (data) => validate(data, WORKSPACE_FIELDS)

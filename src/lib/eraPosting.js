@@ -1,7 +1,7 @@
 // Claim-level ERA review and posting. All decisions are recomputed against the current
 // ledger at posting time; no fuzzy matching, service-line allocation, or auto-application
 // of provider-level PLB adjustments. Kept separate from the X12 reader for testability.
-import { payPatch } from './claims'
+import { payPatch, patientLedgerMatches } from './claims'
 import { uid } from './model'
 
 const toCents = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 &&
@@ -81,6 +81,8 @@ export function previewEra(state, parsed, { ignoreEraId = null } = {}) {
     if (!claim) return reason('No exact claim number match')
     if (claim.method === 'secondary') return reason('Linked secondary ERA remittance needs manual COB reconciliation; parked')
     if (claim.secondary && state.claims?.[claim.secondary]?.status !== 'void') return reason('A secondary filing is linked; reconcile the primary/COB pair manually')
+    if (!patientLedgerMatches(state, claim)) return reason('Patient receipt ledger does not reconcile; review the primary first')
+    if ((claim.patientPaid || 0) > 0) return reason('Patient cash is already allocated; reconcile it manually before changing the payer balance')
     if (line.hasSVC) return reason('Service-line SVC allocations need manual reconciliation; claim-level posting is not supported')
     if (counts.get(claim.id) > 1) return reason('Multiple ERA lines match this claim; reconcile manually')
     if (parsed?.meta?.payerName && claim.payer) {
