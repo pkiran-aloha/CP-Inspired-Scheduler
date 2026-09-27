@@ -23,6 +23,8 @@ export default function SecondaryBillingView() {
   const allClaims = useMemo(() => Object.values(claims), [claims])
   const readyPrimaries = useMemo(() => allClaims.filter((c) => secondaryEligible(state, c)), [allClaims, state])
   const secondaryClaims = useMemo(() => allClaims.filter((c) => c.method === 'secondary'), [allClaims])
+  const linkedPrimaries = useMemo(() => allClaims.filter((c) => c.method !== 'secondary' && c.secondary &&
+    claims[c.secondary]?.status !== 'void' && dueOf(c) > 0), [allClaims, claims])
 
   const queue = useMemo(() => {
     const rows = []
@@ -54,7 +56,7 @@ export default function SecondaryBillingView() {
     submitted: allClaims.filter((c) => c.method === 'secondary' && c.status === 'submitted').length,
     paid: allClaims.filter((c) => c.method === 'secondary' && c.status === 'paid').length,
     denied: allClaims.filter((c) => c.method === 'secondary' && c.status === 'denied').length,
-    totalRemaining: readyPrimaries.reduce((s, c) => s + dueOf(c), 0),
+    totalRemaining: [...readyPrimaries, ...linkedPrimaries].reduce((s, c) => s + dueOf(c), 0),
   }
 
   const handleRelease = (id) => { const r = actions.fileSecondaryClaim(id); toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' }) }
@@ -62,12 +64,16 @@ export default function SecondaryBillingView() {
   const handleSubmit = (id, method) => {
     const r = actions.submitSecondaryClaim(id, method)
     toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' })
-    setOpenSubmit(null)
+    if (r.ok) setOpenSubmit(null)
+  }
+  const handleCancel = (id) => {
+    const r = actions.cancelSecondaryClaim(id)
+    toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' })
   }
 
   return (
     <div className="sectionpage" data-testid="sb-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="shield" title="Secondary Billing" sub={`COB · ${stats.ready} ready · ${stats.submitted} submitted · ${stats.paid} paid · ${money(stats.totalRemaining)} remaining · ${range.label}`}>
+      <SectionBar icon="shield" title="Secondary Billing" sub={`Manual COB · ${stats.ready} ready · ${stats.submitted} filing recorded · ${stats.paid} paid · ${money(stats.totalRemaining)} primary balance · ${range.label}`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ secPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 240, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -88,7 +94,7 @@ export default function SecondaryBillingView() {
             <span><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span></span>
           </div>
         ))}
-        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, background: 'var(--panel-2)', padding: '8px 14px', borderRadius: 20 }}>Primary partial → secondary eligible · Box 18 = X</span>
+        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, background: 'var(--panel-2)', padding: '8px 14px', borderRadius: 20 }}>Claim-level draft only · verify COB externally · no 837/1500 transmission</span>
       </div>
 
       <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
@@ -96,9 +102,12 @@ export default function SecondaryBillingView() {
           {[
             ['all', 'All'],
             ['ready', 'Ready'],
-            ['submitted', 'Submitted'],
+            ['draft', 'Draft'],
+            ['submitted', 'Filed (recorded)'],
+            ['partially_paid', 'Partially paid'],
             ['paid', 'Paid'],
             ['denied', 'Denied'],
+            ['void', 'Cancelled'],
           ].map(([id, label]) => (
             <button key={id} className={statusF === id ? 'on' : ''} data-testid={`sb-filter-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, fontSize: 13 }}>{label}</button>
           ))}
@@ -110,7 +119,7 @@ export default function SecondaryBillingView() {
         <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>Secondary Queue</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} rows · Primary partially paid + client has secondary</div></div>
+            <div><b style={{ fontSize: 14 }}>Secondary Queue</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} rows · drafts and manual filing records; payments belong to the linked child</div></div>
           </div>
 
           <div className="py-tbl" data-testid="sb-table" style={{ overflowX: 'auto' }}>
@@ -122,32 +131,37 @@ export default function SecondaryBillingView() {
                 <div className="py-idcell"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><PersonAvatar p={r.client} size={28} /><div><b style={{ fontSize: 13 }}>{r.client.name || r.client.id}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.sec?.memberId ? `ID ${r.sec.memberId}` : ''} {r.sec?.relation ? `· ${r.sec.relation}` : ''}</div></div></div></div>
                 <div className="py-cell"><span className="ln-code" style={{ fontSize: 12 }}>{r.claim.no}</span></div>
                 <div className="py-cell"><div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}><span style={{ fontSize: 12 }}>{r.claim.payer}</span><span style={{ fontSize: 11, color: 'var(--muted)' }}>→ {r.secPayer?.name || r.sec?.payerId || (r.kind === 'secondary' ? r.claim.payer : '—')}</span></div></div>
-                <div className="py-cell"><div><div style={{ fontSize: 12 }}>Paid {money(r.claim.paid || 0)}</div><b style={{ fontSize: 13, color: '#059669' }}>{money(dueOf(r.claim))} due</b></div></div>
+                <div className="py-cell"><div><div style={{ fontSize: 12 }}>Paid {money(r.claim.paid || 0)}</div><b style={{ fontSize: 13, color: '#059669' }}>{money(dueOf(r.claim))} {r.kind === 'ready' ? 'primary due' : 'filing balance*'}</b></div></div>
                 <div className="py-cell"><div><div style={{ fontSize: 12 }}>{r.claim.dosFrom}</div><div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.sec?.memberId ? `COB ${r.sec.memberId.slice(0, 8)}` : ''}</div></div></div>
                 <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, background: r.claim.status === 'paid' ? '#ecfdf5' : r.claim.status === 'denied' ? '#fef2f2' : '#eff6ff', padding: '4px 10px' }}>{r.claim.status}</span></div>
                 <div className="py-cell" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                  {r.kind === 'ready' && (
-                    <>
-                      <button className="btn btn-xs btn-primary" data-testid={`sb-release-${r.claim.id}`} onClick={() => handleRelease(r.claim.id)} style={{ borderRadius: 8 }}>Release</button>
-                      <button className="btn btn-xs" data-testid={`sb-skip-${r.claim.id}`} onClick={() => handleSkip(r.claim.id)} style={{ borderRadius: 8 }}>Skip</button>
-                      <div style={{ position: 'relative' }}>
-                        <button className="btn btn-xs" data-testid={`sb-submit-${r.claim.id}`} onClick={() => setOpenSubmit(openSubmit === r.claim.id ? null : r.claim.id)} style={{ borderRadius: 8 }}>Submit ▾</button>
-                        {openSubmit === r.claim.id && (
-                          <div style={{ position: 'absolute', top: '100%', right: 0, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, zIndex: 10, boxShadow: 'var(--shadow-2)', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 200 }}>
-                            <button className="btn btn-xs" data-testid={`sb-submit-ch-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'ch')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>Clearinghouse (CH)</button>
-                            <button className="btn btn-xs" data-testid={`sb-submit-paper-bg-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'paper_bg')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>Paper with Background</button>
-                            <button className="btn btn-xs" data-testid={`sb-submit-paper-nobg-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'paper_nobg')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>Paper without BG</button>
-                          </div>
-                        )}
-                      </div>
-                    </>
+                  {r.kind === 'ready' && <>
+                    <button className="btn btn-xs btn-primary" data-testid={`sb-release-${r.claim.id}`} onClick={() => handleRelease(r.claim.id)} style={{ borderRadius: 8 }}>Create COB draft</button>
+                    <button className="btn btn-xs" data-testid={`sb-skip-${r.claim.id}`} onClick={() => handleSkip(r.claim.id)} style={{ borderRadius: 8 }}>Skip filing</button>
+                  </>}
+                  {(r.kind === 'ready' || (r.kind === 'secondary' && r.claim.status === 'draft')) && (
+                    <div style={{ position: 'relative' }}>
+                      <button className="btn btn-xs" data-testid={`sb-submit-${r.claim.id}`} onClick={() => setOpenSubmit(openSubmit === r.claim.id ? null : r.claim.id)} style={{ borderRadius: 8 }}>Record external filing ▾</button>
+                      {openSubmit === r.claim.id && (
+                        <div style={{ position: 'absolute', top: '100%', right: 0, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 10, padding: 6, zIndex: 10, boxShadow: 'var(--shadow-2)', display: 'flex', flexDirection: 'column', gap: 4, minWidth: 220 }}>
+                          <small className="muted">Records a filing you made elsewhere. Does not transmit.</small>
+                          <button className="btn btn-xs" data-testid={`sb-submit-ch-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'ch')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>Clearinghouse (external)</button>
+                          <button className="btn btn-xs" data-testid={`sb-submit-paper-bg-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'paper_bg')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>Paper with primary EOB</button>
+                          <button className="btn btn-xs" data-testid={`sb-submit-paper-nobg-${r.claim.id}`} onClick={() => handleSubmit(r.claim.id, 'paper_nobg')} style={{ borderRadius: 8, justifyContent: 'flex-start' }}>Paper without EOB</button>
+                        </div>
+                      )}
+                    </div>
                   )}
-                  {r.kind === 'secondary' && <span className="muted" style={{ fontSize: 11 }}>{r.claim.no}</span>}
+                  {r.kind === 'secondary' && ['draft', 'submitted'].includes(r.claim.status) &&
+                    <button className="btn btn-xs" data-testid={`sb-cancel-${r.claim.id}`} onClick={() => handleCancel(r.claim.id)} style={{ borderRadius: 8 }}>Cancel locally</button>}
+                  {r.kind === 'secondary' && ['submitted', 'partially_paid'].includes(r.claim.status) &&
+                    <button className="btn btn-xs btn-primary" data-testid={`sb-pay-${r.claim.id}`} onClick={() => actions.setUI({ section: 'bil-payments', paymentClaimId: r.claim.id })} style={{ borderRadius: 8 }}>Record payer remittance</button>}
+                  {r.kind === 'secondary' && r.claim.status !== 'draft' && <span className="muted" style={{ fontSize: 11 }}>{r.claim.no} · parent {r.claim.parentNo || '—'}</span>}
                 </div>
               </div>
             ))}
             {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="sb-empty"><b>No secondary queue</b><div className="muted" style={{ fontSize: 12 }}>Partially-paid primaries with COB clients appear here</div></div>}
-            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} rows · Ready {stats.ready} · Submitted {stats.submitted}</span><span>{money(stats.totalRemaining)} remaining</span></div>
+            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} rows · Ready {stats.ready} · Submitted {stats.submitted}</span><span>{money(stats.totalRemaining)} primary A/R · *filing balance is not additional A/R</span></div>
           </div>
         </div>
       </div>

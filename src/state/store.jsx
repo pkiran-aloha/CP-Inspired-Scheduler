@@ -1,15 +1,24 @@
-import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
-import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, payPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
+import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
+import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/workspaceBackup'
+import { previewEra, planEraImport, planParkedEraPost } from '../lib/eraPosting'
+import { planSecondaryFiling, planSecondarySkip, planSecondaryCancel, normalizeCobLedger } from '../lib/secondaryLedger'
+import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt } from '../lib/paymentLedger'
 
 const KEY = 'aloha-aba.v3'
 import { apptAutoTitle, needsRework } from '../lib/apptName'
 export const STORAGE_KEY = KEY
 const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
+
+// Undo lives in memory for this tab. Persisting 25 copies of the 1,000+ session
+// ledger fills browser storage and silently prevents later changes from saving.
+export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
+const normalizeWorkspace = (state) => normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid))))))
 
 export function blankState() {
   const appts = buildSeed(todayISO())
@@ -17,7 +26,7 @@ export function blankState() {
   const { claims, appts: apptsWithClaims } = buildDemoClaims(appts, CLIENTS, settings, todayISO())
   // chunk-41: seed secondary insurance on first two clients for the COB queue
   const clientsWithSec = CLIENTS.map((c, idx) => {
-    if (idx === 0 && PAYERS[1]) return { ...c, secondary: { payerId: PAYERS[1].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0001', relation: 'secondary', since: '2026-01-01', until: null, note: 'Seeded secondary for COB testing' } }
+    if (idx === 0 && PAYERS[0]) return { ...c, secondary: { payerId: PAYERS[0].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0001', relation: 'secondary', since: '2026-01-01', until: null, note: 'Seeded secondary for COB testing' } }
     if (idx === 1 && PAYERS[2]) return { ...c, secondary: { payerId: PAYERS[2].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0002', relation: 'secondary', since: '2026-02-01', until: null, note: '' } }
     return { ...c, secondary: null }
   })
@@ -30,7 +39,9 @@ export function blankState() {
     eraImports: {},
     billedFiles: {},
     qbo: {},
-    meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true },
+    // Fresh workspaces already use opt-in custom fields. Only old saves without
+    // these flags need the one-time cleanup migrations on their first load.
+    meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true },
     staff: STAFF,
     clients: clientsWithSec,
     payers: PAYERS,
@@ -63,11 +74,11 @@ export function initial() {
   const base = blankState()
   try {
     let raw = localStorage.getItem(KEY)
+    let legacyKey = null
     if (!raw) for (const k of LEGACY_KEYS) {
       const legacy = localStorage.getItem(k)
-      if (legacy) { raw = legacy; localStorage.removeItem(k); break }
+      if (legacy) { raw = legacy; legacyKey = k; break }
     }
-    if (raw) localStorage.setItem(KEY, raw) // persist the migrated snapshot once
     if (raw) {
       const saved = JSON.parse(raw)
       if (saved && saved.appts) {
@@ -79,7 +90,7 @@ export function initial() {
           claims: saved.claims || base.claims,
           svcs: Array.isArray(saved.svcs) && saved.svcs.length ? saved.svcs : base.svcs,
           customFields: Array.isArray(saved.customFields) ? saved.customFields : base.customFields,
-          history: saved.history || [],
+          history: [], // older persisted undo stacks are dropped; undo is tab-local
           reports: { saved: (saved.reports && saved.reports.saved) || [] },
           payments: saved.payments || {},
           invoices: saved.invoices || {},
@@ -93,8 +104,13 @@ export function initial() {
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
         // promoted or dropped, write the fixed snapshot back immediately so the repair is durable
         // chunk-38: one-time clear of pre-loaded appointment pcfs (flagged in meta, idempotent)
-        const merged = normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(mergedRaw, uid)))))
-        if (merged !== mergedRaw) { try { localStorage.setItem(KEY, JSON.stringify(merged)) } catch { /* off for A/B */ } }
+        const merged = normalizeWorkspace(mergedRaw)
+        if (merged !== mergedRaw || legacyKey || saved.history?.length) {
+          try {
+            localStorage.setItem(KEY, serializeForStorage(merged))
+            if (legacyKey) localStorage.removeItem(legacyKey) // only retire it after a successful write
+          } catch { /* keep the old save; the provider warns if writes still fail */ }
+        }
         return merged
       }
     }
@@ -109,26 +125,70 @@ export function reducer(state, action) {
     case 'upsertMany': {
       const appts = { ...state.appts }
       for (const a of action.appts) appts[a.id] = { ...appts[a.id], ...a }
-      return { ...state, appts, history: pushSnap(state) }
+      return { ...state, appts, history: pushSnap(state, ['appts']) }
     }
     case 'patch': {
       const cur = state.appts[action.id]
       if (!cur) return state
-      return { ...state, appts: { ...state.appts, [action.id]: { ...cur, ...action.patch, updatedAt: Date.now() } }, history: action.noSnap ? state.history : pushSnap(state) }
+      return { ...state, appts: { ...state.appts, [action.id]: { ...cur, ...action.patch, updatedAt: Date.now() } }, history: action.noSnap ? state.history : pushSnap(state, ['appts']) }
     }
     case 'deleteMany': {
       const appts = { ...state.appts }
       for (const id of action.ids) delete appts[id]
-      return { ...state, appts, history: pushSnap(state) }
+      return { ...state, appts, history: pushSnap(state, ['appts']) }
     }
     case 'undo': {
       const hist = [...state.history]
       const snap = hist.pop()
       if (!snap) return state
-      // snapshots taken before the claims engine only covered appointments
+      // New snapshots touch only the collections changed by their transaction.
+      // Unrelated edits made since then (e.g. a theme setting) are not undone.
+      if (snap.__workspaceSnapshot) return {
+        ...state,
+        ...Object.fromEntries(WORKSPACE_FIELDS.filter((key) => key in snap).map((key) => [key, snap[key]])),
+        ...(Object.hasOwn(snap, 'billingSettings') ? { settings: { ...state.settings, billing: { ...state.settings.billing, ...snap.billingSettings } } } : {}),
+        history: hist,
+      }
+      // Compatibility for pre-change snapshots kept in memory by an older bundle.
       if (!snap.appts) return { ...state, appts: snap, history: hist }
-      const payments = snap.payments !== undefined ? snap.payments : state.payments
-      return { ...state, appts: snap.appts, claims: snap.claims || {}, payments, history: hist }
+      return { ...state, ...Object.fromEntries(WORKSPACE_FIELDS.filter((key) => key in snap).map((key) => [key, snap[key]])), history: hist }
+    }
+    case 'secondaryFilingTx': {
+      const tx = planSecondaryFiling(state, action.id, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts }) : state
+    }
+    case 'secondarySkipTx': {
+      const tx = planSecondarySkip(state, action.id, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts }) : state
+    }
+    case 'secondaryCancelTx': {
+      const tx = planSecondaryCancel(state, action.id, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts }) : state
+    }
+    case 'claimPaymentTx': {
+      const tx = planClaimPayment(state, action.id, action.payload, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments }) : state
+    }
+    case 'claimVoidPaymentTx': {
+      const tx = planVoidClaimPayment(state, action.id, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments }) : state
+    }
+    case 'unappliedPaymentTx': {
+      const tx = planUnappliedReceipt(state, action.payload, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: [], payments: tx.payments }) : state
+    }
+    case 'eraImportTx': {
+      // Re-plan inside the reducer: a preview/action can be stale by the time a
+      // batched dispatch is applied (including double-clicks). Invalid retries
+      // and duplicate files cannot write to the ledger.
+      const tx = planEraImport(state, action.parsed, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts,
+        ...(Object.keys(tx.payments).length ? { payments: tx.payments } : {}), eraImports: tx.eraImports }) : state
+    }
+    case 'eraRetryTx': {
+      const tx = planParkedEraPost(state, action.eraId, action.selectedIds, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts,
+        ...(Object.keys(tx.payments).length ? { payments: tx.payments } : {}), eraImports: tx.eraImports }) : state
     }
     case 'claimsTx': {
       const appts = { ...state.appts }
@@ -142,11 +202,19 @@ export function reducer(state, action) {
       const billedFiles = action.billedFiles ? { ...(state.billedFiles || {}), ...action.billedFiles } : state.billedFiles
       const qbo = action.qbo ? { ...(state.qbo || {}), ...action.qbo } : state.qbo
       const verificationForms = action.verificationForms ? { ...(state.verificationForms || {}), ...action.verificationForms } : state.verificationForms
-      return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, qbo, verificationForms, history: pushSnap(state) }
+      const settings = action.billing ? { ...state.settings, billing: { ...state.settings.billing, ...action.billing } } : state.settings
+      const touched = [
+        ...(action.apptPatches?.length ? ['appts'] : []),
+        ...(action.claimUpserts?.length || action.claimDel?.length ? ['claims'] : []),
+        ...['payments', 'invoices', 'eraImports', 'billedFiles', 'qbo', 'verificationForms'].filter((key) => action[key]),
+        ...(action.billing ? ['billingSettings'] : []),
+      ]
+      return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, qbo, verificationForms, settings, history: touched.length ? pushSnap(state, touched, action.billing) : state.history }
     }
     case 'record': {
+      if (!['payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo'].includes(action.coll) || !action.item?.id) return state
       const cur = state[action.coll] || {}
-      return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item } }
+      return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
     }
     case 'setUI':
       return { ...state, ui: { ...state.ui, ...action.patch } }
@@ -163,8 +231,9 @@ export function reducer(state, action) {
       return { ...state, ui: { ...state.ui, [list]: next } }
     }
     case 'clearDemo': {
-      localStorage.removeItem(KEY)
-      return { ...state, appts: {}, claims: {} }
+      // Clear the dependent financial ledgers too; leaving payments/files behind
+      // creates orphaned claims. The whole operation must be a single Undo.
+      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo']) }
     }
     case 'relabel': {
       const next = { ...state.appts }
@@ -176,12 +245,14 @@ export function reducer(state, action) {
         }
       }
       if (!n) return state
-      return { ...state, appts: next, history: pushSnap(state) }
+      return { ...state, appts: next, history: pushSnap(state, ['appts']) }
     }
     case 'reseed': {
       const appts = buildSeed(todayISO())
       const { claims, appts: withClaims } = buildDemoClaims(appts, state.clients, state.settings, todayISO())
-      return { ...state, appts: withClaims, claims, history: pushSnap(state) }
+      // Rebuild seed payments from the new claims and remove documents tied to
+      // the replaced ledger. Keep the user's rosters, masters and settings.
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo']) }
     }
     case 'roster': {
       const list = state[action.list]
@@ -252,19 +323,20 @@ export function reducer(state, action) {
       return { ...state, dash: { ...cur, widgets, boards } }
     }
     case 'replace': {
-      const p = action.payload || {}
-      if (!p.appts || typeof p.appts !== 'object') return state
-      return {
-        ...state,
-        appts: p.appts,
-        claims: p.claims && typeof p.claims === 'object' ? p.claims : {},
-        staff: Array.isArray(p.staff) && p.staff.length ? p.staff : state.staff,
-        clients: Array.isArray(p.clients) && p.clients.length ? p.clients : state.clients,
-        teams: Array.isArray(p.teams) ? p.teams : state.teams,
-        settings: p.settings ? { ...state.settings, ...p.settings } : state.settings,
-        reports: p.reports && Array.isArray(p.reports.saved) ? p.reports : state.reports,
-        history: pushSnap(state),
+      const p = action.payload
+      try { validateWorkspaceData(p) } catch { return state }
+      const d = defaultSettings()
+      const settings = {
+        ...d, ...p.settings,
+        smart: p.settings.smart || d.smart,
+        org: { ...d.org, ...(p.settings.org || {}) },
+        billing: { ...d.billing, ...(p.settings.billing || {}) },
+        analytics: { ...d.analytics, ...(p.settings.analytics || {}) },
       }
+      // One atomic restore, including billing artifacts and all masters. Do not
+      // import navigation or history from the file; Undo returns to the live tab.
+      const restored = normalizeWorkspace({ ...state, ...workspaceData(p), settings, history: [] })
+      return { ...restored, ui: state.ui, history: pushSnap(state) }
     }
     case 'addSavedReport':
       return { ...state, reports: { saved: [{ ...action.report }, ...(state.reports.saved || []).slice(0, 23)] } }
@@ -275,22 +347,32 @@ export function reducer(state, action) {
   }
 }
 
-// one undo step snapshots BOTH the ledger (appts) and the claim desk (claims)
-const pushSnap = (state) => [...state.history.slice(-24), { appts: { ...state.appts }, claims: { ...state.claims }, payments: { ...(state.payments || {}) } }]
+// Snapshots hold only fields touched by their action; immutable updates make
+// references safe. Full restores use all fields, but a claim Undo cannot roll
+// back an unrelated setting edit. No snapshots are persisted to localStorage.
+const pushSnap = (state, fields = WORKSPACE_FIELDS, billingPatch = {}) => [
+  ...state.history.slice(-24),
+  { __workspaceSnapshot: true, ...Object.fromEntries(fields.map((key) => [key, key === 'billingSettings'
+    ? Object.fromEntries(Object.keys(billingPatch).map((name) => [name, state.settings.billing?.[name]]))
+    : state[key]])) },
+]
 
 const Ctx = createContext(null)
 export const useStore = () => useContext(Ctx)
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, initial)
+  const [saveError, setSaveError] = useState(false)
   const saveT = useRef(null)
   useEffect(() => {
     clearTimeout(saveT.current)
     saveT.current = setTimeout(() => {
       try {
-        localStorage.setItem(KEY, JSON.stringify(state))
-      } catch (e) {
-        /* storage full / disabled — app still works in-memory */
+        localStorage.setItem(KEY, serializeForStorage(state))
+        setSaveError(false)
+      } catch {
+        // Never imply an edit is safe when it exists only in this tab's memory.
+        setSaveError(true)
       }
     }, 250)
     return () => clearTimeout(saveT.current)
@@ -298,7 +380,13 @@ export function StoreProvider({ children }) {
 
   const actions = useMemo(() => createActions(state, dispatch), [state])
   const value = useMemo(() => ({ ...state, dispatch, actions }), [state, actions])
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>
+  return <Ctx.Provider value={value}>
+    {children}
+    {saveError && <div className="storage-warning" role="alert" data-testid="storage-warning">
+      Changes aren't saved in this browser (storage full or unavailable). Export a backup before closing this tab.
+      <button className="btn btn-sm" type="button" onClick={() => dispatch({ type: 'setUI', patch: { settings: true } })}>Open Settings</button>
+    </div>}
+  </Ctx.Provider>
 }
 
 function createActions(state, dispatch) {
@@ -357,30 +445,20 @@ function createActions(state, dispatch) {
       const plans = planClaims(state, pool)
       if (!plans.length) return { ok: false, msg: 'Nothing claim-ready to assemble — fix Blocked lines first' }
       const { claims, apptPatch } = assembleClaims(state, plans)
-      // invoiceSeq bump for selfpay invoices (D2)
-      const selfPayCount = claims.filter((c)=>c.mode==='selfpay').length
-      if (selfPayCount) {
-        const cur = state.settings?.billing?.invoiceSeq || 1
-        // dispatch settings bump separately (pure bump, not undoable as part of claim tx, but we include in same batch via settings patch)
-        // we will bump via setSettings after claimsTx to keep undo simple — first bump then claims
-        const nextSeq = cur + selfPayCount
-        // record invoices
-        const invoices = {}
-        let seq = cur
-        for (const c of claims) if (c.mode==='selfpay') {
-          const invNo = `${state.settings?.billing?.invoicePrefix||'INV'}-${String(seq).padStart(4,'0')}`
-          invoices[`inv-${c.id}`] = { id: `inv-${c.id}`, claimId: c.id, no: invNo, clientId: c.clientId, amount: c.charges, due: c.charges, status: 'open', createdAt: Date.now() }
-          seq++
-        }
-        dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch, invoices })
-        dispatch({ type: 'setSettings', patch: { billing: { ...(state.settings?.billing||{}), invoiceSeq: nextSeq } } })
-      } else {
-        dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch })
+      // Self-pay invoices and their sequence are part of the SAME undoable tx.
+      const invoices = {}
+      let seq = state.settings?.billing?.invoiceSeq || 1
+      for (const c of claims) if (c.mode === 'selfpay') {
+        const invNo = `${state.settings?.billing?.invoicePrefix || 'INV'}-${String(seq).padStart(4, '0')}`
+        invoices[`inv-${c.id}`] = { id: `inv-${c.id}`, claimId: c.id, no: invNo, clientId: c.clientId, amount: c.charges, due: c.charges, status: 'open', createdAt: Date.now() }
+        seq++
       }
+      dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch,
+        ...(seq !== (state.settings?.billing?.invoiceSeq || 1) ? { invoices, billing: { invoiceSeq: seq } } : {}) })
       const lines = claims.reduce((t, c) => t + c.lines.length, 0)
       return { ok: true, msg: `${claims.length} claim form${claims.length > 1 ? 's' : ''} assembled — ${lines} charge lines staged → drafted`, ids: claims.map((c) => c.id) }
     },
-    submitClaims: (ids) => {
+    submitClaims: (ids, { recordFile = false } = {}) => {
       const sent = []
       const gated = []
       const claimUpserts = []
@@ -388,6 +466,7 @@ function createActions(state, dispatch) {
       for (const id of ids) {
         const c = state.claims[id]
         if (!c || c.status !== 'draft') continue
+        if (c.method === 'secondary') { gated.push({ no: c.no, why: 'Use Secondary Billing to record filing manually', bad: 1 }); continue }
         const gate = claimGate(state, c)
         if (!gate.ok) { gated.push({ no: c.no, why: gate.bad[0]?.why, bad: gate.bad.length }); continue }
         const tx = submitPatch(state, c)
@@ -395,47 +474,35 @@ function createActions(state, dispatch) {
         apptPatches.push(...tx.apptPatches)
         sent.push(c.no)
       }
-      if (claimUpserts.length) dispatch({ type: 'claimsTx', claimUpserts, apptPatches })
+      let billedFiles
+      if (recordFile && claimUpserts.length) {
+        const at = Date.now()
+        const id = uid()
+        billedFiles = { [id]: {
+          id, fileName: `837P-${todayISO()}-${String(Object.keys(state.billedFiles || {}).length + 1).padStart(3, '0')}.txt`,
+          format: '837p', status: 'sent', billedThrough: 'ch', payer: claimUpserts[0].payer,
+          clientCount: new Set(claimUpserts.map((c) => c.clientId)).size, claimCount: claimUpserts.length,
+          claimIds: claimUpserts.map((c) => c.id), date: todayISO(), sendCount: 1,
+          content: claimUpserts.map((c) => `${c.no}|${c.payer}|${c.charges}`).join('\n'), createdAt: at,
+        } }
+      }
+      if (claimUpserts.length) dispatch({ type: 'claimsTx', claimUpserts, apptPatches, billedFiles })
       if (!sent.length) return { ok: false, msg: gated.length ? `All ${gated.length} claim(s) held by gates — see the ⚠ on each` : 'Nothing to submit' }
-      return { ok: true, msg: `${sent.length} claim${sent.length > 1 ? 's' : ''} submitted${gated.length ? ` · ${gated.length} held by validation gates` : ''}`, sent, gated }
+      return { ok: true, msg: `${sent.length} claim${sent.length > 1 ? 's' : ''} submitted${gated.length ? ` · ${gated.length} held by validation gates` : ''}`, sent, gated, fileId: billedFiles && Object.keys(billedFiles)[0] }
     },
     postPayment: (id, payload) => {
-      const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
-      const p = { amount: 0, adj: 0, patientResp: 0, checkNo: '—', note: '', kind: null, date: null, reconciled: false, source: null, ...payload }
-      const at = Date.now()
-      const tx = payPatch(c, { amount: p.amount, checkNo: p.checkNo, adj: p.adj, note: p.note, paidAt: at })
-      const payment = {
-        id: uid(), claimId: c.id, clientId: c.clientId, payer: c.payer,
-        kind: p.kind || (p.checkNo && /^CHK/i.test(p.checkNo) ? 'check' : 'manual'),
-        amount: Math.round(p.amount * 100) / 100, adj: Math.round(p.adj * 100) / 100, patientResp: Math.round((p.patientResp || 0) * 100) / 100,
-        ref: p.checkNo, date: p.date || todayISO(), reconciled: !!p.reconciled, note: p.note || '', attachments: [],
-        source: p.source || null, reversalOf: null, createdAt: at, createdBy: 'Aloha (local)',
-      }
-      dispatch({ type: 'claimsTx', claimUpserts: [tx.claim], apptPatches: [], payments: { [payment.id]: payment } })
-      const still = Math.max(0, Math.round((c.charges - (c.adj || 0) - (c.paid || 0) - p.amount) * 100) / 100)
-      return { ok: true, msg: still > 0
-        ? `${c.no} — $${p.amount.toLocaleString()} posted${p.adj ? ` (+$${Math.round(p.adj).toLocaleString()} adj)` : ''} · $${still.toLocaleString()} still open`
-        : `${c.no} paid — $${p.amount.toLocaleString()} posted${p.adj ? ` (+$${Math.round(p.adj).toLocaleString()} adjustment)` : ''}` }
+      const options = { at: Date.now(), paymentId: uid() }
+      const plan = planClaimPayment(state, id, payload, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'claimPaymentTx', id, payload, options })
+      return { ok: true, msg: plan.msg, id: options.paymentId }
     },
-    voidPayment: (paymentId) => {
-      const pay = (state.payments || {})[paymentId]
-      if (!pay) return { ok: false, msg: 'Payment not found' }
-      const c = state.claims[pay.claimId]
-      if (!c) return { ok: false, msg: 'Claim not found' }
-      const r2 = (n) => Math.round((n || 0) * 100) / 100
-      const reverted = {
-        ...c,
-        status: c.status === 'paid' ? (c.submittedAt ? 'submitted' : 'draft') : c.status,
-        paid: r2(Math.max(0, (c.paid || 0) - pay.amount)),
-        adj: r2(Math.max(0, (c.adj || 0) - pay.adj)),
-        remittance: c.remittance && c.remittance.checkNo === pay.ref ? null : c.remittance,
-        closedAt: null,
-        history: [...c.history, { at: Date.now(), ev: `Payment voided — $${pay.amount.toLocaleString()} reversed (${pay.ref})` }],
-      }
-      const reversal = { ...pay, id: uid(), amount: r2(-pay.amount), adj: r2(-pay.adj), patientResp: r2(-pay.patientResp), ref: `VOID-${pay.ref}`, reversalOf: pay.id, note: `Reversal of ${pay.ref}`, date: todayISO(), reconciled: false, createdAt: Date.now() }
-      dispatch({ type: 'claimsTx', claimUpserts: [reverted], apptPatches: [], payments: { [reversal.id]: reversal } })
-      return { ok: true, msg: `Payment ${pay.ref} voided — reversal posted` }
+    voidPayment: (id) => {
+      const options = { at: Date.now(), reversalId: uid() }
+      const plan = planVoidClaimPayment(state, id, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'claimVoidPaymentTx', id, options })
+      return { ok: true, msg: plan.msg, id: options.reversalId }
     },
     // ---- provider identifier master (U2) ----
     addProvider: (row) => dispatch({ type: 'setSettings', patch: { providers: [...(state.settings.providers || []), { id: uid(), kind: 'staff', credential: 'Other', degree: '', npi: '', taxonomy: '101YP00000X', roles: { rendering: false, billing: false, facility: false }, payerIds: { ticare: '', medicaid: '', bhpn: '', referrers: '' }, active: true, createdAt: Date.now(), ...row }] } }),
@@ -444,94 +511,82 @@ function createActions(state, dispatch) {
     deleteProvider: (id) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).filter((p) => p.id !== id) } }),
     // ---- document/artifact ledgers (billed files, invoices, verification forms, ERA imports) ----
     record: (coll, item) => dispatch({ type: 'record', coll, item: { id: uid(), ...item } }),
+    resendBilledFile: (id) => {
+      const file = (state.billedFiles || {})[id]
+      if (!file || file.status === 'void') return { ok: false, msg: 'File is unavailable for resend' }
+      dispatch({ type: 'record', coll: 'billedFiles', item: { ...file, sendCount: (file.sendCount || 1) + 1, status: 'sent', lastSentAt: Date.now() } })
+      return { ok: true, msg: `${file.fileName} prepared for resend` }
+    },
     // ---- v33 billing suite helpers (payment center, secondary, appeals, qbo, verification) ----
     skipSecondary: (id) => {
-      const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
-      const patched = { ...c, secondarySkipped: true, history: [...(c.history || []), { at: Date.now(), ev: 'Secondary skipped' }] }
-      dispatch({ type: 'claimsTx', claimUpserts: [patched] })
-      return { ok: true, msg: `${c.no} secondary skipped` }
+      const options = { at: Date.now() }
+      const plan = planSecondarySkip(state, id, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'secondarySkipTx', id, options })
+      return { ok: true, msg: plan.msg }
     },
-    submitSecondaryClaim: (id, method) => {
-      const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
-      // if it's a primary that needs secondary, file it first
-      const client = (state.clients || []).find((x) => x.id === c.clientId)
-      let target = c
-      if (c.method !== 'secondary' && client?.secondary) {
-        const secPayer = (state.payers || []).find((p) => p.id === client.secondary.payerId)
-        const payerName = secPayer?.name || client.secondary.payerId || 'Secondary'
-        const at = Date.now()
-        const due = Math.round((c.charges - (c.adj || 0) - (c.paid || 0)) * 100) / 100
-        const secondary = {
-          id: `${c.id}-sec-${at.toString(36)}`,
-          no: `${c.no}-S`,
-          clientId: c.clientId,
-          payer: payerName,
-          mode: 'insurance',
-          method: 'secondary',
-          secondary: c.id,
-          dosFrom: c.dosFrom,
-          dosTo: c.dosTo,
-          lines: c.lines.map((l) => ({ ...l })),
-          status: 'submitted',
-          charges: due > 0 ? due : c.charges,
-          units: c.units,
-          adj: 0,
-          paid: 0,
-          remittance: null,
-          denial: null,
-          parentNo: c.no,
-          version: 1,
-          timelyDue: c.timelyDue,
-          submittedAt: at,
-          closedAt: null,
-          createdAt: at,
-          submitMethod: method || 'ch',
-          note: `Secondary from ${c.no}`,
-          history: [{ at, ev: `Secondary submitted via ${method || 'ch'}` }],
-        }
-        const primaryPatched = { ...c, secondary: secondary.id, history: [...(c.history || []), { at, ev: `Secondary submitted → ${secondary.no}` }] }
-        dispatch({ type: 'claimsTx', claimUpserts: [primaryPatched, secondary] })
-        return { ok: true, msg: `${secondary.no} submitted via ${method || 'ch'}` }
-      }
-      const at = Date.now()
-      target = { ...c, status: 'submitted', submitMethod: method || c.submitMethod || 'ch', submittedAt: at, history: [...(c.history || []), { at, ev: `Submitted via ${method || 'ch'}` }] }
-      dispatch({ type: 'claimsTx', claimUpserts: [target] })
-      return { ok: true, msg: `${c.no} submitted via ${method || 'ch'}` }
+    submitSecondaryClaim: (id, method = 'ch') => {
+      const options = { submit: true, method, at: Date.now(), newId: uid() }
+      const plan = planSecondaryFiling(state, id, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'secondaryFilingTx', id, options })
+      return { ok: true, msg: plan.msg, newId: plan.secondaryId }
+    },
+    cancelSecondaryClaim: (id) => {
+      const options = { at: Date.now() }
+      const plan = planSecondaryCancel(state, id, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'secondaryCancelTx', id, options })
+      return { ok: true, msg: plan.msg }
     },
     recordPayment: (payload) => {
-      const id = uid()
-      const pay = { id, amount: Number(payload.amount || 0), clientId: payload.clientId, payer: payload.payer, date: payload.date || todayISO(), method: payload.method || 'check', ref: payload.ref || '', note: payload.note || '', kind: payload.method || 'manual', claimId: payload.claimId || null, createdAt: Date.now() }
-      dispatch({ type: 'record', coll: 'payments', item: pay })
-      if (payload.claimId && state.claims[payload.claimId]) {
-        const c = state.claims[payload.claimId]
-        const tx = payPatch(c, { amount: pay.amount, checkNo: pay.ref, adj: 0, note: pay.note, paidAt: Date.now() })
-        dispatch({ type: 'claimsTx', claimUpserts: [tx.claim] })
+      const options = { at: Date.now(), paymentId: uid() }
+      if (payload.claimId) {
+        const linked = { ...payload, checkNo: payload.ref || payload.checkNo }
+        const plan = planClaimPayment(state, payload.claimId, linked, options)
+        if (!plan.ok) return { ok: false, msg: plan.msg }
+        dispatch({ type: 'claimPaymentTx', id: payload.claimId, payload: linked, options })
+        return { ok: true, id: options.paymentId, msg: plan.msg }
       }
-      return { ok: true, id }
+      const plan = planUnappliedReceipt(state, payload, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'unappliedPaymentTx', payload, options })
+      return { ok: true, id: options.paymentId, msg: plan.msg }
     },
+    import835: ({ fileName, parsed, selectedIds }) => {
+      const options = { fileName, selectedIds, source: '835', eraId: uid(), at: Date.now() }
+      const plan = planEraImport(state, parsed, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'eraImportTx', parsed, options })
+      return { ok: true, msg: plan.msg, id: plan.era.id }
+    },
+    retryEra: (eraId, selectedIds) => {
+      const options = { at: Date.now() }
+      const plan = planParkedEraPost(state, eraId, selectedIds, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'eraRetryTx', eraId, selectedIds, options })
+      return { ok: true, msg: plan.msg, id: eraId }
+    },
+    // Preserve typed ERA entry, but do not silently skip missing claims, post
+    // negative/duplicate money, or turn an ERA denial into a payment.
     importEra: ({ fileName, lines }) => {
-      const at = Date.now()
-      const eraId = uid()
-      const era = { id: eraId, fileName: fileName || `ERA-${at}`, lines: lines || [], createdAt: at }
-      const claimUpserts = []
-      const payments = {}
-      for (const ln of lines || []) {
-        const c = state.claims[ln.claimId]
-        if (!c) continue
-        const tx = payPatch(c, { amount: ln.amount, checkNo: fileName, adj: ln.adj || 0, note: `ERA ${fileName}`, paidAt: at })
-        if (ln.status === 'denied') {
-          const d = denyPatch(c, { code: 'ERA_DENY', reason: 'ERA denial', payer: c.payer })
-          claimUpserts.push(d.claim)
-        } else {
-          claimUpserts.push(tx.claim)
-        }
-        const pid = uid()
-        payments[pid] = { id: pid, claimId: c.id, clientId: c.clientId, payer: c.payer, kind: 'era', amount: ln.amount, adj: ln.adj || 0, ref: fileName, date: todayISO(), note: `ERA ${fileName}`, createdAt: at }
-      }
-      dispatch({ type: 'claimsTx', claimUpserts, payments, eraImports: { [eraId]: era } })
-      return { ok: true, id: eraId }
+      if (!Array.isArray(lines) || !lines.length) return { ok: false, msg: 'Enter at least one ERA line' }
+      const parsed = { fingerprint: null, errors: [], meta: { traceNo: fileName || 'Manual ERA', paymentDate: todayISO() },
+        lines: lines.map((ln, i) => {
+          const claim = state.claims[ln.claimId]
+          return { id: `manual-${i + 1}`, claimNo: claim?.no || ln.claimId || '',
+            status: ln.status || 'paid', statusCode: ln.status === 'denied' ? '4' : ln.status === 'partial' ? 'manual-partial' : '1',
+            charges: claim?.charges, paid: ln.amount, patientResp: 0,
+            adjustments: ln.adj ? [{ group: 'CO', reason: ln.status === 'denied' ? String(ln.carc || '') : 'manual', amount: ln.adj }] : [] }
+        }) }
+      const preview = previewEra(state, parsed)
+      const held = preview.rows.find((r) => !r.ready)
+      if (preview.errors.length || held) return { ok: false, msg: preview.errors[0] || `${held.line.claimNo || 'ERA line'}: ${held.reason}` }
+      const options = { fileName: fileName || 'Manual ERA', source: 'manual', selectedIds: parsed.lines.map((ln) => ln.id), eraId: uid(), at: Date.now() }
+      const plan = planEraImport(state, parsed, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'eraImportTx', parsed, options })
+      return { ok: true, msg: plan.msg, id: plan.era.id }
     },
     fileAppeal: (id, payload) => {
       const c = state.claims[id]
@@ -545,6 +600,11 @@ function createActions(state, dispatch) {
     updateClaim: (id, patch) => {
       const c = state.claims[id]
       if (!c) return { ok: false }
+      const financial = ['charges', 'paid', 'adj', 'secondaryPaid', 'secondary', 'method', 'remittance', 'patientResp']
+      if (financial.some((key) => Object.hasOwn(patch, key)) ||
+          ((c.method === 'secondary' || c.secondary) && Object.hasOwn(patch, 'status'))) {
+        return { ok: false, msg: 'Use a guarded remittance or COB action to change financial state' }
+      }
       dispatch({ type: 'claimsTx', claimUpserts: [{ ...c, ...patch, history: [...(c.history || []), { at: Date.now(), ev: 'Claim updated' }] }] })
       return { ok: true }
     },
@@ -561,29 +621,20 @@ function createActions(state, dispatch) {
     },
     updateQbo: (id, patch) => {
       const cur = (state.qbo || {})[id] || (state.invoices || {})[id] || { id }
-      const coll = state.qbo ? 'qbo' : 'invoices'
-      // if qbo collection doesn't exist, use invoices as backing but also write qbo for new code
       const item = { ...cur, ...patch, id, updatedAt: Date.now() }
-      if (state.qbo !== undefined || coll === 'qbo') {
-        dispatch({ type: 'record', coll: 'qbo', item })
-      } else {
-        dispatch({ type: 'record', coll: 'invoices', item })
-      }
-      // also keep billedFiles/invoices in sync for tests
-      if (state.invoices && state.invoices[id]) {
-        dispatch({ type: 'record', coll: 'invoices', item: { ...state.invoices[id], ...patch, id } })
-      }
+      dispatch({ type: 'claimsTx', qbo: { [id]: item },
+        ...(state.invoices?.[id] ? { invoices: { [id]: { ...state.invoices[id], ...patch, id } } } : {}) })
       return { ok: true }
     },
     denyClaim: (id, payload) => {
       const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
+      if (!c || c.status !== 'submitted' || (c.method !== 'secondary' && c.secondary)) return { ok: false, msg: 'Only a submitted claim without a pending primary COB change can be denied here' }
       dispatch({ type: 'claimsTx', claimUpserts: [denyPatch(c, payload).claim] })
       return { ok: true, msg: `${c.no} marked denied — ${denialOf(payload.code).fix}` }
     },
     rebillClaim: (id, dropIds) => {
       const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
+      if (!c || c.method === 'secondary' || c.secondary || c.status !== 'denied') return { ok: false, msg: 'Resolve COB before rebilling a denied primary claim' }
       if ((dropIds || []).length >= c.lines.length) return { ok: false, msg: 'Rebill needs at least one kept line — use Void to drop the whole claim' }
       const { voided, next, apptPatches } = rebillPatch(state, c, dropIds || [])
       dispatch({ type: 'claimsTx', claimUpserts: [voided, next], apptPatches })
@@ -591,14 +642,14 @@ function createActions(state, dispatch) {
     },
     voidClaim: (id) => {
       const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
+      if (!c || c.method === 'secondary' || c.secondary || !['draft', 'submitted'].includes(c.status)) return { ok: false, msg: 'Resolve or cancel secondary filings before voiding an open primary claim' }
       const tx = releasePatch(state, c)
       dispatch({ type: 'claimsTx', claimUpserts: [tx.claim], apptPatches: tx.apptPatches })
       return { ok: true, msg: `${c.no} voided — ${c.lines.length} line${c.lines.length > 1 ? 's' : ''} back in staging` }
     },
     dropClaimLine: (claimId, apptId) => {
       const c = state.claims[claimId]
-      if (!c) return { ok: false, msg: 'Claim not found' }
+      if (!c || c.method === 'secondary' || c.secondary || c.status !== 'draft' || !c.lines.some((l) => l.apptId === apptId)) return { ok: false, msg: 'Only an unlinked primary draft line can be released' }
       const r = dropLinePatch(state, c, apptId)
       const apptPatches = [{ id: apptId, patch: { claimId: null, billing: { ...(state.appts[apptId]?.billing || {}), status: null, claimNo: null } } }]
       if (r.removeClaim) {
@@ -609,48 +660,11 @@ function createActions(state, dispatch) {
       return { ok: true, msg: `Line moved back to staging — ${c.no} re-totaled` }
     },
     fileSecondaryClaim: (id) => {
-      const c = state.claims[id]
-      if (!c) return { ok: false, msg: 'Claim not found' }
-      // import is already available via closure? We'll require via dynamic
-      const client = (state.clients||[]).find((x)=>x.id===c.clientId)
-      if (!client?.secondary) return { ok: false, msg: 'No secondary on file' }
-      if (c.secondary) return { ok: false, msg: 'Secondary already filed' }
-      // use secondaryClaimPatch from claims lib (imported at top of file if present, else inline)
-      // we will compute here without import to avoid circular: duplicate logic minimal
-      const secPayer = (state.payers||[]).find((p)=>p.id===client.secondary.payerId)
-      const payerName = secPayer?.name || client.secondary.payerId || 'Secondary'
-      const at = Date.now()
-      const due = Math.round((c.charges - (c.adj||0) - (c.paid||0))*100)/100
-      const secondary = {
-        id: `${c.id}-sec-${at.toString(36)}`,
-        no: `${c.no}-S`,
-        clientId: c.clientId,
-        payer: payerName,
-        mode: 'insurance',
-        method: 'secondary',
-        secondary: c.id,
-        dosFrom: c.dosFrom,
-        dosTo: c.dosTo,
-        lines: c.lines.map((l)=>({ ...l, provider: l.provider||null })),
-        status: 'draft',
-        charges: due>0?due:c.charges,
-        units: c.units,
-        adj: 0,
-        paid: 0,
-        remittance: null,
-        denial: null,
-        parentNo: c.no,
-        version: 1,
-        timelyDue: c.timelyDue,
-        submittedAt: null,
-        closedAt: null,
-        createdAt: at,
-        note: `Secondary from ${c.no} — COB ${client.secondary.memberId||''}`,
-        history: [{ at, ev: `Secondary claim from ${c.no} — $${(due>0?due:c.charges).toFixed(2)} remaining, payer ${payerName} · member ${client.secondary.memberId||''}` }],
-      }
-      const primaryPatched = { ...c, secondary: secondary.id, history: [...c.history, { at, ev: `Secondary filing created → ${secondary.no} (${payerName})` }] }
-      dispatch({ type: 'claimsTx', claimUpserts: [primaryPatched, secondary] })
-      return { ok: true, msg: `${secondary.no} drafted from ${c.no} → ${payerName}`, newId: secondary.id }
+      const options = { at: Date.now(), newId: uid() }
+      const plan = planSecondaryFiling(state, id, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'secondaryFilingTx', id, options })
+      return { ok: true, msg: plan.msg, newId: plan.secondaryId }
     },
     addClaimNote: (id, text) => {
       const c = state.claims[id]

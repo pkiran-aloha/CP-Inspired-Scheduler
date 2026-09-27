@@ -6,7 +6,7 @@ import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
-import { dueOf } from '../lib/claims'
+import { dueOf, isPrimaryReceivable, patientResponsibilityOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
@@ -35,11 +35,12 @@ export default function GenerateInvoiceView() {
     const rows = []
     for (const cid of clientIds) {
       const cl = clients.find((c) => c.id === cid)
-      const clClaims = Object.values(claims).filter((c) => c.clientId === cid && (balanceOnly ? dueOf(c) > 0 : true))
-      rows.push({ client: cl, claims: clClaims, total: clClaims.reduce((s, c) => s + c.charges, 0), due: clClaims.reduce((s, c) => s + dueOf(c), 0) })
+      const clClaims = Object.values(claims).filter((c) => c.clientId === cid && isPrimaryReceivable(c) &&
+        (balanceOnly ? patientResponsibilityOf(state, c) > 0 : true))
+      rows.push({ client: cl, claims: clClaims, total: clClaims.reduce((s, c) => s + c.charges, 0), due: clClaims.reduce((s, c) => s + patientResponsibilityOf(state, c), 0) })
     }
     return rows
-  }, [clientIds, claims, clients, balanceOnly])
+  }, [clientIds, claims, clients, state.payments, balanceOnly])
 
   const kpis = {
     selected: clientIds.length,
@@ -51,30 +52,31 @@ export default function GenerateInvoiceView() {
   const generate = () => {
     if (!clientIds.length) { toast({ message: 'Select at least one client', kind: 'warn' }); return }
     const lines = [
-      `Invoice — ${settings.org?.name || 'Practice'} — ${todayISO()}`,
-      `Range ${range.days[0]} → ${range.days[range.days.length - 1]} — ${balanceOnly ? 'Balance only' : 'All charges'}`,
+      `Draft patient share — ${settings.org?.name || 'Practice'} — ${todayISO()}`,
+      `Range ${range.days[0]} → ${range.days[range.days.length - 1]} — ${balanceOnly ? 'Reported patient balances only' : 'All primary claims'}`,
+      'DRAFT: Only explicit payer-reported patient responsibility and self-pay are shown as patient share. Verify COB and coverage before billing. Unassigned payer balances are excluded.',
       '',
       ...invoiceRows.flatMap((r) => [
-        `Client: ${r.client?.name || r.client?.id} — ${r.claims.length} claims — Charges ${money(r.total)} — Due ${money(r.due)}`,
-        ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Due ${money(dueOf(c))} | ${c.status}`),
+        `Client: ${r.client?.name || r.client?.id} — ${r.claims.length} primary claims — Charges ${money(r.total)} — Reported patient share ${money(r.due)}`,
+        ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Practice A/R ${money(Math.max(0, dueOf(c)))} | Reported patient share ${money(patientResponsibilityOf(state, c))} | ${c.status}`),
         '',
       ]),
-      `Total charges ${money(kpis.total)} — Total due ${money(kpis.due)}`,
+      `Total charges ${money(kpis.total)} — Reported patient share ${money(kpis.due)} (verify before sending)`,
     ]
-    download(`Invoice-${todayISO()}.txt`, lines.join('\n'))
-    toast({ message: `Invoice generated — ${kpis.selected} clients, ${money(kpis.due)} due`, kind: 'ok' })
+    download(`Patient-share-draft-${todayISO()}.txt`, lines.join('\n'))
+    toast({ message: `Draft statement generated — ${kpis.selected} clients, ${money(kpis.due)} reported patient share`, kind: 'ok' })
     setPreview({ rows: invoiceRows, total: kpis.total, due: kpis.due })
   }
 
   return (
     <div className="sectionpage" data-testid="gi-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="file" title="Invoices" sub={`${range.label} · ${kpis.selected} clients selected · ${kpis.claims} claims · ${money(kpis.due)} due`}>
+      <SectionBar icon="file" title="Invoices · draft patient share" sub={`${range.label} · ${kpis.selected} clients selected · ${kpis.claims} primary claims · ${money(kpis.due)} reported patient share`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ invPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
           <input placeholder="Search clients" value={q} onChange={(e) => setQ(e.target.value)} data-testid="gi-search" style={{ fontSize: 13 }} />
         </div>
-        <button className="btn btn-sm btn-primary" data-testid="gi-generate" onClick={generate} style={{ borderRadius: 10 }}>Generate Invoice</button>
+        <button className="btn btn-sm btn-primary" data-testid="gi-generate" onClick={generate} style={{ borderRadius: 10 }}>Download draft statement</button>
       </SectionBar>
 
       <div className="batch-strip" data-testid="gi-kpis" style={{ margin: '16px', padding: '16px', gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
@@ -82,7 +84,7 @@ export default function GenerateInvoiceView() {
           ['Clients', kpis.selected, 'Selected', '#6366f1', 'gi-kpi-clients'],
           ['Claims', kpis.claims, balanceOnly ? 'Balance only' : 'All', '#0ea5e9', 'gi-kpi-claims'],
           ['Charges', money(kpis.total), 'Total', '#10b981', 'gi-kpi-charges'],
-          ['Due', money(kpis.due), 'Outstanding', '#f59e0b', 'gi-kpi-due'],
+          ['Reported patient share', money(kpis.due), 'Verify COB', '#f59e0b', 'gi-kpi-due'],
         ].map(([label, val, sub, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 14 })}</span>
@@ -90,7 +92,7 @@ export default function GenerateInvoiceView() {
           </div>
         ))}
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', fontSize: 13, background: 'var(--panel-2)', padding: '8px 14px', borderRadius: 20, border: '1px solid var(--line)' }}>
-          <input type="checkbox" checked={balanceOnly} onChange={(e) => setBalanceOnly(e.target.checked)} data-testid="gi-balance-only" /> Balance only
+          <input type="checkbox" checked={balanceOnly} onChange={(e) => setBalanceOnly(e.target.checked)} data-testid="gi-balance-only" /> Patient share only
         </label>
       </div>
 
@@ -104,13 +106,13 @@ export default function GenerateInvoiceView() {
           <div style={{ maxHeight: 520, overflowY: 'auto' }}>
             {filteredClients.map((c) => {
               const on = clientIds.includes(c.id)
-              const clClaims = Object.values(claims).filter((x) => x.clientId === c.id)
-              const due = clClaims.reduce((s, x) => s + dueOf(x), 0)
+              const clClaims = Object.values(claims).filter((x) => x.clientId === c.id && isPrimaryReceivable(x))
+              const due = clClaims.reduce((s, x) => s + patientResponsibilityOf(state, x), 0)
               return (
                 <div key={c.id} data-testid={`gi-client-${c.id}`} onClick={() => setClientIds((ids) => on ? ids.filter((x) => x !== c.id) : [...ids, c.id])} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: on ? '#f5f3ff' : undefined, borderLeft: `3px solid ${on ? '#6366f1' : 'transparent'}`, borderBottom: '1px solid var(--line)' }}>
                   <input type="checkbox" checked={on} readOnly style={{ pointerEvents: 'none' }} />
                   <PersonAvatar p={c} size={28} />
-                  <div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 13, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{clClaims.length} claims · {money(due)} due</span></div>
+                  <div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 13, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{clClaims.length} primary claims · {money(due)} reported patient share</span></div>
                 </div>
               )
             })}
@@ -121,10 +123,11 @@ export default function GenerateInvoiceView() {
         <div className="panel" style={{ flex: 1, minWidth: 0, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }} data-testid="gi-preview">
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#10b98114', color: '#10b981', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>Invoice Preview</b><div className="muted" style={{ fontSize: 12 }}>{kpis.selected} clients · {kpis.claims} claims · {money(kpis.due)} due</div></div>
+            <div><b style={{ fontSize: 14 }}>Draft statement preview</b><div className="muted" style={{ fontSize: 12 }}>{kpis.selected} clients · {kpis.claims} claims · {money(kpis.due)} reported patient share</div></div>
             <button className="btn btn-sm" data-testid="gi-clear" onClick={() => { setClientIds([]); setPreview(null) }} style={{ marginLeft: 'auto', borderRadius: 10 }}>Clear</button>
           </div>
           <div style={{ padding: 20 }}>
+            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Draft only: patient share uses explicit remittance responsibility or self-pay. Unallocated insurance balances and linked secondary drafts are not patient charges. Verify coverage and COB before sending.</p>
             {!invoiceRows.length ? (
               <div style={{ padding: 40, textAlign: 'center', border: '1px dashed var(--line)', borderRadius: 12 }}><b>Select clients to preview</b><div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Charges and balances will appear here.</div></div>
             ) : (
@@ -132,19 +135,19 @@ export default function GenerateInvoiceView() {
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
                   <span style={{ fontSize: 12, background: 'var(--panel-2)', padding: '6px 12px', borderRadius: 20, border: '1px solid var(--line)' }}>{settings.org?.name || 'Practice'}</span>
                   <span style={{ fontSize: 12, background: 'var(--panel-2)', padding: '6px 12px', borderRadius: 20, border: '1px solid var(--line)' }}>{range.label}</span>
-                  <span style={{ fontSize: 12, background: '#6366f1', color: '#fff', padding: '6px 12px', borderRadius: 20, fontWeight: 700 }}>{money(kpis.due)} due</span>
+                  <span style={{ fontSize: 12, background: '#6366f1', color: '#fff', padding: '6px 12px', borderRadius: 20, fontWeight: 700 }}>{money(kpis.due)} reported share</span>
                 </div>
                 {invoiceRows.map((r) => (
                   <div key={r.client?.id} style={{ border: '1px solid var(--line)', borderRadius: 12, padding: 16, marginBottom: 12, background: 'var(--panel-2)' }} data-testid={`gi-row-${r.client?.id}`}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                       <PersonAvatar p={r.client} size={28} />
                       <b style={{ fontSize: 14 }}>{r.client?.name}</b>
-                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700 }}>{money(r.due)} due · {money(r.total)} charges</span>
+                      <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700 }}>{money(r.due)} reported share · {money(r.total)} charges</span>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {r.claims.slice(0, 10).map((c) => (
                         <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: '1px dashed var(--line)' }}>
-                          <span><span className="ln-code">{c.no}</span> · {c.dosFrom} · {c.payer}</span><span><b>{money(dueOf(c))}</b> <span style={{ color: 'var(--muted)' }}>/ {money(c.charges)}</span></span>
+                          <span><span className="ln-code">{c.no}</span> · {c.dosFrom} · {c.payer}</span><span><b>{money(patientResponsibilityOf(state, c))}</b> <span style={{ color: 'var(--muted)' }}>reported / {money(Math.max(0, dueOf(c)))} practice A/R</span></span>
                         </div>
                       ))}
                       {r.claims.length > 10 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>+ {r.claims.length - 10} more claims</span>}

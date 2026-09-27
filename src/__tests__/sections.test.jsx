@@ -143,11 +143,19 @@ describe('reports desk', () => {
     expect(strip.querySelector('.rp-spark, .rt-chart, .rt-bars')).toBeFalsy() // chips are pure type — no plots
   })
 
-  it('agenda shows a per-day session count badge', async () => {
+  it('agenda shows a per-day session count badge (including days with no sessions)', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByRole('tab', { name: 'Agenda' }))
-    const badge = await screen.findByTestId('ag-count-' + new Date().toISOString().slice(0, 10))
-    expect(Number(badge.textContent)).toBeGreaterThan(0)
+    const badges = await waitFor(() => {
+      const found = [...container.querySelectorAll('[data-testid^="ag-count-"]')]
+      expect(found.length).toBeGreaterThan(0)
+      return found
+    })
+    for (const badge of badges) {
+      const rows = badge.closest('.ag-day').querySelectorAll('.ag-row')
+      expect(Number(badge.textContent)).toBe(rows.length)
+    }
+    expect(badges.some((badge) => Number(badge.textContent) > 0)).toBe(true)
   })
   it('severity filters and inline verify work on the quality desk (chart removed)', async () => {
     const { container } = render(<App />)

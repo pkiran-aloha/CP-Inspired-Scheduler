@@ -5,8 +5,7 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
-import { isoDate, addDays, parseISO, fmtDayLabel } from '../lib/date'
-import { dueOf } from '../lib/claims'
+import { isoDate, addDays, parseISO } from '../lib/date'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -21,13 +20,46 @@ export default function BilledFilesView() {
   const [statusF, setStatusF] = useState('all')
 
   const files = useMemo(() => {
-    const out = []
+    // Current submissions live in the first-class billedFiles ledger. Also read
+    // older claim-embedded files so restoring a legacy workspace doesn't hide them.
+    const out = Object.values(state.billedFiles || {}).map((f) => {
+      const related = (f.claimIds || []).map((id) => claims[id]).filter(Boolean)
+      const claim = related[0] || null
+      return { ...f, format: f.format || '837p', status: f.status || 'sent', related, claim,
+        client: clients.find((c) => c.id === claim?.clientId), source: 'ledger' }
+    })
     for (const c of Object.values(claims)) {
-      if (!c.billedFiles) continue
-      for (const f of c.billedFiles) out.push({ ...f, claim: c, client: clients.find((x) => x.id === c.clientId) })
+      for (const [index, f] of (c.billedFiles || []).entries()) {
+        out.push({ ...f, id: f.id || `${c.id}-${index}`, format: f.format || '837p', status: f.status || 'sent',
+          related: [c], claim: c, client: clients.find((x) => x.id === c.clientId), source: 'claim', legacyIndex: index })
+      }
     }
-    return out.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
-  }, [claims, clients])
+    return out.sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || 0) - (a.createdAt || 0))
+  }, [state.billedFiles, claims, clients])
+
+  // Never fabricate an old artifact from today's claim data: it may have changed.
+  const contentOf = (f) => typeof f.content === 'string' && f.content.length ? f.content : null
+  const downloadFile = (f) => {
+    const content = contentOf(f)
+    if (!content) { toast({ message: 'No downloadable content is stored for this file', kind: 'warn' }); return false }
+    download(f.fileName || `${f.claim?.no || f.id}.txt`, content, f.format?.includes('csv') ? 'text/csv' : 'text/plain')
+    return true
+  }
+  const resend = (f) => {
+    if (f.status === 'void') return
+    const content = contentOf(f)
+    if (!content) { toast({ message: 'No artifact available to resend', kind: 'warn' }); return }
+    if (f.source === 'claim') {
+      const updated = f.claim.billedFiles.map((old, i) => i === f.legacyIndex
+        ? { ...old, sendCount: (old.sendCount || 1) + 1, status: 'sent', lastSentAt: Date.now() } : old)
+      actions.updateClaim(f.claim.id, { billedFiles: updated })
+    } else {
+      const result = actions.resendBilledFile(f.id)
+      if (!result.ok) { toast({ message: result.msg, kind: 'warn' }); return }
+    }
+    downloadFile(f)
+    toast({ message: `${f.fileName || f.id} prepared for manual resend — file downloaded`, kind: 'ok' })
+  }
 
   const filtered = useMemo(() => {
     let out = files
@@ -35,7 +67,7 @@ export default function BilledFilesView() {
     if (statusF !== 'all') out = out.filter((f) => f.status === statusF)
     if (q.trim()) {
       const t = q.trim().toLowerCase()
-      out = out.filter((f) => `${f.claim.no} ${f.client?.name} ${f.fileName} ${f.format}`.toLowerCase().includes(t))
+      out = out.filter((f) => `${f.related.map((c) => c.no).join(' ')} ${f.client?.name || ''} ${f.payer || ''} ${f.fileName || ''} ${f.format}`.toLowerCase().includes(t))
     }
     return out
   }, [files, formatF, statusF, q])
@@ -105,17 +137,17 @@ export default function BilledFilesView() {
             <div className="py-thead" style={{ gridTemplateColumns: '120px 1.4fr 1fr 90px 100px 120px 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>
               <span>Date</span><span>Client / Claim</span><span>File</span><span>Format</span><span>Status</span><span>Amount</span><span>Actions</span>
             </div>
-            {filtered.slice(0, 100).map((f, idx) => (
-              <div key={`${f.claim.id}-${idx}`} className="py-trow" data-testid={`bf-row-${f.claim.id}-${idx}`} style={{ gridTemplateColumns: '120px 1.4fr 1fr 90px 100px 120px 1fr', minHeight: 56, padding: '12px 16px' }}>
-                <div className="py-cell" style={{ fontSize: 12 }}>{f.date || f.claim.dosFrom}</div>
-                <div className="py-cell"><div><b style={{ fontSize: 13 }}>{f.client?.name || f.claim.clientId}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}><span className="ln-code">{f.claim.no}</span> · {f.claim.payer}</div></div></div>
-                <div className="py-cell" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.fileName || `${f.claim.no}.${f.format}`}</div>
+            {filtered.slice(0, 100).map((f) => (
+              <div key={`${f.source}-${f.id}`} className="py-trow" data-testid={`bf-row-${f.id}`} style={{ gridTemplateColumns: '120px 1.4fr 1fr 90px 100px 120px 1fr', minHeight: 56, padding: '12px 16px' }}>
+                <div className="py-cell" style={{ fontSize: 12 }}>{f.date || f.claim?.dosFrom || '—'}</div>
+                <div className="py-cell"><div><b style={{ fontSize: 13 }}>{f.clientCount > 1 ? `${f.clientCount} clients` : f.client?.name || f.payer || 'File'}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}><span className="ln-code">{f.claim?.no || '—'}</span>{f.related.length > 1 ? ` + ${f.related.length - 1} more` : ''} · {f.payer || f.claim?.payer || '—'}</div></div></div>
+                <div className="py-cell" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.fileName}>{f.fileName || `${f.claim?.no || f.id}.${f.format}`}<small style={{ display: 'block', color: 'var(--muted)' }}>{f.sendCount || 1} send{(f.sendCount || 1) === 1 ? '' : 's'}</small></div>
                 <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: 'var(--panel-2)' }}>{f.format}</span></div>
                 <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: f.status === 'sent' ? '#ecfdf5' : f.status === 'failed' ? '#fef2f2' : '#fef9c3' }}>{f.status}</span></div>
-                <div className="py-cell"><b style={{ fontSize: 13 }}>{money(f.claim.charges)}</b></div>
+                <div className="py-cell"><b style={{ fontSize: 13 }}>{money(f.related.reduce((sum, c) => sum + (c.charges || 0), 0))}</b></div>
                 <div className="py-cell" style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-xs" data-testid={`bf-download-${f.claim.id}-${idx}`} onClick={() => { const content = `Claim ${f.claim.no} — ${f.format} — ${f.fileName || ''}\nCharges ${money(f.claim.charges)}`; download(f.fileName || `${f.claim.no}.${f.format}.txt`, content); toast({ message: `Downloaded ${f.fileName || f.claim.no}`, kind: 'ok' }) }} style={{ borderRadius: 8 }}>Download</button>
-                  <button className="btn btn-xs" data-testid={`bf-resend-${f.claim.id}-${idx}`} onClick={() => toast({ message: `Re-queued ${f.claim.no}`, kind: 'ok' })} style={{ borderRadius: 8 }}>Resend</button>
+                  <button className="btn btn-xs" data-testid={`bf-download-${f.id}`} disabled={!contentOf(f)} title={contentOf(f) ? 'Download the stored artifact' : 'Original file content was not stored'} onClick={() => { if (downloadFile(f)) toast({ message: `Downloaded ${f.fileName || f.id}`, kind: 'ok' }) }} style={{ borderRadius: 8 }}>Download</button>
+                  <button className="btn btn-xs" data-testid={`bf-resend-${f.id}`} disabled={f.status === 'void' || !contentOf(f)} title={!contentOf(f) ? 'Original file content was not stored' : 'Download a copy for manual delivery (no network send)'} onClick={() => resend(f)} style={{ borderRadius: 8 }}>Prepare resend</button>
                 </div>
               </div>
             ))}

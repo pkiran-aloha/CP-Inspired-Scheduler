@@ -22,11 +22,13 @@ describe('U7 billingDocs builders (chunk 47)', () => {
       claims[id] = { ...base, id, no: `CLM-INV-${i}`, clientId: cl.id, payer: 'Aetna', status: 'submitted', charges: 100*(i+1), paid: 0, adj:0, dosFrom: '2026-10-15', dosTo: '2026-10-15', lines: [{ ...base.lines[0], charge: 100*(i+1), units:1, rate:100*(i+1), dos: '2026-10-15' }], history: [] }
     })
     const testState = { ...state, claims: { ...state.claims, ...claims } }
-    const invoicesSingle = buildInvoices(testState, { from: '2026-10-01', to: '2026-10-31', balanceOnly: true, perClient: false })
+    // Insurer-only balances remain in practice/payer A/R, not patient invoices.
+    expect(buildInvoices(testState, { from: '2026-10-01', to: '2026-10-31' })[0].claims).toHaveLength(0)
+    const invoicesSingle = buildInvoices(testState, { for: 'payer', from: '2026-10-01', to: '2026-10-31', balanceOnly: true, perClient: false })
     expect(invoicesSingle.length).toBe(1)
     expect(invoicesSingle[0].claims.length).toBe(2)
 
-    const invoicesPerClient = buildInvoices(testState, { from: '2026-10-01', to: '2026-10-31', balanceOnly: true, perClient: true })
+    const invoicesPerClient = buildInvoices(testState, { for: 'payer', from: '2026-10-01', to: '2026-10-31', balanceOnly: true, perClient: true })
     expect(invoicesPerClient.length).toBe(2)
     expect(invoicesPerClient[0].fileName).toMatch(/INV-/)
     expect(invoicesPerClient[1].fileName).toMatch(/INV-/)
@@ -37,11 +39,11 @@ describe('U7 billingDocs builders (chunk 47)', () => {
     const base = Object.values(state.claims)[0]
     const claims = { 'clm-tax': { ...base, id:'clm-tax', no:'CLM-100', clientId: state.clients[0].id, payer:'Aetna', status:'submitted', charges:100, paid:0, adj:0, dosFrom:'2026-10-15', dosTo:'2026-10-15', lines:[{...base.lines[0], charge:100, dos:'2026-10-15'}], history:[] } }
     const testState = { ...state, claims: { ...state.claims, ...claims } }
-    const noTax = buildInvoices(testState, { from:'2026-10-01', to:'2026-10-31', taxId:false, taxPct:0 })
+    const noTax = buildInvoices(testState, { for: 'payer', from:'2026-10-01', to:'2026-10-31', taxId:false, taxPct:0 })
     expect(noTax[0].content).not.toContain('TAX,')
     expect(noTax[0].content).not.toContain('Tax %')
 
-    const withTax = buildInvoices(testState, { from:'2026-10-01', to:'2026-10-31', taxId:true, taxPct:10 })
+    const withTax = buildInvoices(testState, { for: 'payer', from:'2026-10-01', to:'2026-10-31', taxId:true, taxPct:10 })
     expect(withTax[0].content).toContain('TAX,')
     expect(withTax[0].content).toContain('10%')
   })
