@@ -509,7 +509,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
           <button className="btn btn-sm" onClick={() => { download(`${claim.no}.csv`, claimCsv(state, claim)); toast({ message: `${claim.no} exported`, kind: 'ok' }) }} data-testid="clm-csv" style={{ borderRadius: 9 }}>{Icon.download({ size: 12 })} CSV</button>
           <button className="btn btn-sm" onClick={() => window.print()} data-testid="clm-print" style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} Print</button>
         </div>
-        <div style={{ display: 'flex', gap: 20, marginTop: 16, fontSize: 13 }}><span>charges <b>{money(claim.charges)}</b></span>{claim.adj ? <span>adj <b style={{ color: '#ef4444' }}>-{money(claim.adj)}</b></span> : null}{claim.secondaryPaid > 0 && <span>secondary receipts <b>-{money(claim.secondaryPaid)}</b></span>}<span>due <b style={{ color: due > 0 ? '#ef4444' : '#10b981' }}>{money(due)}</b></span>{claim.parentNo ? <span>Prior claim <b>{claim.parentNo}</b></span> : null}</div>
+        <div style={{ display: 'flex', gap: 20, marginTop: 16, fontSize: 13 }}><span>charges <b>{money(claim.charges)}</b></span>{claim.adj ? <span>adj <b style={{ color: '#ef4444' }}>-{money(claim.adj)}</b></span> : null}{claim.secondaryPaid > 0 && <span>secondary receipts <b>-{money(claim.secondaryPaid)}</b></span>}{claim.patientPaid > 0 && <span>patient receipts <b>-{money(claim.patientPaid)}</b></span>}<span>due <b style={{ color: due > 0 ? '#ef4444' : '#10b981' }}>{money(due)}</b></span>{claim.parentNo ? <span>Prior claim <b>{claim.parentNo}</b></span> : null}</div>
       </header>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: 'var(--line)' }}>

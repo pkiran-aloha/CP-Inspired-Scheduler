@@ -58,7 +58,7 @@ export default function GenerateInvoiceView() {
       '',
       ...invoiceRows.flatMap((r) => [
         `Client: ${r.client?.name || r.client?.id} — ${r.claims.length} primary claims — Charges ${money(r.total)} — Reported patient share ${money(r.due)}`,
-        ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Practice A/R ${money(Math.max(0, dueOf(c)))} | Reported patient share ${money(patientResponsibilityOf(state, c))} | ${c.status}`),
+        ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Patient receipts ${money(c.patientPaid || 0)} | Practice A/R ${money(Math.max(0, dueOf(c)))} | Remaining reported patient share ${money(patientResponsibilityOf(state, c))} | ${c.status}`),
         '',
       ]),
       `Total charges ${money(kpis.total)} — Reported patient share ${money(kpis.due)} (verify before sending)`,
@@ -147,7 +147,7 @@ export default function GenerateInvoiceView() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {r.claims.slice(0, 10).map((c) => (
                         <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '6px 0', borderBottom: '1px dashed var(--line)' }}>
-                          <span><span className="ln-code">{c.no}</span> · {c.dosFrom} · {c.payer}</span><span><b>{money(patientResponsibilityOf(state, c))}</b> <span style={{ color: 'var(--muted)' }}>reported / {money(Math.max(0, dueOf(c)))} practice A/R</span></span>
+                          <span><span className="ln-code">{c.no}</span> · {c.dosFrom} · {c.payer}</span><span><b>{money(patientResponsibilityOf(state, c))}</b> <span style={{ color: 'var(--muted)' }}>reported share remaining · {money(c.patientPaid || 0)} patient received · {money(Math.max(0, dueOf(c)))} practice A/R</span> {patientResponsibilityOf(state, c) > 0 && <button className="btn btn-xs" data-testid={`gi-patient-${c.id}`} onClick={() => actions.setUI({ section: 'bil-payments', patientClaimId: c.id })}>Record receipt</button>}</span>
                         </div>
                       ))}
                       {r.claims.length > 10 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>+ {r.claims.length - 10} more claims</span>}

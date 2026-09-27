@@ -2,7 +2,7 @@
 // *live* state so rapid repeat dispatches cannot duplicate money. Secondary receipts
 // reduce the linked primary's balance exactly once; secondary adjustments do not
 // silently write off the primary/patient balance.
-import { dueOf, payPatch } from './claims'
+import { dueOf, payPatch, patientLedgerMatches, patientResponsibilityOf, PATIENT_AR_BUCKET } from './claims'
 
 const r2 = (n) => Math.round(n * 100) / 100
 const fail = (msg) => ({ ok: false, msg })
@@ -21,11 +21,27 @@ const activeRef = (state, id, ref) => {
   return payments.some((p) => p.claimId === id && String(p.ref || '').toUpperCase() === ref.toUpperCase() && !p.reversalOf && !reversed.has(p.id))
 }
 const claimIsLinked = (state, claim) => claim.secondary && state.claims?.[claim.secondary] && state.claims[claim.secondary].status !== 'void'
+const activePatientRef = (state, clientId, ref) => {
+  const payments = Object.values(state.payments || {})
+  const reversed = new Set(payments.map((p) => p.reversalOf).filter(Boolean))
+  return payments.some((p) => p.clientId === clientId && ['patient', 'unapplied'].includes(p.kind) &&
+    !p.reversalOf && !reversed.has(p.id) && String(p.ref || '').trim().toUpperCase() === ref.toUpperCase())
+}
+const invoicePatch = (state, claim, at) => {
+  if (claim.mode !== 'selfpay') return {}
+  return Object.fromEntries(Object.values(state.invoices || {}).filter((inv) => inv.claimId === claim.id && inv.status !== 'void').map((inv) =>
+    [inv.id, { ...inv, due: Math.max(0, dueOf(claim)), status: dueOf(claim) <= 0 ? 'paid' : 'open', updatedAt: at }]))
+}
 
 export function planClaimPayment(state, id, payload = {}, { at = Date.now(), paymentId } = {}) {
   const claim = state.claims?.[id]
   if (!claim) return fail('Claim not found')
   if (!paymentId || state.payments?.[paymentId]) return fail('Payment identifier is missing or already in use')
+  if (payload.kind && !['writeoff', 'manual', 'check'].includes(payload.kind)) return fail('Use the dedicated patient receipt or ERA workflow for this payment type')
+  if (claim.patientPaid || (claim.method === 'secondary' && state.claims?.[claim.secondary]?.patientPaid)) {
+    return fail('Patient receipts are already allocated. Reverse them locally before changing the payer remittance; any real refund must be handled separately.')
+  }
+  if (claim.method !== 'secondary' && !patientLedgerMatches(state, claim)) return fail('Patient receipt ledger does not reconcile; review before posting')
   const hasPatientReport = payload.patientResp != null && String(payload.patientResp).trim() !== ''
   const amount = cents(payload.amount), adj = cents(payload.adj ?? 0), patientResp = hasPatientReport ? cents(payload.patientResp) : 0
   if (!open(claim) && !(claim.status === 'denied' && payload.kind === 'writeoff' && amount === 0 && adj > 0)) {
@@ -49,7 +65,7 @@ export function planClaimPayment(state, id, payload = {}, { at = Date.now(), pay
   let parent = null
   if (claim.method === 'secondary') {
     parent = state.claims?.[claim.secondary]
-    if (!parent || parent.secondary !== id || !open(parent) || parent.cobReviewNeeded ||
+    if (!parent || parent.secondary !== id || !open(parent) || parent.cobReviewNeeded || !patientLedgerMatches(state, parent) ||
         cents(parent.secondaryPaid || 0) !== cents(claim.paid || 0)) return fail('Linked primary COB ledger does not reconcile; review it before posting')
     const parentDue = cents(dueOf(parent))
     if (parentDue === null || amount > parentDue) return fail('Secondary payer amount exceeds the remaining primary balance')
@@ -77,6 +93,49 @@ export function planClaimPayment(state, id, payload = {}, { at = Date.now(), pay
     msg: `${patched.no}${patched.status === 'paid' ? ' paid' : ''} — $${paid.toFixed(2)} posted${adjustment ? ` · $${adjustment.toFixed(2)} adjustment` : ''}${parent ? ' (linked primary updated)' : ''}` }
 }
 
+// Patient cash belongs to the primary receivable, even when a secondary filing
+// supplied the PR report. Never write it to payer-paid or the child's remittance.
+// This records money already received elsewhere; it does not charge a card.
+export function planPatientReceipt(state, id, payload = {}, { at = Date.now(), paymentId } = {}) {
+  const claim = state.claims?.[id]
+  if (!claim || claim.method === 'secondary' || !open(claim) || claim.cobReviewNeeded) {
+    return fail('Select an open primary claim with a reviewed patient balance')
+  }
+  if (payload.clientId && payload.clientId !== claim.clientId) return fail('The selected client does not own this claim')
+  if (!(state.clients || []).some((client) => client.id === claim.clientId)) return fail('Claim client is missing; review before collecting')
+  if (!paymentId || state.payments?.[paymentId]) return fail('Receipt identifier is missing or already in use')
+  if (!patientLedgerMatches(state, claim)) return fail('Patient receipt ledger does not reconcile; review before posting')
+  const amount = cents(payload.amount)
+  const patientDue = cents(patientResponsibilityOf(state, claim))
+  if (amount === null || amount <= 0) return fail('Enter a positive amount with at most two decimal places')
+  if (patientDue === null || !patientDue) return fail('No documented, collectible patient share is available on this claim')
+  if (amount > patientDue) return fail('Patient receipt exceeds the remaining reported patient share')
+  const method = payload.method || 'check'
+  if (!['check', 'eft', 'cash', 'card'].includes(method)) return fail('Choose a patient receipt method (not ERA)')
+  const ref = String(payload.ref || '').trim()
+  if (!ref) return fail('A receipt reference is required')
+  if (activeRef(state, id, ref) || activePatientRef(state, claim.clientId, ref)) {
+    return fail('This active receipt reference is already recorded for the claim or client')
+  }
+  const date = payload.date || new Date(at).toISOString().slice(0, 10)
+  if (!validDate(date)) return fail('Enter a valid receipt date')
+  const linked = state.claims?.[claim.secondary]
+  const reportSource = linked?.method === 'secondary' && linked.secondary === id && linked.status !== 'void' ? linked : claim
+  const paid = amount / 100
+  const updated = { ...claim, patientPaid: r2((claim.patientPaid || 0) + paid),
+    history: [...(claim.history || []), { at, ev: `Patient receipt $${paid.toFixed(2)} recorded locally (${ref}); no card charge or bank reconciliation` }] }
+  const balance = dueOf(updated)
+  updated.status = balance <= 0 ? 'paid' : 'partially_paid'
+  updated.closedAt = balance <= 0 ? at : null
+  const payment = { id: paymentId, claimId: id, patientSourceClaimId: reportSource.id,
+    clientId: claim.clientId, payer: PATIENT_AR_BUCKET, amount: paid, adj: 0, patientResp: null,
+    ref, date, method, kind: 'patient', note: String(payload.note || '').trim(),
+    reconciled: false, attachments: [], reversalOf: null, createdAt: at, createdBy: 'Aloha (local)' }
+  const invoices = invoicePatch(state, updated, at)
+  return { ok: true, claimUpserts: [updated], payments: { [paymentId]: payment }, invoices, payment,
+    msg: `Patient receipt ${ref} — $${paid.toFixed(2)} recorded locally for ${claim.no}; ${Math.max(0, balance).toFixed(2)} remains in practice A/R` }
+}
+
 export function planUnappliedReceipt(state, payload = {}, { at = Date.now(), paymentId } = {}) {
   if (payload.claimId) return fail('An unapplied receipt cannot name a claim')
   if (!paymentId || state.payments?.[paymentId]) return fail('Payment identifier is missing or already in use')
@@ -91,12 +150,39 @@ export function planUnappliedReceipt(state, payload = {}, { at = Date.now(), pay
   if (!validDate(date)) return fail('Enter a valid receipt date')
   const payments = Object.values(state.payments || {})
   const reversed = new Set(payments.map((p) => p.reversalOf).filter(Boolean))
-  if (payments.some((p) => p.clientId === client.id && !p.claimId && String(p.ref || '').toUpperCase() === ref.toUpperCase() && !p.reversalOf && !reversed.has(p.id))) return fail('This unapplied receipt reference already exists for the client')
+  if (payments.some((p) => p.clientId === client.id && !p.claimId && String(p.ref || '').toUpperCase() === ref.toUpperCase() && !p.reversalOf && !reversed.has(p.id)) ||
+      activePatientRef(state, client.id, ref)) return fail('This receipt reference is already active for the client')
   const payment = { id: paymentId, amount: amount / 100, adj: 0, patientResp: 0, clientId: client.id,
     payer: String(payload.payer || client.insurer || 'Unapplied'), date, method: payload.method || 'check',
     ref, note: payload.note || '', kind: 'unapplied', claimId: null, reversalOf: null, createdAt: at,
     reconciled: false, attachments: [], createdBy: 'Aloha (local)' }
   return { ok: true, payments: { [paymentId]: payment }, payment, msg: `Unapplied receipt ${ref} recorded for ${client.name} — not applied to a claim` }
+}
+
+// An exportable local audit trail, not proof of a bank deposit or a refund.
+// Keep signed reversals and the claim that documented the original PR.
+export function buildPatientReceiptAudit(state) {
+  const payments = Object.values(state.payments || {}).filter((p) => p.kind === 'patient')
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0) || String(a.id).localeCompare(String(b.id)))
+  const reversed = new Set(payments.map((p) => p.reversalOf).filter(Boolean))
+  const csv = (value) => {
+    const text = String(value ?? '')
+    const safe = /^\s*[=+@-]/.test(text) ? `'${text}` : text
+    return `"${safe.replace(/"/g, '""')}"`
+  }
+  return [
+    '# Local patient receipt audit only — no card processing, bank reconciliation or refund confirmation',
+    'payment_id,claim,source_remittance_claim,client,client_id,date,recorded_at,kind,method,reference,amount,reversal_of,note,local_status',
+    ...payments.map((p) => [
+      p.id, state.claims?.[p.claimId]?.no || p.claimId,
+      state.claims?.[p.patientSourceClaimId]?.no || p.patientSourceClaimId,
+      (state.clients || []).find((c) => c.id === p.clientId)?.name || p.clientId,
+      p.clientId, p.date, Number.isFinite(p.createdAt) ? new Date(p.createdAt).toISOString() : '',
+      p.reversalOf ? 'local_reversal' : 'patient_receipt', p.method, p.ref,
+      Number(p.amount).toFixed(2), p.reversalOf || '', p.note || '',
+      p.reversalOf ? 'reversed_locally' : reversed.has(p.id) ? 'reversed' : 'active',
+    ].map((v, i) => i === 10 ? v : csv(v)).join(',')),
+  ].join('\n')
 }
 
 export function planVoidClaimPayment(state, paymentId, { at = Date.now(), reversalId } = {}) {
@@ -115,6 +201,25 @@ export function planVoidClaimPayment(state, paymentId, { at = Date.now(), revers
   }
   const claim = state.claims?.[pay.claimId]
   if (!claim) return fail('Claim not found')
+  if (pay.kind === 'patient') {
+    if (claim.method === 'secondary' || claim.status === 'void' || !patientLedgerMatches(state, claim) ||
+        cents(pay.amount) === null || pay.amount <= 0 || cents(claim.patientPaid || 0) < cents(pay.amount)) {
+      return fail('Patient receipt no longer reconciles with the primary; review before reversing')
+    }
+    const updated = { ...claim, patientPaid: r2((claim.patientPaid || 0) - pay.amount),
+      history: [...(claim.history || []), { at, ev: `Patient receipt ${pay.ref} reversed locally — $${pay.amount.toFixed(2)}; no bank refund issued` }] }
+    const balance = dueOf(updated)
+    updated.status = balance <= 0 ? 'paid' : (updated.paid || updated.secondaryPaid || updated.patientPaid || updated.adj) ? 'partially_paid' : updated.submittedAt ? 'submitted' : 'draft'
+    updated.closedAt = balance <= 0 ? claim.closedAt || at : null
+    const reversal = { ...pay, id: reversalId, amount: r2(-pay.amount), ref: `VOID-${pay.ref}`,
+      date: new Date(at).toISOString().slice(0, 10), reversalOf: pay.id, reconciled: false,
+      note: `Local reversal of patient receipt ${pay.ref}; refund not issued`, createdAt: at }
+    return { ok: true, claimUpserts: [updated], payments: { [reversalId]: reversal }, invoices: invoicePatch(state, updated, at), reversal,
+      msg: `Patient receipt ${pay.ref} reversed locally — no refund or bank transaction issued` }
+  }
+  const parentClaim = claim.method === 'secondary' ? state.claims?.[claim.secondary] : claim
+  if ((parentClaim?.patientPaid || 0) > 0) return fail('Reverse allocated patient receipts locally before changing their payer remittance')
+  if (parentClaim && !patientLedgerMatches(state, parentClaim)) return fail('Patient receipt ledger does not reconcile; review before voiding')
   if (claim.method !== 'secondary' && claimIsLinked(state, claim)) return fail('Cancel or resolve the linked secondary filing before voiding a primary remittance')
   const amount = cents(pay.amount), adj = cents(pay.adj || 0), patientResp = cents(pay.patientResp || 0)
   if ([amount, adj, patientResp].some((v) => v === null) || amount > cents(claim.paid || 0) || adj > cents(claim.adj || 0)) {

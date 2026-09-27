@@ -55,8 +55,8 @@ export default function ArManagerView() {
   const exportCsv = () => {
     const rows = view === 'client' ? filteredByClient : filteredByPayer
     const header = view === 'client'
-      ? 'client,client_id,last_payment_date,last_payment_method,current,31_60,61_90,91_120,121_plus,balance,reported_patient_share,over90_pct'
-      : 'filing_or_patient_bucket,client_count,current,31_60,61_90,91_120,121_plus,balance,reported_patient_share,over90'
+      ? 'client,client_id,last_payment_date,last_payment_method,current,31_60,61_90,91_120,121_plus,balance,remaining_patient_share,over90_pct'
+      : 'filing_or_patient_bucket,client_count,current,31_60,61_90,91_120,121_plus,balance,remaining_patient_share,over90'
     const lines = [
       `# ${settings.org?.name || 'Practice'} — AR as of ${asOf}`,
       header,
@@ -91,7 +91,7 @@ export default function ArManagerView() {
       <div className="batch-strip" data-testid="ar-kpis" style={{ margin: '16px', padding: '16px', gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
         {[
           ['total', 'Total A/R', money(ar.totals.totalAR), `${ar.byClient.length} clients · primary ledger only`, '#6366f1', 'ar-kpi-total'],
-          ['patient', 'Reported patient share', money(ar.totals.patientAR), `Of A/R; ${money(ar.totals.unassignedAR)} not assigned to patient`, '#0d9488', 'ar-kpi-patient'],
+          ['patient', 'Remaining patient share', money(ar.totals.patientAR), `After local receipts; ${money(ar.totals.unassignedAR)} not assigned to patient`, '#0d9488', 'ar-kpi-patient'],
           ['over90', '>90d', money(ar.totals.over90), `${ar.totals.totalAR ? Math.round((ar.totals.over90 / ar.totals.totalAR) * 100) : 0}% of total`, '#ef4444', 'ar-kpi-over90'],
           ['dso', 'DSO', ar.totals.dso != null ? `${ar.totals.dso}d` : '—', `Billed 90d ${money(ar.totals.billed90)}`, '#0ea5e9', 'ar-kpi-dso'],
           ['collections', 'Collections 90d', ar.totals.collectionsRate != null ? `${ar.totals.collectionsRate}%` : '—', `Paid 90d ${money(ar.totals.paid90)}`, '#10b981', 'ar-kpi-collections'],
@@ -168,11 +168,11 @@ export default function ArManagerView() {
                   </div>
                   <b style={{ fontSize: 13 }}>Open claims ({drillClient.claims.length})</b>
                   <div className="tablewrap" style={{ maxHeight: 260, overflow: 'auto', borderRadius: 10, border: '1px solid var(--line)', marginTop: 10 }}>
-                    <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>DOS</th><th>Practice A/R</th><th>Reported PR</th><th>Status</th></tr></thead><tbody>{drillClient.claims.slice(0, 30).map((c) => (<tr key={c.id} data-testid={`ar-drill-claim-${c.id}`}><td><span className="ln-code">{c.no}</span></td><td>{c.dosFrom}</td><td style={{ fontWeight: 700 }}>{money(dueOf(c))}</td><td>{money(patientResponsibilityOf(state, c))}</td><td>{c.status}</td></tr>))}</tbody></table>
+                    <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>DOS</th><th>Practice A/R</th><th>Remaining patient share</th><th>Status</th></tr></thead><tbody>{drillClient.claims.slice(0, 30).map((c) => (<tr key={c.id} data-testid={`ar-drill-claim-${c.id}`}><td><span className="ln-code">{c.no}</span></td><td>{c.dosFrom}</td><td style={{ fontWeight: 700 }}>{money(dueOf(c))}</td><td>{money(patientResponsibilityOf(state, c))}{patientResponsibilityOf(state, c) > 0 && <button className="btn btn-xs" style={{ display: 'block' }} data-testid={`ar-patient-${c.id}`} onClick={() => actions.setUI({ section: 'bil-payments', patientClaimId: c.id })}>Record receipt</button>}</td><td>{c.status}</td></tr>))}</tbody></table>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                     <button className="btn btn-sm btn-primary" data-testid="ar-drill-statement" onClick={() => openStatement(drillClient.clientId)} style={{ borderRadius: 10 }}>Statement</button>
-                    <button className="btn btn-sm" data-testid="ar-drill-export" onClick={() => { const rows = drillClient.claims; const csv = ['claim,client,payer,dos_from,dos_to,charges,primary_paid,secondary_paid,adj,due,reported_patient_share,status', ...rows.map((c) => `${c.no},"${drillClient.clientName}",${c.payer},${c.dosFrom},${c.dosTo},${c.charges},${c.paid || 0},${c.secondaryPaid || 0},${c.adj || 0},${dueOf(c)},${patientResponsibilityOf(state, c)},${c.status}`)].join('\n'); download(`AR-${drillClient.clientName}-${asOf}.csv`, csv) }} style={{ borderRadius: 10 }}>Export CSV</button>
+                    <button className="btn btn-sm" data-testid="ar-drill-export" onClick={() => { const rows = drillClient.claims; const csv = ['claim,client,payer,dos_from,dos_to,charges,primary_paid,secondary_paid,patient_received,adj,due,remaining_patient_share,status', ...rows.map((c) => `${c.no},"${drillClient.clientName}",${c.payer},${c.dosFrom},${c.dosTo},${c.charges},${c.paid || 0},${c.secondaryPaid || 0},${c.patientPaid || 0},${c.adj || 0},${dueOf(c)},${patientResponsibilityOf(state, c)},${c.status}`)].join('\n'); download(`AR-${drillClient.clientName}-${asOf}.csv`, csv) }} style={{ borderRadius: 10 }}>Export CSV</button>
                   </div>
                 </>
               )}

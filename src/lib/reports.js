@@ -478,6 +478,7 @@ const REPORTS_RAW = [
             no: c.no, client: clients[c.clientId]?.name || '—', payer: c.payer, kind: c.method === 'secondary' ? 'COB filing (not A/R)' : 'Primary receivable',
             period: c.dosFrom === c.dosTo ? c.dosFrom : `${c.dosFrom.slice(5)}–${c.dosTo.slice(5)}`,
             lines: c.lines.length, units: c.units, charges: r2(c.charges), adj: r2(c.adj || 0), paid: r2(c.paid || 0),
+            secondaryReceived: r2(c.secondaryPaid || 0), patientReceived: r2(c.patientPaid || 0),
             due: r2(due), status: c.status, age: age ? age.days : null, check: c.remittance?.checkNo || (c.denial ? `denied: ${c.denial.code}` : ''),
             _link: null,
           }
@@ -490,7 +491,9 @@ const REPORTS_RAW = [
           { k: 'no', label: 'Claim' }, { k: 'client', label: 'Client' }, { k: 'payer', label: 'Payer' }, { k: 'kind', label: 'Ledger role' }, { k: 'period', label: 'DOS' },
           { k: 'lines', label: 'Lines', t: 'num', ...moneyCell }, { k: 'units', label: 'Units', t: 'num', ...moneyCell },
           { k: 'charges', label: 'Charges $', t: 'money', ...moneyCell }, { k: 'adj', label: 'Adj $', t: 'money', ...moneyCell },
-          { k: 'paid', label: 'Paid $', t: 'money', ...moneyCell }, { k: 'due', label: 'Due $', t: 'money', ...moneyCell },
+          { k: 'paid', label: 'Payer paid $', t: 'money', ...moneyCell },
+          { k: 'secondaryReceived', label: 'Secondary $', t: 'money', ...moneyCell },
+          { k: 'patientReceived', label: 'Patient receipts $', t: 'money', ...moneyCell }, { k: 'due', label: 'Due $', t: 'money', ...moneyCell },
           { k: 'status', label: 'Status' }, { k: 'age', label: 'Days out', t: 'num', ...moneyCell }, { k: 'check', label: 'Check / denial' },
         ],
         rows,

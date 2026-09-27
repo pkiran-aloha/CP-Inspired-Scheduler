@@ -1,6 +1,6 @@
 // Manual COB workflow for a single primary/secondary pair. No network submission,
 // service-line allocation or automatic secondary-835 application is implied.
-import { dueOf, secondaryClaimPatch, secondaryEligible } from './claims'
+import { dueOf, secondaryClaimPatch, secondaryEligible, patientLedgerMatches } from './claims'
 
 export const SECONDARY_METHODS = { ch: 'clearinghouse', paper_bg: 'paper with primary remittance', paper_nobg: 'paper without background' }
 const fail = (msg) => ({ ok: false, msg })
@@ -40,8 +40,9 @@ export function planSecondaryFiling(state, id, { submit = false, method = 'ch', 
     const parent = state.claims?.[claim.secondary]
     const coverage = (state.clients || []).find((c) => c.id === claim.clientId)?.secondary
     const payer = (state.payers || []).find((p) => p.id === coverage?.payerId)
-    if (!parent || parent.cobReviewNeeded || parent.method === 'secondary' || parent.status !== 'partially_paid' || parent.secondary !== claim.id ||
-        dueOf(parent) <= 0 || claim.charges > dueOf(parent) || claim.paid || claim.adj ||
+    if (!parent || parent.cobReviewNeeded || !patientLedgerMatches(state, parent) || (parent.patientPaid || 0) > 0 ||
+        parent.method === 'secondary' || parent.status !== 'partially_paid' || parent.secondary !== claim.id ||
+        dueOf(parent) <= 0 || r2(claim.charges) !== dueOf(parent) || claim.paid || claim.adj ||
         !payer || (payer.status && payer.status !== 'active') || payer.name !== claim.payer || !coverage?.memberId?.trim() ||
         (coverage.since && parent.dosFrom < coverage.since) || (coverage.until && parent.dosTo > coverage.until)) {
       return fail('Primary balance, COB coverage or links changed; review before recording a filing')

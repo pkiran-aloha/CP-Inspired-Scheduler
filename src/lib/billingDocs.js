@@ -67,14 +67,14 @@ export function buildInvoices(state, opts = {}) {
       `# ${org.name || 'Practice'} — ${format === 'statement' ? 'Statement of Account' : format === 'reminder' ? 'Payment Reminder' : 'Standard Invoice'} · ${from} → ${to}`,
       `# For: ${forWho === 'payer' ? (payerId || 'Payer') : groupClientIds.length ? groupClientIds.map((id) => clientById[id]?.name || id).join(', ') : 'All clients'}`,
       `# Balance Only: ${balanceOnly ? 'Yes — zero balance claims hidden' : 'No'} · Separated By Client: ${perClient ? 'Yes' : 'No'} · Incl Time: ${inclTime ? 'Yes' : 'No'} · Incl Scheduled: ${inclScheduled ? 'Yes' : 'No'}` ,
-      forWho === 'client' ? '# Draft patient share = explicitly reported responsibility or self-pay, NOT every unpaid insurance balance. Verify COB and payer terms before sending.' : '# Draft payer portion of primary A/R after reported patient share. COB draft/denial remainders require review; linked secondary is not a second charge.',
+      forWho === 'client' ? `# Draft remaining patient share = explicitly reported responsibility or self-pay, less $${groupClaims.reduce((s, c) => s + (c.patientPaid || 0), 0).toFixed(2)} local patient receipts. Paid includes payer and patient cash. Verify COB before sending.` : '# Draft payer portion of primary A/R after remaining reported patient share. total_received includes payer AND patient cash, not payer-only receipts. COB draft/denial remainders require review; linked secondary is not a second charge.',
       topNotes ? `# Top: ${topNotes}` : null,
       bottomNotes ? `# Bottom: ${bottomNotes}` : null,
       taxId ? `# Tax ID included · Tax ${taxPct}% = $${tax.toFixed(2)}` : null,
-      `claim,client,payer,dos_from,dos_to,description,units,rate,charges,paid,adj,due${inclTime ? ',time' : ''}`,
+      `claim,client,payer,dos_from,dos_to,description,units,rate,charges,total_received,adj,due${inclTime ? ',time' : ''}`,
       ...groupClaims.flatMap((c) => {
         const cl = clientById[c.clientId] || {}
-        const received = r2((c.paid || 0) + (c.secondaryPaid || 0))
+        const received = r2((c.paid || 0) + (c.secondaryPaid || 0) + (c.patientPaid || 0))
         if (forWho === 'client') {
           // Claim-level PR is not allocatable to individual service lines here.
           return [`${c.no},"${cl.name || ''}",${c.payer},${c.dosFrom},${c.dosTo},"Reported patient share (verify before billing)",1,${c.charges},${c.charges},${received},${c.adj || 0},${amountDue(c)}${inclTime ? ',' : ''}`]
@@ -88,7 +88,7 @@ export function buildInvoices(state, opts = {}) {
           return `${c.no},"${cl.name || ''}",${receivableBucketOf(state, c)},${c.dosFrom},${c.dosTo},"${desc}",${l.units},${l.rate},${l.charge},${i ? 0 : received},${i ? 0 : (c.adj || 0)},${i ? 0 : amountDue(c)}${inclTime ? `,${time}` : ''}`
         })
       }),
-      `TOTAL,,,,,,,${groupClaims.reduce((s, c) => s + c.charges, 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.paid || 0) + (c.secondaryPaid || 0), 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.adj || 0), 0).toFixed(2)},${totalDue.toFixed(2)}${inclTime ? ',' : ''}`,
+      `TOTAL,,,,,,,${groupClaims.reduce((s, c) => s + c.charges, 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.paid || 0) + (c.secondaryPaid || 0) + (c.patientPaid || 0), 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.adj || 0), 0).toFixed(2)},${totalDue.toFixed(2)}${inclTime ? ',' : ''}`,
       tax ? `TAX,,,,,,,${tax.toFixed(2)}` : null,
       `GRAND TOTAL,,,,,,,${grand.toFixed(2)}`,
     ].filter(Boolean)

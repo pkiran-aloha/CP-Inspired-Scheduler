@@ -147,7 +147,7 @@ export function assembleClaims(state, plans, { seqStart, at = Date.now() } = {})
       dosFrom: p.dosFrom, dosTo: p.dosTo,
       lines: p.appts.map((id) => lineFor(byId[id], state)),
       status: 'draft', charges: p.charges, units: p.units,
-      adj: 0, paid: 0, remittance: null, denial: null, parentNo: null, version: 1,
+      adj: 0, paid: 0, patientPaid: 0, remittance: null, denial: null, parentNo: null, version: 1,
       submittedAt: null, closedAt: null, note: '',
       createdAt: at, history: [{ at, ev: `Draft assembled from staging — ${p.appts.length} charge line${p.appts.length > 1 ? 's' : ''}, ${p.dosFrom} → ${p.dosTo}` }],
     })
@@ -204,7 +204,7 @@ export function submitPatch(state, claim) {
 export function payPatch(claim, { amount, checkNo, adj, note, paidAt = Date.now() }) {
   const at = paidAt
   const nextAdj = r2(Math.max(0, adj || 0))
-  const due = r2(claim.charges - nextAdj - (claim.paid || 0) - (claim.secondaryPaid || 0) - amount)
+  const due = r2(claim.charges - nextAdj - (claim.paid || 0) - (claim.secondaryPaid || 0) - (claim.patientPaid || 0) - amount)
   const rem = { checkNo, amount, adj: nextAdj, note, at }
   // chunk-40 (U5): a payment that leaves a patient-responsibility remainder keeps the claim
   // open as partially_paid — it only closes at zero due (secondary or patient invoice follows)
@@ -259,13 +259,46 @@ export function rebillPatch(state, claim, dropIds, { seqStart } = {}) {
 // ---------- money helpers for the form footer ----------
 // A linked secondary claim is a filing of the *same* receivable, not another
 // charge. Secondary receipts live on that claim and reduce its parent exactly once.
-export const dueOf = (c) => r2(c.charges - (c.adj || 0) - (c.paid || 0) - (c.method === 'secondary' ? 0 : (c.secondaryPaid || 0)))
+// Only the primary carries the practice receivable. Keep patient collections
+// separate from payer cash and secondary cash so a reported PR is never mistaken
+// for another payer payment. Old workspaces without patientPaid read as zero.
+export const dueOf = (c) => r2(c.charges - (c.adj || 0) - (c.paid || 0) -
+  (c.method === 'secondary' ? 0 : (c.secondaryPaid || 0) + (c.patientPaid || 0)))
 export const isPrimaryReceivable = (c) => c.method !== 'secondary' && c.status !== 'void'
 export const PATIENT_AR_BUCKET = 'Patient / family (reported PR + self-pay)'
+
+// The claim aggregate must equal active, claim-linked patient receipts. Signed
+// reversals cancel their originals; an unexplained mismatch must not create a
+// collectible patient balance. Unapplied receipts and payer payments are ignored.
+export function patientLedgerMatches(state, primary) {
+  const patientPaid = primary.patientPaid ?? 0
+  if (typeof patientPaid !== 'number' || !Number.isFinite(patientPaid) || patientPaid < 0 ||
+      Math.abs(patientPaid * 100 - Math.round(patientPaid * 100)) > 0.000001 ||
+      patientPaid > r2(primary.charges - (primary.paid || 0) - (primary.adj || 0) - (primary.secondaryPaid || 0))) return false
+  const payments = Object.values(state.payments || {})
+  const originals = payments.filter((p) => p.kind === 'patient' && p.claimId === primary.id && !p.reversalOf)
+  const reversals = payments.filter((p) => p.kind === 'patient' && p.claimId === primary.id && p.reversalOf)
+  const reversed = new Set()
+  for (const p of reversals) {
+    const original = state.payments?.[p.reversalOf]
+    if (!original || original.kind !== 'patient' || original.reversalOf || original.claimId !== primary.id ||
+        p.clientId !== primary.clientId || reversed.has(p.reversalOf) ||
+        typeof p.amount !== 'number' || !Number.isFinite(p.amount) ||
+        Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 0.000001 ||
+        Math.round(p.amount * 100) !== -Math.round(original.amount * 100)) return false
+    reversed.add(p.reversalOf)
+  }
+  if (originals.some((p) => p.clientId !== primary.clientId || typeof p.amount !== 'number' || !Number.isFinite(p.amount) ||
+      p.amount <= 0 || Math.abs(p.amount * 100 - Math.round(p.amount * 100)) > 0.000001 ||
+      payments.some((r) => r.reversalOf === p.id && (r.kind !== 'patient' || r.claimId !== primary.id)))) return false
+  return Math.round(patientPaid * 100) === originals.filter((p) => !reversed.has(p.id))
+    .reduce((sum, p) => sum + Math.round(p.amount * 100), 0)
+}
 
 // A filing changes the work queue, not the underlying charge. Closed/denied
 // secondary filings with a residual are a review bucket, not a new payer debt.
 export function receivableBucketOf(state, primary) {
+  if (primary.cobReviewNeeded || !patientLedgerMatches(state, primary)) return 'Ledger mismatch / review'
   const child = state.claims?.[primary.secondary]
   if (child?.method !== 'secondary' || child.secondary !== primary.id || child.status === 'void') return primary.payer
   if (child.status === 'draft') return 'COB draft / review'
@@ -276,8 +309,10 @@ export function receivableBucketOf(state, primary) {
 // A reported PR is only the payer-identified portion of an open primary balance,
 // never an inference from the remainder. A linked secondary supersedes the
 // primary's PR report; an unadjudicated secondary has no patient amount yet.
+// Patient cash reduces both the primary A/R and the *remaining* reported PR.
 export function patientResponsibilityOf(state, primary) {
-  if (!isPrimaryReceivable(primary) || primary.status === 'draft' || primary.cobReviewNeeded) return 0
+  if (!isPrimaryReceivable(primary) || primary.status === 'draft' || primary.cobReviewNeeded ||
+      !patientLedgerMatches(state, primary)) return 0
   const remaining = Math.max(0, dueOf(primary))
   if (primary.mode === 'selfpay') return remaining
   const linked = state.claims?.[primary.secondary]
@@ -290,7 +325,7 @@ export function patientResponsibilityOf(state, primary) {
     .reduce((last, p) => !last || (p.createdAt || 0) >= (last.createdAt || 0) ? p : last, null)
   // A reversed report cannot reappear via the claim's last-remittance cache.
   const reported = latest ? latest.patientResp : documented.length ? 0 : source.remittance?.patientResp || 0
-  return r2(Math.min(remaining, Math.max(0, Number(reported) || 0)))
+  return r2(Math.min(remaining, Math.max(0, (Number(reported) || 0) - (primary.patientPaid || 0))))
 }
 
 export const copayOf = (c, client) => (c.mode === 'insurance' ? Math.min(payerPolicy(c.payer).copay * c.lines.length, c.charges) : 0)
@@ -321,7 +356,7 @@ export function claimStats(state, days) {
     drafts: { n: drafts.length, $: money(drafts, (c) => c.charges) },
     pending: { n: pending.length, $: money(pending, (c) => dueOf(c)), late: lateCount, buckets },
     denied: { n: denied.length, $: money(denied, (c) => Math.max(0, dueOf(c))) },
-    paid: { n: paid.length, $: money(paid, (c) => (c.paid || 0) + (c.secondaryPaid || 0)) },
+    paid: { n: paid.length, $: money(paid, (c) => (c.paid || 0) + (c.secondaryPaid || 0) + (c.patientPaid || 0)) },
     denialRate: paid.length + denied.length ? Math.round((denied.length / (paid.length + denied.length)) * 100) : 0,
     avgDaysToPay: d2p.length ? Math.round(d2p.reduce((t, x) => t + x, 0) / d2p.length) : null,
     closed: inWin.filter((c) => c.status === 'paid' || c.status === 'void' || c.status === 'denied').length,
@@ -450,7 +485,7 @@ export function claimCsv(state, claim) {
   const L = [
     `# ${org.name || 'Practice'} — Claim ${claim.no} (${claim.status}) · ${claim.mode === 'selfpay' ? 'Self-pay invoice' : claim.payer}`,
     `# Client ${client.name || claim.clientId} · member ${memberIdOf({ id: claim.clientId, insurer: claim.payer })} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(client)}`,
-    `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Primary paid ${(claim.paid || 0).toFixed(2)} · Secondary received ${(claim.secondaryPaid || 0).toFixed(2)} · ${claim.method === 'secondary' ? 'Filing balance (not additional A/R)' : 'Primary A/R'} ${dueOf(claim).toFixed(2)}`,
+    `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Primary payer paid ${(claim.paid || 0).toFixed(2)} · Secondary received ${(claim.secondaryPaid || 0).toFixed(2)} · Patient received ${(claim.patientPaid || 0).toFixed(2)} · ${claim.method === 'secondary' ? 'Filing balance (not additional A/R)' : 'Primary A/R'} ${dueOf(claim).toFixed(2)}`,
     'line,date_of_service,hcpcs,mod,description,units,rate,charge,rendered_by',
     ...claim.lines.map((l, i) => `${i + 1},${l.dos},${l.code}${l.mod ? ',' + l.mod : ','},"${l.desc}",${l.units},${l.rate},${l.charge},"${l.staff}"`),
   ]
@@ -460,10 +495,10 @@ export function claimsCsv(state, claims) {
   const org = state.settings.org || {}
   const L = [
     `# ${org.name || 'Practice'} — claims register · ${claims.length} claim${claims.length > 1 ? 's' : ''}`,
-    'claim,ledger_role,client,payer,mode,dos_from,dos_to,lines,units,charges,adj,paid,secondary_received,balance,reported_patient_share,status,submitted,paid_on',
+    'claim,ledger_role,client,payer,mode,dos_from,dos_to,lines,units,charges,adj,payer_paid,secondary_received,patient_received,balance,remaining_reported_patient_share,status,submitted,paid_on',
     ...claims.map((c) => {
       const client = (state.clients || []).find((x) => x.id === c.clientId) || {}
-      return `${c.no},${c.method === 'secondary' ? 'filing_not_ar' : 'primary_ar'},"${client.name || ''}",${c.payer},${c.mode},${c.dosFrom},${c.dosTo},${c.lines.length},${c.units},${c.charges},${c.adj || 0},${c.paid || 0},${c.secondaryPaid || 0},${dueOf(c)},${patientResponsibilityOf(state, c)},${c.status},${c.submittedAt ? isoDate(new Date(c.submittedAt)) : ''},${c.closedAt && c.status === 'paid' ? isoDate(new Date(c.closedAt)) : ''}`
+      return `${c.no},${c.method === 'secondary' ? 'filing_not_ar' : 'primary_ar'},"${client.name || ''}",${c.payer},${c.mode},${c.dosFrom},${c.dosTo},${c.lines.length},${c.units},${c.charges},${c.adj || 0},${c.paid || 0},${c.secondaryPaid || 0},${c.patientPaid || 0},${dueOf(c)},${patientResponsibilityOf(state, c)},${c.status},${c.submittedAt ? isoDate(new Date(c.submittedAt)) : ''},${c.closedAt && c.status === 'paid' ? isoDate(new Date(c.closedAt)) : ''}`
     }),
   ]
   return L.join('\n')
@@ -564,7 +599,8 @@ export function secondaryEligible(state, claim) {
   // A secondary is a transfer of an existing unpaid primary balance. A cloned
   // secondary must never become eligible for a third, recursively cloned claim.
   if (!claim || claim.method === 'secondary' || claim.status !== 'partially_paid' ||
-      claim.secondary || claim.secondarySkipped || claim.cobReviewNeeded || dueOf(claim) <= 0 ||
+      claim.secondary || claim.secondarySkipped || claim.cobReviewNeeded || !patientLedgerMatches(state, claim) ||
+      (claim.patientPaid || 0) > 0 || dueOf(claim) <= 0 ||
       !claim.dosFrom || !claim.dosTo || claim.dosFrom > claim.dosTo || !(claim.lines || []).length) return false
   const client = (state.clients || []).find((c) => c.id === claim.clientId)
   const coverage = client?.secondary
