@@ -1,43 +1,53 @@
-# Aloha ABA — Practice Suite (v27 Billing Complete)
+# Aloha ABA — Practice Suite
 
-A fully client-side single-page app for ABA practice operations: calendar with 30-minute slot-block overlap grouping and lane-aware timeline, roster, client lifecycle, authorization-aware billing with CMS-1500-formatted exports, saved report builder with Excel/PDF output, and drag-and-drop analytics Dashboard (custom widget board: resize, reorder, per-widget time ranges, saved layouts, drill-down ledger).
+A **local-first demo** for ABA practice operations, built with React, Vite and Vitest. It includes a calendar (day/week/month/agenda/timeline), client/staff/payer/service masters, authorization-aware claim staging, payment and A/R views, reporting, dashboards and document builders. The demo seeds fictional staff, clients and appointments; **it is not a production EHR or a safe place for real PHI**.
 
-**Stack:** React + Vite. Zero backend — all data lives in browser `localStorage`, seeded with fictional demo dataset (16 clients, 12 staff, ~1,053 appointments). No real PHI.
+## Run locally
 
-## Live site
-Deployed via `.github/workflows/deploy.yml`: every push to `main` runs `npm ci → npm test → npm run build` and publishes `dist/` to GitHub Pages.
-
-## Billing Suite (v22→v27) — Complete
-- **Billing Desk**: staging (claim-ready lines, payer filter, Process Billing → 837P), claim desk (draft/submitted/denied/paid/void, gates, CMS-1500 batch, ledger CSV), secondary COB queue, blocked lines, setup (practice identity, rate policy, claim gates)
-- **AR Manager**: BY CLIENT / BY PAYER views, aging buckets (Current, 31-60, 61-90, 91-120, 121+), totals reconcile, drill-in → Statement + Export, prefill to Generate Invoice (Balance Only)
-- **Payment Center**: manual payments (payer, claim, date, type, ref, amount, adj, ptResp, reconciled), ERA 835 upload (parse835, matched green / unmatched amber, fixture 5 lines), post/park, void, remittance CSV export, ERA detail + unmatched CSV
-- **Generate Invoice (C6)**: Invoice for Payer/Client radio (Payer* when Payer), Invoice Format (Standard/Statement/Payment Reminder), From*/To*, Client(s) multiselect, Order By (Date/Client/Payer), Description as (Service/CPT+Desc/Session Title), Doc Format PDF/CSV, Include Tax ID + Tax % (default 0), Top/Bottom Notes, Balance Only, Include Appointment Time (adds Time column), Separated By Client (N files), Include Scheduled, INV-YYYYMM-### sequencing (settings.billing.invoiceSeq), records to billedFiles + invoices with re-download
-- **Verification Forms (C7)**: Payer*, Verification Format (Parental/Benefit/Prior Auth Request), From*/To*, Client(s), Appointment State (all/completed/scheduled), Doc Format PDF, Generate+Clear, branded PDF (org letterhead, payer address, client, date range, appt table, signatures), history log
-- **QuickBooks (C8)**: Invoice Date*/Due Date*, From*/To*, Client(s), Balance Only, Invoice # Start (4127 default → increments), QBO Name Format (Client Name / Last,First / Client+DOS), Unit Rate table editable + Save → settings.billing.qboRates, QBO CSV header matches Intuit contract (Invoice Number,Customer,Invoice Date,Due Date,Product/Service,Qty,Unit Price,Amount,Memo,Tax Code), no negatives, MM/DD/YYYY, split guard ≤1000 rows / ≤100 invoices → N files, records to billedFiles
-- **Secondary Queue (C5)**: ready KPI, queue rows (client + primary#, remaining after primary), Release+Skip+Submit (dropdown 3 methods: CH/paper_bg/paper_nobg), CH artifact Box 18 = X, -S1/-S2 numbering, Paper bg includes background snapshot, Paper nobg no background, Release voids chain, Skip→patient balance secondary=skipped, secondary payment closes paid
-- **Appeals Manager (C10)**: denied claims table (search, select), appeal letter (claim, narrative, enclosures comma-separated) → Appeal-{claimNo}.txt with org letterhead + denial CARC + narrative, 835 Error Report (ERA select → 835-Error-{file}.csv with claim_no,status,charges,paid,patient_resp,adjustments,suggested_match), history with re-download
-- **Billed Files (C9)**: search, payer filter, format filter (837P/cms1500/invoice/qbo_csv/verification/appeal_letter/835_error_report), From/To date, sort (file/payer/format/date), Generate 837P, Clear, table columns File Name/Payer/Type/Clients/Claims/Billed Through/Send Count/Actions (Download/Resend/View/Void), detail panel (meta + content preview 5000 chars + claimIds), pagination 25/page, void keeps history
-- **Provider Identifier (U2)**: NPI (10-digit Luhn), taxonomy (TAXONOMIES + custom), claim roles (rendering/billing/facility), payer-specific IDs (Ticare/Medicaid/BHPN/Referring) per tab, default billing/facility, active filter, office rows can have multiple NPIs, staff missing warning
-
-**Builders (U7) `src/lib/billingDocs.js`**: pure functions `buildInvoices` (for payer/client, taxId/taxPct, top/bottom notes, balanceOnly, inclTime, perClient, inclScheduled, orderBy, descriptionAs, INV-YYYYMM-###), `buildQboCsv` (≤1000 rows / ≤100 invoices split, no negatives, header contract), `buildVerificationForm` (per-client branded PDF), `buildAppealLetter`, `build835ErrorReport` — all wired to exportKit + unit tests 6/6.
-
-## Probes (Playwright)
-- c44 Payment Center 26/26
-- c45 AR Manager 23/23
-- c46 Secondary Billing 21/21
-- c47 Generate Invoice + Verification Forms 41/41
-- c48 QuickBooks 25/25
-- c49 Billed Files 25/25
-- c50 Appeals Manager 22/22
-- c51 Full Billing Integration 28/28
-
-## Develop
+```sh
+npm ci
+npm run dev       # http://localhost:5173
+npm test          # Vitest regression suite
+npm run build     # static site in dist/
 ```
-npm install
-npm run dev        # http://localhost:5173
-npm test           # vitest
-npm run build      # static site in dist/
-```
+
+Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then GitHub Pages on pushes to `main`). The app needs no backend. State is stored in this browser under `aloha-aba.v3`; browsers/devices do not sync.
+
+## Current development context
+
+- `src/state/store.jsx` owns the seeded workspace, migrations, reducer, undo and browser persistence. `src/lib/` contains the domain engines (claims, documents, reporting, scheduler); `src/components/` holds the screens. `src/__tests__/` exercises both pure logic and UI workflows.
+- `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
+- The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
+
+### Workspace integrity (previous round)
+
+- **Versioned full-workspace backup (v2 JSON)** via Settings → Data & backup. It includes appointment/claim/payment ledgers, invoices, ERA imports, billed files, verification forms, QBO records, staff/clients/teams, payer/service/custom-field masters, settings, saved reports and dashboard boards. Import validates the file and previews its counts **before** a confirm-to-replace step; Cancel leaves the workspace alone. The older seven-field JSON export can still be imported, with a warning: it omitted masters and financial ledgers, so those cannot be recovered from it.
+- **One-step Undo for compound billing edits and restore.** Claim submissions and their generated files are recorded together. Manual claim payments and their claim updates, self-pay invoice numbers and records, document records, regeneration and clearing now restore their dependent collections together. Undo history is kept **in the open tab only** (25 steps), not written into every localStorage save; it disappears on reload.
+- **Storage-failure warning.** If a browser refuses a write, an on-screen alert says edits are currently in memory only and links to Settings for an immediate export. Exported JSON is unencrypted; handle it appropriately even though the shipped seed is fictional.
+- **Billed Files** now reads the actual billed-file ledger, downloads the stored artifact rather than an invented summary, and can prepare a manual resend (download + increment the undoable send count). Preparing a resend does **not** transmit the file over the network.
+- The agenda regression test checks a day’s badge against its rows rather than assuming a demo appointment exists on every day (e.g. Sundays).
+
+### 835 ERA import (this round)
+
+- Payment Center → **Upload ERA (835)** accepts a local `.835`/`.txt` file (2 MB max). It parses a **claim-level subset** of X12, shows exact CLP01 claim matches, amounts, allowed amount, CARC adjustments and reasons for held lines. Nothing posts until you select eligible lines and confirm; you can also save the entire import as parked.
+- Posting revalidates the live claim/payment ledger: draft, void and already-paid claims, unmatched or ambiguous claim numbers, repeated claims/lines/traces/files, unsupported service-line SVC allocations, malformed/negative amounts, overpayments, date/charge mismatches and inconsistent payer/patient allocations cannot auto-post. Provider-level PLB is flagged, **never** applied to a claim. A BPR-vs-CLP total difference is displayed for deposit review; it is **not** automatically reconciled or cleared.
+- Selected payments, CARC denials, and the ERA audit record are one undoable transaction. The ERAs tab keeps posted/parked decisions, exports parked lines with reasons to CSV, and allows a parked line to be retried only after it becomes eligible. Typed ERA entry remains available but now rejects unsafe lines instead of silently skipping them.
+- **Scope:** the 835 importer remains primary-claim-only; it does not perform SVC allocation, secondary 835 allocation, bank reconciliation, payer contact or network transmission. The shipped 835 demo fixture includes contradictory financial fields; those lines are intentionally parked, not force-posted. Use fictional data only, and review original remittances outside this demo before relying on a ledger.
+
+### Linked secondary and reported patient share (current round)
+
+1. Post a primary partial remittance, then use **Secondary Queue → Create COB draft**. The draft snapshots the primary's remaining *claim-level* balance; its copied service lines are reference data, **not** an allocated secondary 837/CMS-1500. Verify coverage, COB, and service allocation outside Aloha. After filing elsewhere, choose **Record external filing** with the correct method. This changes only the local status; it does not send a claim or generate a compliant secondary form. An unremitted filing can be cancelled locally (which does not retract anything already sent externally); a skipped filing does not automatically bill the family.
+2. Use **Record payer remittance** to open Payment Center with the secondary selected. The manual form can instead save a receipt as **unapplied** (no claim change). For a claim-linked receipt enter the actual payer amount and reference, any *secondary* adjudication adjustment, and a patient responsibility figure only if the remittance explicitly reports it. The live reducer rejects stale links, out-of-coverage filings, repeated references, bad cents, overpayments and duplicate voids. A secondary receipt is recorded on its child **and** reduces the primary's open balance; secondary adjustments never write off the primary. Payment voids write a signed reversal and restore both sides. Filing, payment, void and cancellation each have one tab-local Undo step.
+3. **A/R Manager** counts only primary receivables, and splits each primary balance between the current filing/review bucket and the *reported* patient/self-pay bucket without duplicating dollars. An unknown insurance remainder is **not** patient A/R. Patient share is capped at the open primary balance and a pending secondary draft/submission suppresses the primary's earlier PR report until the secondary reports its own. **Invoices** downloads a clearly marked *draft* patient-share statement, not the whole insurer balance; the document builder likewise uses explicit patient share for client statements and separates payer portions. Review coverage and remittances before sending anything. The legacy QBO charge export excludes active COB pairs because it cannot allocate that balance to service lines.
+
+Existing saved COB pairs with a consistent secondary paid total and no primary `secondaryPaid` are backfilled once; conflicting amounts are flagged `cobReviewNeeded` and block new COB postings or reported-PR billing rather than being silently capped. Original claim and payment histories remain available for manual investigation. The 835 importer deliberately parks secondary CLPs and now parks any primary with an active secondary filing. There is **no** secondary 835 auto-allocation, compliant secondary 837/1500, patient collection/receipt allocation, full EDI or bank reconciliation. This is a fictional-data demo, not a production billing or compliance system.
+
+## Working on this codebase
+
+Keep pure billing/backup calculations in `src/lib/`, financial transitions in a **single** reducer action so one `U` can reverse them, and cover both the UI action and persistence in tests. Do not save Undo snapshots to localStorage: the seeded calendar already contains ~1,000 appointments. When adding a durable collection, add it to `WORKSPACE_FIELDS` in `src/lib/workspaceBackup.js`, validate it on import, and include it in a round-trip/Undo test. Export a backup before destructive migrations or before replacing local storage.
+
+Next useful areas to verify against the older spec are secondary document format fidelity, service-line ERA/PLB-to-deposit reconciliation, and an audited end-to-end COB/patient-collections workflow. No real PHI or live EDI traffic should be used for those tests.
 
 ## License
-No license granted — demo/portfolio work; "CP-inspired" refers to general scheduling-software UX patterns only.
+
+No license granted — demo/portfolio work; “CP-inspired” refers to general scheduling-software UX patterns only.

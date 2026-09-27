@@ -1,7 +1,7 @@
 // U7 — billingDocs builders (pure, document-grade)
 // Pure fns: (state, opts) -> {fileName, content} or array
 
-import { dueOf } from './claims.js'
+import { dueOf, isPrimaryReceivable, patientResponsibilityOf, receivableBucketOf } from './claims.js'
 import { isoDate } from './date.js'
 
 const r2 = (n) => Math.round(n * 100) / 100
@@ -32,18 +32,20 @@ export function buildInvoices(state, opts = {}) {
   const clients = state.clients || []
   const clientById = Object.fromEntries(clients.map((c) => [c.id, c]))
 
-  // filter claims in range
+  // A linked secondary is an alternate filing, not another invoiceable charge.
+  const amountDue = (c) => forWho === 'client' ? patientResponsibilityOf(state, c)
+    : Math.max(0, r2(dueOf(c) - patientResponsibilityOf(state, c)))
   let claims = Object.values(state.claims || {}).filter((c) => {
-    if (c.dosFrom < from || c.dosFrom > to) return false
+    if (!isPrimaryReceivable(c) || c.dosFrom < from || c.dosFrom > to) return false
     if (clientIds.length && !clientIds.includes(c.clientId)) return false
     if (forWho === 'payer' && payerId) {
       // payerId can be payer name or id — match by name if possible
       const payer = (state.payers || []).find((p) => p.id === payerId)
       const payerName = payer ? payer.name : payerId
-      if (c.payer !== payerName && c.payer !== payerId) return false
+      if (receivableBucketOf(state, c) !== payerName && receivableBucketOf(state, c) !== payerId) return false
     }
-    const due = dueOf(c)
-    if (balanceOnly && due <= 0.5) return false
+    const due = amountDue(c)
+    if (balanceOnly && due <= 0.005) return false
     if (!inclScheduled && c.lines?.some((l) => l.kind === 'scheduled')) {
       // if any line is scheduled and inclScheduled false, exclude? For simplicity, include but grey
     }
@@ -57,32 +59,36 @@ export function buildInvoices(state, opts = {}) {
   const taxRate = taxPct > 0 ? taxPct / 100 : 0
 
   const makeContent = (groupClaims, groupClientIds) => {
-    const totalDue = groupClaims.reduce((s, c) => s + dueOf(c), 0)
+    const totalDue = groupClaims.reduce((s, c) => s + amountDue(c), 0)
     const tax = taxId && taxRate > 0 ? r2(totalDue * taxRate) : 0
     const grand = r2(totalDue + tax)
 
     const lines = [
       `# ${org.name || 'Practice'} — ${format === 'statement' ? 'Statement of Account' : format === 'reminder' ? 'Payment Reminder' : 'Standard Invoice'} · ${from} → ${to}`,
       `# For: ${forWho === 'payer' ? (payerId || 'Payer') : groupClientIds.length ? groupClientIds.map((id) => clientById[id]?.name || id).join(', ') : 'All clients'}`,
-      `# Balance Only: ${balanceOnly ? 'Yes — paid lines hidden' : 'No'} · Separated By Client: ${perClient ? 'Yes' : 'No'} · Incl Time: ${inclTime ? 'Yes' : 'No'} · Incl Scheduled: ${inclScheduled ? 'Yes' : 'No'}`,
+      `# Balance Only: ${balanceOnly ? 'Yes — zero balance claims hidden' : 'No'} · Separated By Client: ${perClient ? 'Yes' : 'No'} · Incl Time: ${inclTime ? 'Yes' : 'No'} · Incl Scheduled: ${inclScheduled ? 'Yes' : 'No'}` ,
+      forWho === 'client' ? '# Draft patient share = explicitly reported responsibility or self-pay, NOT every unpaid insurance balance. Verify COB and payer terms before sending.' : '# Draft payer portion of primary A/R after reported patient share. COB draft/denial remainders require review; linked secondary is not a second charge.',
       topNotes ? `# Top: ${topNotes}` : null,
       bottomNotes ? `# Bottom: ${bottomNotes}` : null,
       taxId ? `# Tax ID included · Tax ${taxPct}% = $${tax.toFixed(2)}` : null,
       `claim,client,payer,dos_from,dos_to,description,units,rate,charges,paid,adj,due${inclTime ? ',time' : ''}`,
       ...groupClaims.flatMap((c) => {
         const cl = clientById[c.clientId] || {}
-        return c.lines.map((l) => {
+        const received = r2((c.paid || 0) + (c.secondaryPaid || 0))
+        if (forWho === 'client') {
+          // Claim-level PR is not allocatable to individual service lines here.
+          return [`${c.no},"${cl.name || ''}",${c.payer},${c.dosFrom},${c.dosTo},"Reported patient share (verify before billing)",1,${c.charges},${c.charges},${received},${c.adj || 0},${amountDue(c)}${inclTime ? ',' : ''}`]
+        }
+        return (c.lines || []).map((l, i) => {
           let desc = l.desc || ''
           if (descriptionAs === 'cpt') desc = `${l.code} ${l.desc}`
           else if (descriptionAs === 'title') desc = l.desc || c.no
           else desc = l.desc || l.code
-          const due = dueOf(c) // per claim due, but line-level for simplicity
           const time = inclTime ? `${Math.floor(l.t0 / 60)}:${String(l.t0 % 60).padStart(2, '0')}-${Math.floor(l.t1 / 60)}:${String(l.t1 % 60).padStart(2, '0')}` : ''
-          // Balance Only hides paid lines? At claim level we already filtered, but line-level paid hidden if claim fully paid
-          return `${c.no},"${cl.name || ''}",${c.payer},${c.dosFrom},${c.dosTo},"${desc}",${l.units},${l.rate},${l.charge},${c.paid || 0},${c.adj || 0},${due}${inclTime ? `,${time}` : ''}`
+          return `${c.no},"${cl.name || ''}",${receivableBucketOf(state, c)},${c.dosFrom},${c.dosTo},"${desc}",${l.units},${l.rate},${l.charge},${i ? 0 : received},${i ? 0 : (c.adj || 0)},${i ? 0 : amountDue(c)}${inclTime ? `,${time}` : ''}`
         })
       }),
-      `TOTAL,,,,,,,${groupClaims.reduce((s, c) => s + c.charges, 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.paid || 0), 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.adj || 0), 0).toFixed(2)},${totalDue.toFixed(2)}${inclTime ? ',' : ''}`,
+      `TOTAL,,,,,,,${groupClaims.reduce((s, c) => s + c.charges, 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.paid || 0) + (c.secondaryPaid || 0), 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.adj || 0), 0).toFixed(2)},${totalDue.toFixed(2)}${inclTime ? ',' : ''}`,
       tax ? `TAX,,,,,,,${tax.toFixed(2)}` : null,
       `GRAND TOTAL,,,,,,,${grand.toFixed(2)}`,
     ].filter(Boolean)
@@ -110,7 +116,7 @@ export function buildInvoices(state, opts = {}) {
         invNo,
         clientId: cid,
         content: makeContent(group, [cid]),
-        total: group.reduce((s, c) => s + dueOf(c), 0),
+        total: group.reduce((s, c) => s + amountDue(c), 0),
         claims: group,
       }
     })
@@ -122,7 +128,7 @@ export function buildInvoices(state, opts = {}) {
         invNo,
         clientIds,
         content: makeContent(claims, clientIds),
-        total: claims.reduce((s, c) => s + dueOf(c), 0),
+        total: claims.reduce((s, c) => s + amountDue(c), 0),
         claims,
       },
     ]
@@ -146,7 +152,10 @@ export function buildQboCsv(state, opts = {}) {
   const clientById = Object.fromEntries(clients.map((c) => [c.id, c]))
 
   let claims = Object.values(state.claims || {}).filter((c) => {
-    if (c.dosFrom < from || c.dosFrom > to) return false
+    // QBO rows are original service charges, not an allocated COB balance.
+    // Do not export a linked filing as a second invoice or misstate its payer.
+    if (!isPrimaryReceivable(c) || (c.secondary && state.claims?.[c.secondary]?.status !== 'void') ||
+        c.dosFrom < from || c.dosFrom > to) return false
     if (clientIds.length && !clientIds.includes(c.clientId)) return false
     if (payerIds.length) {
       // payerIds can be names or ids
@@ -323,11 +332,21 @@ export function build835ErrorReport(state, opts = {}) {
   const { eraId } = opts
   const era = (state.eraImports || {})[eraId]
   if (!era) return { fileName: '835-Error-NotFound.csv', content: 'ERA not found' }
-  const unmatched = era.detail?.filter((d) => !Object.values(state.claims || {}).some((c) => c.no === d.claimNo)) || []
+  // New imports persist the review decision, not just the match: even an exact
+  // match may be parked for overpayment, a duplicate or inconsistent totals.
+  const parked = (era.detail || []).filter((d) => d.decision ? d.decision === 'parked' :
+    !Object.values(state.claims || {}).some((c) => c.no === d.claimNo))
+  const csv = (value) => {
+    const text = String(value ?? '')
+    // Protect spreadsheet viewers from formula injection in payer-supplied text.
+    const safe = /^\s*[=+@-]/.test(text) ? `'${text}` : text
+    return `"${safe.replace(/"/g, '""')}"`
+  }
   const rows = [
-    'claim_no,status,charges,paid,patient_resp,adjustments,suggested_match',
-    ...unmatched.map((l) => `${l.claimNo},${l.status},${l.charges},${l.paid},${l.patientResp},"${(l.adjustments || []).map((a) => `${a.group}-${a.reason} $${a.amount}`).join('; ')}",Check DOS+amount`,
-    ),
+    'claim_no,dos_from,dos_to,status,charges,allowed,paid,patient_resp,adjustments,reason,suggested_match',
+    ...parked.map((l) => [l.claimNo, l.dosFrom, l.dosTo, l.status, l.charges, l.allowed, l.paid, l.patientResp,
+      (l.adjustments || []).map((a) => `${a.group}-${a.reason} $${a.amount}`).join('; '),
+      l.reason || 'No exact claim number match', 'Verify claim number, DOS, amount and payer manually'].map(csv).join(',')),
   ]
-  return { fileName: `835-Error-${era.fileName.replace(/[^A-Za-z0-9.-]/g, '_')}.csv`, content: rows.join('\n') }
+  return { fileName: `835-Error-${String(era.fileName || era.id).replace(/[^A-Za-z0-9.-]/g, '_')}.csv`, content: rows.join('\n') }
 }

@@ -204,7 +204,7 @@ export function submitPatch(state, claim) {
 export function payPatch(claim, { amount, checkNo, adj, note, paidAt = Date.now() }) {
   const at = paidAt
   const nextAdj = r2(Math.max(0, adj || 0))
-  const due = r2(claim.charges - nextAdj - (claim.paid || 0) - amount)
+  const due = r2(claim.charges - nextAdj - (claim.paid || 0) - (claim.secondaryPaid || 0) - amount)
   const rem = { checkNo, amount, adj: nextAdj, note, at }
   // chunk-40 (U5): a payment that leaves a patient-responsibility remainder keeps the claim
   // open as partially_paid — it only closes at zero due (secondary or patient invoice follows)
@@ -257,7 +257,42 @@ export function rebillPatch(state, claim, dropIds, { seqStart } = {}) {
 }
 
 // ---------- money helpers for the form footer ----------
-export const dueOf = (c) => r2(c.charges - (c.adj || 0) - (c.paid || 0))
+// A linked secondary claim is a filing of the *same* receivable, not another
+// charge. Secondary receipts live on that claim and reduce its parent exactly once.
+export const dueOf = (c) => r2(c.charges - (c.adj || 0) - (c.paid || 0) - (c.method === 'secondary' ? 0 : (c.secondaryPaid || 0)))
+export const isPrimaryReceivable = (c) => c.method !== 'secondary' && c.status !== 'void'
+export const PATIENT_AR_BUCKET = 'Patient / family (reported PR + self-pay)'
+
+// A filing changes the work queue, not the underlying charge. Closed/denied
+// secondary filings with a residual are a review bucket, not a new payer debt.
+export function receivableBucketOf(state, primary) {
+  const child = state.claims?.[primary.secondary]
+  if (child?.method !== 'secondary' || child.secondary !== primary.id || child.status === 'void') return primary.payer
+  if (child.status === 'draft') return 'COB draft / review'
+  if (['submitted', 'partially_paid'].includes(child.status)) return child.payer
+  return 'COB remainder / review'
+}
+
+// A reported PR is only the payer-identified portion of an open primary balance,
+// never an inference from the remainder. A linked secondary supersedes the
+// primary's PR report; an unadjudicated secondary has no patient amount yet.
+export function patientResponsibilityOf(state, primary) {
+  if (!isPrimaryReceivable(primary) || primary.status === 'draft' || primary.cobReviewNeeded) return 0
+  const remaining = Math.max(0, dueOf(primary))
+  if (primary.mode === 'selfpay') return remaining
+  const linked = state.claims?.[primary.secondary]
+  const source = linked?.method === 'secondary' && linked.secondary === primary.id && linked.status !== 'void' ? linked : primary
+  if (source === linked && ['draft', 'submitted'].includes(linked.status)) return 0
+  const payments = Object.values(state.payments || {})
+  const reversed = new Set(payments.map((p) => p.reversalOf).filter(Boolean))
+  const documented = payments.filter((p) => p.claimId === source.id && !p.reversalOf && p.patientResp != null)
+  const latest = documented.filter((p) => !reversed.has(p.id))
+    .reduce((last, p) => !last || (p.createdAt || 0) >= (last.createdAt || 0) ? p : last, null)
+  // A reversed report cannot reappear via the claim's last-remittance cache.
+  const reported = latest ? latest.patientResp : documented.length ? 0 : source.remittance?.patientResp || 0
+  return r2(Math.min(remaining, Math.max(0, Number(reported) || 0)))
+}
+
 export const copayOf = (c, client) => (c.mode === 'insurance' ? Math.min(payerPolicy(c.payer).copay * c.lines.length, c.charges) : 0)
 
 export function agingOf(c, today = isoDate(new Date())) {
@@ -269,7 +304,7 @@ export function agingOf(c, today = isoDate(new Date())) {
 
 // ---------- portfolio stats for the KPI band ----------
 export function claimStats(state, days) {
-  const claims = Object.values(state.claims || {})
+  const claims = Object.values(state.claims || {}).filter(isPrimaryReceivable)
   const inWin = claims.filter((c) => c.lines.some((l) => !days || days.includes(l.dos)))
   const staged = stagedAppts(state, days)
   const money = (arr, f) => Math.round(arr.reduce((t, c) => t + f(c), 0))
@@ -280,13 +315,13 @@ export function claimStats(state, days) {
   const d2p = paid.filter((c) => c.submittedAt).map((c) => Math.max(0, Math.round((c.closedAt - c.submittedAt) / 86400000)))
   const buckets = { '0–30': 0, '31–60': 0, '61–90': 0, '90+': 0 }
   let lateCount = 0
-  for (const c of pending) { const a = agingOf(c); if (a) { buckets[a.bucket] += Math.round(c.charges); if (a.late) lateCount++ } }
+  for (const c of pending) { const a = agingOf(c); if (a) { buckets[a.bucket] += Math.round(Math.max(0, dueOf(c))); if (a.late) lateCount++ } }
   return {
     staged: { n: staged.length, $: Math.round(staged.reduce((t, a) => t + computeBilling(a), 0)) },
     drafts: { n: drafts.length, $: money(drafts, (c) => c.charges) },
     pending: { n: pending.length, $: money(pending, (c) => dueOf(c)), late: lateCount, buckets },
-    denied: { n: denied.length, $: money(denied, (c) => c.charges) },
-    paid: { n: paid.length, $: money(paid, (c) => c.paid) },
+    denied: { n: denied.length, $: money(denied, (c) => Math.max(0, dueOf(c))) },
+    paid: { n: paid.length, $: money(paid, (c) => (c.paid || 0) + (c.secondaryPaid || 0)) },
     denialRate: paid.length + denied.length ? Math.round((denied.length / (paid.length + denied.length)) * 100) : 0,
     avgDaysToPay: d2p.length ? Math.round(d2p.reduce((t, x) => t + x, 0) / d2p.length) : null,
     closed: inWin.filter((c) => c.status === 'paid' || c.status === 'void' || c.status === 'denied').length,
@@ -303,9 +338,9 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
   const clientById = Object.fromEntries(clients.map((c)=>[c.id,c]))
 
   const openClaims = claims.filter((c)=>{
-    if (c.status==='void' || c.status==='draft') return false
+    if (!isPrimaryReceivable(c) || c.status === 'draft') return false
     const due = dueOf(c)
-    return due > 0.5
+    return due > 0.005
   })
 
   const bucketsFor = (days) => {
@@ -318,12 +353,13 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
 
   const byClientMap = {}
   const byPayerMap = {}
-  const totals = { current:0, '31-60':0, '61-90':0, '91-120':0, '121+':0, totalAR:0, over90:0 }
+  const totals = { current:0, '31-60':0, '61-90':0, '91-120':0, '121+':0, totalAR:0, patientAR:0, over90:0 }
 
-  // last payment per client
+  // last active receipt per client (voided originals are not current activity).
   const lastPayByClient = {}
+  const reversed = new Set(payments.map((p) => p.reversalOf).filter(Boolean))
   for (const p of payments) {
-    if (p.reversalOf) continue
+    if (p.reversalOf || reversed.has(p.id)) continue
     if (p.amount <=0 && p.kind!=='writeoff') continue
     const d = p.date
     if (!d) continue
@@ -334,6 +370,7 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
 
   for (const c of openClaims) {
     const due = dueOf(c)
+    const patient = patientResponsibilityOf(state, c)
     let openSince = null
     if (c.submittedAt) openSince = new Date(c.submittedAt)
     else if (c.dosTo) openSince = parseISO(c.dosTo)
@@ -344,24 +381,36 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
     // byClient
     if (!byClientMap[c.clientId]) {
       const cl = clientById[c.clientId] || { id:c.clientId, name:c.clientId }
-      byClientMap[c.clientId] = { clientId:c.clientId, clientName: cl.name||c.clientId, buckets:{ current:0,'31-60':0,'61-90':0,'91-120':0,'121+':0 }, balance:0, claims:[], lastPayment: lastPayByClient[c.clientId]||null }
+      byClientMap[c.clientId] = { clientId:c.clientId, clientName: cl.name||c.clientId, buckets:{ current:0,'31-60':0,'61-90':0,'91-120':0,'121+':0 }, balance:0, patientAR:0, claims:[], lastPayment: lastPayByClient[c.clientId]||null }
     }
     byClientMap[c.clientId].buckets[bucket] = r2((byClientMap[c.clientId].buckets[bucket]||0)+due)
     byClientMap[c.clientId].balance = r2(byClientMap[c.clientId].balance+due)
+    byClientMap[c.clientId].patientAR = r2(byClientMap[c.clientId].patientAR+patient)
     byClientMap[c.clientId].claims.push(c)
 
-    // byPayer
-    if (!byPayerMap[c.payer]) {
-      byPayerMap[c.payer] = { payer:c.payer, buckets:{ current:0,'31-60':0,'61-90':0,'91-120':0,'121+':0 }, balance:0, clientIds:new Set(), claims:[] }
+    // By active filing, with explicitly reported patient share kept in a
+    // separate bucket. These are disjoint slices of ONE primary receivable.
+    const addPayerSlice = (name, amount, patientSlice = false) => {
+      if (amount <= 0) return
+      if (!byPayerMap[name]) {
+        byPayerMap[name] = { payer: name, buckets: { current:0, '31-60':0, '61-90':0, '91-120':0, '121+':0 },
+          balance: 0, patientAR: 0, clientIds: new Set(), claims: [], claimDueById: {} }
+      }
+      const row = byPayerMap[name]
+      row.buckets[bucket] = r2(row.buckets[bucket] + amount)
+      row.balance = r2(row.balance + amount)
+      if (patientSlice) row.patientAR = r2(row.patientAR + amount)
+      row.clientIds.add(c.clientId)
+      row.claims.push(c)
+      row.claimDueById[c.id] = amount
     }
-    byPayerMap[c.payer].buckets[bucket] = r2((byPayerMap[c.payer].buckets[bucket]||0)+due)
-    byPayerMap[c.payer].balance = r2(byPayerMap[c.payer].balance+due)
-    byPayerMap[c.payer].clientIds.add(c.clientId)
-    byPayerMap[c.payer].claims.push(c)
+    addPayerSlice(receivableBucketOf(state, c), r2(due - patient))
+    addPayerSlice(PATIENT_AR_BUCKET, patient, true)
 
     // totals
     totals[bucket] = r2((totals[bucket]||0)+due)
     totals.totalAR = r2(totals.totalAR+due)
+    totals.patientAR = r2(totals.patientAR+patient)
     if (bucket==='91-120' || bucket==='121+') totals.over90 = r2(totals.over90+due)
   }
 
@@ -381,17 +430,17 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
   const yearStart = `${asOfISO.slice(0,4)}-01-01`
   let billed90 = 0, paid90 = 0, writeOffYTD = 0
   for (const c of claims) {
-    if (c.dosFrom && c.dosFrom >= isoDate(ninetyAgo)) billed90 += c.charges
+    if (isPrimaryReceivable(c) && c.dosFrom && c.dosFrom >= isoDate(ninetyAgo)) billed90 += c.charges
   }
   for (const p of payments) {
-    if (p.reversalOf) continue
-    if (p.date && p.date >= isoDate(ninetyAgo) && p.amount>0) paid90 += p.amount
-    if (p.kind==='writeoff' && p.date && p.date >= yearStart) writeOffYTD += Math.abs(p.adj||p.amount||0)
+    if (p.date && p.date >= isoDate(ninetyAgo) && p.claimId) paid90 += Number(p.amount) || 0
+    if (p.kind === 'writeoff' && p.date && p.date >= yearStart) writeOffYTD += Number(p.adj) || 0
   }
+  paid90 = Math.max(0, r2(paid90))
   const dso = billed90>0 ? Math.round((totals.totalAR / (billed90/90))) : null
   const collectionsRate = (paid90+totals.totalAR)>0 ? Math.round((paid90/(paid90+totals.totalAR))*100) : null
 
-  return { byClient, byPayer, totals: { ...totals, dso, collectionsRate, writeOffYTD: r2(writeOffYTD), billed90: r2(billed90), paid90: r2(paid90) }, asOf: asOfISO }
+  return { byClient, byPayer, totals: { ...totals, unassignedAR: r2(totals.totalAR - totals.patientAR), dso, collectionsRate, writeOffYTD: r2(writeOffYTD), billed90: r2(billed90), paid90: r2(paid90) }, asOf: asOfISO }
 }
 
 // ---------- exports (CSV for payers / accountants) ----------
@@ -401,7 +450,7 @@ export function claimCsv(state, claim) {
   const L = [
     `# ${org.name || 'Practice'} — Claim ${claim.no} (${claim.status}) · ${claim.mode === 'selfpay' ? 'Self-pay invoice' : claim.payer}`,
     `# Client ${client.name || claim.clientId} · member ${memberIdOf({ id: claim.clientId, insurer: claim.payer })} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(client)}`,
-    `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Paid ${(claim.paid || 0).toFixed(2)} · Due ${dueOf(claim).toFixed(2)}`,
+    `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Primary paid ${(claim.paid || 0).toFixed(2)} · Secondary received ${(claim.secondaryPaid || 0).toFixed(2)} · ${claim.method === 'secondary' ? 'Filing balance (not additional A/R)' : 'Primary A/R'} ${dueOf(claim).toFixed(2)}`,
     'line,date_of_service,hcpcs,mod,description,units,rate,charge,rendered_by',
     ...claim.lines.map((l, i) => `${i + 1},${l.dos},${l.code}${l.mod ? ',' + l.mod : ','},"${l.desc}",${l.units},${l.rate},${l.charge},"${l.staff}"`),
   ]
@@ -411,10 +460,10 @@ export function claimsCsv(state, claims) {
   const org = state.settings.org || {}
   const L = [
     `# ${org.name || 'Practice'} — claims register · ${claims.length} claim${claims.length > 1 ? 's' : ''}`,
-    'claim,client,payer,mode,dos_from,dos_to,lines,units,charges,adj,paid,due,status,submitted,paid_on',
+    'claim,ledger_role,client,payer,mode,dos_from,dos_to,lines,units,charges,adj,paid,secondary_received,balance,reported_patient_share,status,submitted,paid_on',
     ...claims.map((c) => {
       const client = (state.clients || []).find((x) => x.id === c.clientId) || {}
-      return `${c.no},"${client.name || ''}",${c.payer},${c.mode},${c.dosFrom},${c.dosTo},${c.lines.length},${c.units},${c.charges},${c.adj || 0},${c.paid || 0},${dueOf(c)},${c.status},${c.submittedAt ? isoDate(new Date(c.submittedAt)) : ''},${c.closedAt && c.status === 'paid' ? isoDate(new Date(c.closedAt)) : ''}`
+      return `${c.no},${c.method === 'secondary' ? 'filing_not_ar' : 'primary_ar'},"${client.name || ''}",${c.payer},${c.mode},${c.dosFrom},${c.dosTo},${c.lines.length},${c.units},${c.charges},${c.adj || 0},${c.paid || 0},${c.secondaryPaid || 0},${dueOf(c)},${patientResponsibilityOf(state, c)},${c.status},${c.submittedAt ? isoDate(new Date(c.submittedAt)) : ''},${c.closedAt && c.status === 'paid' ? isoDate(new Date(c.closedAt)) : ''}`
     }),
   ]
   return L.join('\n')
@@ -423,12 +472,13 @@ export function claimsCsv(state, claims) {
 // quick "post payment" presets, computed per claim
 export function quickPosts(state, claim, client) {
   const pol = payerPolicy(claim.payer)
-  const cp = claim.mode === 'insurance' ? Math.min(pol.copay * claim.lines.length, claim.charges) : 0
-  const coins = r2(claim.charges * pol.coins)
-  const out = [{ id: 'full', label: 'Full charge', amount: claim.charges, adj: 0 }]
-  if (claim.mode === 'insurance') out.push({ id: 'contract', label: `Contract ${Math.round(pol.coins * 100)}%`, amount: r2(coins - cp), adj: r2(claim.charges - coins), note: 'Contractual adjustment' })
-  if (cp) out.push({ id: 'copay', label: 'After copay', amount: r2(claim.charges - cp), adj: 0, note: `Copays collected: $${cp}` })
-  out.push({ id: 'writeoff', label: 'Write off', amount: 0, adj: claim.charges, note: 'Uncollectible' })
+  const open = Math.max(0, dueOf(claim))
+  const cp = claim.mode === 'insurance' ? Math.min(pol.copay * claim.lines.length, open) : 0
+  const coins = r2(open * pol.coins)
+  const out = [{ id: 'full', label: 'Full open balance', amount: open, adj: 0 }]
+  if (claim.mode === 'insurance') out.push({ id: 'contract', label: `Estimate ${Math.round(pol.coins * 100)}%`, amount: Math.max(0, r2(coins - cp)), adj: r2(open - coins), note: 'Estimated contract adjustment — verify remittance' })
+  if (cp) out.push({ id: 'copay', label: 'Leave estimated copay', amount: r2(open - cp), adj: 0, note: `Estimated copay $${cp} — not reported patient responsibility` })
+  out.push({ id: 'writeoff', label: 'Write off open balance', amount: 0, adj: open, note: 'Uncollectible' })
   return out
 }
 
@@ -511,53 +561,44 @@ export function resolveProviders(state, claim) {
 
 // ---------- secondary claim (COB) creation ----------
 export function secondaryEligible(state, claim) {
-  if (!claim) return false
-  if (claim.status !== 'partially_paid' && claim.status !== 'paid') return false
-  if (claim.secondary) return false
-  const client = (state.clients||[]).find((x)=>x.id===claim.clientId)
-  if (!client?.secondary) return false
-  const due = dueOf(claim)
-  return due > 0.5 || claim.status === 'partially_paid'
+  // A secondary is a transfer of an existing unpaid primary balance. A cloned
+  // secondary must never become eligible for a third, recursively cloned claim.
+  if (!claim || claim.method === 'secondary' || claim.status !== 'partially_paid' ||
+      claim.secondary || claim.secondarySkipped || claim.cobReviewNeeded || dueOf(claim) <= 0 ||
+      !claim.dosFrom || !claim.dosTo || claim.dosFrom > claim.dosTo || !(claim.lines || []).length) return false
+  const client = (state.clients || []).find((c) => c.id === claim.clientId)
+  const coverage = client?.secondary
+  const payer = (state.payers || []).find((p) => p.id === coverage?.payerId)
+  if (!payer || (payer.status && payer.status !== 'active') || !coverage?.memberId?.trim() || payer.name === claim.payer) return false
+  if (coverage.since && claim.dosFrom && claim.dosFrom < coverage.since) return false
+  if (coverage.until && claim.dosTo && claim.dosTo > coverage.until) return false
+  return true
 }
-export function secondaryClaimPatch(state, primary) {
-  const client = (state.clients||[]).find((c)=>c.id===primary.clientId)
-  if (!client?.secondary) return null
-  const secPayer = (state.payers||[]).find((p)=>p.id===client.secondary.payerId)
-  const payerName = secPayer?.name || client.secondary.payerId || 'Secondary'
-  const at = Date.now()
+export function secondaryClaimPatch(state, primary, { id, at = Date.now(), sequence = 1 } = {}) {
+  if (!secondaryEligible(state, primary)) return null
+  const client = (state.clients || []).find((c) => c.id === primary.clientId)
+  const secPayer = (state.payers || []).find((p) => p.id === client.secondary.payerId)
   const due = dueOf(primary)
-  const pol = payerPolicy(payerName)
-  const filingDays = secPayer?.ext?.filingDeadlineDays ?? state.settings?.billing?.defaultFilingDays ?? pol.timely ?? 90
-  const maxDos = primary.lines.reduce((m,l)=> l.dos > m ? l.dos : m, primary.dosTo||'')
-  const timelyDue = maxDos ? isoDate(new Date(parseISO(maxDos).getTime() + filingDays*86400000)) : null
+  const pol = payerPolicy(secPayer.name)
+  const filingDays = secPayer.ext?.filingDeadlineDays ?? state.settings?.billing?.defaultFilingDays ?? pol.timely ?? 90
+  const maxDos = (primary.lines || []).reduce((m, l) => l.dos > m ? l.dos : m, primary.dosTo || '')
+  const timelyDue = maxDos ? isoDate(new Date(parseISO(maxDos).getTime() + filingDays * 86400000)) : null
   const secondary = {
-    id: `${primary.id}-sec-${at.toString(36)}`,
-    no: `${primary.no}-S`,
-    clientId: primary.clientId,
-    payer: payerName,
-    mode: 'insurance',
-    method: 'secondary',
-    secondary: primary.id,
-    dosFrom: primary.dosFrom,
-    dosTo: primary.dosTo,
-    lines: primary.lines.map((l)=>({ ...l, provider: l.provider||null })),
-    status: 'draft',
-    charges: due > 0 ? due : primary.charges,
-    units: primary.units,
-    adj: 0,
-    paid: 0,
-    remittance: null,
-    denial: null,
-    parentNo: primary.no,
-    version: 1,
-    timelyDue,
-    submittedAt: null,
-    closedAt: null,
-    createdAt: at,
-    note: `Secondary from ${primary.no} — COB ${client.secondary.memberId||''}`,
-    history: [{ at, ev: `Secondary claim from ${primary.no} — $${(due>0?due:primary.charges).toFixed(2)} remaining, payer ${payerName} · member ${client.secondary.memberId||''}` }],
+    id: id || `${primary.id}-sec-${at.toString(36)}`, no: `${primary.no}-S${sequence}`,
+    clientId: primary.clientId, payer: secPayer.name, mode: 'insurance', method: 'secondary',
+    secondary: primary.id, parentNo: primary.no,
+    dosFrom: primary.dosFrom, dosTo: primary.dosTo,
+    // Original lines remain for reference only; the remaining dollars have NOT
+    // been allocated to individual service lines or an 837P/CMS-1500 artifact.
+    lines: (primary.lines || []).map((l) => ({ ...l, provider: l.provider || null })),
+    status: 'draft', charges: due, units: primary.units, adj: 0, paid: 0,
+    remittance: null, denial: null, version: 1, timelyDue,
+    submittedAt: null, closedAt: null, createdAt: at,
+    note: `Claim-level COB draft from ${primary.no}; verify service allocation and file manually`,
+    history: [{ at, ev: `Secondary draft from ${primary.no} — $${due.toFixed(2)} remaining; not transmitted` }],
   }
-  const primaryPatched = { ...primary, secondary: secondary.id, history: [...primary.history, { at, ev: `Secondary filing created → ${secondary.no} (${payerName})` }] }
+  const primaryPatched = { ...primary, secondary: secondary.id,
+    history: [...(primary.history || []), { at, ev: `Secondary draft created → ${secondary.no} (${secPayer.name})` }] }
   return { primary: primaryPatched, secondary }
 }
 

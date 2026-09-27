@@ -4,113 +4,66 @@ import { SectionBar, RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
-import { isoDate, addDays, parseISO, fmtDayLabel } from '../lib/date'
-import { dueOf } from '../lib/claims'
+import { isoDate, addDays, parseISO } from '../lib/date'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
 export default function QuickBooksView() {
-  const state = useStore()
-  const { ui, actions, settings, claims, clients } = state
+  const { ui, actions, settings, qbo } = useStore()
   const toast = useToast()
   const preset = ui.qboPreset || 'last4'
   const range = useMemo(() => resolveRange(preset, ui.anchor, settings.weekStart), [preset, ui.anchor, settings.weekStart])
   const [q, setQ] = useState('')
   const [statusF, setStatusF] = useState('all')
-
-  const qboItems = useMemo(() => (state.qbo || []), [state.qbo])
-  const filtered = useMemo(() => {
-    let out = qboItems
-    if (statusF !== 'all') out = out.filter((r) => r.status === statusF)
-    if (q.trim()) {
-      const t = q.trim().toLowerCase()
-      out = out.filter((r) => `${r.clientName} ${r.invoiceNo} ${r.id}`.toLowerCase().includes(t))
-    }
-    return out
-  }, [qboItems, statusF, q])
-
-  const kpis = {
-    total: qboItems.length,
-    pending: qboItems.filter((r) => r.status === 'pending').length,
-    synced: qboItems.filter((r) => r.status === 'synced').length,
-    failed: qboItems.filter((r) => r.status === 'failed').length,
-    amount: qboItems.reduce((s, r) => s + (r.amount || 0), 0),
+  const records = useMemo(() => Object.values(qbo || {}), [qbo])
+  const filtered = records.filter((r) => (statusF === 'all' || r.status === statusF) &&
+    (!q.trim() || `${r.clientName} ${r.invoiceNo} ${r.id}`.toLowerCase().includes(q.trim().toLowerCase())))
+  const counts = { reviewed: records.filter((r) => r.status === 'reviewed').length,
+    pending: records.filter((r) => r.status === 'pending').length,
+    legacy: records.filter((r) => r.status === 'synced').length }
+  const mark = (record, status) => {
+    actions.updateQbo(record.id, { status, ...(status === 'reviewed' ? { reviewedAt: new Date().toISOString() } : {}) })
+    toast({ message: `${record.invoiceNo || record.id} marked ${status} locally — no QuickBooks connection`, kind: 'ok' })
   }
-
-  const syncAll = () => {
-    const pend = qboItems.filter((r) => r.status === 'pending')
-    for (const r of pend) actions.updateQbo(r.id, { status: 'synced', syncedAt: new Date().toISOString() })
-    toast({ message: `Synced ${pend.length} invoices to QuickBooks`, kind: 'ok' })
-  }
-
   return (
     <div className="sectionpage" data-testid="qbo-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="file" title="QuickBooks" sub={`${range.label} · ${kpis.total} invoices · ${kpis.synced} synced · ${kpis.pending} pending · ${money(kpis.amount)}`}>
+      <SectionBar icon="file" title="QuickBooks · local records" sub={`${range.label} · ${records.length} records · ${counts.reviewed} reviewed locally · ${counts.pending} pending`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ qboPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
-        <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
-          <span className="sic">{Icon.search({ size: 12 })}</span>
-          <input placeholder="Search client, invoice" value={q} onChange={(e) => setQ(e.target.value)} data-testid="qbo-search" style={{ fontSize: 13 }} />
-        </div>
-        <button className="btn btn-sm btn-primary" data-testid="qbo-sync-all" onClick={syncAll} style={{ borderRadius: 10, background: '#2ca01c' }}>Sync Pending</button>
+        <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}><span className="sic">{Icon.search({ size: 12 })}</span><input placeholder="Search client, invoice" value={q} onChange={(e) => setQ(e.target.value)} data-testid="qbo-search" /></div>
       </SectionBar>
-
-      <div className="batch-strip" data-testid="qbo-kpis" style={{ margin: '16px', padding: '16px', gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
+      <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
+        <span className="muted">No QuickBooks API is connected. Local review does not confirm remote import. The charge-only CSV builder excludes active COB pairs; reconcile externally before accounting use.</span>
+      </div>
+      <div className="batch-strip" data-testid="qbo-kpis" style={{ margin: 16, padding: 16, gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
         {[
-          ['Total', kpis.total, `${money(kpis.amount)}`, '#2ca01c', 'qbo-kpi-total'],
-          ['Synced', kpis.synced, 'In QBO', '#10b981', 'qbo-kpi-synced'],
-          ['Pending', kpis.pending, 'To sync', '#f59e0b', 'qbo-kpi-pending'],
-          ['Failed', kpis.failed, 'Needs fix', '#ef4444', 'qbo-kpi-failed'],
-        ].map(([label, val, sub, color, testId]) => (
-          <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 14 })}</span>
-            <div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div>
-          </div>
-        ))}
-        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, background: 'var(--panel-2)', padding: '8px 14px', borderRadius: 20, border: '1px solid var(--line)' }}>Connected · {settings.qbo?.company || 'Demo Company'}</span>
+          ['Total', records.length, money(records.reduce((s, r) => s + (r.amount || 0), 0)), 'qbo-kpi-total'],
+          ['Reviewed', counts.reviewed, 'Local only', 'qbo-kpi-reviewed'],
+          ['Pending', counts.pending, 'To review', 'qbo-kpi-pending'],
+          ['Legacy synced label', counts.legacy, 'Unverified', 'qbo-kpi-synced'],
+        ].map(([label, value, sub, id]) => <div key={id} className="rp-sumchip on" data-testid={id} style={{ minWidth: 140, padding: '12px 16px', borderRadius: 12, border: '1px solid var(--line)' }}><b style={{ display: 'block', fontSize: 18 }}>{value}</b><span style={{ display: 'block', fontSize: 12 }}>{label}</span><small className="muted">{sub}</small></div>)}
       </div>
-
-      <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
-        <div className="viewseg" style={{ borderRadius: 10, padding: 3 }} data-testid="qbo-status-tabs">
-          {[
-            ['all', 'All'],
-            ['pending', 'Pending'],
-            ['synced', 'Synced'],
-            ['failed', 'Failed'],
-          ].map(([id, label]) => (
-            <button key={id} className={statusF === id ? 'on' : ''} data-testid={`qbo-status-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, fontSize: 13 }}>{label}</button>
-          ))}
-        </div>
-        <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{filtered.length} invoices</span>
+      <div className="batch-strip" data-testid="qbo-status-tabs" style={{ margin: '0 16px 16px', padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
+        <div className="viewseg">{[['all', 'All'], ['pending', 'Pending'], ['reviewed', 'Reviewed'], ['synced', 'Legacy synced'], ['failed', 'Failed']].map(([id, label]) => <button key={id} className={statusF === id ? 'on' : ''} data-testid={`qbo-status-${id}`} onClick={() => setStatusF(id)}>{label}</button>)}</div>
+        <span className="muted" style={{ marginLeft: 12 }}>{filtered.length} local records</span>
       </div>
-
-      <div style={{ padding: '0 16px 16px' }}>
-        <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
-          <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: '#2ca01c14', color: '#2ca01c', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>QuickBooks Invoices</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} invoices · sync to accounting</div></div>
-          </div>
-          <div className="py-tbl" data-testid="qbo-table" style={{ overflowX: 'auto' }}>
-            <div className="py-thead" style={{ gridTemplateColumns: '120px 1.4fr 120px 100px 100px 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>
-              <span>Invoice #</span><span>Client</span><span>Amount</span><span>Status</span><span>Synced</span><span>Actions</span>
+      <div style={{ padding: '0 16px 16px' }}><div className="panel" style={{ borderRadius: 14, border: '1px solid var(--line)', overflow: 'hidden' }}>
+        <div style={{ padding: 16, borderBottom: '1px solid var(--line)' }}><b>Accounting export records</b><div className="muted" style={{ fontSize: 12 }}>No automatic sync or network confirmation</div></div>
+        <div className="py-tbl" data-testid="qbo-table" style={{ overflowX: 'auto' }}>
+          <div className="py-thead" style={{ gridTemplateColumns: '120px 1.4fr 120px 140px 100px 1fr' }}><span>Invoice #</span><span>Client</span><span>Amount</span><span>Local status</span><span>Reviewed</span><span>Actions</span></div>
+          {filtered.slice(0, 100).map((r) => <div key={r.id} className="py-trow" data-testid={`qbo-row-${r.id}`} style={{ gridTemplateColumns: '120px 1.4fr 120px 140px 100px 1fr', minHeight: 52 }}>
+            <div className="py-cell"><span className="ln-code">{r.invoiceNo || r.id.slice(0, 8)}</span></div>
+            <div className="py-cell">{r.clientName || r.clientId || '—'}</div>
+            <div className="py-cell">{money(r.amount || 0)}</div>
+            <div className="py-cell">{r.status === 'synced' ? 'legacy (unverified)' : r.status || 'unreviewed'}</div>
+            <div className="py-cell">{r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : '—'}</div>
+            <div className="py-cell" style={{ display: 'flex', gap: 6 }}>
+              {r.status !== 'reviewed' && <button className="btn btn-xs" data-testid={`qbo-review-${r.id}`} onClick={() => mark(r, 'reviewed')}>Mark reviewed locally</button>}
+              {r.status !== 'pending' && <button className="btn btn-xs" data-testid={`qbo-retry-${r.id}`} onClick={() => mark(r, 'pending')}>Return to pending</button>}
             </div>
-            {filtered.slice(0, 100).map((r) => (
-              <div key={r.id} className="py-trow" data-testid={`qbo-row-${r.id}`} style={{ gridTemplateColumns: '120px 1.4fr 120px 100px 100px 1fr', minHeight: 52, padding: '10px 16px' }}>
-                <div className="py-cell"><span className="ln-code" style={{ fontSize: 12 }}>{r.invoiceNo || r.id.slice(0, 8)}</span></div>
-                <div className="py-cell"><b style={{ fontSize: 13 }}>{r.clientName}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.clientId}</div></div>
-                <div className="py-cell"><b style={{ fontSize: 13 }}>{money(r.amount || 0)}</b></div>
-                <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: r.status === 'synced' ? '#ecfdf5' : r.status === 'failed' ? '#fef2f2' : '#fef9c3' }}>{r.status}</span></div>
-                <div className="py-cell" style={{ fontSize: 11, color: 'var(--muted)' }}>{r.syncedAt ? new Date(r.syncedAt).toLocaleDateString() : '—'}</div>
-                <div className="py-cell" style={{ display: 'flex', gap: 6 }}>
-                  {r.status !== 'synced' && <button className="btn btn-xs btn-primary" data-testid={`qbo-sync-${r.id}`} onClick={() => { actions.updateQbo(r.id, { status: 'synced', syncedAt: new Date().toISOString() }); toast({ message: `${r.invoiceNo} synced`, kind: 'ok' }) }} style={{ borderRadius: 8, background: '#2ca01c' }}>Sync</button>}
-                  <button className="btn btn-xs" data-testid={`qbo-retry-${r.id}`} onClick={() => { actions.updateQbo(r.id, { status: 'pending' }); toast({ message: `${r.invoiceNo} queued`, kind: 'ok' }) }} style={{ borderRadius: 8 }}>Retry</button>
-                </div>
-              </div>
-            ))}
-            {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="qbo-empty"><b>No QuickBooks invoices</b><div className="muted" style={{ fontSize: 12 }}>Generate invoices to sync to QuickBooks.</div></div>}
-            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} invoices · {money(filtered.reduce((s, r) => s + (r.amount || 0), 0))} total</span><span>{kpis.synced} synced · {kpis.pending} pending</span></div>
-          </div>
+          </div>)}
+          {!filtered.length && <div className="py-empty" style={{ padding: 40, textAlign: 'center' }} data-testid="qbo-empty">No local export records in this filter.</div>}
         </div>
-      </div>
+      </div></div>
     </div>
   )
 }

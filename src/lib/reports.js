@@ -3,7 +3,7 @@
 
 import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType } from './model'
 import { rangeMetrics } from './analytics'
-import { agingOf, dueOf } from './claims'
+import { agingOf, dueOf, isPrimaryReceivable } from './claims'
 import { scanNeedsCover, needsCoverFor } from './smart'
 import { addDays, isoDate, parseISO, todayISO } from './date'
 
@@ -475,7 +475,7 @@ const REPORTS_RAW = [
           const age = agingOf(c)
           const due = dueOf(c)
           return {
-            no: c.no, client: clients[c.clientId]?.name || '—', payer: c.payer,
+            no: c.no, client: clients[c.clientId]?.name || '—', payer: c.payer, kind: c.method === 'secondary' ? 'COB filing (not A/R)' : 'Primary receivable',
             period: c.dosFrom === c.dosTo ? c.dosFrom : `${c.dosFrom.slice(5)}–${c.dosTo.slice(5)}`,
             lines: c.lines.length, units: c.units, charges: r2(c.charges), adj: r2(c.adj || 0), paid: r2(c.paid || 0),
             due: r2(due), status: c.status, age: age ? age.days : null, check: c.remittance?.checkNo || (c.denial ? `denied: ${c.denial.code}` : ''),
@@ -483,11 +483,11 @@ const REPORTS_RAW = [
           }
         })
         .sort((a, b) => (a.age == null ? -1 : b.age == null ? 1 : b.age - a.age) || b.due - a.due)
-      const money = (f) => Math.round(inWin.filter((c) => c.status === f).reduce((t, c) => t + c.charges, 0))
-      const outstanding = Math.round(inWin.reduce((t, c) => t + Math.max(0, dueOf(c)), 0))
+      const money = (f) => Math.round(inWin.filter((c) => isPrimaryReceivable(c) && c.status === f).reduce((t, c) => t + c.charges, 0))
+      const outstanding = Math.round(inWin.filter(isPrimaryReceivable).reduce((t, c) => t + Math.max(0, dueOf(c)), 0))
       return {
         columns: [
-          { k: 'no', label: 'Claim' }, { k: 'client', label: 'Client' }, { k: 'payer', label: 'Payer' }, { k: 'period', label: 'DOS' },
+          { k: 'no', label: 'Claim' }, { k: 'client', label: 'Client' }, { k: 'payer', label: 'Payer' }, { k: 'kind', label: 'Ledger role' }, { k: 'period', label: 'DOS' },
           { k: 'lines', label: 'Lines', t: 'num', ...moneyCell }, { k: 'units', label: 'Units', t: 'num', ...moneyCell },
           { k: 'charges', label: 'Charges $', t: 'money', ...moneyCell }, { k: 'adj', label: 'Adj $', t: 'money', ...moneyCell },
           { k: 'paid', label: 'Paid $', t: 'money', ...moneyCell }, { k: 'due', label: 'Due $', t: 'money', ...moneyCell },
@@ -500,7 +500,7 @@ const REPORTS_RAW = [
           { label: 'Awaiting payer', value: `$${money('submitted').toLocaleString()}` },
           { label: 'Denied', value: `$${money('denied').toLocaleString()}` },
         ],
-        note: 'Open the Billing desk to post payments or rebill; numbers here derive from the same claim store.',
+        note: 'COB filings appear in this register for review but are excluded from receivable summaries. Only primary balances count once; this is not service-line allocation.',
       }
     },
   },

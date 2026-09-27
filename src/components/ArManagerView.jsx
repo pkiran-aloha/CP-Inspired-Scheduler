@@ -6,7 +6,7 @@ import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
-import { dueOf, arOf } from '../lib/claims'
+import { dueOf, arOf, patientResponsibilityOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
@@ -55,16 +55,16 @@ export default function ArManagerView() {
   const exportCsv = () => {
     const rows = view === 'client' ? filteredByClient : filteredByPayer
     const header = view === 'client'
-      ? 'client,client_id,last_payment_date,last_payment_method,current,31_60,61_90,91_120,121_plus,balance,over90_pct'
-      : 'payer,client_count,current,31_60,61_90,91_120,121_plus,balance,over90'
+      ? 'client,client_id,last_payment_date,last_payment_method,current,31_60,61_90,91_120,121_plus,balance,reported_patient_share,over90_pct'
+      : 'filing_or_patient_bucket,client_count,current,31_60,61_90,91_120,121_plus,balance,reported_patient_share,over90'
     const lines = [
       `# ${settings.org?.name || 'Practice'} — AR as of ${asOf}`,
       header,
       ...rows.map((r) => {
         if (view === 'client') {
-          return `"${r.clientName}",${r.clientId},${r.lastPayment?.date || ''},${r.lastPayment?.kind || ''},${r.buckets.current},${r.buckets['31-60']},${r.buckets['61-90']},${r.buckets['91-120']},${r.buckets['121+']},${r.balance},${r.over90Pct}`
+          return `"${r.clientName}",${r.clientId},${r.lastPayment?.date || ''},${r.lastPayment?.kind || ''},${r.buckets.current},${r.buckets['31-60']},${r.buckets['61-90']},${r.buckets['91-120']},${r.buckets['121+']},${r.balance},${r.patientAR},${r.over90Pct}`
         } else {
-          return `"${r.payer}",${r.clientCount},${r.buckets.current},${r.buckets['31-60']},${r.buckets['61-90']},${r.buckets['91-120']},${r.buckets['121+']},${r.balance},${r.over90}`
+          return `"${r.payer}",${r.clientCount},${r.buckets.current},${r.buckets['31-60']},${r.buckets['61-90']},${r.buckets['91-120']},${r.buckets['121+']},${r.balance},${r.patientAR},${r.over90}`
         }
       }),
     ]
@@ -79,7 +79,7 @@ export default function ArManagerView() {
 
   return (
     <div className="sectionpage" data-testid="ar-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="dollar" title="AR Manager" sub={`Receivables as of ${fmtDayLabel(asOf)} · ${range.label} · ${ar.byClient.length} clients · ${ar.byPayer.length} payers · ${money(ar.totals.totalAR)} total`}>
+      <SectionBar icon="dollar" title="AR Manager" sub={`Receivables as of ${fmtDayLabel(asOf)} · ${range.label} · ${ar.byClient.length} clients · ${ar.byPayer.length} filing / patient buckets · ${money(ar.totals.totalAR)} total`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ arPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 240, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -90,7 +90,8 @@ export default function ArManagerView() {
 
       <div className="batch-strip" data-testid="ar-kpis" style={{ margin: '16px', padding: '16px', gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
         {[
-          ['total', 'Total A/R', money(ar.totals.totalAR), `${ar.byClient.length} clients`, '#6366f1', 'ar-kpi-total'],
+          ['total', 'Total A/R', money(ar.totals.totalAR), `${ar.byClient.length} clients · primary ledger only`, '#6366f1', 'ar-kpi-total'],
+          ['patient', 'Reported patient share', money(ar.totals.patientAR), `Of A/R; ${money(ar.totals.unassignedAR)} not assigned to patient`, '#0d9488', 'ar-kpi-patient'],
           ['over90', '>90d', money(ar.totals.over90), `${ar.totals.totalAR ? Math.round((ar.totals.over90 / ar.totals.totalAR) * 100) : 0}% of total`, '#ef4444', 'ar-kpi-over90'],
           ['dso', 'DSO', ar.totals.dso != null ? `${ar.totals.dso}d` : '—', `Billed 90d ${money(ar.totals.billed90)}`, '#0ea5e9', 'ar-kpi-dso'],
           ['collections', 'Collections 90d', ar.totals.collectionsRate != null ? `${ar.totals.collectionsRate}%` : '—', `Paid 90d ${money(ar.totals.paid90)}`, '#10b981', 'ar-kpi-collections'],
@@ -106,10 +107,10 @@ export default function ArManagerView() {
       <div className="batch-strip" data-testid="ar-tabs" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <div className="viewseg" style={{ borderRadius: 10, padding: 3 }}>
           <button className={view === 'client' ? 'on' : ''} data-testid="ar-tab-client" onClick={() => { setView('client'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.team({ size: 12 })} By Client</button>
-          <button className={view === 'payer' ? 'on' : ''} data-testid="ar-tab-payer" onClick={() => { setView('payer'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.shield({ size: 12 })} By Payer</button>
+          <button className={view === 'payer' ? 'on' : ''} data-testid="ar-tab-payer" onClick={() => { setView('payer'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.shield({ size: 12 })} By filing / patient bucket</button>
         </div>
         {clientPick.length > 0 && <button className="btn btn-xs" data-testid="ar-clear-filter" onClick={() => setClientPick([])} style={{ borderRadius: 8 }}>Clear filter ({clientPick.length})</button>}
-        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{list.length} rows · {view === 'client' ? 'Client aging' : 'Payer aging'}</span>
+        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{list.length} rows · {view === 'client' ? 'Client aging' : 'Disjoint filing and reported patient portions'} · reported share requires review</span>
       </div>
 
       <div style={{ padding: '0 16px 16px', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
@@ -138,7 +139,7 @@ export default function ArManagerView() {
                       <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets['31-60'] ? money(r.buckets['31-60']) : '—'}</div>
                       <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets['61-90'] ? money(r.buckets['61-90']) : '—'}</div>
                       <div className="py-cell" style={{ fontSize: 13 }}>{(r.buckets['91-120'] || 0) + (r.buckets['121+'] || 0) ? money((r.buckets['91-120'] || 0) + (r.buckets['121+'] || 0)) : '—'}</div>
-                      <div className="py-cell"><b style={{ fontSize: 14, color: over90Pct > 50 ? '#b91c1c' : '#059669' }}>{money(r.balance)}</b></div>
+                      <div className="py-cell"><b style={{ fontSize: 14, color: over90Pct > 50 ? '#b91c1c' : '#059669' }}>{money(r.balance)}</b>{r.patientAR > 0 && <small style={{ display: 'block', color: 'var(--muted)' }}>{money(r.patientAR)} reported PR</small>}</div>
                     </div>
                   )
                 })}
@@ -167,19 +168,19 @@ export default function ArManagerView() {
                   </div>
                   <b style={{ fontSize: 13 }}>Open claims ({drillClient.claims.length})</b>
                   <div className="tablewrap" style={{ maxHeight: 260, overflow: 'auto', borderRadius: 10, border: '1px solid var(--line)', marginTop: 10 }}>
-                    <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>DOS</th><th>Due</th><th>Status</th></tr></thead><tbody>{drillClient.claims.slice(0, 30).map((c) => (<tr key={c.id} data-testid={`ar-drill-claim-${c.id}`}><td><span className="ln-code">{c.no}</span></td><td>{c.dosFrom}</td><td style={{ fontWeight: 700 }}>{money(dueOf(c))}</td><td>{c.status}</td></tr>))}</tbody></table>
+                    <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>DOS</th><th>Practice A/R</th><th>Reported PR</th><th>Status</th></tr></thead><tbody>{drillClient.claims.slice(0, 30).map((c) => (<tr key={c.id} data-testid={`ar-drill-claim-${c.id}`}><td><span className="ln-code">{c.no}</span></td><td>{c.dosFrom}</td><td style={{ fontWeight: 700 }}>{money(dueOf(c))}</td><td>{money(patientResponsibilityOf(state, c))}</td><td>{c.status}</td></tr>))}</tbody></table>
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                     <button className="btn btn-sm btn-primary" data-testid="ar-drill-statement" onClick={() => openStatement(drillClient.clientId)} style={{ borderRadius: 10 }}>Statement</button>
-                    <button className="btn btn-sm" data-testid="ar-drill-export" onClick={() => { const rows = drillClient.claims; const csv = ['claim,client,payer,dos_from,dos_to,charges,paid,adj,due,status', ...rows.map((c) => `${c.no},"${drillClient.clientName}",${c.payer},${c.dosFrom},${c.dosTo},${c.charges},${c.paid || 0},${c.adj || 0},${dueOf(c)},${c.status}`)].join('\n'); download(`AR-${drillClient.clientName}-${asOf}.csv`, csv) }} style={{ borderRadius: 10 }}>Export CSV</button>
+                    <button className="btn btn-sm" data-testid="ar-drill-export" onClick={() => { const rows = drillClient.claims; const csv = ['claim,client,payer,dos_from,dos_to,charges,primary_paid,secondary_paid,adj,due,reported_patient_share,status', ...rows.map((c) => `${c.no},"${drillClient.clientName}",${c.payer},${c.dosFrom},${c.dosTo},${c.charges},${c.paid || 0},${c.secondaryPaid || 0},${c.adj || 0},${dueOf(c)},${patientResponsibilityOf(state, c)},${c.status}`)].join('\n'); download(`AR-${drillClient.clientName}-${asOf}.csv`, csv) }} style={{ borderRadius: 10 }}>Export CSV</button>
                   </div>
                 </>
               )}
               {drillPayer && (
                 <>
-                  <b style={{ fontSize: 13 }}>Open claims ({drillPayer.claims.length})</b>
+                  <b style={{ fontSize: 13 }}>Primary claims in this bucket ({drillPayer.claims.length})</b><p className="muted" style={{ fontSize: 12 }}>The amount here is this bucket’s portion of each primary, not an additional secondary charge.</p>
                   <div className="tablewrap" style={{ maxHeight: 360, overflow: 'auto', borderRadius: 10, border: '1px solid var(--line)', marginTop: 10 }}>
-                    <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>Client</th><th>Due</th><th>Status</th></tr></thead><tbody>{drillPayer.claims.slice(0, 40).map((c) => { const cl = clients.find((x) => x.id === c.clientId); return <tr key={c.id}><td><span className="ln-code">{c.no}</span></td><td><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PersonAvatar p={cl} size={18} />{cl?.name || c.clientId}</div></td><td style={{ fontWeight: 700 }}>{money(dueOf(c))}</td><td>{c.status}</td></tr> })}</tbody></table>
+                    <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>Client</th><th>Due</th><th>Status</th></tr></thead><tbody>{drillPayer.claims.slice(0, 40).map((c) => { const cl = clients.find((x) => x.id === c.clientId); return <tr key={c.id}><td><span className="ln-code">{c.no}</span></td><td><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PersonAvatar p={cl} size={18} />{cl?.name || c.clientId}</div></td><td style={{ fontWeight: 700 }}>{money(drillPayer.claimDueById[c.id] || 0)}</td><td>{c.status}</td></tr> })}</tbody></table>
                   </div>
                 </>
               )}

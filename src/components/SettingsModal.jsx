@@ -1,11 +1,12 @@
 import React, { useRef, useState } from 'react'
-import { useStore } from '../state/store'
+import { blankState, useStore } from '../state/store'
 import { useToast } from '../ui/Toast'
 import { Icon } from '../ui/Icons'
 import { smartCfg } from '../lib/smart'
 import { downloadDoc } from '../lib/exportKit'
 import { todayISO } from '../lib/date'
 import { NAME_STYLES, apptAutoTitle, titleAudit } from '../lib/apptName'
+import { createWorkspaceBackup, readWorkspaceBackup } from '../lib/workspaceBackup'
 
 export default function SettingsModal({ onClose }) {
   const state = useStore()
@@ -13,6 +14,7 @@ export default function SettingsModal({ onClose }) {
   const toast = useToast()
   const fileRef = useRef(null)
   const [arm, setArm] = useState(null) // two-step confirmation instead of native confirm()
+  const [pendingRestore, setPendingRestore] = useState(null)
 
   const sm = smartCfg(settings)
   const patch = (section, v) => {
@@ -46,25 +48,34 @@ export default function SettingsModal({ onClose }) {
     bytes = (localStorage.getItem('aloha-aba.v3') || '').length
   } catch {}
   const doExport = () => {
-    const snap = { exported: new Date().toISOString(), appts, claims, staff, clients, teams, settings, reports: state.reports }
-    downloadDoc(`pulse-aba-backup-${todayISO()}.json`, JSON.stringify(snap), 'application/json')
-    toast({ message: `Workspace exported — ${Object.keys(appts).length} appointments + ${Object.keys(claims).length} claims as JSON`, kind: 'ok' })
+    downloadDoc(`aloha-aba-backup-${todayISO()}.json`, createWorkspaceBackup(state), 'application/json')
+    toast({ message: `Full workspace exported — ${Object.keys(appts).length} appointments, ${Object.keys(claims).length} claims and all billing ledgers`, kind: 'ok' })
   }
   const doImport = (file) => {
+    setPendingRestore(null)
+    if (file.size > 50 * 1024 * 1024) {
+      toast({ message: 'Backup is too large to open here (50 MB limit)', kind: 'warn' })
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     const fr = new FileReader()
     fr.onload = () => {
       try {
-        const data = JSON.parse(String(fr.result))
-        if (!data.appts || typeof data.appts !== 'object') throw new Error('no ledger')
-        const n = Object.keys(data.appts).length
-        actions.replace(data)
-        toast({ message: `Backup restored — ${n} appointment${n === 1 ? '' : 's'} now in the workspace`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
+        setPendingRestore(readWorkspaceBackup(String(fr.result), blankState()))
       } catch (err) {
-        toast({ message: 'That file is not a Aloha ABA backup (missing an appointment ledger)', kind: 'warn' })
+        toast({ message: err.message, kind: 'warn' })
       }
       if (fileRef.current) fileRef.current.value = ''
     }
+    fr.onerror = () => { toast({ message: 'Could not read that backup file', kind: 'warn' }); if (fileRef.current) fileRef.current.value = '' }
     fr.readAsText(file)
+  }
+  const confirmRestore = () => {
+    if (!pendingRestore) return
+    const { data, counts } = pendingRestore
+    actions.replace(data)
+    setPendingRestore(null)
+    toast({ message: `Backup restored — ${counts.appointments} appointments, ${counts.claims} claims and ${counts.payments} payments`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() }, duration: 8000 })
   }
 
   const clientsById = Object.fromEntries(clients.map((c) => [c.id, c]))
@@ -200,8 +211,17 @@ export default function SettingsModal({ onClose }) {
                 <input ref={fileRef} type="file" accept="application/json,.json" data-testid="set-import-file" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
               </div>
               <p className="muted" style={{ fontSize: 10.8, margin: '2px 0 0', lineHeight: 1.5 }}>
-                Everything lives in this browser. Export a snapshot before big edits — restoring replaces the ledger, claims, roster and settings in one step (undoable).
+                Everything lives in this browser. Export before big edits: the JSON includes appointments, billing ledgers, payers, service &amp; field masters, reports and dashboards. Undo is available in this tab only.
               </p>
+              {pendingRestore && <div className="sv-restore-preview" data-testid="set-restore-preview" role="status">
+                <b>Replace this workspace?</b>
+                <span>{pendingRestore.counts.appointments} appointment{pendingRestore.counts.appointments === 1 ? '' : 's'} · {pendingRestore.counts.claims} claim{pendingRestore.counts.claims === 1 ? '' : 's'} · {pendingRestore.counts.payments} payment{pendingRestore.counts.payments === 1 ? '' : 's'} in backup. Your current data will be replaced; export it first if you need a copy.</span>
+                {pendingRestore.legacy && <span className="sv-legacy">Older partial backup: payer/service/field masters and billing ledgers were not included in that format. Missing data will reset to demo defaults or empty ledgers.</span>}
+                <div className="sv-actions">
+                  <button className="btn btn-sm btn-primary" type="button" data-testid="set-restore-confirm" onClick={confirmRestore}>Replace workspace</button>
+                  <button className="btn btn-sm" type="button" data-testid="set-restore-cancel" onClick={() => setPendingRestore(null)}>Cancel</button>
+                </div>
+              </div>}
             </div>
             <div style={{ padding: '10px 0 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button
@@ -211,11 +231,11 @@ export default function SettingsModal({ onClose }) {
                   if (arm !== 'reseed') return setArm('reseed')
                   setArm(null)
                   actions.reseed()
-                  toast({ message: 'Demo schedule regenerated', kind: 'ok' })
+                  toast({ message: 'Demo schedule & billing regenerated', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
                   onClose()
                 }}
               >
-                {Icon.zap({ size: 13 })} {arm === 'reseed' ? 'Click again to regenerate' : 'Regenerate demo data'}
+                {Icon.zap({ size: 13 })} {arm === 'reseed' ? 'Click again to regenerate schedule & billing' : 'Regenerate demo data'}
               </button>
               <button
                 className="btn btn-sm"
@@ -225,11 +245,11 @@ export default function SettingsModal({ onClose }) {
                   if (arm !== 'clear') return setArm('clear')
                   setArm(null)
                   actions.clearDemo()
-                  toast({ message: 'Workspace cleared', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
+                  toast({ message: 'Schedule & billing cleared — masters and settings kept', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
                   onClose()
                 }}
               >
-                {Icon.trash({ size: 13 })} {arm === 'clear' ? 'Really clear all appointments?' : 'Clear all appointments'}
+                {Icon.trash({ size: 13 })} {arm === 'clear' ? 'Really clear schedule & billing?' : 'Clear schedule & billing'}
               </button>
               {arm && (
                 <button className="btn btn-sm btn-ghost" onClick={() => setArm(null)}>
