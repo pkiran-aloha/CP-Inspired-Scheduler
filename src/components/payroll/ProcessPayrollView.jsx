@@ -3,14 +3,21 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { money, hrs, PayKpis, PeriodPicker, GateList, StaffCell, StatusPill } from './PayrollCommon'
+import { money, hrs, PayKpis, PeriodPicker, GateList, StaffCell, StatusPill, PayStepper, PhasePanel } from './PayrollCommon'
+import ReviewRegisterModal from './ReviewRegisterModal'
 import { RUN_STATUS_LABEL, eligibleProfiles, computeRun, periodFromId, periodFor, stubFor } from '../../lib/payroll'
 import { registerCsv, registerSpec, qboCsv, glJournalRows, achFile, stubHtml, payrollCsv } from '../../lib/payrollExport'
 import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
 import { download } from '../../lib/ics'
 import { todayISO } from '../../lib/date'
 
-const STEP_LABEL = ['Select period', 'Review register', 'Approve', 'Process & pay']
+/** The four phases, with the iconography and one-line promise of each. */
+const PHASES = [
+  { label: 'Select period', sub: 'Which cycle to pay', icon: 'cal' },
+  { label: 'Review register', sub: 'Price time · clear exceptions', icon: 'table' },
+  { label: 'Approve', sub: 'A second person signs', icon: 'shield' },
+  { label: 'Process & pay', sub: 'Lock & release files', icon: 'zap' },
+]
 
 /**
  * Process Payroll — the run wizard.
@@ -28,6 +35,7 @@ export default function ProcessPayrollView() {
   const [step, setStep] = useState(0)
   const [periodId, setPeriodId] = useState(() => periodFor(payroll, todayISO())?.id || null)
   const [who, setWho] = useState('Prateek Kiran')
+  const [reviewIssue, setReviewIssue] = useState(null) // Review Register drill-down
 
   const periods = useMemo(() => periodFromId(payroll, periodId, { back: 24, forward: 12 }), [payroll, periodId])
   const existing = useMemo(
@@ -116,6 +124,8 @@ export default function ProcessPayrollView() {
     toast({ message: `Payroll register exported as ${kind.toUpperCase()}`, kind: 'ok' })
   }
 
+  const gateTone = gate && !gate.ok ? 'bad' : gate?.warnings?.length ? 'warn' : 'ok'
+
   return (
     <div className="sectionpage" data-testid="pay-process-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="dollar" title="Process Payroll" sub={
@@ -126,19 +136,26 @@ export default function ProcessPayrollView() {
         <button className="btn btn-sm" data-testid="pay-undo" onClick={() => { actions.undo(); toast({ message: 'Undid the last payroll change', kind: 'ok' }) }} style={{ borderRadius: 10 }}>{Icon.undo({ size: 13 })} Undo</button>
       </SectionBar>
 
-      <div className="pay-steps" data-testid="pay-steps">
-        {STEP_LABEL.map((label, i) => (
-          <button key={label} className={`pay-step ${i === step ? 'on' : ''} ${i < step ? 'done' : ''}`} data-testid={`pay-step-${i}`} onClick={() => (i <= step || run) && setStep(i)}>
-            <span className="n">{i < step ? Icon.check({ size: 12 }) : i + 1}</span>
-            <span className="t">{label}</span>
-          </button>
-        ))}
-      </div>
+      <PayStepper steps={PHASES} step={step} maxStep={run ? 3 : step} onStep={setStep} />
 
-      {/* ---------- step 1: period ---------- */}
+      {/* ---------- phase 1: period ---------- */}
       {step === 0 && (
-        <div className="pay-card" data-testid="pay-wizard-period">
-          <h3>Please select the payroll period you would like to process</h3>
+        <PhasePanel
+          testId="pay-wizard-period"
+          index={1} total={4} icon="cal" tone="accent"
+          title="Select the payroll period"
+          sub="Timesheets are pulled straight from the calendar — you choose which cycle to pay."
+          guide={[
+            'Pick the pay cycle you want to process — frequency, pay date and cutoff come from Payroll Setup.',
+            `This period covers ${preview ? `${preview.gate.included.length} eligible employees and ${hrs(preview.totals.workedHours)} of worked time` : 'no time yet — pick a period first'}.`,
+            'If a run already exists for the cycle, you will resume it instead of creating a duplicate.',
+          ]}
+          footer={
+            <button className="btn btn-primary pay-next" data-testid="pay-period-next-step" onClick={() => (existing.length ? setStep(existing[0].status === 'processed' ? 3 : 1) : createRun())}>
+              {existing.length ? 'Open existing run' : 'Next — build the register'} {Icon.chevronR({ size: 13 })}
+            </button>
+          }
+        >
           <PeriodPicker value={periodId} onChange={setPeriodId} />
           <div className="pay-hint">
             Timesheets for this period are pulled from the calendar — {preview ? `${preview.gate.included.length} eligible employees, ${hrs(preview.totals.workedHours)} of worked time` : 'no period selected'}.
@@ -153,17 +170,42 @@ export default function ProcessPayrollView() {
               </div>
             </div>
           )}
-          <div className="pay-actions">
-            <button className="btn btn-primary" data-testid="pay-period-next-step" onClick={() => (existing.length ? setStep(existing[0].status === 'processed' ? 3 : 1) : createRun())}>
-              {existing.length ? 'Open existing run' : 'Next — build the register'}
-            </button>
-          </div>
-        </div>
+        </PhasePanel>
       )}
 
-      {/* ---------- step 2: review ---------- */}
+      {/* ---------- phase 2: review ---------- */}
       {step >= 1 && run && (
         <>
+          <PhasePanel
+            testId="pay-wizard-review"
+            index={2} total={4} icon="table" tone={gateTone}
+            title="Review the register"
+            sub={`${run.no} · ${run.periodStart} → ${run.periodEnd} · pay date ${run.payDate} · prepared by ${run.preparedBy}`}
+            guide={[
+              'Check gross-to-net for every employee below — the register is priced live from the ledgers.',
+              'Blockers stop the run from being approved; exceptions need an approver’s eyes.',
+              'Use “Show n affected employees” on any exception to open the Review Register and jump straight to the fix.',
+            ]}
+            footer={
+              <>
+                <button className="btn btn-primary pay-next" data-testid="pay-review-next" onClick={() => setStep(2)} disabled={gate && !gate.ok} title={gate && !gate.ok ? 'Clear the blockers first' : 'Continue to approval'}>
+                  Continue to approval {Icon.chevronR({ size: 13 })}
+                </button>
+                <span className="pay-hint" style={{ marginTop: 0, borderLeftWidth: 2 }}>
+                  {gate && !gate.ok
+                    ? `${gate.blockers.length} blocker(s) must be cleared before approval.`
+                    : gate?.warnings?.length
+                      ? `${gate.warnings.length} exception(s) to review — nothing is blocking.`
+                      : 'All controls passed — ready for approval.'}
+                </span>
+              </>
+            }
+          >
+            <div style={{ margin: '2px -2px 0' }}>
+              <GateList gate={gate} onFilter={(g) => setReviewIssue(g)} />
+            </div>
+          </PhasePanel>
+
           <PayKpis testId="pay-run-kpis" items={[
             ['Employees', run.included.length, `${run.totals.deliveredHours.toFixed(1)} delivered hours`, 'pay-kpi-staff'],
             ['Gross pay', money(run.totals.grossCents, { cents: false }), hrs(run.totals.workedHours + run.totals.otHours), 'pay-kpi-gross'],
@@ -172,13 +214,6 @@ export default function ProcessPayrollView() {
             ['Employer cost', money(run.totals.employerCents, { cents: false }), 'taxes + benefits', 'pay-kpi-employer'],
             ['Total cost', money(run.totals.totalCostCents, { cents: false }), 'gross + employer', 'pay-kpi-cost'],
           ]} />
-
-          <div style={{ padding: '0 16px 16px' }}>
-            <GateList gate={gate} onFilter={(ids) => {
-              const names = ids.map((id) => (staff || []).find((x) => x.id === id)?.name || id)
-              toast({ message: `Affected: ${names.slice(0, 6).join(', ')}${names.length > 6 ? ` +${names.length - 6} more` : ''}`, kind: 'info' })
-            }} />
-          </div>
 
           <div className="pay-card" data-testid="pay-register-preview" style={{ marginTop: 0 }}>
             <div className="pay-card-head">
@@ -225,14 +260,27 @@ export default function ProcessPayrollView() {
         </>
       )}
 
-      {/* ---------- step 3: approve ---------- */}
+      {/* ---------- phase 3: approve ---------- */}
       {step === 2 && run && (
-        <div className="pay-card" data-testid="pay-wizard-approve">
-          <h3>Independent approval</h3>
-          <p className="muted" style={{ marginTop: 0, fontSize: 12.5 }}>
-            Payroll is a sensitive control: the person who prepared the run should not be the person who approves it.
-            Approval signs the register; processing then locks it.
-          </p>
+        <PhasePanel
+          testId="pay-wizard-approve"
+          index={3} total={4} icon="shield" tone={run.status === 'approved' ? 'ok' : 'accent'}
+          title="Independent approval"
+          sub="Payroll is a sensitive control: the person who prepared the run should not be the person who approves it."
+          guide={[
+            `Pick an approver other than ${run.preparedBy} — approval signs the register.`,
+            'Review the totals one more time: net to disburse and total cost to the practice.',
+            'Processing then locks the register — after that, corrections are off-cycle adjustments only.',
+          ]}
+          footer={
+            <>
+              <button className="btn btn-sm" onClick={() => setStep(1)}>{Icon.chevronL({ size: 13 })} Back to register</button>
+              <button className="btn btn-primary pay-next" data-testid="pay-approve" onClick={approve} disabled={gate && !gate.ok} title={gate && !gate.ok ? 'Resolve blockers first' : 'Approve the register'}>
+                {Icon.shield({ size: 13 })} Approve payroll
+              </button>
+            </>
+          }
+        >
           <label className="pay-field">
             <span>Approver</span>
             <select className="input" value={who} onChange={(e) => setWho(e.target.value)} data-testid="pay-approver">
@@ -244,6 +292,7 @@ export default function ProcessPayrollView() {
             <div><span>Prepared by</span><b>{run.preparedBy}</b></div>
             <div><span>Net to disburse</span><b>{money(run.totals.netCents)}</b></div>
             <div><span>Total cost to practice</span><b>{money(run.totals.totalCostCents)}</b></div>
+            <div><span>Status</span><b><StatusPill status={run.status} /></b></div>
           </div>
           {run.preparedBy === who && payroll.approvals.separateApprover && (
             <div className="pay-gate warn" data-testid="pay-sod-warning">
@@ -251,40 +300,53 @@ export default function ProcessPayrollView() {
               <div><b>Segregation of duties</b><div className="why">You are the preparer — pick a different approver, or turn the control off deliberately in Payroll Setup.</div></div>
             </div>
           )}
-          <div className="pay-actions">
-            <button className="btn btn-sm" onClick={() => setStep(1)}>Back to register</button>
-            <button className="btn btn-primary" data-testid="pay-approve" onClick={approve} disabled={gate && !gate.ok} title={gate && !gate.ok ? 'Resolve blockers first' : 'Approve the register'}>Approve payroll</button>
-          </div>
           {gate && !gate.ok && <div className="pay-hint bad">{gate.blockers.length} blocker(s) must be cleared before this run can be approved.</div>}
-        </div>
+        </PhasePanel>
       )}
 
-      {/* ---------- step 4: process ---------- */}
+      {/* ---------- phase 4: process ---------- */}
       {step >= 2 && run && run.status !== 'processed' && (
-        <div className="pay-card" data-testid="pay-wizard-process">
-          <h3>Process &amp; release</h3>
-          <p className="muted" style={{ marginTop: 0, fontSize: 12.5 }}>
-            Processing re-prices every employee from the live ledgers, locks the register, and marks the timesheets as processed.
-            Nothing is transmitted: the provider file, bank file and stubs are downloads you hand off yourself.
-          </p>
+        <PhasePanel
+          testId="pay-wizard-process"
+          index={4} total={4} icon="zap" tone={run.status === 'approved' ? 'ok' : 'warn'}
+          title="Process & release"
+          sub="Processing re-prices every employee from the live ledgers, locks the register, and marks the timesheets as processed."
+          guide={[
+            'Nothing is transmitted automatically — the provider file, bank file and stubs are downloads you hand off yourself.',
+            'The register is re-priced at the moment of locking, so the locked figures match the live ledgers.',
+            'After locking, download the artifacts below and hand them to your payroll provider and bank.',
+          ]}
+          footer={
+            <>
+              <button className="btn btn-primary pay-next" data-testid="pay-process" onClick={process} disabled={run.status !== 'approved'}>
+                {Icon.zap({ size: 13 })} Process payroll — lock {money(run.totals.netCents)} net
+              </button>
+              {run.status === 'draft' && <span className="pay-hint" style={{ marginTop: 0, borderLeftWidth: 2 }}>Approval is required first — finish phase 3.</span>}
+              <button className="btn btn-sm" data-testid="pay-void-run" onClick={voidRun}>Void this run</button>
+            </>
+          }
+        >
           <div className="pay-summary-mini">
             <div><span>Status</span><b><StatusPill status={run.status} /></b></div>
             <div><span>Approved by</span><b>{run.approvedBy || '—'}</b></div>
             <div><span>Employees</span><b>{run.included.length}</b></div>
+            <div><span>Net to lock</span><b>{money(run.totals.netCents)}</b></div>
           </div>
-          <div className="pay-actions">
-            <button className="btn btn-primary" data-testid="pay-process" onClick={process} disabled={run.status !== 'approved'}>
-              Process payroll — lock {money(run.totals.netCents)} net
-            </button>
-            {run.status === 'draft' && <span className="pay-hint">Approval is required first.</span>}
-            <button className="btn btn-sm" data-testid="pay-void-run" onClick={voidRun}>Void this run</button>
-          </div>
-        </div>
+        </PhasePanel>
       )}
 
       {run && run.status === 'processed' && (
-        <div className="pay-card" data-testid="pay-wizard-done">
-          <h3><span className="pay-ok">{Icon.checkCircle({ size: 16 })}</span> {run.no} processed and locked</h3>
+        <PhasePanel
+          testId="pay-wizard-done"
+          index={4} total={4} icon="checkCircle" tone="ok"
+          title={`${run.no} processed and locked`}
+          sub="Everything is paid and frozen — hand off the artifacts below to your provider and bank."
+          guide={[
+            'Download the pay stubs and hand them to employees — printing or sharing never transmits anything by itself.',
+            'The QuickBooks payroll file and GL journal are what your accountant and provider import.',
+            'The ACH file is a local draft — validate it with your bank before it goes anywhere near one.',
+          ]}
+        >
           <div className="pay-summary-mini">
             <div><span>Processed</span><b>{new Date(run.processedAt).toLocaleString()}</b></div>
             <div><span>Processed by</span><b>{run.processedBy || '—'}</b></div>
@@ -292,27 +354,32 @@ export default function ProcessPayrollView() {
             <div><span>Pay date</span><b>{run.payDate}</b></div>
           </div>
           <div className="pay-actions">
-            <button className="btn btn-primary" data-testid="pay-stubs" onClick={downloadStubs}>{Icon.download({ size: 13 })} Pay stubs</button>
+            <button className="btn btn-primary pay-next" data-testid="pay-stubs" onClick={downloadStubs}>{Icon.download({ size: 13 })} Pay stubs</button>
             <button className="btn btn-sm" data-testid="pay-provider-file" onClick={() => {
               download(`quickbooks-payroll-${run.no}.csv`, qboCsv(run, state), 'text/csv;charset=utf-8')
               actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'qbo_payroll', fileName: `quickbooks-payroll-${run.no}.csv`, rows: run.totals.staff, totalCents: run.totals.grossCents })
               toast({ message: 'Provider export built — review it in QuickBooks Payroll before handing it over', kind: 'ok' })
-            }}>QuickBooks payroll file</button>
+            }}>{Icon.file({ size: 12 })} QuickBooks payroll file</button>
             <button className="btn btn-sm" data-testid="pay-gl-journal" onClick={() => {
               download(`payroll-journal-${run.no}.csv`, payrollCsv(glJournalRows(run, state)), 'text/csv;charset=utf-8')
               actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'gl_journal', fileName: `payroll-journal-${run.no}.csv`, rows: 5 })
-            }}>GL journal</button>
+            }}>{Icon.file({ size: 12 })} GL journal</button>
             <button className="btn btn-sm" data-testid="pay-ach" onClick={() => {
               download(`payroll-ach-${run.no}.ach`, achFile(run, state), 'text/plain;charset=utf-8')
               actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'ach_draft', fileName: `payroll-ach-${run.no}.ach`, rows: run.totals.staff, note: 'NACHA-shaped local draft — not bank-validated' })
               toast({ message: 'ACH draft downloaded — this file has not been validated by a bank and must not be uploaded as-is', kind: 'warn' })
-            }}>ACH draft (review)</button>
+            }}>{Icon.download({ size: 12 })} ACH draft (review)</button>
           </div>
           <div className="pay-hint">
             Processed registers are immutable by design. Corrections go through an off-cycle adjustment run rather than editing history —
             that is what makes the audit trail worth anything.
           </div>
-        </div>
+        </PhasePanel>
+      )}
+
+      {/* Review Register drill-down — "Show n affected employees" */}
+      {reviewIssue && (
+        <ReviewRegisterModal issue={reviewIssue} run={run} onClose={() => setReviewIssue(null)} />
       )}
     </div>
   )

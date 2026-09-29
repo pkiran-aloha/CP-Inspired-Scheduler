@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
@@ -28,6 +28,21 @@ export default function PayrollIdMappingView() {
   const byStaff = useMemo(() => Object.fromEntries((payProfiles || []).map((p) => [p.staffId, p])), [payProfiles])
   const dupes = useMemo(() => duplicatePayrollIds(payProfiles || []), [payProfiles])
   const dupeStaff = useMemo(() => new Set(dupes.flatMap((d) => d.staffIds)), [dupes])
+
+  // Deep link from the Review Register modal ("Fix this issue"): pre-filter the
+  // table to the affected employee and open their pay profile editor.
+  const focus = state.ui?.payrollFocus
+  useEffect(() => {
+    if (!focus) return
+    if (focus.name) setQ(focus.name)
+    setPage(1)
+    if (focus.open === 'profile' && focus.staffId) {
+      const s = (staff || []).find((x) => x.id === focus.staffId)
+      if (s) { setOpen(s.id); setDraft(byStaff[s.id] || defaultProfile(s, 0)) }
+    }
+    actions.setUI({ payrollFocus: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus])
 
   const rows = useMemo(() => (staff || [])
     .map((s) => ({ s, p: byStaff[s.id] || defaultProfile(s, 0) }))
