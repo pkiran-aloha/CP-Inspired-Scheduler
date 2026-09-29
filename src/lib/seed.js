@@ -363,7 +363,11 @@ export function buildSeed(todayISO) {
     )
   })
 
-  for (let w = -8; w <= 4; w++) {
+  // 12 back-weeks (not 8): the demo claim ledgers group by calendar month, so the
+  // oldest month in the window must always be old enough to reach the paid band
+  // (40+ days) — otherwise a re-seed on a Monday can open the billing desk with
+  // no paid history at all.
+  for (let w = -12; w <= 4; w++) {
     const weekStart = addDays(monday, w * 7)
     for (const c of CLIENTS) {
       const plan = plans[c.id]
@@ -597,7 +601,7 @@ export function buildDemoClaims(appts, clients, settings, today) {
     const c = claims[i]
     const age = ageOf(c.dosTo)
     const pol = PAYER_POLICY[c.payer] || { avgDays: 22, coins: 0.85 }
-    if (age >= 40 && i % 7 < 5) {
+    if (age >= 40 && rnd() < 0.8) {
       c.submittedAt = stamp(age - 5)
       c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice sent to family' : `Claim submitted to ${c.payer}` })
       const short = c.mode === 'insurance' && rnd() < 0.45
