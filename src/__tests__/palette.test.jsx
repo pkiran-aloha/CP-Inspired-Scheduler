@@ -91,7 +91,9 @@ describe('settings data vault', () => {
     const upload = () => { Object.defineProperty(input, 'files', { value: [file], configurable: true }); fireEvent.change(input) }
     upload()
     expect(await screen.findByTestId('set-restore-preview')).toBeTruthy()
-    expect(Object.keys(stored().appts).length).toBeGreaterThan(1)
+    // the preview shows before the debounced write lands — assert against what is
+    // actually persisted, waiting for it, rather than racing the writer
+    await waitFor(() => expect(Object.keys(stored().appts || {}).length).toBeGreaterThan(1))
     fireEvent.click(screen.getByTestId('set-restore-cancel'))
     expect(screen.queryByTestId('set-restore-preview')).toBeNull()
     upload()
