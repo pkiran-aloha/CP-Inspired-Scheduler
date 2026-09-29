@@ -3,6 +3,7 @@ import { addDays, isoDate, pad, parseISO, todayISO } from './date'
 import { uid, autoBilling, VERIFY_CHECKS, SERVICES, BILL_CODES } from './model'
 import { SMART_DEFAULTS } from './smart'
 import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq, npiOf } from './claims'
+import { defaultPayrollSettings, seedPayProfiles, periodsFor, sheetKey, periodFor } from './payroll'
 
 function mulberry32(a) {
   return function () {
@@ -198,7 +199,54 @@ export const defaultSettings = () => ({
   providers: seedProviders(STAFF, { npi: '1720418395', name: 'Aloha ABA Center' }),
   billing: { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org', strictAuth: false, supervisionCheck: false, invoiceSeq: 1, defaultFilingDays: 90 },
   analytics: { preset: 'last4', gran: 'auto', metric: 'sessions', dim: 'staff', chart: 'line', compare: true, agg: 'sum' },
+  payroll: defaultPayrollSettings(),
 })
+
+// ---- Payroll seeding ----------------------------------------------------------
+// Pay profiles come from the roster (role drives the defensible default), and
+// timesheets are *derived* from the calendar — the schedule stays the single
+// source of truth for worked time, so payroll can never drift from it.
+export function seedPayroll(staff = STAFF, settings = defaultSettings()) {
+  const payroll = { ...(settings.payroll || defaultPayrollSettings()) }
+  // The anchor must sit inside the cycle that contains "today", or the demo
+  // would open on a period months away from the seeded calendar.
+  payroll.anchor = currentPayrollAnchor(payroll.frequency)
+  const profiles = seedPayProfiles(staff).map((p, i) => {
+    const s = staff[i]
+    return {
+      ...p,
+      // demo provider IDs so the QuickBooks export is exercisable out of the box
+      payrollId: p.payrollId || `ALOHA-${String(i + 1).padStart(4, '0')}`,
+      classificationReviewed: i < 4, // first few reviewed; the rest stay flagged for review
+      bankRouting: '123456789',
+      bankAccount: `0000${String(1000 + i)}`,
+      address: s ? '1140 Sunset Crest Way, San Jose, CA 95124' : '',
+    }
+  })
+  const periods = periodsFor(payroll, periodFor(payroll, todayISO())?.start || todayISO(), { back: 2, forward: 1 })
+  const current = periodFor(payroll, todayISO(), { back: 2, forward: 1 })
+  const idx = periods.findIndex((p) => p.id === current?.id)
+  const sheets = {}
+  periods.forEach((period, pi) => {
+    profiles.forEach((p, si) => {
+      // historical periods are approved; the open period is mid-cycle, which is
+      // what the approval queue looks like on a real Wednesday
+      let status = 'approved'
+      if (pi === idx) status = si % 3 === 0 ? 'approved' : si % 3 === 1 ? 'submitted' : 'open'
+      else if (pi > idx) status = 'open'
+      sheets[sheetKey(p.staffId, period.id)] = {
+        id: sheetKey(p.staffId, period.id), staffId: p.staffId, periodId: period.id,
+        status, adjustments: [],
+        submittedAt: status !== 'open' ? Date.now() - 86400000 * 3 : undefined,
+        submittedBy: status !== 'open' ? 'Anik Gajjar' : undefined,
+        approvedAt: status === 'approved' ? Date.now() - 86400000 * 2 : undefined,
+        approvedBy: status === 'approved' ? 'Prateek Kiran' : undefined,
+        audit: [{ at: Date.now() - 86400000 * 4, who: 'system', action: 'sheet seeded', detail: period.label }],
+      }
+    })
+  })
+  return { profiles, sheets, periods, current, anchor: payroll.anchor }
+}
 
 // ---- content pools for rich seeding ----
 const SVC_BY_PROGRAM = {
@@ -514,6 +562,15 @@ export function buildSeed(todayISO) {
   }
 
   return appts
+}
+
+/** A period-start date that is guaranteed to contain today for the given cycle. */
+export function currentPayrollAnchor(frequency = 'biweekly', today = todayISO()) {
+  const t = parseISO(today)
+  if (frequency === 'monthly') return isoDate(new Date(t.getFullYear(), t.getMonth(), 1))
+  if (frequency === 'semimonthly') return isoDate(new Date(t.getFullYear(), t.getMonth(), t.getDate() >= 16 ? 16 : 1))
+  const monday = addDays(t, -((t.getDay() + 6) % 7)) // week start, Monday-aligned
+  return isoDate(frequency === 'weekly' ? monday : addDays(monday, -7))
 }
 
 export const seedMeta = { staff: STAFF, clients: CLIENTS, teams: TEAMS, locations: LOCATIONS }
