@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import React from 'react'
 import { render, waitFor } from '@testing-library/react'
 import App from '../App'
@@ -8,6 +8,38 @@ import { blankState } from '../state/store'
 import { BILL_CODES } from '../lib/model'
 
 const saved = () => JSON.parse(localStorage.getItem('aloha-aba.v3'))
+
+describe('demo ledger is deep enough to be a demo', () => {
+  afterEach(() => vi.useRealTimers())
+
+  // The demo claims group by calendar month across a window that slides with the
+  // week, so the window has to reach far enough back that the oldest month is
+  // always past the 40-day "paid" band. When it does not, the desk opens with no
+  // paid claims and no remittances on some weekdays — which is what starved the
+  // migration below and every A/R view with it.
+  it('opens with paid, denied, in-flight and draft claims whichever day it is seeded', () => {
+    const start = new Date()
+    for (let i = 0; i < 7; i++) {
+      const day = new Date(start)
+      day.setDate(day.getDate() + i)
+      day.setHours(9, 0, 0, 0)
+      vi.useFakeTimers({ shouldAdvanceTime: true })
+      vi.setSystemTime(day)
+
+      const s = blankState()
+      const claims = Object.values(s.claims)
+      const paid = claims.filter((c) => c.remittance)
+      const label = `${day.toDateString()} seeded ${claims.length} claims`
+      expect(paid.length, `${label}, ${paid.length} paid`).toBeGreaterThan(3)
+      for (const status of ['paid', 'denied', 'submitted', 'draft']) {
+        expect(claims.some((c) => c.status === status), `${label}, no ${status}`).toBe(true)
+      }
+      // every remittance is a first-class payment record, amounts intact
+      expect(Object.keys(s.payments).length, label).toBe(paid.length)
+      for (const c of paid) expect(s.payments[`pay-${c.id}`].amount).toBe(c.remittance.amount)
+    }
+  })
+})
 
 describe('billing v2 foundations (chunk 40)', () => {
   it('NPI check-digit validation (mod-10)', () => {
