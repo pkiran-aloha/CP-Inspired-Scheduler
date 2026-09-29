@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
-import { buildSeed, buildDemoClaims, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
+import { buildSeed, buildDemoClaims, seedPayroll, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
+import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
@@ -30,6 +31,8 @@ export function blankState() {
     if (idx === 1 && PAYERS[2]) return { ...c, secondary: { payerId: PAYERS[2].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0002', relation: 'secondary', since: '2026-02-01', until: null, note: '' } }
     return { ...c, secondary: null }
   })
+  const seedPay = seedPayroll(STAFF, { payroll: settings.payroll })
+  settings.payroll = { ...settings.payroll, anchor: seedPay.anchor }
   return {
     appts: apptsWithClaims,
     claims,
@@ -39,6 +42,11 @@ export function blankState() {
     eraImports: {},
     billedFiles: {},
     qbo: {},
+    // ---- payroll: profiles (master data), timesheet decisions, pay runs, exports
+    payProfiles: seedPay.profiles,
+    paySheets: seedPay.sheets,
+    payRuns: {},
+    payExports: {},
     // Fresh workspaces already use opt-in custom fields. Only old saves without
     // these flags need the one-time cleanup migrations on their first load.
     meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true },
@@ -84,6 +92,12 @@ export function initial() {
       if (saved && saved.appts) {
         // merge every sub-object against defaults so older saves keep working as the schema grows
         const d = defaultSettings()
+        // Older saves predate payroll: seed profiles + an approval queue from the
+        // roster they carry, so the module opens usable rather than blank.
+        const seededPay = seedPayroll(
+          Array.isArray(saved.staff) && saved.staff.length ? saved.staff : STAFF,
+          { payroll: { ...d.payroll, ...(saved.settings?.payroll || {}) } },
+        )
         const mergedRaw = {
           ...base,
           ...saved,
@@ -98,7 +112,11 @@ export function initial() {
           eraImports: saved.eraImports || {},
           billedFiles: saved.billedFiles || {},
           qbo: saved.qbo || {},
-          settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) } },
+          payProfiles: Array.isArray(saved.payProfiles) && saved.payProfiles.length ? saved.payProfiles : seededPay.profiles,
+          paySheets: saved.paySheets || seededPay.sheets,
+          payRuns: saved.payRuns || {},
+          payExports: saved.payExports || {},
+          settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) }, payroll: { ...d.payroll, ...(saved.settings?.payroll || {}), taxes: { ...d.payroll.taxes, ...(saved.settings?.payroll?.taxes || {}) }, cancelPolicy: { ...d.payroll.cancelPolicy, ...(saved.settings?.payroll?.cancelPolicy || {}) }, approvals: { ...d.payroll.approvals, ...(saved.settings?.payroll?.approvals || {}) }, rounding: { ...d.payroll.rounding, ...(saved.settings?.payroll?.rounding || {}) } } },
           ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: (saved.ui?.section || 'calendar') === 'payers' ? 'masters' : saved.ui?.section || 'calendar' },
         }
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
@@ -147,6 +165,7 @@ export function reducer(state, action) {
         ...state,
         ...Object.fromEntries(WORKSPACE_FIELDS.filter((key) => key in snap).map((key) => [key, snap[key]])),
         ...(Object.hasOwn(snap, 'billingSettings') ? { settings: { ...state.settings, billing: { ...state.settings.billing, ...snap.billingSettings } } } : {}),
+        ...(Object.hasOwn(snap, 'payrollSettings') ? { settings: { ...state.settings, payroll: { ...state.settings.payroll, ...snap.payrollSettings } } } : {}),
         history: hist,
       }
       // Compatibility for pre-change snapshots kept in memory by an older bundle.
@@ -217,10 +236,82 @@ export function reducer(state, action) {
       ]
       return { ...state, appts, claims, payments, invoices, eraImports, billedFiles, qbo, verificationForms, settings, history: touched.length ? pushSnap(state, touched, action.billing) : state.history }
     }
+    // ---- payroll: every money-affecting change is ONE undoable transaction ----
+    case 'payrollTx': {
+      const payroll = state.settings?.payroll
+      const period = action.periodId ? periodFromId(payroll, action.periodId, { back: 24, forward: 12 }) : null
+      const sheetsNext = { ...(state.paySheets || {}) }
+      const runsNext = { ...(state.payRuns || {}) }
+      const exportsNext = { ...(state.payExports || {}) }
+      const settingsPatch = action.settings ? { payroll: { ...(payroll || defaultPayrollSettings()), ...action.settings } } : null
+      const touched = []
+
+      if (action.scope === 'sheet') {
+        const tx = planSheet(state, action.staffId, action.periodId, action.op, { ...action.options, period })
+        if (!tx.ok) return state
+        Object.assign(sheetsNext, tx.sheets)
+        touched.push('paySheets')
+      } else if (action.scope === 'profile') {
+        // master-data edits (rate, payroll id, classification) are a separate
+        // control from running payroll — they snapshot the profile list only
+        const list = state.payProfiles || []
+        let next = list
+        if (action.op === 'upsert') {
+          if (!action.item?.staffId) return state
+          const exists = list.find((p) => p.staffId === action.item.staffId)
+          next = exists ? list.map((p) => (p.staffId === action.item.staffId ? { ...p, ...action.item } : p)) : [...list, { id: `pay-${action.item.staffId}`, ...action.item }]
+        } else if (action.op === 'remove') {
+          next = list.filter((p) => p.staffId !== action.staffId)
+        } else return state
+        return { ...state, payProfiles: next, history: pushSnap(state, ['payProfiles']) }
+      } else if (action.scope === 'run') {
+        if (action.op === 'create') {
+          if (!period) return state
+          const run = newRun(state, period, action.options)
+          runsNext[run.id] = run
+          touched.push('payRuns')
+          if (action.options?.autoApproveSheets) {
+            for (const staffId of run.included) {
+              const key = sheetKey(staffId, period.id)
+              const cur = sheetsNext[key] || { id: key, staffId, periodId: period.id, status: 'open', adjustments: [], audit: [] }
+              if (['open', 'rejected'].includes(cur.status)) sheetsNext[key] = { ...cur, status: 'approved', approvedAt: Date.now(), approvedBy: action.options?.who || 'Payroll admin', audit: [...(cur.audit || []), { at: Date.now(), who: action.options?.who || 'Payroll admin', action: 'auto-approved when the run was created' }] }
+              else if (cur.status === 'submitted') sheetsNext[key] = { ...cur, status: 'approved', approvedAt: Date.now(), approvedBy: action.options?.who || 'Payroll admin', audit: [...(cur.audit || []), { at: Date.now(), who: action.options?.who || 'Payroll admin', action: 'approved for the run' }] }
+            }
+            touched.push('paySheets')
+          }
+        } else {
+          const run = runsNext[action.runId]
+          if (!run) return state
+          const tx = planRun(state, period, action.op, { ...action.options, runId: action.runId })
+          if (!tx.ok) return state
+          Object.assign(runsNext, tx.runs)
+          if (tx.sheets) Object.assign(sheetsNext, tx.sheets)
+          touched.push('payRuns')
+          if (tx.sheets) touched.push('paySheets')
+        }
+      } else if (action.scope === 'export') {
+        const item = action.item
+        if (!item?.id) return state
+        exportsNext[item.id] = item
+        touched.push('payExports')
+      } else if (action.scope === 'settings') {
+        if (!action.settings) return state
+        touched.push('payrollSettings')
+      } else return state
+
+      return {
+        ...state,
+        ...(touched.includes('paySheets') ? { paySheets: sheetsNext } : {}),
+        ...(touched.includes('payRuns') ? { payRuns: runsNext } : {}),
+        ...(touched.includes('payExports') ? { payExports: exportsNext } : {}),
+        ...(settingsPatch ? { settings: { ...state.settings, ...settingsPatch } } : {}),
+        history: touched.length ? pushSnap(state, touched, {}, action.settings) : state.history,
+      }
+    }
     case 'record': {
       // Money must go through a guarded claim/receipt transaction, never a
       // generic document write that leaves the claim aggregate out of sync.
-      if (!['invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo'].includes(action.coll) || !action.item?.id) return state
+      if (!['invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !action.item?.id) return state
       const cur = state[action.coll] || {}
       return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
     }
@@ -241,7 +332,7 @@ export function reducer(state, action) {
     case 'clearDemo': {
       // Clear the dependent financial ledgers too; leaving payments/files behind
       // creates orphaned claims. The whole operation must be a single Undo.
-      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo']) }
+      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets']) }
     }
     case 'relabel': {
       const next = { ...state.appts }
@@ -260,7 +351,8 @@ export function reducer(state, action) {
       const { claims, appts: withClaims } = buildDemoClaims(appts, state.clients, state.settings, todayISO())
       // Rebuild seed payments from the new claims and remove documents tied to
       // the replaced ledger. Keep the user's rosters, masters and settings.
-      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo']) }
+      const pay = seedPayroll(state.staff, { payroll: state.settings.payroll })
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports']) }
     }
     case 'roster': {
       const list = state[action.list]
@@ -339,6 +431,7 @@ export function reducer(state, action) {
         smart: p.settings.smart || d.smart,
         org: { ...d.org, ...(p.settings.org || {}) },
         billing: { ...d.billing, ...(p.settings.billing || {}) },
+        payroll: { ...d.payroll, ...(p.settings.payroll || {}), taxes: { ...d.payroll.taxes, ...(p.settings.payroll?.taxes || {}) }, approvals: { ...d.payroll.approvals, ...(p.settings.payroll?.approvals || {}) }, cancelPolicy: { ...d.payroll.cancelPolicy, ...(p.settings.payroll?.cancelPolicy || {}) } },
         analytics: { ...d.analytics, ...(p.settings.analytics || {}) },
       }
       // One atomic restore, including billing artifacts and all masters. Do not
@@ -358,11 +451,12 @@ export function reducer(state, action) {
 // Snapshots hold only fields touched by their action; immutable updates make
 // references safe. Full restores use all fields, but a claim Undo cannot roll
 // back an unrelated setting edit. No snapshots are persisted to localStorage.
-const pushSnap = (state, fields = WORKSPACE_FIELDS, billingPatch = {}) => [
+const pushSnap = (state, fields = WORKSPACE_FIELDS, billingPatch = {}, payrollPatch = {}) => [
   ...state.history.slice(-24),
-  { __workspaceSnapshot: true, ...Object.fromEntries(fields.map((key) => [key, key === 'billingSettings'
-    ? Object.fromEntries(Object.keys(billingPatch).map((name) => [name, state.settings.billing?.[name]]))
-    : state[key]])) },
+  { __workspaceSnapshot: true, ...Object.fromEntries(fields.map((key) => [key,
+    key === 'billingSettings' ? Object.fromEntries(Object.keys(billingPatch).map((name) => [name, state.settings.billing?.[name]]))
+      : key === 'payrollSettings' ? Object.fromEntries(Object.keys(payrollPatch).map((name) => [name, state.settings.payroll?.[name]]))
+      : state[key]])) },
 ]
 
 const Ctx = createContext(null)
@@ -524,6 +618,53 @@ function createActions(state, dispatch) {
     updateProvider: (id, patch) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).map((p) => (p.id === id ? { ...p, ...patch } : p)) } }),
     removeProvider: (id) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).filter((p) => p.id !== id) } }),
     deleteProvider: (id) => dispatch({ type: 'setSettings', patch: { providers: (state.settings.providers || []).filter((p) => p.id !== id) } }),
+    // ---- payroll -----------------------------------------------------------------
+    // Timesheet decisions (submit / approve / reject / reopen / adjust): one tx each.
+    payrollSheet: (staffId, periodId, op, options = {}) => {
+      const period = periodFromId(state.settings?.payroll, periodId, { back: 24, forward: 12 })
+      const tx = planSheet(state, staffId, periodId, op, { ...options, period })
+      if (!tx.ok) return { ok: false, msg: tx.msg }
+      dispatch({ type: 'payrollTx', scope: 'sheet', staffId, periodId, op, options })
+      return { ok: true, msg: tx.msg }
+    },
+    /** Master data: rates, payroll IDs, classification, deductions. */
+    payrollProfile: (item) => {
+      if (!item?.staffId) return { ok: false, msg: 'Profile needs a staff member' }
+      dispatch({ type: 'payrollTx', scope: 'profile', op: 'upsert', item })
+      return { ok: true, msg: 'Payroll profile saved' }
+    },
+    removePayrollProfile: (staffId) => dispatch({ type: 'payrollTx', scope: 'profile', op: 'remove', staffId }),
+    /** Run lifecycle: create → approve → process (lock) → void. */
+    createPayRun: (period, options = {}) => {
+      const gate = runGate(state, period, options)
+      const run = newRun(state, period, options)
+      dispatch({ type: 'payrollTx', scope: 'run', op: 'create', periodId: period.id, options })
+      return { ok: true, msg: `${run.no} created — ${run.included.length} employees · ${gate.blockers.length} blocker(s), ${gate.warnings.length} warning(s)`, id: run.id, gate }
+    },
+    payrollRun: (runId, op, options = {}) => {
+      const run = (state.payRuns || {})[runId]
+      if (!run) return { ok: false, msg: 'Pay run not found' }
+      const period = periodFromId(state.settings?.payroll, run.periodId, { back: 24, forward: 12 })
+      const tx = planRun(state, period, op, { ...options, runId })
+      if (!tx.ok) return { ok: false, msg: tx.msg }
+      dispatch({ type: 'payrollTx', scope: 'run', op, runId, options, periodId: run.periodId })
+      return { ok: true, msg: tx.msg }
+    },
+    /** Record a downloaded provider/bank artifact so the run has an audit trail. */
+    recordPayExport: (item) => {
+      const rec = { id: uid(), at: Date.now(), status: 'pending', ...item }
+      dispatch({ type: 'payrollTx', scope: 'export', item: rec })
+      return rec
+    },
+    reviewPayExport: (id, status, note = '') => dispatch({
+      type: 'record', coll: 'payExports',
+      item: { ...(state.payExports || {})[id], id, status, reviewedAt: Date.now(), note },
+    }),
+    /** Pay policy: cancellation bands, overtime, rounding, approvals, tax tables. */
+    payrollSettings: (patch) => {
+      dispatch({ type: 'payrollTx', scope: 'settings', settings: patch })
+      return { ok: true, msg: 'Payroll settings updated' }
+    },
     // ---- document/artifact ledgers (billed files, invoices, verification forms, ERA imports) ----
     record: (coll, item) => dispatch({ type: 'record', coll, item: { id: uid(), ...item } }),
     resendBilledFile: (id) => {

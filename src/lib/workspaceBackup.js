@@ -4,13 +4,15 @@ export const WORKSPACE_FIELDS = [
   'appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports',
   'billedFiles', 'qbo', 'staff', 'clients', 'teams', 'payers', 'svcs',
   'customFields', 'settings', 'reports', 'dash', 'meta',
+  // payroll: master data, timesheet decisions, pay runs and their exports
+  'payProfiles', 'paySheets', 'payRuns', 'payExports',
 ]
 
 export const BACKUP_FORMAT = 'aloha-aba-workspace'
 export const BACKUP_VERSION = 2
 
-const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo']
-const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields']
+const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports']
+const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields', 'payProfiles']
 const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 export function workspaceData(state) {
@@ -50,6 +52,30 @@ function validate(data, fields) {
   if (Object.values(data.claims).some((c) => !Array.isArray(c.lines) || c.lines.some((l) => !record(l) || typeof l.apptId !== 'string') ||
       typeof c.clientId !== 'string' || typeof c.no !== 'string' || typeof c.status !== 'string' || !Number.isFinite(c.charges))) {
     throw new Error('Backup has invalid claims')
+  }
+  // Payroll: a restored backup must not invent wages or an inconsistent register.
+  // Every profile needs a real staff member, every processed run must carry the
+  // register it locked (so YTD and stubs can be rebuilt), and no run may sit in
+  // an unknown status.
+  const staffIds = new Set(data.staff.map((s) => s.id))
+  const RUN_STATES = ['draft', 'pending_approval', 'approved', 'processed', 'voided']
+  if (data.payProfiles.some((p) => !staffIds.has(p.staffId) || typeof p.staffId !== 'string' ||
+      !['hourly', 'salary', 'session'].includes(p.payType) ||
+      (p.payType === 'hourly' && !Number.isFinite(p.baseRate)) ||
+      (p.payType === 'salary' && !Number.isFinite(p.annualSalary)) ||
+      !Array.isArray(p.deductions))) {
+    throw new Error('Backup has invalid payroll profiles')
+  }
+  if (Object.values(data.paySheets).some((s) => ![ 'open', 'submitted', 'approved', 'rejected', 'processed' ].includes(s.status) ||
+      !Array.isArray(s.adjustments) || !String(s.staffId || '').length)) {
+    throw new Error('Backup has invalid timesheet records')
+  }
+  if (Object.values(data.payRuns).some((r) => !RUN_STATES.includes(r.status) ||
+      (r.locked && (!Array.isArray(r.lines) || r.lines.some((l) => !Number.isFinite(l.grossCents) || !Number.isFinite(l.netCents) || !Number.isFinite(l.taxCents)))))) {
+    throw new Error('Backup has invalid pay runs')
+  }
+  if (Object.values(data.payExports).some((e) => !String(e.kind || '').length)) {
+    throw new Error('Backup has invalid payroll export records')
   }
   if (Object.values(data.payments).some((p) => !Number.isFinite(p.amount)) ||
       data.clients.some((c) => typeof c.name !== 'string') || data.staff.some((s) => typeof s.name !== 'string') ||
@@ -119,6 +145,7 @@ export function readWorkspaceBackup(text, defaults) {
       ...workspaceData(defaults),
       ...Object.fromEntries(oldFields.map((key) => [key, file[key]])),
       payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {},
+      payProfiles: defaults.payProfiles || [], paySheets: {}, payRuns: {}, payExports: {},
       // Preserve any captured appointment fields rather than rerunning old cleanup
       // migrations on data restored from a backup.
       meta: { pcfCleared: true, legacyCustomCleared: true },

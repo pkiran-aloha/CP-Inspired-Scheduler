@@ -28,6 +28,13 @@ import QuickBooksView from './components/QuickBooksView'
 import AppealsView from './components/AppealsView'
 import PaymentCenterView from './components/PaymentCenterView'
 import ProviderIdView from './components/ProviderIdView'
+import ProcessPayrollView from './components/payroll/ProcessPayrollView'
+import PayRunsView from './components/payroll/PayRunsView'
+import TimesheetSubmissionView from './components/payroll/TimesheetSubmissionView'
+import PayrollSummaryView from './components/payroll/PayrollSummaryView'
+import PayrollIdMappingView from './components/payroll/PayrollIdMappingView'
+import QuickBooksPayrollView from './components/payroll/QuickBooksPayrollView'
+import PayrollSetupView from './components/payroll/PayrollSetupView'
 import NeedsCover from './components/NeedsCover'
 import SettingsModal from './components/SettingsModal'
 import CommandPalette from './components/CommandPalette'
@@ -122,7 +129,7 @@ function Shell() {
       const tag = (e.target.tagName || '').toLowerCase()
       if (['input', 'textarea', 'select'].includes(tag) || e.metaKey || e.ctrlKey) return
       if (e.key === '?') { e.preventDefault(); setKbHelp(true); return }
-      if (/^[1-8]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'masters'][Number(k) - 1] })
+      if (/^[1-9]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'masters', 'payroll'][Number(k) - 1] })
       else if (k === 't') actions.setUI({ anchor: todayISO() })
       else if ((k === 'n' || k === 'a') && section === 'calendar') setPicking({ date: todayISO(), start: 9 * 60, end: 10 * 60 })
       else if (['d', 'w', 'm', 'g', 'h'].includes(k)) actions.setUI({ section: 'calendar', view: { d: 'day', w: 'week', m: 'month', g: 'agenda', h: 'timeline' }[k] })
@@ -252,6 +259,13 @@ function Shell() {
         {section === 'bil-qbo' && <QuickBooksView />}
         {section === 'bil-appeals' && <AppealsView />}
         {section === 'bil-providers' && <ProviderIdView />}
+        {(section === 'payroll' || section === 'pay-process') && <ProcessPayrollView />}
+        {section === 'pay-runs' && <PayRunsView />}
+        {section === 'pay-timesheets' && <TimesheetSubmissionView />}
+        {section === 'pay-summary' && <PayrollSummaryView />}
+        {section === 'pay-idmap' && <PayrollIdMappingView />}
+        {section === 'pay-qbo' && <QuickBooksPayrollView />}
+        {section === 'pay-setup' && <PayrollSetupView />}
       </div>
 
       {picking && (

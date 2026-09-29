@@ -18,6 +18,15 @@ export const SECTIONS = [
   { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
   { id: 'reports', label: 'Reports', icon: 'file', kbd: '6', desc: 'Exportable PMS reports & validations' },
+  { id: 'payroll', label: 'Payroll', icon: 'badge', kbd: '9', desc: 'Timesheets, pay runs & provider export', subs: [
+    { id: 'pay-process', to: 'pay-process', label: 'Process Payroll' },
+    { id: 'pay-runs', to: 'pay-runs', label: 'Pay Runs' },
+    { id: 'pay-idmap', to: 'pay-idmap', label: 'Payroll ID Mapping' },
+    { id: 'pay-summary', to: 'pay-summary', label: 'Payroll Summary' },
+    { id: 'pay-timesheets', to: 'pay-timesheets', label: 'Timesheet Submission' },
+    { id: 'pay-qbo', to: 'pay-qbo', label: 'QuickBooks Payroll' },
+    { id: 'pay-setup', to: 'pay-setup', label: 'Payroll Setup' },
+  ] },
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
 ]
 
