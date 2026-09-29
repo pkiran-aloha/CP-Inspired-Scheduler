@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
@@ -40,6 +40,20 @@ export default function TimesheetSubmissionView() {
   const [detail, setDetail] = useState(null)
   const [who, setWho] = useState('Prateek Kiran')
   const [adj, setAdj] = useState({ code: 'ADMIN', date: '', hours: 1, note: '' })
+
+  // Deep link from the Review Register modal ("Fix this issue"): pre-filter the
+  // desk to the affected employee and open their timesheet so the sheet can be
+  // approved, adjusted or its visits verified on the spot.
+  const focus = state.ui?.payrollFocus
+  useEffect(() => {
+    if (!focus) return
+    if (focus.name) setQ(focus.name)
+    setPage(1)
+    setTab('all')
+    if (focus.open === 'timesheet' && focus.staffId) setDetail({ staffId: focus.staffId })
+    actions.setUI({ payrollFocus: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus])
 
   const period = useMemo(() => periodsFor(payroll, payroll.anchor, { back: 24, forward: 12 }).find((p) => p.id === periodId) || periodFor(payroll, todayISO(), {}), [payroll, periodId])
   const profiles = useMemo(() => (payProfiles || []).filter((p) => p.include), [payProfiles])

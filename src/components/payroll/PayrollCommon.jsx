@@ -73,19 +73,28 @@ export function PeriodPicker({ value, onChange, back = 12, forward = 12, showMet
 export function GateList({ gate, onFilter }) {
   const blockers = gate?.blockers || []
   const warnings = gate?.warnings || []
-  const group = (list) => {
+  const group = (list, tone) => {
     const m = new Map()
     for (const w of list) {
-      const cur = m.get(w.code) || { code: w.code, count: 0, why: [w.why], staffIds: new Set() }
+      const cur = m.get(w.code) || { code: w.code, tone, count: 0, why: [], items: [], staffIds: new Set() }
       cur.count += 1
-      if (cur.why.length < 4) cur.why.push(w.why)
+      if (cur.why.length < 4 && !cur.why.includes(w.why)) cur.why.push(w.why)
       if (w.staffId) cur.staffIds.add(w.staffId)
+      cur.items.push(w)
       m.set(w.code, cur)
     }
     return [...m.values()].map((g) => ({ ...g, staffIds: [...g.staffIds] }))
   }
-  const b = group(blockers)
-  const w = group(warnings)
+  const b = group(blockers, 'bad')
+  const w = group(warnings, 'warn')
+  const drill = (g) => onFilter && onFilter(g)
+  const AffectedLink = ({ g }) => (
+    g.staffIds.length > 0 ? (
+      <button className="pay-link" data-testid={`pay-gate-filter-${g.code}`} onClick={() => drill(g)}>
+        Show {g.staffIds.length} affected employee{g.staffIds.length === 1 ? '' : 's'} →
+      </button>
+    ) : null
+  )
   if (!b.length && !w.length) {
     return <div className="pay-gate ok" data-testid="pay-gate-clear">
       <span className="ic">{Icon.checkCircle({ size: 15 })}</span>
@@ -100,6 +109,7 @@ export function GateList({ gate, onFilter }) {
           <div>
             <b>{g.count} blocker{g.count > 1 ? 's' : ''} · {g.code.replace(/-/g, ' ')}</b>
             {g.why.map((x, i) => <div key={i} className="why">{x}</div>)}
+            <AffectedLink g={g} />
           </div>
         </div>
       ))}
@@ -109,12 +119,74 @@ export function GateList({ gate, onFilter }) {
           <div>
             <b>{g.count} exception{g.count > 1 ? 's' : ''} · {g.code.replace(/-/g, ' ')}</b>
             {g.why.map((x, i) => <div key={i} className="why">{x}</div>)}
-            {g.staffIds.length > 1 && (
-              <button className="pay-link" data-testid={`pay-gate-filter-${g.code}`} onClick={() => onFilter && onFilter(g.staffIds)}>Show {g.staffIds.length} affected employees</button>
-            )}
+            <AffectedLink g={g} />
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+// ---- phased wizard design ---------------------------------------------------
+/**
+ * The phase rail: iconography, state colouring and one line of guidance per
+ * phase so the wizard reads like a guided path rather than a row of tabs.
+ * States: done (green check), on (accent), upcoming (neutral).
+ */
+export function PayStepper({ steps, step, maxStep, onStep }) {
+  return (
+    <div className="pay-stepper" data-testid="pay-steps">
+      {steps.map((s, i) => {
+        const done = i < step
+        const on = i === step
+        const reachable = i <= (maxStep ?? step)
+        return (
+          <React.Fragment key={s.label}>
+            {i > 0 && <span className={`pay-sconn ${i <= step ? 'fill' : ''}`} aria-hidden="true" />}
+            <button
+              className={`pay-step ${on ? 'on' : ''} ${done ? 'done' : ''}`}
+              data-testid={`pay-step-${i}`}
+              onClick={() => reachable && onStep && onStep(i)}
+              disabled={!reachable}
+              title={reachable ? s.sub : 'Finish the earlier phases first'}
+            >
+              <span className="n">{done ? Icon.check({ size: 12 }) : Icon[s.icon] ? Icon[s.icon]({ size: 13 }) : i + 1}</span>
+              <span className="tx">
+                <span className="t">{s.label}</span>
+                <span className="s">{s.sub}</span>
+              </span>
+            </button>
+          </React.Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+/**
+ * The phase shell: coloured icon tile + "Phase n of N" eyebrow + the guide that
+ * tells the user what this phase does and what moves them ahead.
+ */
+export function PhasePanel({ index, total, icon, tone = 'accent', title, sub, guide = [], children, footer, testId }) {
+  return (
+    <div className="pay-card pay-phase" data-testid={testId}>
+      <div className={`pay-phase-head tone-${tone}`}>
+        <span className={`pay-phase-ic tone-${tone}`}>{Icon[icon] ? Icon[icon]({ size: 17 }) : Icon.spark({ size: 17 })}</span>
+        <div className="pay-phase-titles">
+          <span className="pay-phase-eyebrow">Phase {index} of {total}</span>
+          <h3>{title}</h3>
+          {sub && <div className="pay-phase-sub">{sub}</div>}
+        </div>
+      </div>
+      {guide.length > 0 && (
+        <ol className="pay-guide" data-testid={`pay-guide-${index}`}>
+          {guide.map((g, i) => (
+            <li key={i}><span className="pay-guide-n">{i + 1}</span><span>{g}</span></li>
+          ))}
+        </ol>
+      )}
+      {children}
+      {footer && <div className="pay-actions">{footer}</div>}
     </div>
   )
 }

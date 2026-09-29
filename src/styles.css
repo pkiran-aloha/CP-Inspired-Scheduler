@@ -2764,13 +2764,21 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
    Shares the platform's tokens; these rules only add payroll-specific layout
    (wizard steps, exception gates, register lines, audit trail, pickers).
    ========================================================================== */
-.pay-steps { display: flex; gap: 8px; padding: 14px 16px 0; flex-wrap: wrap; }
-.pay-step { display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 11px; border: 1px solid var(--line); background: var(--panel); font-family: inherit; font-size: 12.5px; font-weight: 650; color: var(--text-2); cursor: pointer; transition: .14s; }
-.pay-step:hover { border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); }
-.pay-step .n { width: 19px; height: 19px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); color: var(--muted); font-size: 11px; font-weight: 800; }
+.pay-stepper { display: flex; align-items: stretch; gap: 0; padding: 14px 16px 0; flex-wrap: wrap; }
+.pay-step { display: flex; align-items: center; gap: 10px; padding: 10px 16px 10px 12px; border-radius: 13px; border: 1px solid var(--line); background: var(--panel); font-family: inherit; text-align: left; color: var(--text-2); cursor: pointer; transition: .16s; box-shadow: 0 1px 2px rgb(16 24 40 / 4%); }
+.pay-step:hover:not(:disabled) { border-color: color-mix(in srgb, var(--accent) 34%, var(--line)); transform: translateY(-1px); }
+.pay-step:disabled { cursor: not-allowed; opacity: .55; }
+.pay-step .n { flex: none; width: 27px; height: 27px; border-radius: 9px; display: grid; place-items: center; background: var(--panel-2); color: var(--muted); font-size: 11px; font-weight: 800; border: 1px solid var(--line); }
+.pay-step .tx { display: flex; flex-direction: column; min-width: 0; }
+.pay-step .t { font-size: 12.5px; font-weight: 750; letter-spacing: -.1px; color: inherit; white-space: nowrap; }
+.pay-step .s { font-size: 10.5px; font-weight: 550; color: var(--muted); white-space: nowrap; }
 .pay-step.on { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: var(--accent-soft); color: var(--text); }
-.pay-step.on .n { background: var(--accent); color: #fff; }
-.pay-step.done .n { background: color-mix(in srgb, var(--ok, #10b981) 20%, var(--panel)); color: var(--ok, #047857); }
+.pay-step.on .n { background: var(--accent); color: #fff; border-color: transparent; box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--accent) 55%, transparent); }
+.pay-step.on .s { color: color-mix(in srgb, var(--accent) 72%, var(--text-2)); }
+.pay-step.done .n { background: color-mix(in srgb, var(--ok, #10b981) 18%, var(--panel)); color: var(--ok, #047857); border-color: color-mix(in srgb, var(--ok, #10b981) 34%, transparent); }
+.pay-step.done .t { color: var(--text-2); }
+.pay-sconn { flex: none; width: 26px; align-self: center; height: 2px; border-radius: 2px; background: var(--line-2); position: relative; overflow: hidden; }
+.pay-sconn.fill { background: linear-gradient(90deg, var(--ok, #10b981), color-mix(in srgb, var(--accent) 60%, var(--ok, #10b981))); }
 
 .pay-card { margin: 16px; padding: 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: 0 1px 2px rgb(16 24 40 / 4%); }
 .pay-card h3 { margin: 0 0 12px; font-size: 15px; font-weight: 800; letter-spacing: -.2px; }
@@ -2887,4 +2895,53 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 @media (max-width: 900px) {
   .pay-line, .pay-audit-row { grid-template-columns: 1fr !important; }
   .pay-line.head { display: none; }
+}
+
+/* ============================================================================
+   Payroll phases — guided wizard panels + Review Register drill-down
+   ========================================================================== */
+.pay-phase { position: relative; overflow: hidden; }
+.pay-phase-head { display: flex; align-items: flex-start; gap: 12px; padding: 2px 0 2px; margin-bottom: 12px; }
+.pay-phase-ic { flex: none; display: grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; border: 1px solid transparent; }
+.pay-phase-ic.tone-accent { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 26%, transparent); }
+.pay-phase-ic.tone-ok { background: color-mix(in srgb, var(--ok, #10b981) 13%, transparent); color: var(--ok, #047857); border-color: color-mix(in srgb, var(--ok, #10b981) 30%, transparent); }
+.pay-phase-ic.tone-warn { background: color-mix(in srgb, var(--warn, #f59e0b) 15%, transparent); color: #b45309; border-color: color-mix(in srgb, var(--warn, #f59e0b) 34%, transparent); }
+.pay-phase-ic.tone-bad { background: color-mix(in srgb, var(--danger, #ef4444) 13%, transparent); color: var(--danger, #b91c1c); border-color: color-mix(in srgb, var(--danger, #ef4444) 30%, transparent); }
+.pay-phase-titles { min-width: 0; }
+.pay-phase-eyebrow { display: block; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .09em; color: var(--accent); }
+.pay-phase-head.tone-ok .pay-phase-eyebrow { color: var(--ok, #047857); }
+.pay-phase-head.tone-warn .pay-phase-eyebrow { color: #b45309; }
+.pay-phase-head.tone-bad .pay-phase-eyebrow { color: var(--danger, #b91c1c); }
+.pay-phase-head h3 { margin: 2px 0 2px; font-size: 16px; font-weight: 800; letter-spacing: -.25px; }
+.pay-phase-sub { font-size: 12.3px; color: var(--text-2); line-height: 1.55; max-width: 78ch; }
+
+.pay-guide { list-style: none; margin: 0 0 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(180deg, var(--panel-2), color-mix(in srgb, var(--panel-2) 45%, var(--panel))); }
+.pay-guide li { display: flex; gap: 10px; align-items: flex-start; font-size: 12.3px; line-height: 1.55; color: var(--text-2); }
+.pay-guide-n { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 800; border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.btn.pay-next { gap: 4px; box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--accent) 55%, transparent); }
+.btn.pay-next:disabled { box-shadow: none; }
+
+/* Review Register modal — affected-employee list */
+.pay-review-list { display: flex; flex-direction: column; gap: 10px; }
+.pay-review-row { display: grid; grid-template-columns: minmax(210px, 1.2fr) minmax(220px, 1.7fr) auto; gap: 12px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.pay-review-row.bad { border-left: 3px solid color-mix(in srgb, var(--danger, #ef4444) 70%, transparent); }
+.pay-review-row.warn { border-left: 3px solid color-mix(in srgb, var(--warn, #f59e0b) 75%, transparent); }
+.pay-review-who { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pay-review-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+.pay-review-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; background: var(--panel-2); border: 1px solid var(--line); font-size: 10.5px; font-weight: 650; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.pay-review-issues { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pay-review-issue { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pay-issue-pill { flex: none; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 750; text-transform: capitalize; white-space: nowrap; }
+.pay-issue-pill.bad { background: color-mix(in srgb, var(--danger, #ef4444) 12%, transparent); color: var(--danger, #b91c1c); border: 1px solid color-mix(in srgb, var(--danger, #ef4444) 28%, transparent); }
+.pay-issue-pill.warn { background: color-mix(in srgb, var(--warn, #f59e0b) 14%, transparent); color: #b45309; border: 1px solid color-mix(in srgb, var(--warn, #f59e0b) 30%, transparent); }
+.pay-review-why { font-size: 11.8px; color: var(--text-2); line-height: 1.5; }
+.pay-review-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+.pay-review-actions .btn { justify-content: center; white-space: nowrap; }
+
+@media (max-width: 860px) {
+  .pay-step .s { display: none; }
+  .pay-sconn { width: 12px; }
+  .pay-review-row { grid-template-columns: 1fr; }
+  .pay-review-actions { flex-direction: row; }
 }
