@@ -16,6 +16,9 @@ import AnalyticsView from './components/AnalyticsView'
 import ReportsView from './components/ReportsView'
 import DashboardView from './components/DashboardView'
 import ClientsView from './components/ClientsView'
+import IntakeRequestsView from './components/intake/IntakeRequestsView'
+import IntakeFormView from './components/intake/IntakeFormView'
+import ReferralSourcesView from './components/intake/ReferralSourcesView'
 import MastersView from './components/MastersView'
 import StaffView from './components/StaffView'
 import BillingView from './components/BillingView'
@@ -248,6 +251,9 @@ function Shell() {
         {section === 'reports' && <ReportsView />}
         {section === 'dashboard' && <DashboardView onOpenDetail={setDetailId} />}
         {section === 'clients' && <ClientsView />}
+        {section === 'intake' && <IntakeRequestsView />}
+        {section === 'intake-new' && <IntakeFormView />}
+        {section === 'referrals' && <ReferralSourcesView />}
         {section === 'masters' && <MastersView />}
         {section === 'staff' && <StaffView />}
         {section === 'billing' && <BillingView />}

@@ -195,6 +195,7 @@ export const WIDGETS = {
   bars: { name: 'Top Breakdown', icon: 'rows', blurb: 'Leaders by staff, client, program or payer', span: 3, defaultCfg: { dim: 'staff', metric: 'revenue', top: 8 } },
   ledger: { name: 'Appointment Ledger', icon: 'clipboard', blurb: 'The filtered appointments themselves — convention titles, crew, overlap flags, one click into the record', span: 3, defaultCfg: { rows: 12, order: 'asc' } },
   heat: { name: 'Week Heatmap', icon: 'table', blurb: 'Delivered minutes per weekday × hour — click a cell to jump', span: 3, defaultCfg: {} },
+  intake: { name: 'Intake Pipeline', icon: 'user', blurb: 'Referral funnel, conversion rate and the requests waiting on a decision', span: 3, defaultCfg: {} },
 }
 
 export const DEFAULT_DASH = [

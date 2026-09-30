@@ -2,6 +2,7 @@ import React, { useMemo } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { scanNeedsCover } from '../lib/smart'
+import { intakeKpis } from '../lib/intake'
 import { stagedAppts } from '../lib/claims'
 import { RANGE_PRESETS } from '../lib/analytics'
 import { useMedia } from '../lib/useMedia'
@@ -12,7 +13,14 @@ const RANGE_PRESET_OPTS = RANGE_PRESETS
 
 export const SECTIONS = [
   { id: 'calendar', label: 'Calendar', icon: 'cal', kbd: '1', desc: 'Scheduling board, timeline & agenda' },
-  { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs' },
+  { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs', subs: [
+    { id: 'roster', to: 'clients', label: 'Client List' },
+    { id: 'client-new', to: 'clients', label: 'Add New', patch: { cliNew: true } },
+    { group: 'Intake Manager' },
+    { id: 'intake', to: 'intake', label: 'General Intake Requests' },
+    { id: 'intake-new', to: 'intake-new', label: 'Client Intake' },
+    { id: 'referrals', to: 'referrals', label: 'Referral Sources' },
+  ] },
   { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }, { id: 'cfdefs', label: 'Custom Fields' }] },
   { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload' },
   { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
@@ -51,8 +59,11 @@ export default function NavRail() {
     const cover = scanNeedsCover(state, week).length
     const staged = stagedAppts(state, null).length
     const denied = Object.values(state.claims || {}).filter((c) => c.status === 'denied').length
-    return { calendar: cover, billing: staged + denied, billingHot: denied > 0 }
-  }, [appts, state.claims, state.clients])
+    // Intake badges: anything past its stage SLA or with no logged touch is a
+    // family waiting on us — surface it on the rail, not just inside the module.
+    const iq = intakeKpis(state.intakeRequests || {})
+    return { calendar: cover, billing: staged + denied, billingHot: denied > 0, clients: iq.overdue.length + iq.stalled.filter((r) => !iq.overdue.includes(r)).length, clientsHot: iq.overdue.length > 0 }
+  }, [appts, state.claims, state.clients, state.intakeRequests])
 
   return (
     <nav className={`navrail ${collapsed ? 'collapsed' : ''} no-print`} data-testid="navrail" aria-label="Sections">
@@ -95,12 +106,16 @@ export default function NavRail() {
             {/* section sub-list (Masters → Payers / Service Types · Billing → desk / provider ids) */}
             {s.subs && active && !collapsed && (
               <div className="nr-sub" role="group" aria-label={`${s.label} lists`}>
-                {s.subs.map((sub) => (
+                {s.subs.map((sub) => sub.group ? (
+                  // a named sub-module inside the section (Clients → Intake Manager), matching
+                  // how the practice talks about the work rather than how the routes are cut
+                  <div className="nr-subgroup" key={sub.group} data-testid={`nav-group-${sub.group.toLowerCase().replace(/\s+/g, '-')}`}>{sub.group}</div>
+                ) : (
                   <button
                     key={sub.id}
                     className={`nr-subitem ${sub.to ? sub.to === section : (section === s.id && ui.mastersTab === sub.id) ? 'on' : ''}`}
                     data-testid={`nav-sub-${sub.id}`}
-                    onClick={() => actions.setUI({ section: sub.to || s.id, mastersTab: sub.id, payerSel: null })}
+                    onClick={() => actions.setUI({ section: sub.to || s.id, mastersTab: sub.id, payerSel: null, ...(sub.patch || {}) })}
                   >
                     <span className="nr-subdot" />
                     {sub.label}

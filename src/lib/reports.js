@@ -5,6 +5,7 @@ import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType } from './mod
 import { rangeMetrics } from './analytics'
 import { agingOf, dueOf, isPrimaryReceivable } from './claims'
 import { scanNeedsCover, needsCoverFor } from './smart'
+import { intakeKpis, isWon, isLost, stageDef, fullName, ageLabel, referralLabel, nextAction, slaState, isTerminal, firstContactDays, referralToAssessmentDays, lastTouchAt, msDays, URGENCY } from './intake'
 import { addDays, isoDate, parseISO, todayISO } from './date'
 
 export const REPORT_CATS = [
@@ -621,8 +622,64 @@ const REPORTS_RAW = [
       }
     },
   },
+  {
+    id: 'intake', cat: 'operations', name: 'Intake Pipeline & Referral Conversion', icon: 'user',
+    blurb: 'Every pre-client request with stage, age against SLA, referral source and outcome — the access & conversion report.',
+    build(state) {
+      const list = Object.values(state.intakeRequests || {})
+      const sources = (state.referralSources || [])
+      const k = intakeKpis(state.intakeRequests || {})
+      const rows = list
+        .map((r) => {
+          const s = slaState(r)
+          const owner = (state.staff || []).find((x) => x.id === r.ownerId)
+          const won = isWon(r.stage)
+          const lost = isLost(r.stage)
+          return {
+            no: r.no,
+            child: fullName(r),
+            age: ageLabel(r.dob),
+            stage: stageDef(r.stage).label,
+            urgency: URGENCY[r.urgency]?.label || r.urgency,
+            source: referralLabel(r, sources),
+            owner: owner ? owner.name : 'Unassigned',
+            received: isoDate(new Date(r.createdAt)),
+            days: msDays(r.createdAt),
+            firstContact: (() => { const d = firstContactDays(r); return d == null ? '' : d })(),
+            toAssessment: (() => { const d = referralToAssessmentDays(r); return d == null ? '' : d })(),
+            sla: isTerminal(r.stage) ? (won ? 'Converted' : lost ? 'Closed' : '—') : s.key === 'overdue' ? `${s.days - s.budget}d over` : s.key === 'due' ? 'Due today' : `${s.budget - s.days}d left`,
+            next: isTerminal(r.stage) ? '—' : nextAction(r).label,
+            untouched: msDays(lastTouchAt(r)),
+          }
+        })
+        .sort((a, b) => (b.days - a.days))
+      return {
+        columns: [
+          { k: 'no', label: 'Ref' }, { k: 'child', label: 'Child' }, { k: 'age', label: 'Age' },
+          { k: 'stage', label: 'Stage' }, { k: 'urgency', label: 'Urgency' }, { k: 'source', label: 'Referral source' },
+          { k: 'owner', label: 'Owner' }, { k: 'received', label: 'Received' },
+          { k: 'days', label: 'Age (d)', t: 'num', ...moneyCell }, { k: 'firstContact', label: 'First contact (d)', t: 'num', ...moneyCell },
+          { k: 'toAssessment', label: '→ assessment (d)', t: 'num', ...moneyCell }, { k: 'sla', label: 'SLA', ...moneyCell },
+          { k: 'untouched', label: 'Days since touch', t: 'num', ...moneyCell }, { k: 'next', label: 'Next action' },
+        ],
+        rows,
+        summary: [
+          { label: 'In pipeline', value: k.open },
+          { label: 'New this week', value: k.newThisWeek },
+          { label: 'Converted / closed', value: `${k.won} / ${k.lost}` },
+          { label: 'Conversion', value: k.conversionRate == null ? 'not enough data' : `${k.conversionRate}%` },
+          { label: 'Median → first contact', value: k.medianFirstContact == null ? '—' : `${k.medianFirstContact}d` },
+          { label: 'Median → assessment', value: k.medianToAssessment == null ? '—' : `${k.medianToAssessment}d` },
+          { label: 'Past stage SLA', value: k.overdue.length },
+          { label: 'No touch in 5 days', value: k.stalled.length },
+          { label: 'On the waitlist', value: k.waitingFamilies },
+          { label: 'Top loss reason', value: k.lostReasons[0] ? `${k.lostReasons[0].label} (${k.lostReasons[0].count})` : 'none recorded' },
+        ],
+        note: 'Rows stay until the request is converted or closed. Conversion counts only decided requests. SLA budgets tighten with urgency (emergency ×0.25, urgent ×0.5, low ×2).',
+      }
+    },
+  },
 ]
-
 // all dates present in the ledger (used by full-history reports like re-assessment cadence)
 function allDays(state) {
   return [...new Set(Object.values(state.appts).map((a) => a.date))].sort()

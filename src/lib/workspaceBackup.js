@@ -6,13 +6,15 @@ export const WORKSPACE_FIELDS = [
   'customFields', 'settings', 'reports', 'dash', 'meta',
   // payroll: master data, timesheet decisions, pay runs and their exports
   'payProfiles', 'paySheets', 'payRuns', 'payExports',
+  // intake manager: the pre-client pipeline + the referral relationships it attributes to
+  'intakeRequests', 'referralSources',
 ]
 
 export const BACKUP_FORMAT = 'aloha-aba-workspace'
 export const BACKUP_VERSION = 2
 
-const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports']
-const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields', 'payProfiles']
+const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests']
+const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields', 'payProfiles', 'referralSources']
 const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 export function workspaceData(state) {
@@ -58,6 +60,7 @@ function validate(data, fields) {
   // register it locked (so YTD and stubs can be rebuilt), and no run may sit in
   // an unknown status.
   const staffIds = new Set(data.staff.map((s) => s.id))
+  const clientIds = new Set(data.clients.map((c) => c.id))
   const RUN_STATES = ['draft', 'pending_approval', 'approved', 'processed', 'voided']
   if (data.payProfiles.some((p) => !staffIds.has(p.staffId) || typeof p.staffId !== 'string' ||
       !['hourly', 'salary', 'session'].includes(p.payType) ||
@@ -76,6 +79,24 @@ function validate(data, fields) {
   }
   if (Object.values(data.payExports).some((e) => !String(e.kind || '').length)) {
     throw new Error('Backup has invalid payroll export records')
+  }
+  // Intake: a restored pipeline must not invent a chart link. A converted
+  // request has to point at a client the file actually carries, and every
+  // non-converted request must not claim one.
+  const INTAKE_STAGE_IDS = ['new', 'contacted', 'screened', 'benefits', 'review', 'waitlist', 'scheduled', 'assessment', 'auth', 'converted', 'closed']
+  const intakeSourceIds = new Set(data.referralSources.map((s) => s.id))
+  if (data.referralSources.some((s) => typeof s.name !== 'string' || !String(s.name).trim() ||
+      (s.status !== undefined && !['active', 'dormant', 'inactive'].includes(s.status)))) {
+    throw new Error('Backup has invalid referral sources')
+  }
+  if (Object.values(data.intakeRequests).some((r) => !INTAKE_STAGE_IDS.includes(r.stage) ||
+      typeof r.firstName !== 'string' || typeof r.lastName !== 'string' || !Number.isFinite(r.createdAt) ||
+      !Array.isArray(r.contacts) || !Array.isArray(r.consents) || !Array.isArray(r.events) ||
+      (r.contacts || []).some((c) => !record(c) || typeof c.channel !== 'string') ||
+      (r.referralSourceId && !intakeSourceIds.has(r.referralSourceId)) ||
+      (r.stage === 'converted' ? !r.clientId || !clientIds.has(r.clientId) : Boolean(r.clientId)) ||
+      (r.stage === 'closed' && !r.lost?.reason))) {
+    throw new Error('Backup has invalid intake requests')
   }
   if (Object.values(data.payments).some((p) => !Number.isFinite(p.amount)) ||
       data.clients.some((c) => typeof c.name !== 'string') || data.staff.some((s) => typeof s.name !== 'string') ||
@@ -146,6 +167,7 @@ export function readWorkspaceBackup(text, defaults) {
       ...Object.fromEntries(oldFields.map((key) => [key, file[key]])),
       payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {},
       payProfiles: defaults.payProfiles || [], paySheets: {}, payRuns: {}, payExports: {},
+      intakeRequests: {}, referralSources: defaults.referralSources || [],
       // Preserve any captured appointment fields rather than rerunning old cleanup
       // migrations on data restored from a backup.
       meta: { pcfCleared: true, legacyCustomCleared: true },
@@ -155,5 +177,5 @@ export function readWorkspaceBackup(text, defaults) {
     throw new Error('Not an Aloha ABA workspace backup')
   }
 
-  return { data, legacy, counts: { appointments: Object.keys(data.appts).length, claims: Object.keys(data.claims).length, payments: Object.keys(data.payments).length } }
+  return { data, legacy, counts: { appointments: Object.keys(data.appts).length, claims: Object.keys(data.claims).length, payments: Object.keys(data.payments).length, intakeRequests: Object.keys(data.intakeRequests).length, referralSources: data.referralSources.length } }
 }
