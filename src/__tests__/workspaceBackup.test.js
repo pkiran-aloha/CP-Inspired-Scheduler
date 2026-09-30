@@ -44,7 +44,7 @@ describe('complete, versioned local workspace backup', () => {
     expect(raw.data).not.toHaveProperty('ui')
     const { data, counts, legacy } = readWorkspaceBackup(JSON.stringify(raw), blankState())
     expect(legacy).toBe(false)
-    expect(counts).toEqual({ appointments: 1, claims: 1, payments: 1 })
+    expect(counts).toEqual({ appointments: 1, claims: 1, payments: 1, intakeRequests: Object.keys(base.intakeRequests).length, referralSources: base.referralSources.length })
     expect(data).toEqual(workspaceData(source))
 
     const restored = reducer(base, { type: 'replace', payload: data })

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { REPORTS } from '../lib/reports'
+import { fullName as intakeFullName, intakeMatches, stageDef as intakeStageDef, ageLabel as intakeAgeLabel, OPEN_STAGES } from '../lib/intake'
 import { todayISO } from '../lib/date'
 
 /**
@@ -35,6 +36,15 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
     const views = [['week', 'W'], ['day', 'D'], ['month', 'M'], ['timeline', 'H'], ['agenda', 'G']]
     views.forEach(([v, k]) => out.push({ g: 'Jump to', k, icon: 'cal', t: `Calendar · ${v} view`, hint: 'switch view', run: go({ section: 'calendar', view: v }) }))
     for (const r of REPORTS) out.push({ g: 'Reports', icon: r.icon || 'clipboard', t: r.name, hint: r.blurb.slice(0, 46) + '…', run: go({ section: 'reports', repSel: r.id }) })
+    // ---- Intake Manager: the pre-client pipeline is searchable like anything else
+    out.push({ g: 'Intake', icon: 'user', t: 'Intake Requests — pipeline', hint: 'referrals, screening, benefits & conversion', run: go({ section: 'intake', intakeSel: null }) })
+    out.push({ g: 'Intake', icon: 'plus', t: 'New intake client', hint: 'capture a referral without creating a chart', run: go({ section: 'intake-new', intakeEdit: null }) })
+    out.push({ g: 'Intake', icon: 'zap', t: 'Referral Sources', hint: 'relationship register & conversion scorecard', run: go({ section: 'referrals' }) })
+    out.push({ g: 'Intake', icon: 'alert', t: 'Intake needing attention', hint: 'past SLA or stalled in stage', run: go({ section: 'intake', intakeAttention: 1 }) })
+    for (const r of Object.values(state.intakeRequests || {})) {
+      if (!OPEN_STAGES.includes(r.stage)) continue
+      out.push({ g: 'Intake requests', icon: 'user', t: intakeFullName(r), hint: `${r.no} · ${intakeStageDef(r.stage).short} · ${intakeAgeLabel(r.dob)}`, run: go({ section: 'intake', intakeSel: r.id }) })
+    }
     out.push({ g: 'Roster', icon: 'plus', t: 'Add client', hint: 'open the new-client form', run: go({ section: 'clients', cliAdd: 1 }) })
     out.push({ g: 'Roster', icon: 'plus', t: 'Add staff member', hint: 'open the new-staff form', run: go({ section: 'staff', stfAdd: 1 }) })
     out.push({ g: 'Navigate', icon: 'dashboard', t: 'Open Dashboard', hint: 'widget analytics board', run: go({ section: 'dashboard' }) })
@@ -51,11 +61,11 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
         },
       })
     return out
-  }, [actions, settings.theme, staff, clients, onClose, onNew, onHelp])
+  }, [actions, settings.theme, staff, clients, state.intakeRequests, onClose, onNew, onHelp])
 
   const results = useMemo(() => {
     const query = q.trim().toLowerCase()
-    const order = ['Actions', 'Jump to', 'Reports', 'Clients', 'Staff']
+    const order = ['Actions', 'Jump to', 'Intake', 'Intake requests', 'Reports', 'Clients', 'Staff']
     let hits = items
     if (query) {
       const toks = query.split(/\s+/)

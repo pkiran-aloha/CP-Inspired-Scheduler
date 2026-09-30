@@ -145,6 +145,11 @@ export default function StaffView() {
   const toast = useToast()
   const [q, setQ] = useState('')
   const [sort, setSort] = useState('util')
+  /** Intake accountability: per-person owned requests, so the pipeline shows up in the roster. */
+  const intakeOwned = (staffId) => {
+    const mine = Object.values(state.intakeRequests || {}).filter((r) => r.ownerId === staffId)
+    return { total: mine.length, open: mine.filter((r) => r.stage !== 'converted' && r.stage !== 'closed').length, pendingAuth: mine.filter((r) => r.stage === 'auth').length }
+  }
   const [expanded, setExpanded] = useState(null)
   const [modal, setModal] = useState(null)
   const [prof, setProf] = useState(null)
@@ -342,6 +347,8 @@ export default function StaffView() {
             { icon: 'badge', label: 'Credential', value: prof.s.cert || '—' },
             { icon: 'users', label: 'FTE', value: String(prof.s.fte ?? 1) },
             { icon: 'dollar', label: 'Pay rate', value: `$${prof.s.payrollRate}/h` },
+            // the intake pipeline is work too: who owns it, and how much is waiting
+            ...(intakeOwned(prof.s.id).total ? [{ icon: 'zap', label: 'Intake', value: `${intakeOwned(prof.s.id).open} open · ${intakeOwned(prof.s.id).pendingAuth} awaiting auth` }] : []),
           ]}
           meter={{ label: 'Utilization · last 4 weeks', pct: prof.util, tone: prof.util > 100 ? 'bad' : prof.util > 60 ? 'ok' : 'warn', caption: `${prof.bookedH}h booked of ${prof.targetH}h target${prof.onLeaveToday ? ' · on leave today' : ''}` }}
           tiles={[
@@ -354,6 +361,7 @@ export default function StaffView() {
           actionsRow={[
             { id: 'pf-cal', icon: 'cal', label: 'In calendar', run: () => { actions.setUI({ section: 'calendar', view: 'week', staffSel: [prof.s.id], clientSel: [], anchor: todayISO() }); setProf(null) } },
             { id: 'pf-report', icon: 'file', label: 'Utilization report', run: () => { actions.setUI({ section: 'reports', repPreset: 'last4', repDim: 'staff', repKey: prof.s.id }); setProf(null) } },
+            ...(intakeOwned(prof.s.id).total ? [{ id: 'pf-intake', icon: 'zap', label: 'Intake requests owned', run: () => { actions.setUI({ section: 'intake', intakeOwner: prof.s.id }); setProf(null) } }] : []),
           ]}
           onDup={() => { setDup(prof.s); setProf(null) }}
           onEdit={() => { setModal(prof.s); setProf(null) }}

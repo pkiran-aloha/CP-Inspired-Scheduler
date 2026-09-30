@@ -223,6 +223,11 @@ export default function ClientsView() {
     if (ui?.cliQ) { setQ(ui.cliQ); actions?.setUI({ cliQ: null }) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ui?.cliQ])
+  // "Add New" in the Clients sub-nav opens the chart dialog the same way the button does
+  useEffect(() => {
+    if (ui?.cliNew) { setModal('new'); actions?.setUI({ cliNew: null }) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ui?.cliNew])
   const [filter, setFilter] = useState('all') // all | flags | expiring
   const [sort, setSort] = useState('burn')
   const [expanded, setExpanded] = useState(null)
@@ -400,6 +405,8 @@ export default function ClientsView() {
                               Payer: <b style={{ color: 'var(--text)' }}>{c.insurer}</b> · Guardian: {c.guardian} · Auth {c.authStart?.slice(5)} → {c.authEnd?.slice(5)}
                               <br />
                               {Icon.dollar({ size: 11 })} Claims: DOB <b style={{ color: 'var(--text)' }}>{c.dob || 'missing'}</b> · Sex <b style={{ color: 'var(--text)' }}>{c.sex || '—'}</b> · Member <span className="ln-code">{memberIdOf(c)}</span>{(!c.dob || !c.sex) && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> — add both before CMS-1500 filing</span>}
+                              {c.intakeId && <><br />{Icon.zap({ size: 11 })} Converted from intake <b style={{ color: 'var(--text)' }}>{c.intakeNo}</b>{c.intakeSourceLabel ? <> · referred by <b style={{ color: 'var(--text)' }}>{c.intakeSourceLabel}</b></> : null}{c.intakeConvertedAt ? <> on {new Date(c.intakeConvertedAt).toLocaleDateString()}</> : null}
+                                <button className="btn btn-sm" style={{ height: 20, marginLeft: 6 }} data-testid={`cli-intake-${c.id}`} onClick={() => actions.setUI({ section: 'intake', intakeSel: c.intakeId })}>Open intake request</button></>}
                             </div>
                           </div>
                           <div>
@@ -443,6 +450,7 @@ export default function ClientsView() {
               ...(c.secondary ? [{ icon: 'shield', label: 'Secondary', value: `${(state.payers||[]).find((pp)=>pp.id===c.secondary.payerId)?.name||c.secondary.payerId} · ${c.secondary.memberId||'no member'}${c.secondary.authNo?' · '+c.secondary.authNo:''}` }] : []),
               { icon: 'cake', label: 'DOB', value: c.dob || 'missing' },
               { icon: 'badge', label: 'Claims member', value: memberIdOf(c) },
+              ...(c.intakeId ? [{ icon: 'zap', label: 'Intake origin', value: `${c.intakeNo || 'request'}${c.intakeSourceLabel ? ` · ${c.intakeSourceLabel}` : ''}` }] : []),
             ]}
             meter={{ label: 'Auth burn-down · last 4 weeks', pct: burn, tone: burn > 105 ? 'bad' : burn >= 80 ? 'ok' : 'warn', caption: `${m.hours}h delivered of ${(c.authWeekly || 0) * 4}h authorized — ${c.authStart ? c.authStart.slice(0, 10) : '—'} → ${c.authEnd ? c.authEnd.slice(0, 10) : '—'}` }}
             tiles={[
@@ -457,6 +465,7 @@ export default function ClientsView() {
               { id: 'pf-cal', icon: 'cal', label: 'In calendar', run: () => { actions.setUI({ section: 'calendar', view: 'week', clientSel: [c.id], staffSel: [], teamSel: [], anchor: todayISO() }); setProf(null) } },
               { id: 'pf-billing', icon: 'dollar', label: 'Open in Billing', run: () => { actions.setUI({ section: 'billing', bilPreset:'last4' }); setProf(null) } },
               { id: 'pf-report', icon: 'file', label: 'Auth report', run: () => { actions.setUI({ section: 'reports', repPreset: 'last4', repDim: 'client', repKey: c.id }); setProf(null) } },
+              ...(c.intakeId ? [{ id: 'pf-intake', icon: 'zap', label: 'Intake request', run: () => { actions.setUI({ section: 'intake', intakeSel: c.intakeId }); setProf(null) } }] : []),
             ]}
             onDup={() => { setDup(prof.c); setProf(null) }}
             onEdit={() => { setModal(c); setProf(null) }}

@@ -652,3 +652,408 @@ export function buildDemoClaims(appts, clients, settings, today) {
   }
   return { claims: Object.fromEntries(claims.map((c) => [c.id, c])), appts: out }
 }
+
+// ---- Intake Manager seeding ---------------------------------------------------
+// Referral sources are the upstream relationships the intake pipeline attributes
+// to; requests are the pre-client records themselves. Everything here is
+// fictional. Demo requests span every stage so the pipeline, the KPIs and the
+// conversion flow all have something real to render on a fresh workspace.
+const DAY = 86400000
+const at = (days, hours = 0) => Date.now() - days * DAY - hours * 3600000
+const iso = (ms) => isoDate(new Date(ms))
+
+export const REFERRAL_SOURCES = [
+  { id: 'rs-peds', name: 'Sunnyvale Pediatrics', kind: 'Pediatrician', contact: 'Dr. Amelia Ford', phone: '(408) 555-0301', email: 'referrals@sunnyvalepeds.example.com', npi: '1437291055', ownerId: 's12', status: 'active', since: '2024-03-01', dormantDays: 60, notes: 'Prefers a same-day fax acknowledgement; asks for a written plan summary.' },
+  { id: 'rs-devpeds', name: 'Bay Area Developmental Pediatrics', kind: 'Developmental pediatrician', contact: 'Dr. Rohan Mehta', phone: '(408) 555-0302', email: 'intake@baydevpeds.example.com', npi: '1780664211', ownerId: 's9', status: 'active', since: '2023-08-14', dormantDays: 60, notes: 'Diagnostic reports usually arrive with the referral — always ask.' },
+  { id: 'rs-neuro', name: 'Coast Neurology Associates', kind: 'Neurologist', contact: 'Dr. Priya Nair', phone: '(650) 555-0303', email: 'newpatients@coastneuro.example.com', npi: '1194837260', ownerId: 's9', status: 'active', since: '2025-01-20', dormantDays: 90, notes: 'Wants feedback on assessment outcome for shared patients.' },
+  { id: 'rs-fusd', name: 'Fremont Unified School District', kind: 'School district', contact: 'Special Ed Services', phone: '(510) 555-0171', email: 'special.edservices@fusd.example.edu', npi: '', ownerId: 's12', status: 'active', since: '2022-09-06', dormantDays: 120, notes: 'School-year referral waves; IEP must accompany the referral.' },
+  { id: 'rs-rc', name: 'Regional Center of the East Bay', kind: 'Regional center', contact: 'Intake desk', phone: '(510) 555-0304', email: 'servicecoord@rceb.example.gov', npi: '', ownerId: 's12', status: 'active', since: '2021-06-01', dormantDays: 120, notes: 'Vendor number required on every authorisation request.' },
+  { id: 'rs-slp', name: 'Little Voices Speech & OT', kind: 'Other provider (SLP/OT)', contact: 'Marcy Lin, CCC-SLP', phone: '(408) 555-0305', email: 'hello@littlevoices.example.com', npi: '1558302941', ownerId: 's11', status: 'active', since: '2024-11-11', dormantDays: 90, notes: 'Co-treatment friendly — flag speech co-treatment requests.' },
+  { id: 'rs-self', name: 'Family self-referral', kind: 'Self / family', contact: '—', phone: '', email: '', npi: '', ownerId: 's12', status: 'active', since: '2022-01-04', dormantDays: 999, notes: 'Word of mouth and returning families. Ask the family to bring the diagnostic report.' },
+  { id: 'rs-web', name: 'Website / online form', kind: 'Web form / marketing', contact: '—', phone: '', email: 'web@alohaaba.example.com', npi: '', ownerId: 's12', status: 'active', since: '2023-02-15', dormantDays: 45, notes: 'Response-time target: 15 minutes in business hours.' },
+  { id: 'rs-hospital', name: 'Valley Children’s Hospital — Neurodevelopment', kind: 'Hospital / ED', contact: 'Discharge planning', phone: '(559) 555-0310', email: 'referrals@vch.example.org', npi: '1029384756', ownerId: 's9', status: 'active', since: '2025-04-02', dormantDays: 90, notes: 'Discharge-driven referrals; timeline is tight, escalate on receipt.' },
+  { id: 'rs-community', name: 'Autism Society — South Bay chapter', kind: 'Community organisation', contact: 'Helpline volunteers', phone: '(408) 555-0311', email: 'southbay@autismsociety.example.org', npi: '', ownerId: 's12', status: 'active', since: '2024-05-19', dormantDays: 180, notes: 'High-volume, lower-conversion source; expect insurance eligibility issues.' },
+  { id: 'rs-legacy-peds', name: 'Evergreen Family Medicine', kind: 'Pediatrician', contact: 'Front office', phone: '(408) 555-0312', email: '', npi: '1338274610', ownerId: null, status: 'dormant', since: '2021-03-10', dormantDays: 60, notes: 'No referrals since the practice changed ownership — relationship owner left.' },
+]
+
+// request builder: keeps the seed readable while every record carries the full schema
+const req = (id, no, stage, o = {}) => {
+  const created = o.createdDays != null ? at(o.createdDays) : at(6)
+  return {
+    id, no, kind: o.kind || 'general', stage,
+    createdAt: created, updatedAt: at(o.touchedDays != null ? o.touchedDays : 1), stageSince: at(o.stageDays != null ? o.stageDays : 2),
+    createdBy: o.createdBy || 's12', ownerId: o.ownerId !== undefined ? o.ownerId : 's12',
+    urgency: o.urgency || 'routine', tags: o.tags || [],
+    firstName: o.first || '', middleName: o.middle || '', lastName: o.last || '', alias: o.alias || '',
+    office: o.office || 'Main Center', dob: o.dob || '', gender: o.gender || 'M', status: 'active',
+    street: o.street || '', city: o.city || 'San Jose', state: o.state || 'CA', zip: o.zip || '95124', addressNotes: o.addressNotes || '',
+    phones: o.phones || [{ id: `${id}-ph1`, type: 'Mobile', number: o.phone || '', ext: '', primary: true }],
+    email: o.email || '', preferredLanguage: o.language || 'English', interpreter: Boolean(o.interpreter),
+    livingArrangement: o.living || 'Lives with parents / guardians', schoolName: o.school || '', iep: Boolean(o.iep),
+    photo: null,
+    guardian: o.guardian || { name: '', relation: '', phone: '', email: '', addressSame: true },
+    emergency: o.emergency || { name: '', relation: '', phone: '' },
+    guardianshipNote: o.guardianshipNote || '',
+    referralSourceId: o.source || null, referredByName: o.referredBy || '', referredByOrg: '', referringNpi: o.referringNpi || '',
+    referralDate: o.referralDate || iso(created), referralChannel: o.channel || 'Phone', referralNotes: o.referralNotes || '',
+    diagnosisStatus: o.dxStatus || 'unknown', diagnosis: o.dx || '', diagnosedBy: o.dxBy || '', diagnosedOn: o.dxOn || '',
+    concerns: o.concerns || '', priorTherapy: Boolean(o.priorTherapy), priorTherapyNotes: o.priorNotes || '',
+    medications: o.medications || '', allergies: o.allergies || '', safetyRisks: o.safety || '',
+    settingPref: o.setting || 'Undecided', serviceLine: o.serviceLine || '', program: o.program || '',
+    preferredDays: o.days || '', preferredTimes: o.times || '', availabilityNotes: o.availability || '',
+    bcbaAssignedId: o.bcba || null,
+    screen: o.screen || { fit: '', at: null, by: null, notes: '' },
+    payerId: o.payer || null, secondaryPayerId: o.secondaryPayer || null, memberId: o.memberId || '', groupNumber: o.group || '',
+    subscriberName: o.subscriber || '', subscriberDob: o.subDob || '', subscriberRelation: o.subRel || 'Parent',
+    planType: o.planType || 'Commercial', policyStatus: o.policyStatus || 'active',
+    vob: { status: 'pending', at: null, by: null, repName: '', refNo: '', callPhone: '', effectiveFrom: '',
+      deductible: '', deductibleMet: '', oopMax: '', coinsurance: '', copay: '', visitLimit: '',
+      abaCovered: null, inNetwork: null, priorAuthRequired: null, telehealthCovered: null, notes: '', ...(o.vob || {}) },
+    waitlist: { reason: '', priority: '', since: null, reviewBy: '', position: null, notes: '', ...(o.waitlist || {}) },
+    apptId: null, apptDate: '', clinicianId: o.clinician || null,
+    assessment: { date: '', instrument: '', outcome: '', recommendedHoursPerWeek: '', recommendedSetting: '', completedBy: null, reportDueBy: '', ...(o.assessment || {}) },
+    auth: { submittedAt: '', requestRef: '', unitsRequested: '', units: '', windowStart: '', windowEnd: '', decision: '', decisionAt: '', authNo: '', notes: '', ...(o.auth || {}) },
+    docs: o.docs || {}, consents: o.consents || [], contacts: o.contacts || [], tasks: [], events: o.events || [],
+    lost: { reason: '', notes: '', at: null, by: null, ...(o.lost || {}) },
+    convertedAt: null, clientId: null, firstServiceDate: '', notes: o.notes || '',
+  }
+}
+
+const received = (days, by = 's12') => ({ status: 'received', at: at(days), by })
+const waived = (days, by = 's12', note = '') => ({ status: 'waived', at: at(days), by, note })
+
+/**
+ * Build the seeded intake pipeline.
+ * @param {object} ctx { appts, clients, staff, payers, today }
+ * @returns {{intakeRequests:object, referralSources:array, clientPatches:object}}
+ */
+export function seedIntake(ctx = {}) {
+  const appts = ctx.appts || {}
+  const clients = ctx.clients || []
+  const payers = ctx.payers || []
+  const payerId = (name) => payers.find((p) => p.name === name)?.id || null
+  const bsca = payerId('Blue Shield CA')
+  const aetna = payerId('Aetna')
+  const uhc = payerId('UnitedHealthcare')
+  const medi = payerId('Medicaid (CA)')
+  // An evaluation already on the calendar becomes the booked assessment for a
+  // scheduled request — the calendar stays the single source of truth for time.
+  const evals = Object.values(appts).filter((a) => a.type === 'evaluation' && a.date >= todayISO()).sort((x, y) => (x.date < y.date ? -1 : 1))
+
+  const intakeRequests = {}
+  const put = (r) => { intakeRequests[r.id] = r; return r }
+
+  put(req('iq-1001', 'INT-1001', 'new', {
+    createdDays: 0, stageDays: 0, touchedDays: 0, urgency: 'urgent', source: 'rs-web', channel: 'Web form',
+    first: 'Maya', last: 'Ellison', dob: '2021-04-18', gender: 'F', phone: '(408) 555-0321', email: 'r.ellison@example.com', city: 'Santa Clara', zip: '95050',
+    guardian: { name: 'Rachel Ellison', relation: 'Mother', phone: '(408) 555-0321', email: 'r.ellison@example.com', addressSame: true },
+    concerns: 'Web form: 4-year-old, no diagnosis yet, frequent meltdowns at preschool. Asked about evaluation timelines.',
+    notes: 'Overnight web form — first call owed within 15 minutes per source SLA.',
+    contacts: [], events: [{ at: at(0), by: null, ev: 'Request created from the website form (unassigned overnight)' }],
+  }))
+
+  put(req('iq-1002', 'INT-1002', 'new', {
+    createdDays: 0, stageDays: 0, touchedDays: 0, source: 'rs-community', channel: 'Phone', urgency: 'routine',
+    first: 'Andre', last: 'Okafor', dob: '2019-11-02', phone: '(408) 555-0322', city: 'Milpitas', zip: '95035',
+    guardian: { name: 'Ngozi Okafor', relation: 'Mother', phone: '(408) 555-0322', email: '', addressSame: true },
+    concerns: 'Community helpline passed along the family; behaviour concerns at home, has Medi-Cal.',
+    contacts: [], events: [{ at: at(0), by: 's12', ev: 'Request captured from the Autism Society helpline call' }],
+  }))
+
+  put(req('iq-1003', 'INT-1003', 'new', {
+    createdDays: 2, stageDays: 2, touchedDays: 2, source: 'rs-legacy-peds', channel: 'Fax', urgency: 'routine',
+    first: 'Liam', last: 'Novak', dob: '2020-07-09', phone: '(408) 555-0323', city: 'Campbell', zip: '95008',
+    guardian: { name: 'Petra Novak', relation: 'Mother', phone: '(408) 555-0323', email: 'p.novak@example.com', addressSame: true },
+    concerns: 'Faxed referral received; the practice changed ownership and no relationship owner is assigned.',
+    referringNpi: '1338274610', notes: 'Source is dormant — confirm the sender before treating this as a live relationship.',
+    contacts: [], events: [{ at: at(2), by: 's12', ev: 'Referral fax received' }],
+  }))
+
+  put(req('iq-1004', 'INT-1004', 'contacted', {
+    createdDays: 5, stageDays: 3, touchedDays: 1, source: 'rs-peds', channel: 'Phone', urgency: 'urgent',
+    first: 'Sofia', last: 'Marchetti', dob: '2018-02-27', gender: 'F', phone: '(408) 555-0324', email: 'marchetti.family@example.com', city: 'Sunnyvale', zip: '94086',
+    guardian: { name: 'Giulia Marchetti', relation: 'Mother', phone: '(408) 555-0324', email: 'marchetti.family@example.com', addressSame: true },
+    referredBy: 'Dr. Amelia Ford', referringNpi: '1437291055',
+    concerns: 'Verbal request from Dr. Ford’s office: school reported regression after a move.',
+    contacts: [
+      { id: 'c1', at: at(1, 3), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Spoke with mother; collecting the diagnostic report and insurance card.', nextStepAt: iso(at(-2)) },
+    ],
+    events: [{ at: at(5), by: 's12', ev: 'Referral logged from Sunnyvale Pediatrics' }, { at: at(1, 3), by: 's12', ev: 'Contact attempt logged — reached (Phone)' }],
+  }))
+
+  put(req('iq-1005', 'INT-1005', 'contacted', {
+    createdDays: 9, stageDays: 6, touchedDays: 6, source: 'rs-self', channel: 'Phone', urgency: 'routine',
+    first: 'Noah', last: 'Bergström', dob: '2020-10-14', phone: '(408) 555-0325', city: 'Los Gatos', zip: '95030',
+    guardian: { name: 'Elsa Bergström', relation: 'Mother', phone: '(408) 555-0325', email: '', addressSame: true },
+    concerns: 'Left voicemail twice; family has not called back.',
+    contacts: [
+      { id: 'c1', at: at(8), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'voicemail', summary: 'Left a voicemail with the intake line and hours.', nextStepAt: iso(at(5)) },
+      { id: 'c2', at: at(6), by: 's12', channel: 'Text / SMS', direction: 'outbound', outcome: 'email_sent', summary: 'Sent a text asking for the best time to talk.' },
+    ],
+    events: [{ at: at(9), by: 's12', ev: 'Self-referral logged' }],
+  }))
+
+  put(req('iq-1006', 'INT-1006', 'screened', {
+    createdDays: 12, stageDays: 4, touchedDays: 2, source: 'rs-devpeds', channel: 'Fax', urgency: 'routine',
+    first: 'Ethan', last: 'Park', dob: '2019-06-03', phone: '(408) 555-0326', email: 'park.family@example.com', city: 'Santa Clara', zip: '95051',
+    guardian: { name: 'Jisoo Park', relation: 'Mother', phone: '(408) 555-0326', email: 'park.family@example.com', addressSame: true },
+    referredBy: 'Dr. Rohan Mehta', referringNpi: '1780664211', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 2', dxBy: 'Dr. Rohan Mehta', dxOn: '2026-05-12',
+    concerns: 'Diagnostic report received. Limited requesting, transitions are hard, no safety concerns.',
+    priorTherapy: true, priorNotes: '6 months of speech therapy at Little Voices; no prior ABA.',
+    setting: 'Center-based', serviceLine: 'Center-based 1:1', program: 'Center-based · 1:1', days: 'Mon–Fri mornings', times: '8:30–11:30',
+    language: 'English', school: 'Little Star Preschool',
+    screen: { fit: 'fit', at: at(2), by: 's12', notes: 'Age and service area confirmed; clinically appropriate for a center-based assessment.' },
+    docs: { diagnostic_report: received(4, 's12'), prior_records: { status: 'requested', at: at(2), by: 's12', note: 'ROI sent to Little Voices' } },
+    contacts: [{ id: 'c1', at: at(10), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Completed the intake questionnaire with the mother.' }],
+    events: [{ at: at(12), by: 's12', ev: 'Referral logged from Bay Area Developmental Pediatrics' }, { at: at(2), by: 's12', ev: 'Clinical pre-screen saved — fit' }],
+  }))
+
+  put(req('iq-1007', 'INT-1007', 'screened', {
+    createdDays: 4, stageDays: 1, touchedDays: 0, source: 'rs-fusd', channel: 'Professional referral', urgency: 'urgent',
+    first: 'Aaliyah', last: 'Rahman', dob: '2017-08-21', gender: 'F', phone: '(510) 555-0327', city: 'Fremont', zip: '94538',
+    guardian: { name: 'Farida Rahman', relation: 'Mother', phone: '(510) 555-0327', email: 'f.rahman@example.com', addressSame: true },
+    referredBy: 'FUSD Special Ed Services', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder', dxOn: '2025-03-04',
+    concerns: 'School exclusion risk: two suspensions this term. IEP in place; district is requesting school-based support.',
+    priorTherapy: true, priorNotes: 'School-based ABA for one year in another district.',
+    setting: 'School-based', serviceLine: 'School-based inclusion', program: 'School-based · Inclusion', iep: true, school: 'Jefferson Elementary',
+    guardianNote: '', guardianshipNote: '',
+    screen: { fit: 'maybe', at: at(1), by: 's9', notes: 'Clinically appropriate but school-based capacity is tight this term — check staffing before promising a date.' },
+    docs: { iep_ifsp: received(3, 's12') },
+    contacts: [{ id: 'c1', at: at(3), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Mother confirmed the district referral and IEP date.' }],
+    events: [{ at: at(4), by: 's12', ev: 'District referral received (urgent — school exclusion risk)' }],
+  }))
+
+  put(req('iq-1008', 'INT-1008', 'benefits', {
+    createdDays: 16, stageDays: 5, touchedDays: 3, source: 'rs-neuro', channel: 'Fax', urgency: 'routine',
+    first: 'Lucas', last: 'Ferreira', dob: '2020-01-30', phone: '(650) 555-0328', email: 'ferreira.home@example.com', city: 'Redwood City', zip: '94061',
+    guardian: { name: 'Ana Ferreira', relation: 'Mother', phone: '(650) 555-0328', email: 'ferreira.home@example.com', addressSame: true },
+    referredBy: 'Dr. Priya Nair', referringNpi: '1194837260', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 1',
+    concerns: 'Pragmatic language and social skills; neurologist recommends early intervention.',
+    setting: 'Home-based', serviceLine: 'Home program (NET)', program: 'Home program · NET',
+    payer: bsca, memberId: 'BSC-8841207', group: 'GRP-4410', subscriber: 'Ana Ferreira', subDob: '1991-07-08', subRel: 'Parent', planType: 'Commercial',
+    vob: { status: 'in_progress', at: at(1), by: 's12', repName: 'Dana W.', refNo: 'VOB-22841', callPhone: '(800) 555-0114', priorAuthRequired: true, inNetwork: true, abaCovered: true, coinsurance: 20, copay: 0, visitLimit: 'No annual limit; 6-month reviews', notes: 'Representative confirmed ABA coverage; waiting on the deductible balance.' },
+    docs: { insurance_card: received(5, 's12'), diagnostic_report: received(9, 's12'), referral: received(9, 's12') },
+    contacts: [{ id: 'c1', at: at(12), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen complete.' }, { id: 'c2', at: at(3), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Called the payer; verification in progress.' }],
+    screen: { fit: 'fit', at: at(11), by: 's12', notes: 'Home-based NET is a good fit; family available weekday afternoons.' },
+    events: [{ at: at(16), by: 's12', ev: 'Referral logged from Coast Neurology' }, { at: at(1), by: 's12', ev: 'Benefits verification started with Blue Shield CA' }],
+  }))
+
+  put(req('iq-1009', 'INT-1009', 'benefits', {
+    createdDays: 7, stageDays: 2, touchedDays: 2, source: 'rs-peds', channel: 'Phone', urgency: 'routine',
+    first: 'Priya', last: 'Sundaram', dob: '2021-12-11', gender: 'F', phone: '(408) 555-0329', email: 'sundaram.family@example.com', city: 'San Jose', zip: '95128',
+    guardian: { name: 'Karthik Sundaram', relation: 'Father', phone: '(408) 555-0329', email: 'sundaram.family@example.com', addressSame: true },
+    referredBy: 'Dr. Amelia Ford', dxStatus: 'suspected', concerns: 'Not yet diagnosed; pediatrician is referring while the developmental evaluation is pending.',
+    setting: 'Center-based', serviceLine: 'Assessment / reevaluation', program: 'Assessment / intake',
+    payer: aetna, memberId: 'AE-5590231', group: 'AE-ABA-02', subscriber: 'Karthik Sundaram', subDob: '1988-05-19', planType: 'Commercial',
+    vob: { status: 'pending', notes: 'Member ID captured; card image outstanding.' },
+    docs: { insurance_card: { status: 'requested', at: at(2), by: 's12', note: 'Requested a card photo by text' } },
+    contacts: [{ id: 'c1', at: at(5), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Screening call completed; referral is on the way.' }],
+    screen: { fit: 'fit', at: at(5), by: 's12', notes: 'Assessment-first pathway; no diagnosis yet so the plan may require an evaluation.' },
+    events: [{ at: at(7), by: 's12', ev: 'Referral logged from Sunnyvale Pediatrics' }],
+  }))
+
+  put(req('iq-1010', 'INT-1010', 'review', {
+    createdDays: 22, stageDays: 6, touchedDays: 4, source: 'rs-rc', channel: 'Professional referral', urgency: 'routine',
+    first: 'Diego', last: 'Alvarez', dob: '2018-09-05', phone: '(510) 555-0330', email: 'alvarez.home@example.com', city: 'Oakland', zip: '94611',
+    guardian: { name: 'Marisol Alvarez', relation: 'Mother', phone: '(510) 555-0330', email: 'alvarez.home@example.com', addressSame: true },
+    dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 2', dxOn: '2024-10-02',
+    concerns: 'Regional center vendor referral. Aggression toward siblings at a low rate; caregiver reports exhaustion.',
+    setting: 'Home-based', serviceLine: 'Home program (NET)', program: 'EIBI · Home program', bcba: 's9',
+    payer: medi, memberId: 'MC-77410925', subscriber: 'Marisol Alvarez', subDob: '1985-02-14', planType: 'Medicaid',
+    vob: { status: 'complete', at: at(8), by: 's12', repName: 'Luis R.', refNo: 'VOB-22910', callPhone: '(800) 555-0158', inNetwork: true, abaCovered: true, coinsurance: 0, copay: 0, deductible: 0, deductibleMet: 0, visitLimit: 'Per authorisation, 6-month window', priorAuthRequired: true, telehealthCovered: false, notes: 'Medi-Cal: no cost share; prior authorisation required for every window.' },
+    docs: { diagnostic_report: received(18, 's12'), referral: received(18, 's12'), insurance_card: received(19, 's12'), prior_records: received(12, 's12') },
+    contacts: [{ id: 'c1', at: at(20), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed with the mother.' }, { id: 'c2', at: at(8), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Benefits verification completed with the payer.' }],
+    screen: { fit: 'fit', at: at(19), by: 's12', notes: 'Home-based services clinically appropriate; needs a BCBA with Spanish-language capacity.' },
+    events: [{ at: at(22), by: 's12', ev: 'Regional center referral logged' }, { at: at(8), by: 's12', ev: 'Benefits verified — Medi-Cal, no cost share' }],
+  }))
+
+  put(req('iq-1011', 'INT-1011', 'review', {
+    createdDays: 30, stageDays: 11, touchedDays: 11, source: 'rs-hospital', channel: 'Email', urgency: 'urgent',
+    first: 'Zoe', last: 'Whitfield', dob: '2016-03-17', gender: 'F', phone: '(559) 555-0331', email: 'whitfield.family@example.com', city: 'Fresno', zip: '93720',
+    guardian: { name: 'Tanya Whitfield', relation: 'Mother', phone: '(559) 555-0331', email: 'whitfield.family@example.com', addressSame: true },
+    dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 3',
+    concerns: 'Hospital discharge referral. Elopement risk; needs a rapid clinical decision.',
+    setting: 'Center-based', serviceLine: 'Behavior reduction', program: 'Behavior reduction', bcba: 's8',
+    payer: uhc, memberId: 'UHC-3301884', subscriber: 'Tanya Whitfield', subDob: '1983-12-01', planType: 'Medicaid',
+    vob: { status: 'complete', at: at(12), by: 's12', repName: 'Priya S.', refNo: 'VOB-22788', callPhone: '(844) 555-0149', inNetwork: true, abaCovered: true, coinsurance: 0, priorAuthRequired: true, notes: 'Authorisation required; plan confirmed intensive hours are medically necessary.' },
+    docs: { diagnostic_report: received(25, 's12'), referral: received(25, 's12'), insurance_card: received(26, 's12') },
+    contacts: [{ id: 'c1', at: at(28), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Discharge planner confirmed the referral.' }, { id: 'c2', at: at(14), by: 's12', channel: 'Email', direction: 'outbound', outcome: 'email_sent', summary: 'Sent the service-area confirmation and requested records.' }],
+    screen: { fit: 'fit', at: at(27), by: 's9', notes: 'Urgent: safety risk. Clinical review owed — this record is over its stage SLA.' },
+    notes: 'Escalated by the clinical director. Clinical review has been open 11 days against a 1-day urgent budget.',
+    events: [{ at: at(30), by: 's12', ev: 'Hospital referral received (urgent)' }, { at: at(11), by: 's9', ev: 'Assigned to Dr. Rohit Srivastava for clinical review' }],
+  }))
+
+  put(req('iq-1012', 'INT-1012', 'waitlist', {
+    createdDays: 40, stageDays: 15, touchedDays: 5, source: 'rs-slp', channel: 'Phone', urgency: 'routine',
+    first: 'Mason', last: 'Cole', dob: '2019-02-08', phone: '(408) 555-0332', email: 'cole.family@example.com', city: 'Cupertino', zip: '95014',
+    guardian: { name: 'Derek Cole', relation: 'Father', phone: '(408) 555-0332', email: 'cole.family@example.com', addressSame: true },
+    referredBy: 'Marcy Lin, CCC-SLP', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 1',
+    concerns: 'Speech co-treatment recommended alongside ABA; family is flexible about timing.',
+    setting: 'Center-based', serviceLine: 'Speech co-treatment', program: 'Speech co-treatment', bcba: 's11',
+    payer: bsca, memberId: 'BSC-9912004', subscriber: 'Derek Cole', subDob: '1986-09-30', planType: 'Commercial',
+    vob: { status: 'complete', at: at(30), by: 's12', repName: 'Dana W.', refNo: 'VOB-22540', callPhone: '(800) 555-0114', inNetwork: true, abaCovered: true, coinsurance: 20, copay: 25, deductible: 1500, deductibleMet: 900, priorAuthRequired: true, telehealthCovered: true },
+    docs: { diagnostic_report: received(35, 's12'), referral: received(35, 's12'), insurance_card: received(36, 's12') },
+    waitlist: { reason: 'No assessment slot', priority: '2 · Medium', since: at(15), reviewBy: iso(at(-9)), position: 3, notes: 'Co-treatment slot opens when the SLP returns from leave.' },
+    contacts: [{ id: 'c1', at: at(38), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed.' }, { id: 'c2', at: at(5), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Monthly waitlist check-in call; family is still keen.' }],
+    screen: { fit: 'fit', at: at(37), by: 's12', notes: 'Clinically ready; capacity-gated.' },
+    events: [{ at: at(40), by: 's12', ev: 'Referral logged from Little Voices' }, { at: at(15), by: 's12', ev: 'Placed on the waitlist — No assessment slot' }],
+  }))
+
+  put(req('iq-1013', 'INT-1013', 'waitlist', {
+    createdDays: 65, stageDays: 34, touchedDays: 34, source: 'rs-community', channel: 'Web form', urgency: 'routine',
+    first: 'Ivy', last: 'Nakamura', dob: '2020-06-25', gender: 'F', phone: '(408) 555-0333', email: 'nakamura.family@example.com', city: 'Morgan Hill', zip: '95037',
+    guardian: { name: 'Ken Nakamura', relation: 'Father', phone: '(408) 555-0333', email: 'nakamura.family@example.com', addressSame: true },
+    dxStatus: 'referral_only', concerns: 'Family self-referred via the community helpline; no diagnosis yet, benefits unverified.',
+    setting: 'Home-based', serviceLine: 'Home program (NET)',
+    payer: medi, memberId: '', planType: 'Medicaid',
+    vob: { status: 'pending', notes: 'No member ID yet — this record is on the waitlist with benefits still open.' },
+    waitlist: { reason: 'No technician capacity', priority: '3 · Low', since: at(34), reviewBy: '', position: 7, notes: 'Family cannot start before the school year; benefits also outstanding.' },
+    contacts: [{ id: 'c1', at: at(60), by: 's12', channel: 'Email', direction: 'outbound', outcome: 'email_sent', summary: 'Sent the intake packet.' }],
+    notes: 'Stalled: 34 days in waitlist with no touch and no promised review date.',
+    events: [{ at: at(65), by: 's12', ev: 'Web form request created' }, { at: at(34), by: 's12', ev: 'Placed on the waitlist — No technician capacity' }],
+  }))
+
+  const bookedAppt = evals[0]
+  put(req('iq-1014', 'INT-1014', 'scheduled', {
+    createdDays: 29, stageDays: 4, touchedDays: 2, source: 'rs-peds', channel: 'Phone', urgency: 'routine',
+    first: 'Grace', last: 'Osei', dob: '2020-09-12', gender: 'F', phone: '(408) 555-0334', email: 'osei.family@example.com', city: 'Santa Clara', zip: '95054',
+    guardian: { name: 'Akosua Osei', relation: 'Mother', phone: '(408) 555-0334', email: 'osei.family@example.com', addressSame: true },
+    referredBy: 'Dr. Amelia Ford', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 2',
+    concerns: 'Limited eye contact and joint attention; pediatrician recommends a VB-MAPP assessment.',
+    setting: 'Center-based', serviceLine: 'Center-based 1:1', program: 'Center-based · 1:1', bcba: 's1', clinician: 's1',
+    payer: aetna, memberId: 'AE-7710223', subscriber: 'Akosua Osei', subDob: '1990-04-22', planType: 'Commercial',
+    vob: { status: 'complete', at: at(20), by: 's12', repName: 'Marcus T.', refNo: 'VOB-22661', callPhone: '(800) 555-0127', inNetwork: true, abaCovered: true, coinsurance: 20, copay: 0, deductible: 2000, deductibleMet: 2000, priorAuthRequired: true, telehealthCovered: true, notes: 'Deductible met; auth required for the assessment and treatment.' },
+    docs: { diagnostic_report: received(24, 's12'), referral: received(24, 's12'), insurance_card: received(25, 's12'), consent_treat: received(4, 's12'), hipaa_roi: received(4, 's12') },
+    consents: [{ id: 'consent_treat', at: at(4), by: 's12', method: 'e-sign' }, { id: 'hipaa_roi', at: at(4), by: 's12', method: 'e-sign' }],
+    apptId: bookedAppt?.id || null, apptDate: bookedAppt?.date || '',
+    contacts: [{ id: 'c1', at: at(26), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed.' }, { id: 'c2', at: at(4), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Booked the VB-MAPP assessment and confirmed the address.' }],
+    screen: { fit: 'fit', at: at(25), by: 's12', notes: 'Centre-based assessment appropriate.' },
+    events: [{ at: at(29), by: 's12', ev: 'Referral logged from Sunnyvale Pediatrics' }, { at: at(4), by: 's12', ev: 'Assessment appointment booked' }],
+  }))
+
+  put(req('iq-1015', 'INT-1015', 'assessment', {
+    createdDays: 48, stageDays: 6, touchedDays: 3, source: 'rs-devpeds', channel: 'Fax', urgency: 'routine',
+    first: 'Owen', last: 'Brennan', dob: '2017-11-23', phone: '(408) 555-0335', email: 'brennan.family@example.com', city: 'San Jose', zip: '95126',
+    guardian: { name: 'Siobhan Brennan', relation: 'Mother', phone: '(408) 555-0335', email: 'brennan.family@example.com', addressSame: true },
+    referredBy: 'Dr. Rohan Mehta', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 1',
+    concerns: 'Assessment complete; treatment plan is being written. Needs authorisation for 20 h/week.',
+    setting: 'Center-based', serviceLine: 'Center-based 1:1', program: 'Center-based · 1:1', bcba: 's2', clinician: 's2',
+    payer: bsca, memberId: 'BSC-4471098', subscriber: 'Siobhan Brennan', subDob: '1987-01-15', planType: 'Commercial',
+    vob: { status: 'complete', at: at(40), by: 's12', repName: 'Dana W.', refNo: 'VOB-22402', callPhone: '(800) 555-0114', inNetwork: true, abaCovered: true, coinsurance: 20, copay: 0, deductible: 1000, deductibleMet: 1000, priorAuthRequired: true, telehealthCovered: true },
+    docs: { diagnostic_report: received(44, 's12'), referral: received(44, 's12'), insurance_card: received(45, 's12'), consent_treat: received(10, 's12'), hipaa_roi: received(10, 's12') },
+    consents: [{ id: 'consent_treat', at: at(10), by: 's12', method: 'e-sign' }, { id: 'hipaa_roi', at: at(10), by: 's12', method: 'e-sign' }],
+    assessment: { date: iso(at(6)), instrument: 'VB-MAPP', outcome: 'recommended', recommendedHoursPerWeek: 20, recommendedSetting: 'Center-based · 1:1', completedBy: 's2', reportDueBy: iso(at(-4)) },
+    contacts: [{ id: 'c1', at: at(45), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed.' }, { id: 'c2', at: at(7), by: 's2', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Debriefed the assessment findings with the mother.' }],
+    screen: { fit: 'fit', at: at(43), by: 's12', notes: 'Centre-based services appropriate.' },
+    events: [{ at: at(48), by: 's12', ev: 'Referral logged' }, { at: at(6), by: 's2', ev: 'Assessment completed — VB-MAPP, ABA recommended' }],
+  }))
+
+  put(req('iq-1016', 'INT-1016', 'auth', {
+    createdDays: 55, stageDays: 8, touchedDays: 4, source: 'rs-neuro', channel: 'Fax', urgency: 'routine',
+    first: 'Harper', last: 'Lindqvist', dob: '2018-05-14', gender: 'F', phone: '(650) 555-0336', email: 'lindqvist.family@example.com', city: 'Belmont', zip: '94002',
+    guardian: { name: 'Erik Lindqvist', relation: 'Father', phone: '(650) 555-0336', email: 'lindqvist.family@example.com', addressSame: true },
+    referredBy: 'Dr. Priya Nair', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 2',
+    concerns: 'Treatment plan submitted for authorisation; 25 h/week requested.',
+    setting: 'Home-based', serviceLine: 'EIBI · Early intervention', program: 'EIBI · Home program', bcba: 's3', clinician: 's3',
+    payer: uhc, memberId: 'UHC-8890123', subscriber: 'Erik Lindqvist', subDob: '1984-06-11', planType: 'Commercial',
+    vob: { status: 'complete', at: at(48), by: 's12', repName: 'Priya S.', refNo: 'VOB-22388', callPhone: '(844) 555-0149', inNetwork: true, abaCovered: true, coinsurance: 15, copay: 0, deductible: 750, deductibleMet: 750, priorAuthRequired: true, telehealthCovered: false },
+    docs: { diagnostic_report: received(50, 's12'), referral: received(50, 's12'), insurance_card: received(51, 's12'), consent_treat: received(20, 's12'), hipaa_roi: received(20, 's12'), financial_resp: received(15, 's12') },
+    consents: [{ id: 'consent_treat', at: at(20), by: 's12', method: 'e-sign' }, { id: 'hipaa_roi', at: at(20), by: 's12', method: 'e-sign' }, { id: 'financial_resp', at: at(15), by: 's12', method: 'paper' }],
+    assessment: { date: iso(at(22)), instrument: 'VB-MAPP', outcome: 'recommended', recommendedHoursPerWeek: 25, recommendedSetting: 'Home-based', completedBy: 's3', reportDueBy: iso(at(12)) },
+    auth: { submittedAt: iso(at(8)), requestRef: 'PA-556123', unitsRequested: 600, windowStart: iso(at(-12)), windowEnd: iso(at(64)), decision: 'pending', notes: 'Payer acknowledged the submission; decision expected within 5 business days.' },
+    contacts: [{ id: 'c1', at: at(52), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed.' }, { id: 'c2', at: at(4), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Payer confirmed receipt of the authorisation packet.' }],
+    screen: { fit: 'fit', at: at(49), by: 's12', notes: 'Intensive home programme appropriate.' },
+    events: [{ at: at(55), by: 's12', ev: 'Referral logged' }, { at: at(8), by: 's12', ev: 'Authorisation request submitted (PA-556123)' }],
+  }))
+
+  // ---- one request sitting on the doorstep of conversion: tomorrow's caseload ----
+  const ready = put(req('iq-1022', 'INT-1022', 'auth', {
+    kind: 'client', createdDays: 39, stageDays: 3, touchedDays: 2, source: 'rs-devpeds', channel: 'Fax', urgency: 'urgent',
+    first: 'Ada', last: 'Okonkwo', dob: '2020-11-02', gender: 'F', phone: '(408) 555-0341', email: 'okonkwo.family@example.com', city: 'Santa Clara', zip: '95051',
+    guardian: { name: 'Chidi Okonkwo', relation: 'Father', phone: '(408) 555-0341', email: 'okonkwo.family@example.com', addressSame: true },
+    referredBy: 'Dr. Rohan Mehta', referringNpi: '1780664211', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 1',
+    concerns: 'Authorisation approved — the family is ready to start and is waiting on a technician match for the first session.',
+    setting: 'Home-based', serviceLine: 'EIBI · Early intervention', program: 'EIBI · Home program', bcba: 's4', clinician: 's4',
+    payer: bsca, memberId: 'BSC-7742119', subscriber: 'Chidi Okonkwo', subDob: '1986-02-17', planType: 'Commercial',
+    vob: { status: 'complete', at: at(31), by: 's12', repName: 'Denise M.', refNo: 'VOB-22891', callPhone: '(800) 555-0114', inNetwork: true, abaCovered: true, coinsurance: 10, copay: 0, deductible: 500, deductibleMet: 500, priorAuthRequired: true, telehealthCovered: true },
+    docs: { diagnostic_report: received(33, 's2'), referral: received(33, 's2'), insurance_card: received(32, 's12'), consent_treat: received(6, 's12'), hipaa_roi: received(6, 's12'), financial_resp: received(5, 's12') },
+    consents: [{ id: 'consent_treat', at: at(6), by: 's12', method: 'e-sign' }, { id: 'hipaa_roi', at: at(6), by: 's12', method: 'e-sign' }, { id: 'financial_resp', at: at(5), by: 's12', method: 'portal' }],
+    assessment: { date: iso(at(14)), instrument: 'VB-MAPP', outcome: 'recommended', recommendedHoursPerWeek: 20, recommendedSetting: 'Home-based', completedBy: 's4', reportDueBy: iso(at(4)) },
+    auth: { submittedAt: iso(at(9)), requestRef: 'PA-559004', unitsRequested: 240, units: 240, windowStart: iso(at(1)), windowEnd: iso(at(85)), decision: 'approved', decisionAt: iso(at(3)), authNo: 'AUTH-1022', notes: 'Approved as requested — 20 h/week for 12 weeks.' },
+    contacts: [
+      { id: 'c1', at: at(37), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Intake call with the father; fax referral acknowledged to Dr. Mehta the same day.' },
+      { id: 'c2', at: at(3), by: 's12', channel: 'Phone', direction: 'inbound', outcome: 'reached', summary: 'Family called to confirm the approval and asked what happens next.' },
+    ],
+    screen: { fit: 'fit', at: at(34), by: 's12', notes: 'Early-intervention window; father works from home so daytime sessions are workable.' },
+    events: [{ at: at(39), by: 's12', ev: 'Referral logged from Bay Area Developmental Pediatrics' }, { at: at(3), by: 's12', ev: 'Authorisation approved (AUTH-1022) — ready to convert' }],
+  }))
+  ready.guardianVerifiedAt = at(2)
+
+  // ---- converted: these carry the back-references that prove the mapping ----
+  const convertedSeeds = [
+    { id: 'iq-1017', no: 'INT-1017', clientId: clients[0]?.id, daysAgo: 96, source: 'rs-devpeds', first: 'Justin', last: 'Hsu', dob: '2015-06-01', gender: 'M', phone: '(408) 555-0161', city: 'San Jose', zip: '95124', guardianName: 'L. Hsu', insurer: 'Blue Shield CA', hours: 20, instrument: 'VB-MAPP' },
+    { id: 'iq-1018', no: 'INT-1018', clientId: clients[4]?.id, daysAgo: 74, source: 'rs-peds', first: 'David', last: 'Wiegand', dob: '2016-02-11', gender: 'M', phone: '(408) 555-0165', city: 'San Jose', zip: '95118', guardianName: 'S. Wiegand', insurer: 'Aetna', hours: 16, instrument: 'ABLLS-R' },
+    { id: 'iq-1019', no: 'INT-1019', clientId: clients[8]?.id, daysAgo: 58, source: 'rs-fusd', first: 'Gaurang', last: 'Jadia', dob: '2017-04-27', gender: 'M', phone: '(408) 555-0169', city: 'Fremont', zip: '94539', guardianName: 'N. Jadia', insurer: 'Medicaid (CA)', hours: 20, instrument: 'Vineland-3' },
+  ]
+  const clientPatches = {}
+  for (const c of convertedSeeds) {
+    if (!c.clientId) continue
+    const payer = payerId(c.insurer)
+    const created = at(c.daysAgo)
+    put(req(c.id, c.no, 'converted', {
+      kind: 'client', createdDays: c.daysAgo, stageDays: c.daysAgo - 30, touchedDays: 30,
+      source: c.source, channel: 'Phone', first: c.first, last: c.last, dob: c.dob, gender: c.gender,
+      phone: c.phone, city: c.city, zip: c.zip, office: 'Main Center',
+      guardian: { name: c.guardianName, relation: 'Parent', phone: c.phone, email: '', addressSame: true },
+      dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder',
+      concerns: 'Converted intake — chart created and linked.', setting: 'Center-based', serviceLine: 'Center-based 1:1',
+      bcba: 's1', clinician: 's1', payer, memberId: `MEM-${c.id.slice(-4).toUpperCase()}`, subscriber: c.guardianName, subDob: '1988-01-01', planType: c.insurer === 'Medicaid (CA)' ? 'Medicaid' : 'Commercial',
+      vob: { status: 'complete', at: at(c.daysAgo - 60), by: 's12', repName: 'Verified', refNo: `VOB-${1000 + c.daysAgo}`, inNetwork: true, abaCovered: true, priorAuthRequired: true },
+      docs: { diagnostic_report: received(c.daysAgo - 70, 's12'), referral: received(c.daysAgo - 70, 's12'), insurance_card: received(c.daysAgo - 65, 's12'), consent_treat: received(c.daysAgo - 40, 's12'), hipaa_roi: received(c.daysAgo - 40, 's12'), financial_resp: received(c.daysAgo - 38, 's12') },
+      consents: [{ id: 'consent_treat', at: at(c.daysAgo - 40), by: 's12', method: 'e-sign' }, { id: 'hipaa_roi', at: at(c.daysAgo - 40), by: 's12', method: 'e-sign' }, { id: 'financial_resp', at: at(c.daysAgo - 38), by: 's12', method: 'paper' }],
+      assessment: { date: iso(at(c.daysAgo - 45)), instrument: c.instrument, outcome: 'recommended', recommendedHoursPerWeek: c.hours, recommendedSetting: 'Center-based · 1:1', completedBy: 's1', reportDueBy: iso(at(c.daysAgo - 35)) },
+      auth: { submittedAt: iso(at(c.daysAgo - 36)), requestRef: `PA-${2000 + c.daysAgo}`, unitsRequested: c.hours * 12, units: c.hours * 12, windowStart: iso(at(c.daysAgo - 30)), windowEnd: iso(at(150 - c.daysAgo)), decision: 'approved', decisionAt: iso(at(c.daysAgo - 32)), authNo: `AUTH-${c.no.slice(-4)}`, notes: 'Approved as requested.' },
+      contacts: [{ id: 'c1', at: at(c.daysAgo - 3), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Completed the intake with the family.' }],
+      events: [{ at: created, by: 's12', ev: 'Referral received' }, { at: at(c.daysAgo - 30), by: 's12', ev: `Converted to a client chart (${c.no})` }],
+    }))
+    const r = intakeRequests[c.id]
+    r.convertedAt = at(c.daysAgo - 30)
+    r.clientId = c.clientId
+    r.firstServiceDate = iso(at(c.daysAgo - 26))
+    r.guardianVerifiedAt = at(c.daysAgo - 30)
+    clientPatches[c.clientId] = { intakeId: r.id, intakeNo: r.no, referralSourceId: r.referralSourceId, intakeSourceLabel: referralSourceName(r.referralSourceId), intakeConvertedAt: r.convertedAt }
+  }
+
+  // ---- closed / not admitted ----
+  put(req('iq-1020', 'INT-1020', 'closed', {
+    createdDays: 44, stageDays: 40, touchedDays: 40, source: 'rs-community', channel: 'Web form', urgency: 'routine',
+    first: 'Jonah', last: 'Weiss', dob: '2014-01-09', phone: '(408) 555-0337', city: 'Gilroy', zip: '95020',
+    guardian: { name: 'Ilana Weiss', relation: 'Mother', phone: '(408) 555-0337', email: '', addressSame: true },
+    dxStatus: 'suspected', concerns: 'Insurance check came back out of network.',
+    payer: null, planType: 'Commercial',
+    lost: { reason: 'insurance', notes: 'Plan confirmed out of network for ABA and the family declined self-pay.', at: at(40), by: 's12' },
+    docs: {}, notes: 'Tracked as a demand signal — out-of-network plans are the top loss reason this quarter.',
+    contacts: [{ id: 'c1', at: at(43), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Explained network status and self-pay options.' }],
+    events: [{ at: at(44), by: 's12', ev: 'Web form request created' }, { at: at(40), by: 's12', ev: 'Closed — insurance not accepted / not active' }],
+  }))
+
+  put(req('iq-1021', 'INT-1021', 'closed', {
+    createdDays: 21, stageDays: 16, touchedDays: 16, source: 'rs-self', channel: 'Phone', urgency: 'low',
+    first: 'Ravi', last: 'Kulkarni', dob: '2019-03-30', phone: '(408) 555-0338', city: 'San Jose', zip: '95123',
+    guardian: { name: 'Meera Kulkarni', relation: 'Mother', phone: '(408) 555-0338', email: '', addressSame: true },
+    dxStatus: 'unknown', concerns: 'Called once to ask about services; never returned calls or messages.',
+    lost: { reason: 'unreachable', notes: 'Three outreach attempts across two channels with no response.', at: at(16), by: 's12' },
+    contacts: [
+      { id: 'c1', at: at(20), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'voicemail', summary: 'Left a voicemail.' },
+      { id: 'c2', at: at(18), by: 's12', channel: 'Text / SMS', direction: 'outbound', outcome: 'email_sent', summary: 'Texted the intake line and hours.' },
+      { id: 'c3', at: at(17), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'no_answer', summary: 'Final attempt — no answer.' },
+    ],
+    events: [{ at: at(21), by: 's12', ev: 'Phone request logged' }, { at: at(16), by: 's12', ev: 'Closed — unable to reach the family' }],
+  }))
+
+  return { intakeRequests, referralSources: REFERRAL_SOURCES, clientPatches }
+}
+
+function referralSourceName(id) {
+  return REFERRAL_SOURCES.find((s) => s.id === id)?.name || ''
+}

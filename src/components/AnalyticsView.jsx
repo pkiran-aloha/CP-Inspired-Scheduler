@@ -7,6 +7,8 @@ import { DAY_SHORT, addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '..
 import { TYPES, STATUSES } from '../lib/model'
 import { METRICS, DIMS, pivotRows, heatMatrix, bucketize, resolveRange, rangeMetrics, metricOf, seriesFor, delta, priorDays } from '../lib/analytics'
 import { download } from '../lib/ics'
+import { intakeKpis, sourceStats } from '../lib/intake'
+import { pctText } from './intake/IntakeCommon'
 
 const MIX_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b', '#a855f7', '#22c55e', '#ef4444']
 
@@ -114,6 +116,14 @@ export default function AnalyticsView() {
       mk('cover', 'cover', 'Recoverable slots', (v) => `${Math.round(v)}`),
     ]
   }, [cur, prev, buckets, state.appts])
+
+  // the pipeline upstream of every session on this page — the analytic answer to
+  // "where does next quarter's caseload come from?"
+  const intake = useMemo(() => {
+    const k = intakeKpis(state.intakeRequests || {})
+    const sources = sourceStats(state.referralSources || [], state.intakeRequests || {})
+    return { k, top: sources.find((s) => s.volume > 0) || null }
+  }, [state.intakeRequests, state.referralSources])
 
   const pivot = useMemo(() => {
     let rows = pivotRows(state, days, cfg.dim)
@@ -277,6 +287,24 @@ export default function AnalyticsView() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="an-intake" data-testid="an-intake">
+          <div className="an-intake-h">
+            <span className="pi">{Icon.zap({ size: 14 })}</span>
+            <b>Intake pipeline</b>
+            <span className="muted">referrals are the leading indicator for every metric on this page</span>
+            <button className="btn btn-sm" data-testid="an-intake-open" onClick={() => actions.setUI({ section: 'intake' })}>Open pipeline</button>
+            <button className="btn btn-sm" data-testid="an-intake-report" onClick={() => actions.setUI({ section: 'reports', repSel: 'intake' })}>Full report</button>
+          </div>
+          <div className="an-intake-body">
+            <span><b>{intake.k.open}</b> in pipeline</span>
+            <span><b>{pctText(intake.k.conversionRate)}</b> referral → client</span>
+            <span><b>{intake.k.medianFirstContact == null ? '—' : `${intake.k.medianFirstContact}d`}</b> to first contact</span>
+            <span><b>{intake.k.medianToAssessment == null ? '—' : `${intake.k.medianToAssessment}d`}</b> to assessment</span>
+            <span><b>{intake.k.atRisk.length}</b> waiting on us</span>
+            <span><b>{intake.top ? intake.top.source.name : '—'}</b>{intake.top ? ` · ${intake.top.volume} referrals` : ' no attributable source yet'}</span>
+          </div>
         </div>
 
         <div className={`anv-main ${cfg.chart === 'heat' || cfg.chart === 'donut' ? 'wide1' : ''}`}>

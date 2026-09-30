@@ -6,6 +6,7 @@ import { useToast } from '../ui/Toast'
 import { bucketize, resolveRange, priorDays, RANGE_PRESETS } from '../lib/analytics'
 import { WIDGETS, DEFAULT_DASH, DASH_METRICS, DASH_DIMS, apptsFiltered, sumMetric, trendSeries, topBreakdown, mixOf, heatGrid, pulseKpis, FILTER_KEYS, fmtNum, flagOverlaps } from '../lib/dash'
 import { parseISO, todayISO, fmtTime } from '../lib/date'
+import { intakeKpis, fullName as intakeFullName, stageDef as intakeStageDef } from '../lib/intake'
 import { download } from '../lib/ics'
 import { apptAutoTitle } from '../lib/apptName'
 
@@ -195,6 +196,39 @@ function WidgetBody({ w, ctx }) {
       ctx.toast({ message: `Calendar opened on ${iso} — that weekday has live load`, kind: 'info' })
     }
     return <HeatChart data={data} onJump={jump} />
+  }
+  if (w.type === 'intake') {
+    const k = intakeKpis(state.intakeRequests || {})
+    const max = Math.max(1, ...k.funnel.map((f) => f.count))
+    return (
+      <div className="dw-intake" data-testid="dw-intake">
+        <div className="dw-intake-kpis">
+          <span><b>{k.open}</b><i>in pipeline</i></span>
+          <span><b>{k.newThisWeek}</b><i>new this week</i></span>
+          <span><b>{k.conversionRate == null ? '—' : `${k.conversionRate}%`}</b><i>conversion</i></span>
+          <span><b style={{ color: k.overdue.length ? 'var(--danger)' : 'var(--ok)' }}>{k.overdue.length}</b><i>past SLA</i></span>
+        </div>
+        <div className="dw-intake-funnel">
+          {k.funnel.map((f) => (
+            <span key={f.id} className="dw-intake-row" data-testid={`dw-intake-${f.id}`}>
+              <i>{f.label}</i>
+              <span className="dw-intake-bar"><span style={{ width: `${Math.round((f.count / max) * 100)}%` }} /></span>
+              <b>{f.count}</b>
+            </span>
+          ))}
+        </div>
+        {k.atRisk.length > 0 && (
+          <div className="dw-intake-risk">
+            <b>{Icon.alert({ size: 11 })} Waiting on us</b>
+            {k.atRisk.slice(0, 3).map((r) => (
+              <button key={r.id} data-testid={`dw-intake-risk-${r.id}`} onClick={() => { actions.setUI({ section: 'intake', intakeSel: r.id }); ctx.toast({ message: 'Intake request opened', kind: 'info' }) }}>
+                {intakeFullName(r)} <em>{intakeStageDef(r.stage).short}</em>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    )
   }
   if (w.type === 'ledger') {
     const all = ctx.rowsFor(w)

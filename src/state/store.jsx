@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
-import { buildSeed, buildDemoClaims, seedPayroll, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
+import { buildSeed, buildDemoClaims, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
+import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion } from '../lib/intake'
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
@@ -19,7 +20,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // Undo lives in memory for this tab. Persisting 25 copies of the 1,000+ session
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
-const normalizeWorkspace = (state) => normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid))))))
+const normalizeWorkspace = (state) => normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid)))))))
 
 export function blankState() {
   const appts = buildSeed(todayISO())
@@ -33,6 +34,11 @@ export function blankState() {
   })
   const seedPay = seedPayroll(STAFF, { payroll: settings.payroll })
   settings.payroll = { ...settings.payroll, anchor: seedPay.anchor }
+  // Intake Manager: the pre-client pipeline. Converted demo requests hand their
+  // clients back the upstream links (intake id / referral source) so attribution
+  // survives every downstream module that reads a client row.
+  const seedInt = seedIntake({ appts: apptsWithClaims, clients: clientsWithSec, staff: STAFF, payers: PAYERS, today: todayISO() })
+  const clientsWithIntake = clientsWithSec.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
   return {
     appts: apptsWithClaims,
     claims,
@@ -42,6 +48,9 @@ export function blankState() {
     eraImports: {},
     billedFiles: {},
     qbo: {},
+    // ---- intake manager: pre-client pipeline + the referral relationships it attributes to
+    intakeRequests: seedInt.intakeRequests,
+    referralSources: seedInt.referralSources,
     // ---- payroll: profiles (master data), timesheet decisions, pay runs, exports
     payProfiles: seedPay.profiles,
     paySheets: seedPay.sheets,
@@ -51,7 +60,7 @@ export function blankState() {
     // these flags need the one-time cleanup migrations on their first load.
     meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true },
     staff: STAFF,
-    clients: clientsWithSec,
+    clients: clientsWithIntake,
     payers: PAYERS,
     svcs: SVCS,
     customFields: CF_DEFS,
@@ -112,6 +121,10 @@ export function initial() {
           eraImports: saved.eraImports || {},
           billedFiles: saved.billedFiles || {},
           qbo: saved.qbo || {},
+          // Intake Manager is new in this round: workspaces saved before it exist
+          // still open with the seeded demo pipeline rather than an empty module.
+          intakeRequests: saved.intakeRequests || base.intakeRequests,
+          referralSources: Array.isArray(saved.referralSources) && saved.referralSources.length ? saved.referralSources : base.referralSources,
           payProfiles: Array.isArray(saved.payProfiles) && saved.payProfiles.length ? saved.payProfiles : seededPay.profiles,
           paySheets: saved.paySheets || seededPay.sheets,
           payRuns: saved.payRuns || {},
@@ -308,6 +321,35 @@ export function reducer(state, action) {
         history: touched.length ? pushSnap(state, touched, {}, action.settings) : state.history,
       }
     }
+    // ---- intake manager: one transaction per pipeline move, so a single Undo
+    // steps the record back — including a conversion that also created a client
+    // chart and re-pointed an appointment at it.
+    case 'intakeTx': {
+      const intakeRequests = { ...(state.intakeRequests || {}) }
+      for (const r of action.upserts || []) intakeRequests[r.id] = r
+      for (const id of action.deletes || []) delete intakeRequests[id]
+      const referralSources = action.sources ? [...action.sources] : state.referralSources
+      // A conversion hands back a *new* client chart: patch known clients in place
+      // and append the ones this transaction introduced, so the chart really lands
+      // in the roster every downstream module reads.
+      let clients = state.clients
+      if (action.clients) {
+        const patch = action.clients
+        const known = new Set(state.clients.map((c) => c.id))
+        clients = state.clients.map((c) => (patch[c.id] ? { ...c, ...patch[c.id] } : c))
+        for (const item of Object.values(patch)) if (item?.id && !known.has(item.id)) clients = [...clients, item]
+      }
+      const appts = { ...state.appts }
+      for (const a of action.apptUpserts || []) appts[a.id] = { ...appts[a.id], ...a }
+      for (const { id, patch } of action.apptPatches || []) if (appts[id]) appts[id] = { ...appts[id], ...patch, updatedAt: Date.now() }
+      const touched = [
+        ...(action.upserts?.length || action.deletes?.length ? ['intakeRequests'] : []),
+        ...(action.sources ? ['referralSources'] : []),
+        ...(action.clients ? ['clients'] : []),
+        ...(action.apptPatches?.length || action.apptUpserts?.length ? ['appts'] : []),
+      ]
+      return { ...state, intakeRequests, referralSources, clients, appts, history: touched.length ? pushSnap(state, touched) : state.history }
+    }
     case 'record': {
       // Money must go through a guarded claim/receipt transaction, never a
       // generic document write that leaves the claim aggregate out of sync.
@@ -332,7 +374,7 @@ export function reducer(state, action) {
     case 'clearDemo': {
       // Clear the dependent financial ledgers too; leaving payments/files behind
       // creates orphaned claims. The whole operation must be a single Undo.
-      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets']) }
+      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests']) }
     }
     case 'relabel': {
       const next = { ...state.appts }
@@ -352,7 +394,11 @@ export function reducer(state, action) {
       // Rebuild seed payments from the new claims and remove documents tied to
       // the replaced ledger. Keep the user's rosters, masters and settings.
       const pay = seedPayroll(state.staff, { payroll: state.settings.payroll })
-      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports']) }
+      // Rebuild the intake pipeline against the fresh calendar so converted
+      // requests point at clients that still exist.
+      const seedInt = seedIntake({ appts: withClaims, clients: state.clients, staff: state.staff, payers: state.payers })
+      const clients = state.clients.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients']) }
     }
     case 'roster': {
       const list = state[action.list]
@@ -830,6 +876,127 @@ function createActions(state, dispatch) {
     },
     saveReport: (report) => dispatch({ type: 'addSavedReport', report: { id: uid(), ...report } }),
     deleteReport: (id) => dispatch({ type: 'removeSavedReport', id }),
+
+    // ---- Intake Manager ------------------------------------------------------
+    /** Create or update one intake request. Every write is a single Undo step. */
+    saveIntake: (req, opts = {}) => {
+      const now = Date.now()
+      const existing = req.id ? state.intakeRequests?.[req.id] : null
+      const record = existing
+        ? { ...existing, ...req, updatedAt: now }
+        : { ...blankIntake({ ...req, id: req.id || uid(), no: req.no || intakeNo(state.intakeRequests) }), createdAt: now, updatedAt: now, stageSince: now }
+      if (existing && record.stage !== existing.stage) {
+        // Stage changes go through `moveIntake` so gates cannot be bypassed by a
+        // plain form save; a form save keeps the stage it already had.
+        record.stage = existing.stage
+      }
+      if (!existing) record.events = [...(record.events || []), { at: now, by: opts.by || null, ev: `Intake request ${record.no} created` }]
+      dispatch({ type: 'intakeTx', upserts: [record] })
+      return record
+    },
+    /** Patch fields without touching the stage (typing in the detail sheet). */
+    patchIntake: (id, patch, ev) => {
+      const cur = state.intakeRequests?.[id]
+      if (!cur) return { ok: false, msg: 'Request not found' }
+      const now = Date.now()
+      const next = { ...cur, ...patch, updatedAt: now }
+      if (ev) next.events = [...(cur.events || []), { at: now, ev }]
+      dispatch({ type: 'intakeTx', upserts: [next] })
+      return { ok: true }
+    },
+    /** Log an outreach attempt — the pipeline's heartbeat metric. */
+    logContact: (id, contact) => {
+      const cur = state.intakeRequests?.[id]
+      if (!cur) return { ok: false, msg: 'Request not found' }
+      const now = Date.now()
+      const at = { id: uid(), at: now, ...contact }
+      const next = { ...cur, contacts: [...(cur.contacts || []), at], updatedAt: now, events: [...(cur.events || []), { at: now, by: at.by || null, ev: `Contact logged — ${at.outcome} (${at.channel})` }] }
+      // A logged contact is what moves a request out of `new`; the gate is the
+      // logged outcome itself, so this stays honest for the SLA clock too.
+      if (cur.stage === 'new' && at.outcome) next.stage = 'contacted'
+      if (next.stage !== cur.stage) next.stageSince = now
+      dispatch({ type: 'intakeTx', upserts: [next] })
+      return { ok: true, advanced: next.stage !== cur.stage }
+    },
+    /** Pipeline move with gate enforcement. */
+    moveIntake: (id, target, payload = {}) => {
+      const cur = state.intakeRequests?.[id]
+      if (!cur) return { ok: false, msg: 'Request not found' }
+      if (!nextStages(cur.stage).includes(target)) return { ok: false, msg: `Cannot move ${stageDef(cur.stage).label} → ${stageDef(target).label}` }
+      const now = Date.now()
+      const patch = { ...payload, updatedAt: now, stage: target, stageSince: now }
+      if (target === 'closed' && !patch.lost) return { ok: false, msg: 'A not-admitted reason is required to close a request' }
+      if (target === 'closed') patch.lost = { ...patch.lost, at: now, by: payload.by || null }
+      if (target === 'converted') return { ok: false, msg: 'Use the conversion step to create the client chart' }
+      const merged = { ...cur, ...patch }
+      const blockers = gateBlockers(merged, target)
+      if (blockers.length) return { ok: false, msg: `${blockers.length} requirement${blockers.length > 1 ? 's' : ''} outstanding: ${blockers.map((b) => b.label).join('; ')}`, blockers }
+      merged.events = [...(cur.events || []), { at: now, ev: `Moved to ${stageDef(target).label}` }]
+      dispatch({ type: 'intakeTx', upserts: [merged] })
+      return { ok: true, msg: `Moved to ${stageDef(target).label}` }
+    },
+    deleteIntake: (id) => dispatch({ type: 'intakeTx', deletes: [id] }),
+    /**
+     * Convert a request into a client chart. The client, the appointment link
+     * and the request are written in ONE action so a single Undo reverses all of it.
+     */
+    convertIntake: (id, opts = {}) => {
+      const plan = planConversion(state, id, { ...opts, at: Date.now(), clientId: opts.clientId || uid(), by: opts.by || null })
+      if (!plan.ok) return plan
+      dispatch({ type: 'intakeTx', upserts: [plan.intake], clients: { [plan.client.id]: plan.client }, apptPatches: plan.apptPatch ? [plan.apptPatch] : [] })
+      return { ok: true, msg: plan.msg, clientId: plan.client.id }
+    },
+    /** Waiting families are a promise: a review date keeps the promise visible. */
+    reviewWaitlist: (id, payload = {}) => {
+      const cur = state.intakeRequests?.[id]
+      if (!cur) return { ok: false, msg: 'Request not found' }
+      if (!payload.reviewBy) return { ok: false, msg: 'A next-review date is required so the family is not forgotten' }
+      const now = Date.now()
+      const next = {
+        ...cur,
+        waitlist: { ...cur.waitlist, ...payload, lastReviewAt: now },
+        updatedAt: now,
+        events: [...(cur.events || []), { at: now, ev: `Waitlist reviewed — next check-in ${payload.reviewBy}` }],
+      }
+      dispatch({ type: 'intakeTx', upserts: [next] })
+      return { ok: true, msg: `Waitlist check-in recorded — next review ${payload.reviewBy}` }
+    },
+    /** Referral source register (upstream relationships). */
+    saveReferralSource: (item) => {
+      const list = state.referralSources || []
+      const next = item.id && list.some((s) => s.id === item.id)
+        ? list.map((s) => (s.id === item.id ? { ...s, ...item } : s))
+        : [...list, { id: item.id || uid(), status: 'active', since: todayISO(), dormantDays: 90, ...item }]
+      dispatch({ type: 'intakeTx', sources: next })
+      return next.find((s) => s.id === (item.id || next[next.length - 1].id))
+    },
+    removeReferralSource: (id) => {
+      // Never orphan a live request: the relationship is retired, not deleted,
+      // when requests still attribute to it.
+      const inUse = Object.values(state.intakeRequests || {}).some((r) => r.referralSourceId === id)
+      if (inUse) {
+        dispatch({ type: 'intakeTx', sources: (state.referralSources || []).map((s) => (s.id === id ? { ...s, status: 'dormant' } : s)) })
+        return { ok: true, retired: true, msg: 'Source is attributed to live requests — marked dormant instead of deleted' }
+      }
+      dispatch({ type: 'intakeTx', sources: (state.referralSources || []).filter((s) => s.id !== id) })
+      return { ok: true }
+    },
+    /** Book the assessment visit straight from the pipeline (calendar-linked). */
+    scheduleIntakeAssessment: (id, { date, start, end, clinicianId, location, by }) => {
+      const cur = state.intakeRequests?.[id]
+      if (!cur || !date || start == null || end == null) return { ok: false, msg: 'Assessment needs a date and time' }
+      const apptId = uid()
+      const appt = {
+        id: apptId, type: 'evaluation', title: `Intake assessment · ${[cur.firstName, cur.lastName].filter(Boolean).join(' ')}`,
+        date, start, end, clientIds: [], staffIds: clinicianId ? [clinicianId] : [], status: 'active',
+        location: location || cur.office || '', service: 'fba', notes: `Intake assessment for ${cur.no}`,
+        intakeId: cur.id, createdAt: Date.now(), updatedAt: Date.now(), custom: {}, documents: [], verification: null,
+      }
+      const now = Date.now()
+      const next = { ...cur, apptId, apptDate: date, clinicianId: clinicianId || cur.clinicianId, updatedAt: now, stage: 'scheduled', stageSince: now, events: [...(cur.events || []), { at: now, by: by || null, ev: `Assessment booked for ${date}` }] }
+      dispatch({ type: 'intakeTx', upserts: [next], apptUpserts: [appt] })
+      return { ok: true, apptId, msg: `Assessment booked ${date} — it is on the calendar now` }
+    },
   }
 }
 
