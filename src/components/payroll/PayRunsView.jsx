@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { money, hrs, PayKpis, StaffCell, StatusPill } from './PayrollCommon'
+import { PaySubNav, money, hrs, PayKpis, StaffCell, StatusPill } from './PayrollCommon'
 import { RUN_STATUS_LABEL, periodFromId, stubFor, annualSummary } from '../../lib/payroll'
 import { registerCsv, registerSpec, qboCsv, glJournalRows, achFile, stubHtml, payrollCsv, deductionRows } from '../../lib/payrollExport'
 import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
@@ -70,7 +70,7 @@ export default function PayRunsView() {
   }
 
   return (
-    <div className="sectionpage" data-testid="pay-runs-sec" style={{ background: 'var(--bg)' }}>
+    <div className="sectionpage pay-hub" data-testid="pay-runs-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="table" title="Pay Runs" sub={`${runs.length} runs · ${runs.filter((r) => r.locked).length} processed · ${money(totals.cost, { cents: false })} lifetime cost`}>
         <div className="sb-search" style={{ minWidth: 200, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -85,6 +85,8 @@ export default function PayRunsView() {
           {years.map((y) => <option key={y} value={y}>{y}</option>)}
         </select>
       </SectionBar>
+
+      <PaySubNav />
 
       <PayKpis testId="pay-runs-kpis" items={[
         ['Runs on file', runs.length, `${runs.filter((r) => r.status === 'draft').length} draft`, 'pay-runs-kpi-count'],

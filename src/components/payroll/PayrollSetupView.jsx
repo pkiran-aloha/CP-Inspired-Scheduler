@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { money } from './PayrollCommon'
+import { PaySubNav, money } from './PayrollCommon'
 import { EARNING_CODES, PAY_FREQUENCIES, WORKED_CODES, defaultPayrollSettings } from '../../lib/payroll'
 import { periodsFor } from '../../lib/payroll'
 
@@ -42,10 +42,12 @@ export default function PayrollSetupView() {
   const nextPeriods = periodsFor(payroll, payroll.anchor, { back: 0, forward: 3 })
 
   return (
-    <div className="sectionpage" data-testid="pay-setup-sec" style={{ background: 'var(--bg)' }}>
+    <div className="sectionpage pay-hub" data-testid="pay-setup-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="clipboard" title="Payroll Setup" sub={`${PAY_FREQUENCIES[payroll.frequency].label} cycles · workweek starts ${DAYS[payroll.workWeekStart]} · overtime after ${payroll.otAfterHours} h at ${payroll.otMultiplier}×`}>
         <button className="btn btn-sm" data-testid="pay-setup-reset" onClick={() => { set(defaultPayrollSettings(), 'Payroll policy reset to the shipped defaults'); setTax(defaultPayrollSettings().taxes) }}>Reset to defaults</button>
       </SectionBar>
+
+      <PaySubNav />
 
       <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <span className="muted">

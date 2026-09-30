@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { money, hrs, PayKpis, StaffCell, Pager, StatusPill } from './PayrollCommon'
+import { PaySubNav, money, hrs, PayKpis, StaffCell, Pager, StatusPill } from './PayrollCommon'
 import { EARNING_CODES, EARNING_BY_ID, profileFor, linesInRange, periodsFor, periodFromId, eligibleProfiles, duplicatePayrollIds, OFFICES } from '../../lib/payroll'
 import { payrollCsv } from '../../lib/payrollExport'
 import { download } from '../../lib/ics'
@@ -101,10 +101,12 @@ export default function QuickBooksPayrollView() {
   const totalCents = chosen.reduce((t, r) => t + r.amountCents, 0)
 
   return (
-    <div className="sectionpage" data-testid="pay-qbo-sec" style={{ background: 'var(--bg)' }}>
+    <div className="sectionpage pay-hub" data-testid="pay-qbo-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="file" title="QuickBooks Payroll" sub={`Local export builder · ${ledger.length} artifact${ledger.length === 1 ? '' : 's'} recorded · no QuickBooks connection`}>
         <button className="btn btn-sm" data-testid="pay-qbo-reset-top" onClick={reset}>Reset</button>
       </SectionBar>
+
+      <PaySubNav />
 
       <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <span className="muted">

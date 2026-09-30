@@ -40,10 +40,66 @@ describe('payroll navigation', () => {
     }
   })
 
-  it('jumps to payroll with the 9 shortcut', async () => {
+  it('jumps to payroll with the 9 shortcut — landing on the cycle overview', async () => {
     render(<App />)
     fireEvent.keyDown(window, { key: '9' })
-    expect(await screen.findByTestId('pay-process-sec')).toBeTruthy()
+    expect(await screen.findByTestId('pay-cycle-sec')).toBeTruthy()
+    // the section opens on the process (the four phases), not mid-wizard
+    expect(screen.getByTestId('pay-cycle-phases')).toBeTruthy()
+    expect(within(screen.getByTestId('pay-cycle-phase-0')).getByText('Select period')).toBeTruthy()
+    expect(within(screen.getByTestId('pay-cycle-phase-3')).getByText('Process & pay')).toBeTruthy()
+  })
+
+  it('drills from the landing checks into the affected employees, grouped per issue', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-payroll'))
+    fireEvent.click(await screen.findByTestId('pay-cycle-show-affected'))
+
+    const modal = await screen.findByTestId('pay-review-modal')
+    // the landing hands the modal a grouped issue, so real employee rows appear
+    expect(within(modal).getAllByTestId(/^pay-review-row-/).length).toBeGreaterThan(0)
+    expect(within(modal).getAllByTestId(/^pay-review-issue-/).length).toBeGreaterThan(0)
+
+    fireEvent.click(within(modal).getByText('Close'))
+    await waitFor(() => expect(screen.queryByTestId('pay-review-modal')).toBeNull())
+  })
+
+  it('routes from the landing module tiles into the payroll screens', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-payroll'))
+    for (const [tile, sec] of [
+      ['pay-tile-runs', 'pay-runs-sec'],
+      ['pay-tile-timesheets', 'pay-ts-sec'],
+      ['pay-tile-idmap', 'pay-idmap-sec'],
+      ['pay-tile-summary', 'pay-sum-sec'],
+      ['pay-tile-qbo', 'pay-qbo-sec'],
+      ['pay-tile-setup', 'pay-setup-sec'],
+    ]) {
+      fireEvent.click(await screen.findByTestId('pay-tab-payroll'))
+      fireEvent.click(await screen.findByTestId(tile))
+      expect(await screen.findByTestId(sec)).toBeTruthy()
+    }
+  })
+
+  it('landing explains the cycle and opens the wizard at the phase that is next', async () => {
+    openPayroll('pay-process')
+    fireEvent.click(await screen.findByTestId('pay-wizard-overview'))
+    // back on the landing page: cycle status, live checks and one primary action
+    expect(await screen.findByTestId('pay-cycle-hero')).toBeTruthy()
+    expect(screen.getByTestId('pay-cycle-norun').textContent).toMatch(/not started/i)
+    expect(screen.getByTestId('pay-cycle-checks')).toBeTruthy()
+    expect(screen.getByTestId('pay-cycle-modules')).toBeTruthy()
+
+    // phase 1 starts the wizard; a run is only created inside the wizard
+    fireEvent.click(screen.getByTestId('pay-cycle-cta'))
+    expect(await screen.findByTestId('pay-wizard-period')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('pay-period-next-step'))
+    await waitFor(() => expect(screen.getByTestId('pay-wizard-review')).toBeTruthy())
+
+    // the landing now reports the draft run and where the cycle stands
+    fireEvent.click(screen.getByTestId('pay-wizard-overview'))
+    expect(await screen.findByTestId('pay-cycle-phase-1')).toBeTruthy()
+    expect(screen.getByTestId('pay-cycle-hint').textContent).toMatch(/PR-0001 — next: Review register \(phase 2 of 4\)/)
   })
 })
 
@@ -65,7 +121,7 @@ describe('Process Payroll wizard', () => {
     await waitFor(() => expect(Object.keys(stored().payRuns || {})).toHaveLength(1))
 
     // step 2 → approve as a *different* person than the preparer
-    fireEvent.click(screen.getByTestId('pay-step-2'))
+    fireEvent.click(screen.getByTestId('pay-review-next'))
     const approver = await screen.findByTestId('pay-approver')
     fireEvent.change(approver, { target: { value: 'Neha Peyyeti' } })
     fireEvent.click(screen.getByTestId('pay-approve'))
@@ -98,7 +154,7 @@ describe('Process Payroll wizard', () => {
     openPayroll('pay-process')
     fireEvent.click(await screen.findByTestId('pay-period-next-step'))
     await waitFor(() => expect(screen.getByTestId('pay-run-kpis')).toBeTruthy())
-    fireEvent.click(screen.getByTestId('pay-step-2'))
+    fireEvent.click(screen.getByTestId('pay-review-next'))
     const approver = await screen.findByTestId('pay-approver')
     fireEvent.change(approver, { target: { value: 'Prateek Kiran' } }) // the seeded preparer
     expect(await screen.findByTestId('pay-sod-warning')).toBeTruthy()
@@ -118,11 +174,36 @@ describe('Process Payroll wizard', () => {
     await waitFor(() => expect(Object.keys(stored().payRuns)).toHaveLength(1))
   })
 
+  it('renders one phase panel at a time — completed phases collapse to recaps', async () => {
+    openPayroll('pay-process')
+    fireEvent.click(await screen.findByTestId('pay-period-next-step'))
+    await waitFor(() => expect(screen.getByTestId('pay-wizard-review')).toBeTruthy())
+
+    // phase 2 on screen: phase 1 is a recap row, phase 3/4 panels are not mounted
+    expect(screen.getByTestId('pay-recap-period')).toBeTruthy()
+    expect(screen.queryByTestId('pay-wizard-approve')).toBeNull()
+    expect(screen.queryByTestId('pay-wizard-process')).toBeNull()
+    expect(screen.queryByTestId('pay-wizard-period')).toBeNull()
+
+    // the rail still names all four phases
+    expect(within(screen.getByTestId('pay-steps')).getAllByTestId(/^pay-step-/)).toHaveLength(4)
+
+    fireEvent.click(screen.getByTestId('pay-review-next'))
+    expect(await screen.findByTestId('pay-wizard-approve')).toBeTruthy()
+    expect(screen.queryByTestId('pay-wizard-review')).toBeNull()
+    expect(screen.getByTestId('pay-recap-register')).toBeTruthy()
+
+    // going back through a recap re-opens that phase instead of stacking
+    fireEvent.click(screen.getByTestId('pay-recap-period-open'))
+    expect(await screen.findByTestId('pay-wizard-period')).toBeTruthy()
+    expect(screen.queryByTestId('pay-wizard-approve')).toBeNull()
+  })
+
   it('reports the last processed payroll on the header', async () => {
     openPayroll('pay-process')
     fireEvent.click(await screen.findByTestId('pay-period-next-step'))
     await waitFor(() => expect(screen.getByTestId('pay-run-kpis')).toBeTruthy())
-    fireEvent.click(screen.getByTestId('pay-step-2'))
+    fireEvent.click(screen.getByTestId('pay-review-next'))
     fireEvent.click(await screen.findByTestId('pay-approve'))
     await waitFor(() => expect(Object.values(stored().payRuns)[0].status).toBe('approved'))
     fireEvent.click(await screen.findByTestId('pay-process'))
@@ -305,7 +386,7 @@ describe('Pay Runs register', () => {
     openPayroll('pay-process')
     fireEvent.click(await screen.findByTestId('pay-period-next-step'))
     await waitFor(() => expect(screen.getByTestId('pay-run-kpis')).toBeTruthy())
-    fireEvent.click(screen.getByTestId('pay-step-2'))
+    fireEvent.click(screen.getByTestId('pay-review-next'))
     const approver = await screen.findByTestId('pay-approver')
     fireEvent.change(approver, { target: { value: 'Neha Peyyeti' } })
     fireEvent.click(await screen.findByTestId('pay-approve'))
