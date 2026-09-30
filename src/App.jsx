@@ -1,3 +1,4 @@
+import SectionBoundary from './components/SectionBoundary'
 import React, { useEffect, useMemo, useState } from 'react'
 import { StoreProvider, useStore } from './state/store'
 import { ToastProvider, useToast } from './ui/Toast'
@@ -208,6 +209,7 @@ function Shell() {
     <div className="applayout">
       <NavRail />
       <div className="appbody">
+        <SectionBoundary key={section}>
         {section === 'calendar' && (
           <>
             <TopBar
@@ -274,6 +276,7 @@ function Shell() {
         {section === 'pay-idmap' && <PayrollIdMappingView />}
         {section === 'pay-qbo' && <QuickBooksPayrollView />}
         {section === 'pay-setup' && <PayrollSetupView />}
+        </SectionBoundary>
       </div>
 
       {picking && (

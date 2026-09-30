@@ -1,3 +1,4 @@
+import { normalizeVerificationForms, seedVerificationForms } from '../lib/verificationForms'
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
@@ -20,7 +21,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // Undo lives in memory for this tab. Persisting 25 copies of the 1,000+ session
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
-const normalizeWorkspace = (state) => normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid)))))))
+const normalizeWorkspace = (state) => normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid))))))))
 
 export function blankState() {
   const appts = buildSeed(todayISO())
@@ -44,7 +45,7 @@ export function blankState() {
     claims,
     payments: paymentsFromClaims(Object.values(claims), { at: Date.now() }),
     invoices: {},
-    verificationForms: {},
+    verificationForms: seedVerificationForms(clientsWithIntake, PAYERS),
     eraImports: {},
     billedFiles: {},
     qbo: {},
@@ -58,7 +59,7 @@ export function blankState() {
     payExports: {},
     // Fresh workspaces already use opt-in custom fields. Only old saves without
     // these flags need the one-time cleanup migrations on their first load.
-    meta: { billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true },
+    meta: { verificationFormsSeeded: true, billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true },
     staff: STAFF,
     clients: clientsWithIntake,
     payers: PAYERS,
@@ -110,6 +111,7 @@ export function initial() {
         const mergedRaw = {
           ...base,
           ...saved,
+          meta: saved.meta || {},
           claims: saved.claims || base.claims,
           svcs: Array.isArray(saved.svcs) && saved.svcs.length ? saved.svcs : base.svcs,
           customFields: Array.isArray(saved.customFields) ? saved.customFields : base.customFields,

@@ -18,7 +18,7 @@ export default function VerificationFormsView() {
   const [statusF, setStatusF] = useState('all')
   const [selId, setSelId] = useState(null)
 
-  const forms = useMemo(() => (state.verificationForms || []), [state.verificationForms])
+  const forms = useMemo(() => Object.values(state.verificationForms || {}), [state.verificationForms])
   const filtered = useMemo(() => {
     let out = forms
     if (statusF !== 'all') out = out.filter((f) => f.status === statusF)
