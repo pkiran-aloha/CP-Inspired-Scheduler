@@ -28,6 +28,7 @@ import QuickBooksView from './components/QuickBooksView'
 import AppealsView from './components/AppealsView'
 import PaymentCenterView from './components/PaymentCenterView'
 import ProviderIdView from './components/ProviderIdView'
+import PayrollCycleView from './components/payroll/PayrollCycleView'
 import ProcessPayrollView from './components/payroll/ProcessPayrollView'
 import PayRunsView from './components/payroll/PayRunsView'
 import TimesheetSubmissionView from './components/payroll/TimesheetSubmissionView'
@@ -259,7 +260,8 @@ function Shell() {
         {section === 'bil-qbo' && <QuickBooksView />}
         {section === 'bil-appeals' && <AppealsView />}
         {section === 'bil-providers' && <ProviderIdView />}
-        {(section === 'payroll' || section === 'pay-process') && <ProcessPayrollView />}
+        {section === 'payroll' && <PayrollCycleView />}
+        {section === 'pay-process' && <ProcessPayrollView />}
         {section === 'pay-runs' && <PayRunsView />}
         {section === 'pay-timesheets' && <TimesheetSubmissionView />}
         {section === 'pay-summary' && <PayrollSummaryView />}

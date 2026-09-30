@@ -19,6 +19,7 @@ export const SECTIONS = [
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
   { id: 'reports', label: 'Reports', icon: 'file', kbd: '6', desc: 'Exportable PMS reports & validations' },
   { id: 'payroll', label: 'Payroll', icon: 'badge', kbd: '9', desc: 'Timesheets, pay runs & provider export', subs: [
+    { id: 'pay-cycle', to: 'payroll', label: 'Cycle Overview' },
     { id: 'pay-process', to: 'pay-process', label: 'Process Payroll' },
     { id: 'pay-runs', to: 'pay-runs', label: 'Pay Runs' },
     { id: 'pay-idmap', to: 'pay-idmap', label: 'Payroll ID Mapping' },
@@ -129,7 +130,7 @@ export default function NavRail() {
           {!collapsed && <span className="nr-label">Settings</span>}
         </button>
         <div className="nr-build" data-testid="app-build" title={"Build running in this tab — if a newer one is deployed, you’ll be offered a refresh"}>
-          {collapsed ? 'v35' : `v35 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
+          {collapsed ? 'v36' : `v36 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>
         <button className="nr-item" onClick={() => actions.setUI({ nav: !collapsed })} data-testid="nav-collapse" title={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
           <span className="nr-ic">{collapsed ? Icon.chevronR({ size: 14 }) : Icon.chevronL({ size: 14 })}</span>

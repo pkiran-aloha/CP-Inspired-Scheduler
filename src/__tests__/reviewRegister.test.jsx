@@ -110,13 +110,23 @@ describe('Payroll phases — guided design', () => {
     expect(within(review).getByText('Phase 2 of 4')).toBeTruthy()
     expect(within(review).getByTestId('pay-guide-2')).toBeTruthy()
 
-    // the review CTA walks the user into approval
+    // the review CTA walks the user into approval — phases do not stack, so the
+    // review panel is replaced by the approval panel rather than piling on top
     fireEvent.click(screen.getByTestId('pay-review-next'))
     const approve = await screen.findByTestId('pay-wizard-approve')
     expect(within(approve).getByText('Phase 3 of 4')).toBeTruthy()
     expect(within(approve).getByTestId('pay-guide-3')).toBeTruthy()
-    const process = screen.getByTestId('pay-wizard-process') // process panel sits alongside, also guided
+    expect(screen.queryByTestId('pay-wizard-review')).toBeNull()
+    // phase 2 is summarised as a recap the user can step back into
+    expect(within(screen.getByTestId('pay-recap-register')).getByText(/PR-0001/)).toBeTruthy()
+
+    // approving (as somebody other than the preparer) unlocks phase 4, guided too
+    const approver = screen.getByTestId('pay-approver')
+    fireEvent.change(approver, { target: { value: 'Neha Peyyeti' } })
+    fireEvent.click(screen.getByTestId('pay-approve'))
+    const process = await screen.findByTestId('pay-wizard-process')
     expect(within(process).getByText('Phase 4 of 4')).toBeTruthy()
     expect(within(process).getByTestId('pay-guide-4')).toBeTruthy()
+    expect(screen.queryByTestId('pay-wizard-approve')).toBeNull()
   })
 })

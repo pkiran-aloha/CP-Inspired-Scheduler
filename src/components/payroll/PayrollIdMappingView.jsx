@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { StaffCell, Pager, money } from './PayrollCommon'
+import { PaySubNav, StaffCell, Pager, money } from './PayrollCommon'
 import { OFFICES, CLASSIFICATIONS, PAY_TYPES, duplicatePayrollIds, defaultProfile, defaultPayrollSettings } from '../../lib/payroll'
 
 const EMPTY_DED = { code: 'MED', label: 'Medical / dental / vision', kind: 'pretax', calc: 'flat', value: 0 }
@@ -76,7 +76,7 @@ export default function PayrollIdMappingView() {
   }
 
   return (
-    <div className="sectionpage" data-testid="pay-idmap-sec" style={{ background: 'var(--bg)' }}>
+    <div className="sectionpage pay-hub" data-testid="pay-idmap-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="badge" title="Payroll ID Mapping" sub={`${includedCount} included · ${missingIds} missing a payroll ID · ${dupes.length} duplicate ID${dupes.length === 1 ? '' : 's'}`}>
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -85,6 +85,8 @@ export default function PayrollIdMappingView() {
         <button className="btn btn-sm" data-testid="pay-idmap-autoassign" onClick={autoAssign}>Assign missing IDs</button>
         <button className="btn btn-sm" data-testid="pay-idmap-include-all" onClick={() => { (payProfiles || []).forEach((p) => actions.payrollProfile({ ...p, include: true })); toast({ message: 'All staff included in payroll', kind: 'ok' }) }}>Include all</button>
       </SectionBar>
+
+      <PaySubNav />
 
       {dupes.length > 0 && (
         <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--danger, #ef4444)', borderRadius: 12 }} data-testid="pay-idmap-dupes">

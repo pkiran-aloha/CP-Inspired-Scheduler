@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
+import { PaySubNav, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
 import { EARNING_BY_ID, MANUAL_CODES, sheetFor, timesheet, periodsFor, periodFor, earningsFor } from '../../lib/payroll'
 import { timesheetHtml } from '../../lib/payrollExport'
 import { download } from '../../lib/ics'
@@ -127,7 +127,7 @@ export default function TimesheetSubmissionView() {
   const detailTs = detail ? timesheet(state, detail.staffId, period.id) : null
 
   return (
-    <div className="sectionpage" data-testid="pay-ts-sec" style={{ background: 'var(--bg)' }}>
+    <div className="sectionpage pay-hub" data-testid="pay-ts-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="clipboard" title="Timesheet Submission" sub={`${period.start} → ${period.end} · cutoff ${period.cutoff} · ${counts.submitted} waiting on approval`}>
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -142,6 +142,8 @@ export default function TimesheetSubmissionView() {
         <button className="btn btn-sm" data-testid="pay-ts-approve" onClick={() => bulk('approve')}>Approve</button>
         <button className="btn btn-sm" data-testid="pay-ts-revert" onClick={() => bulk('revert')}>Revert</button>
       </SectionBar>
+
+      <PaySubNav />
 
       <div className="pay-filterbar">
         <span className="muted">Show</span>

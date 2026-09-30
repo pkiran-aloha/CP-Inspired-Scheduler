@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
+import { PaySubNav, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
 import { EARNING_BY_ID, computeRun, runBreakdown, annualSummary, periodFromId, periodsFor, grossToNet } from '../../lib/payroll'
 import { registerSpec, registerCsv, payrollCsv } from '../../lib/payrollExport'
 import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
@@ -74,7 +74,7 @@ export default function PayrollSummaryView() {
   }
 
   return (
-    <div className="sectionpage" data-testid="pay-sum-sec" style={{ background: 'var(--bg)' }}>
+    <div className="sectionpage pay-hub" data-testid="pay-sum-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="rows" title="Payroll Summary" sub={generated ? `${period.start} → ${period.end} · ${result.totals.staff} employees · ${money(result.totals.totalCostCents, { cents: false })} total cost` : 'Please select the payroll period you would like to see'}>
         {generated && (
           <>
@@ -84,6 +84,8 @@ export default function PayrollSummaryView() {
           </>
         )}
       </SectionBar>
+
+      <PaySubNav />
 
       <div className="pay-card" data-testid="pay-sum-wizard">
         <h3>Please select the payroll period you would like to see</h3>
