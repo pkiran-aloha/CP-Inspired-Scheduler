@@ -1,11 +1,13 @@
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
+import { useToast } from '../ui/Toast'
 import { scanNeedsCover } from '../lib/smart'
 import { intakeKpis } from '../lib/intake'
 import { stagedAppts } from '../lib/claims'
 import { RANGE_PRESETS } from '../lib/analytics'
 import { useMedia } from '../lib/useMedia'
+import { canAccessSection, resolveAccount } from '../lib/security'
 import { addDays, isoDate, parseISO, todayISO } from '../lib/date'
 
 const RANGE_PRESET_OPTS = RANGE_PRESETS
@@ -37,6 +39,10 @@ export const SECTIONS = [
     { id: 'pay-setup', to: 'pay-setup', label: 'Payroll Setup' },
   ] },
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
+  { id: 'security', label: 'Security', icon: 'shield', kbd: 'S', desc: 'User accounts and role-based access', subs: [
+    { id: 'security-accounts', to: 'security', label: 'User Accounts', patch: { securityTab: 'accounts' } },
+    { id: 'security-roles', to: 'security', label: 'User Roles', patch: { securityTab: 'roles' } },
+  ] },
 ]
 
 /**
@@ -46,12 +52,15 @@ export const SECTIONS = [
 export default function NavRail() {
   const state = useStore()
   const { ui, actions, appts } = state
+  const toast = useToast()
+  const [previewOpen, setPreviewOpen] = useState(false)
   const section = ui.section || 'calendar'
   // context-adaptive: the scheduling board gets the extra width, so the rail rests
   // as an icon strip there by default (tooltips carry the labels). Any explicit
   // collapse/expand click wins and persists across sections and reloads.
   const narrow = useMedia('(max-width: 1279px)')
   const collapsed = ui.nav ?? (section === 'calendar' || narrow)
+  useEffect(() => setPreviewOpen(false), [state.currentAccount?.id])
 
   // live badges — coverage pressure on Calendar, work-in-the-desk on Billing
   const badges = useMemo(() => {
@@ -84,15 +93,18 @@ export default function NavRail() {
       </div>
 
       <div className="nr-items">
-        {SECTIONS.map((s) => {
+        {SECTIONS.filter((s) => canAccessSection(state, s.id, 'view') || (s.subs || []).some((sub) => sub.to && canAccessSection(state, sub.to, 'view'))).map((s) => {
           const n = badges[s.id] || 0
+          const canOpenParent = canAccessSection(state, s.id, 'view')
+          const fallbackSub = (s.subs || []).find((sub) => sub.to && canAccessSection(state, sub.to, 'view'))
+          const target = canOpenParent ? s.id : fallbackSub?.to
           const active = section === s.id || (s.subs || []).some((x) => x.to === section)
           return (
           <React.Fragment key={s.id}>
             <button
               className={`nr-item ${active ? 'on' : ''}`}
               data-testid={`nav-${s.id}`}
-              onClick={() => actions.setUI({ section: s.id })}
+              onClick={() => target && actions.setUI({ section: target })}
               title={`${s.label}${collapsed ? ` — ${s.desc}` : ''}  (${s.kbd})`}
               aria-current={active ? 'page' : undefined}
             >
@@ -110,10 +122,10 @@ export default function NavRail() {
                   // a named sub-module inside the section (Clients → Intake Manager), matching
                   // how the practice talks about the work rather than how the routes are cut
                   <div className="nr-subgroup" key={sub.group} data-testid={`nav-group-${sub.group.toLowerCase().replace(/\s+/g, '-')}`}>{sub.group}</div>
-                ) : (
+                ) : sub.to && !canAccessSection(state, sub.to, 'view') ? null : (
                   <button
                     key={sub.id}
-                    className={`nr-subitem ${sub.to ? sub.to === section : (section === s.id && ui.mastersTab === sub.id) ? 'on' : ''}`}
+                    className={`nr-subitem ${sub.to ? sub.to === section && (!sub.patch?.securityTab || ui.securityTab === sub.patch.securityTab) ? 'on' : '' : (section === s.id && ui.mastersTab === sub.id) ? 'on' : ''}`}
                     data-testid={`nav-sub-${sub.id}`}
                     onClick={() => actions.setUI({ section: sub.to || s.id, mastersTab: sub.id, payerSel: null, ...(sub.patch || {}) })}
                   >
@@ -129,6 +141,29 @@ export default function NavRail() {
       </div>
 
       <div className="nr-foot">
+        <div className={`nr-preview ${previewOpen ? 'open' : ''}`} data-testid="nav-demo-preview">
+          <button className="nr-item nr-preview-trigger" type="button" onClick={() => setPreviewOpen((open) => !open)} aria-expanded={previewOpen} aria-label={`Local demo account preview: ${state.currentAccount?.name || 'No active user'}`} title="Switch local demo account preview">
+            <span className="nr-ic nr-preview-avatar">{String(state.currentAccount?.name || 'User').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
+            {!collapsed && <span className="nr-preview-label"><b>{state.currentAccount?.name || 'No active user'}</b><i>{state.currentRole?.name || 'No role'} · demo</i></span>}
+          </button>
+          {previewOpen && <div className="nr-preview-popover" role="group" aria-label="Local demo account switcher">
+            <b>Local demo preview</b>
+            <span>{state.currentRole?.name || 'No role'} · not a sign-in session</span>
+            <select aria-label="Preview demo account from navigation" value={state.currentAccount?.id || ''} onChange={(event) => {
+              const id = event.target.value
+              const account = resolveAccount(state, state.security.accounts.find((item) => item.id === id))
+              const result = actions.switchDemoAccount(id)
+              if (result?.ok) toast({ message: `Previewing as ${account?.name || 'selected account'}`, kind: 'info' })
+              else if (result?.msg) toast({ message: result.msg, kind: 'warn' })
+            }} data-testid="nav-demo-account-switch">
+              {state.security.accounts.filter((account) => account.status === 'active').map((stored) => {
+                const account = resolveAccount(state, stored)
+                const role = state.security.roles.find((item) => item.id === account.roleId)
+                return <option key={account.id} value={account.id}>{account.name} · {role?.name || 'No role'}</option>
+              })}
+            </select>
+          </div>}
+        </div>
         {!collapsed && (
           <div className="nr-card">
             <b>{state.settings?.org?.name || 'Aloha ABA Center'}</b>
@@ -140,10 +175,10 @@ export default function NavRail() {
           <span className="nr-ic">{state.settings.theme === 'dark' ? Icon.sun({ size: 15 }) : Icon.moon({ size: 15 })}</span>
           {!collapsed && <span className="nr-label">Theme</span>}
         </button>
-        <button className="nr-item" onClick={() => actions.setUI({ settings: true })} data-testid="nav-settings" title="Application settings">
+        {state.canAccess('settings', 'view') && <button className="nr-item" onClick={() => actions.setUI({ settings: true })} data-testid="nav-settings" title="Application settings">
           <span className="nr-ic">{Icon.dots({ size: 15 })}</span>
           {!collapsed && <span className="nr-label">Settings</span>}
-        </button>
+        </button>}
         <div className="nr-build" data-testid="app-build" title={"Build running in this tab — if a newer one is deployed, you’ll be offered a refresh"}>
           {collapsed ? 'v36' : `v36 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>

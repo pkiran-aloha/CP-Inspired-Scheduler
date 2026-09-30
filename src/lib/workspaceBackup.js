@@ -1,9 +1,11 @@
+import { normalizeSecurity, validateSecurityConfig } from './security'
+
 // Durable workspace data. UI navigation and undo history are intentionally not backed up:
 // they are transient, and serializing 25 full undo snapshots can exhaust localStorage.
 export const WORKSPACE_FIELDS = [
   'appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports',
   'billedFiles', 'qbo', 'staff', 'clients', 'teams', 'payers', 'svcs',
-  'customFields', 'settings', 'reports', 'dash', 'meta',
+  'customFields', 'settings', 'security', 'reports', 'dash', 'meta',
   // payroll: master data, timesheet decisions, pay runs and their exports
   'payProfiles', 'paySheets', 'payRuns', 'payExports',
   // intake manager: the pre-client pipeline + the referral relationships it attributes to
@@ -11,14 +13,19 @@ export const WORKSPACE_FIELDS = [
 ]
 
 export const BACKUP_FORMAT = 'aloha-aba-workspace'
-export const BACKUP_VERSION = 2
+export const BACKUP_VERSION = 3
+const PRE_SECURITY_FIELDS = WORKSPACE_FIELDS.filter((key) => key !== 'security')
 
 const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests']
 const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields', 'payProfiles', 'referralSources']
 const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
 export function workspaceData(state) {
-  return Object.fromEntries(WORKSPACE_FIELDS.map((key) => [key, state[key]]))
+  const data = Object.fromEntries(WORKSPACE_FIELDS.map((key) => [key, state[key]]))
+  // A staff removal/rebuild must never export dangling account-to-profile links.
+  // Normalize against the exact staff roster that travels in this backup.
+  data.security = normalizeSecurity(state.security, state.staff || [])
+  return data
 }
 
 export function createWorkspaceBackup(state, exported = new Date().toISOString()) {
@@ -46,6 +53,7 @@ function validate(data, fields) {
       (data.dash.boards !== undefined && (!Array.isArray(data.dash.boards) || data.dash.boards.some((b) => !record(b) || !Array.isArray(b.widgets))))) {
     throw new Error('Backup has invalid saved reports or dashboards')
   }
+  if (fields.includes('security')) validateSecurityConfig(data.security, data.staff)
   if (Object.values(data.appts).some((a) => typeof a.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.date) ||
       !Number.isFinite(a.start) || !Number.isFinite(a.end) || !Array.isArray(a.clientIds) || !Array.isArray(a.staffIds) ||
       typeof a.type !== 'string' || typeof a.status !== 'string')) {
@@ -149,10 +157,17 @@ export function readWorkspaceBackup(text, defaults) {
   let data
   let legacy = false
   if (file.format === BACKUP_FORMAT) {
-    if (file.version !== BACKUP_VERSION) throw new Error(`Unsupported backup version ${file.version}`)
+    if (![2, BACKUP_VERSION].includes(file.version)) throw new Error(`Unsupported backup version ${file.version}`)
     data = file.data
     if (!record(data)) throw new Error('Backup is missing workspace data')
-    validate(data, WORKSPACE_FIELDS)
+    if (file.version === 2) {
+      // Version 2 predates local role/account metadata. Add the current workspace's
+      // demo security defaults, linked only to staff rows present in the backup.
+      validate(data, PRE_SECURITY_FIELDS)
+      data = { ...workspaceData(defaults), ...data, security: normalizeSecurity(defaults.security, data.staff) }
+    } else {
+      validate(data, WORKSPACE_FIELDS)
+    }
     data = { ...workspaceData(data), meta: { ...data.meta, pcfCleared: true, legacyCustomCleared: true } } // ignore history; never erase captured answers on restore
   } else if (!file.format && typeof file.exported === 'string') {
     legacy = true
@@ -165,6 +180,7 @@ export function readWorkspaceBackup(text, defaults) {
     data = {
       ...workspaceData(defaults),
       ...Object.fromEntries(oldFields.map((key) => [key, file[key]])),
+      security: normalizeSecurity(defaults.security, file.staff),
       payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {},
       payProfiles: defaults.payProfiles || [], paySheets: {}, payRuns: {}, payExports: {},
       intakeRequests: {}, referralSources: defaults.referralSources || [],

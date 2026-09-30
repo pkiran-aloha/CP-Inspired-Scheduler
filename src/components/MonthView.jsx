@@ -35,16 +35,16 @@ export default function MonthView({ days, onOpenDetail, onCreateAt, onPickSlot }
           const more = list.length - shown.length
           const hours = list.reduce((m, a) => (TYPES[a.type]?.billable && a.status !== 'cancelled' ? m + (a.end - a.start) / 60 : m), 0)
           return (
-            <div key={d} className={`mv-cell ${dt.getMonth() === centerMonth ? '' : 'dim'} ${wknd ? 'wkend' : ''} ${d === today ? 'today' : ''}`} onDoubleClick={() => onCreateAt(d)}>
+            <div key={d} className={`mv-cell ${dt.getMonth() === centerMonth ? '' : 'dim'} ${wknd ? 'wkend' : ''} ${d === today ? 'today' : ''}`} onDoubleClick={onCreateAt ? () => onCreateAt(d) : undefined}>
               <div className="mv-num">
                 <button className="btn btn-ghost btn-sm" style={{ padding: 0, minWidth: 22 }} onClick={() => state.actions.setUI({ anchor: d })} title="Go to this day">
                   <b style={{ background: d === today ? 'var(--accent)' : 'transparent', color: d === today ? '#fff' : 'inherit', borderRadius: 8, width: 22, height: 22, display: 'grid', placeItems: 'center' }}>{dt.getDate()}</b>
                 </button>
                 <span style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                   {hours > 0 && <span className="muted" style={{ fontSize: 9.5, fontWeight: 700 }}>{Math.round(hours)}h</span>}
-                  <button className="mv-add" onClick={() => onCreateAt(d)} aria-label="Add appointment" title="Add appointment">
+                  {onCreateAt && <button className="mv-add" onClick={() => onCreateAt(d)} aria-label="Add appointment" title="Add appointment">
                     {Icon.plus({ size: 11, strokeWidth: 2.6 })}
-                  </button>
+                  </button>}
                 </span>
               </div>
               {shown.map((a) => {

@@ -7,11 +7,15 @@ import { downloadDoc } from '../lib/exportKit'
 import { todayISO } from '../lib/date'
 import { NAME_STYLES, apptAutoTitle, titleAudit } from '../lib/apptName'
 import { createWorkspaceBackup, readWorkspaceBackup } from '../lib/workspaceBackup'
+import { DEMO_RESET_AREAS, SECURITY_AREAS } from '../lib/security'
 
 export default function SettingsModal({ onClose }) {
   const state = useStore()
   const { settings, actions, appts, claims, staff, clients, teams } = state
   const toast = useToast()
+  const canManageWorkspace = state.canAccessAllOffices && SECURITY_AREAS.every(({ id }) => state.canAccess(id, 'full'))
+  const canManageDemo = state.canAccessAllOffices && DEMO_RESET_AREAS.every((area) => state.canAccess(area, 'full'))
+  const canRebuildTitles = state.canAccessAllOffices && state.canAccess('settings', 'full') && state.canAccess('calendar', 'full')
   const fileRef = useRef(null)
   const [arm, setArm] = useState(null) // two-step confirmation instead of native confirm()
   const [pendingRestore, setPendingRestore] = useState(null)
@@ -48,10 +52,12 @@ export default function SettingsModal({ onClose }) {
     bytes = (localStorage.getItem('aloha-aba.v3') || '').length
   } catch {}
   const doExport = () => {
+    if (!canManageWorkspace) { toast({ message: 'Workspace backups require full access to every module and all-office scope.', kind: 'warn' }); return }
     downloadDoc(`aloha-aba-backup-${todayISO()}.json`, createWorkspaceBackup(state), 'application/json')
     toast({ message: `Full workspace exported — ${Object.keys(appts).length} appointments, ${Object.keys(claims).length} claims and all billing ledgers`, kind: 'ok' })
   }
   const doImport = (file) => {
+    if (!canManageWorkspace) { toast({ message: 'Workspace restore requires full access to every module and all-office scope.', kind: 'warn' }); return }
     setPendingRestore(null)
     if (file.size > 50 * 1024 * 1024) {
       toast({ message: 'Backup is too large to open here (50 MB limit)', kind: 'warn' })
@@ -73,7 +79,8 @@ export default function SettingsModal({ onClose }) {
   const confirmRestore = () => {
     if (!pendingRestore) return
     const { data, counts } = pendingRestore
-    actions.replace(data)
+    const result = actions.replace(data)
+    if (result?.ok === false) return // guarded dispatch already explains why restore was denied
     setPendingRestore(null)
     toast({ message: `Backup restored — ${counts.appointments} appointments, ${counts.claims} claims and ${counts.payments} payments`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() }, duration: 8000 })
   }
@@ -94,7 +101,8 @@ export default function SettingsModal({ onClose }) {
     serviceOverride: 'dtt', locationOverride: sampleClient.home || 'Main Center',
   })
   const restyle = () => {
-    actions.relabel()
+    const result = actions.relabel()
+    if (result?.ok === false) return // guarded dispatch already explains why the rebuild was denied
     toast({ message: `${audit.total} flagged title${audit.total === 1 ? '' : 's'} rebuilt to the “${NAME_STYLES[settings.apptNameStyle || 'ehr'].label}” convention`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
     setHealthOpen(false)
   }
@@ -192,9 +200,9 @@ export default function SettingsModal({ onClose }) {
                     {audit.total > 8 && <span className="sh-more">+{audit.total - 8} more flagged</span>}
                   </div>
                 )}
-                <button className="btn btn-sm btn-primary" data-testid="set-name-apply" title="Rebuild only the flagged titles from their real client / service / time — every other title is untouched" onClick={restyle}>
+                {canRebuildTitles ? <button className="btn btn-sm btn-primary" data-testid="set-name-apply" title="Rebuild only the flagged titles from their real client / service / time — every other title is untouched" onClick={restyle}>
                   {Icon.zap({ size: 12 })} Rework {audit.total} title{audit.total === 1 ? '' : 's'}
-                </button>
+                </button> : <span className="muted">Bulk title rebuild requires full Calendar and Settings access with all-office scope.</span>}
               </div>
             )}
             <div className="menu-h" style={{ paddingTop: 14 }}>Data & backup</div>
@@ -206,10 +214,11 @@ export default function SettingsModal({ onClose }) {
                 <div><b>{Math.max(1, Math.round(bytes / 1024))} KB</b><span>local storage</span></div>
               </div>
               <div className="sv-actions">
-                <button className="btn btn-sm" onClick={doExport} data-testid="set-export">{Icon.download({ size: 12 })} Export workspace (.json)</button>
-                <button className="btn btn-sm" onClick={() => fileRef.current?.click()} data-testid="set-import">{Icon.copy({ size: 12 })} Restore backup…</button>
-                <input ref={fileRef} type="file" accept="application/json,.json" data-testid="set-import-file" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
+                <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={doExport} data-testid="set-export">{Icon.download({ size: 12 })} Export workspace (.json)</button>
+                <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={() => fileRef.current?.click()} data-testid="set-import">{Icon.copy({ size: 12 })} Restore backup…</button>
+                <input ref={fileRef} type="file" disabled={!canManageWorkspace} accept="application/json,.json" data-testid="set-import-file" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
               </div>
+              {!canManageWorkspace && <p className="sv-legacy">Workspace backup and restore require full access to every module plus all-office scope. Switch to an authorized administrator or contact one.</p>}
               <p className="muted" style={{ fontSize: 10.8, margin: '2px 0 0', lineHeight: 1.5 }}>
                 Everything lives in this browser. Export before big edits: the JSON includes appointments, billing ledgers, payers, service &amp; field masters, reports and dashboards. Undo is available in this tab only.
               </p>
@@ -227,10 +236,12 @@ export default function SettingsModal({ onClose }) {
               <button
                 className="btn btn-sm"
                 data-testid="set-reseed"
+                disabled={!canManageDemo}
                 onClick={() => {
                   if (arm !== 'reseed') return setArm('reseed')
                   setArm(null)
-                  actions.reseed()
+                  const result = actions.reseed()
+                  if (result?.ok === false) return
                   toast({ message: 'Demo schedule & billing regenerated', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
                   onClose()
                 }}
@@ -241,10 +252,12 @@ export default function SettingsModal({ onClose }) {
                 className="btn btn-sm"
                 style={arm === 'clear' ? { color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' } : { color: 'var(--danger)' }}
                 data-testid="set-clear"
+                disabled={!canManageDemo}
                 onClick={() => {
                   if (arm !== 'clear') return setArm('clear')
                   setArm(null)
-                  actions.clearDemo()
+                  const result = actions.clearDemo()
+                  if (result?.ok === false) return
                   toast({ message: 'Schedule & billing cleared — masters and settings kept', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
                   onClose()
                 }}
@@ -256,6 +269,7 @@ export default function SettingsModal({ onClose }) {
                   Cancel
                 </button>
               )}
+              {!canManageDemo && <span className="muted" style={{ fontSize: 10.5 }}>Reset actions require full access to affected modules and all-office scope.</span>}
             </div>
           </div>
           <div className="set-col">

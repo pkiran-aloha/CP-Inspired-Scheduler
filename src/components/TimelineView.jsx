@@ -19,6 +19,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 export default function TimelineView({ days, onPickSlot, onQuickCreate, onOpenDetail, selectedId, setSelectedId }) {
   const state = useStore()
   const { appts, staff, clients, settings, actions } = state
+  const canEdit = state.canAccess('calendar', 'full')
   const toast = useToast()
   const scrollRef = useRef(null)
   const dragRef = useRef(null)
@@ -91,7 +92,7 @@ export default function TimelineView({ days, onPickSlot, onQuickCreate, onOpenDe
 
   // ---------- create drag ----------
   const onRowDown = (e, dayIdx) => {
-    if (e.button > 0 || dragRef.current) return
+    if (!canEdit || e.button > 0 || dragRef.current) return
     const track = e.currentTarget
     const m0 = snap(minsFromX(e, track), SNAP)
     dragRef.current = { mode: 'create', dayIdx, m0, x0: e.clientX, y0: e.clientY, moved: false, s: m0, e: m0 + 60, track }
@@ -102,6 +103,7 @@ export default function TimelineView({ days, onPickSlot, onQuickCreate, onOpenDe
   const onChipDown = (e, a, dayIdx, edge) => {
     if (e.button > 0 || dragRef.current) return
     e.stopPropagation()
+    if (!canEdit) { onOpenDetail(a.id); return }
     const el = e.currentTarget
     const track = el.closest('.th-track')
     dragRef.current = {
@@ -187,7 +189,7 @@ export default function TimelineView({ days, onPickSlot, onQuickCreate, onOpenDe
   }
 
   return (
-    <div className="tgrid tgrid-h" onMouseLeave={() => setHover(null)}>
+    <div className={`tgrid tgrid-h ${canEdit ? '' : 'readonly'}`} onMouseLeave={() => setHover(null)}>
       <div className="th-scroll" ref={scrollRef}>
         <div className="th-inner" style={{ width: DAYW + trackW }}>
           <div className="th-head">

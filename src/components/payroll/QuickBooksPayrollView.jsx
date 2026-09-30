@@ -25,6 +25,7 @@ export default function QuickBooksPayrollView() {
   const { settings, staff, actions, payExports, payProfiles } = state
   const toast = useToast()
   const payroll = settings.payroll
+  const canExport = state.canAccess('payrollQbo', 'full')
   const currentPeriod = useMemo(() => periodsFor(payroll, payroll.anchor, { back: 12, forward: 12 }).find((p) => todayISO() >= p.start && todayISO() <= p.end) || periodFromId(payroll, payroll.anchor, {}), [payroll])
 
   const [staffSel, setStaffSel] = useState([])
@@ -75,6 +76,7 @@ export default function QuickBooksPayrollView() {
   const reset = () => { setStaffSel([]); setOffice('all'); setCodes(['REG', 'OT', 'SUP', 'EVAL', 'DRIVE']); setRows(null); setSelRows([]); setQ('') }
 
   const exportCsv = () => {
+    if (!canExport) return toast({ message: 'Exporting provider files requires full QuickBooks Payroll access.', kind: 'warn' })
     if (!rows) return
     const chosen = rows.filter((r) => selRows.includes(r.id))
     if (!chosen.length) return toast({ message: 'Select at least one row to export', kind: 'warn' })
@@ -87,12 +89,14 @@ export default function QuickBooksPayrollView() {
     lines.push(['TOTAL', `${new Set(chosen.map((r) => r.staffId)).size} employees`, '', '', '', '', '', '', '', '', '', (total / 100).toFixed(2), ''])
     const content = payrollCsv([header, ...lines])
     const fileName = `quickbooks-payroll-${start}_${end}.csv`
-    download(fileName, content, 'text/csv;charset=utf-8')
-    actions.recordPayExport({
-      kind: 'qbo_payroll', fileName, rows: chosen.length, totalCents: total,
-      periodStart: start, periodEnd: end, staffCount: new Set(chosen.map((r) => r.staffId)).size,
+    const staffIds = [...new Set(chosen.map((row) => row.staffId))]
+    const recorded = actions.recordPayExport({
+      kind: 'qbo_payroll', fileName, rows: chosen.length, totalCents: total, staffIds,
+      periodStart: start, periodEnd: end, staffCount: staffIds.length,
       content, note: `Earning codes: ${codes.join(', ')}${office !== 'all' ? ` · office ${office}` : ''}`,
-    })
+    }, 'payrollQbo')
+    if (recorded?.ok === false) return
+    download(fileName, content, 'text/csv;charset=utf-8')
     toast({ message: `${fileName} built and recorded — review it before handing it to QuickBooks`, kind: 'ok' })
   }
 
@@ -215,7 +219,7 @@ export default function QuickBooksPayrollView() {
                 <button className="btn btn-sm" data-testid="pay-qbo-selall" onClick={() => setSelRows(selRows.length === rows.length ? [] : rows.map((r) => r.id))}>
                   {selRows.length === rows.length ? 'Clear selection' : 'Select all'}
                 </button>
-                <button className="btn btn-sm btn-primary" data-testid="pay-qbo-export" onClick={exportCsv}>Export CSV</button>
+                <button className="btn btn-sm btn-primary" data-testid="pay-qbo-export" disabled={!canExport} onClick={exportCsv}>Export CSV</button>
               </div>
             </div>
             <div className="py-tbl" style={{ overflowX: 'auto', border: 0, boxShadow: 'none' }}>
@@ -262,8 +266,8 @@ export default function QuickBooksPayrollView() {
               <span style={{ display: 'flex', gap: 6 }}>
                 {l.content && <button className="btn btn-xs" data-testid={`pay-qbo-download-${l.id}`} onClick={() => { download(l.fileName, l.content, 'text/csv;charset=utf-8'); toast({ message: `Re-downloaded ${l.fileName}`, kind: 'ok' }) }}>Download</button>}
                 {l.status !== 'reviewed'
-                  ? <button className="btn btn-xs" data-testid={`pay-qbo-review-${l.id}`} onClick={() => { actions.reviewPayExport(l.id, 'reviewed'); toast({ message: `${l.fileName} marked reviewed locally — this does not import anything`, kind: 'ok' }) }}>Mark reviewed locally</button>
-                  : <button className="btn btn-xs" data-testid={`pay-qbo-unreview-${l.id}`} onClick={() => { actions.reviewPayExport(l.id, 'pending'); toast({ message: `${l.fileName} returned to pending`, kind: 'info' }) }}>Return to pending</button>}
+                  ? <button className="btn btn-xs" data-testid={`pay-qbo-review-${l.id}`} disabled={!canExport} onClick={() => { actions.reviewPayExport(l.id, 'reviewed'); toast({ message: `${l.fileName} marked reviewed locally — this does not import anything`, kind: 'ok' }) }}>Mark reviewed locally</button>
+                  : <button className="btn btn-xs" data-testid={`pay-qbo-unreview-${l.id}`} disabled={!canExport} onClick={() => { actions.reviewPayExport(l.id, 'pending'); toast({ message: `${l.fileName} returned to pending`, kind: 'info' }) }}>Return to pending</button>}
                 {l.note && <span className="muted" style={{ fontSize: 11, alignSelf: 'center' }}>{l.note}</span>}
               </span>
             </div>
