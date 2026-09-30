@@ -81,6 +81,11 @@ export default function IntakeRequestsView() {
     if (ui?.intakeAttention) { setStatus('attention'); setMode('list'); actions.setUI({ intakeAttention: null }) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ui?.intakeAttention])
+  useEffect(() => {
+    // accountability is per person: a staff profile can open the requests they own
+    if (ui?.intakeOwner) { setOwner(ui.intakeOwner); setStatus('all'); setMode('list'); actions.setUI({ intakeOwner: null }) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ui?.intakeOwner])
 
   const all = useMemo(() => Object.values(intakeRequests), [intakeRequests])
   const kpis = useMemo(() => intakeKpis(intakeRequests), [intakeRequests])

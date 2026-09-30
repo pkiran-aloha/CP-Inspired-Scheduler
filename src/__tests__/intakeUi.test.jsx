@@ -197,6 +197,25 @@ describe('Downstream surfaces read the same intake ledger', () => {
     expect(await screen.findByTestId('iq-drawer')).toBeTruthy()
   })
 
+  it('shows pipeline accountability on a staff profile and filters the worklist to it', async () => {
+    const owner = seeded.staff.find((st) => st.id === 's12').name
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(await screen.findByTestId('stf-open-s12'))
+    fireEvent.click(await screen.findByText(/Intake requests owned/))
+    await waitFor(() => expect(screen.getByTestId('iq-owner').textContent).toContain(owner))
+    expect(screen.queryAllByTestId(/^iq-row-/).length).toBeGreaterThan(0)
+  })
+
+  it('carries the pipeline into Analytics and hands off to the intake report', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-analytics'))
+    const band = await screen.findByTestId('an-intake')
+    expect(band.textContent).toMatch(/referral → client/)
+    fireEvent.click(screen.getByTestId('an-intake-report'))
+    expect((await screen.findAllByText(/Intake Pipeline & Referral Conversion/)).length).toBeGreaterThan(0)
+  })
+
   it('finds intake entries from the command palette', async () => {
     render(<App />)
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true })

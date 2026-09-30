@@ -3324,3 +3324,12 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .iq-phone-row { grid-template-columns: 1fr 1fr; }
   .iq-drawer { width: 100% !important; }
 }
+
+/* ---- analytics: intake band (the pipeline upstream of every session) ---- */
+.an-intake { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); }
+.an-intake-h { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.an-intake-h b { font-size: 12.5px; }
+.an-intake-h .muted { font-size: 11.5px; flex: 1; min-width: 180px; }
+.an-intake-body { display: flex; flex-wrap: wrap; gap: 18px; }
+.an-intake-body span { font-size: 11.5px; color: var(--text-2); }
+.an-intake-body b { color: var(--text); font-size: 13px; margin-right: 4px; }
