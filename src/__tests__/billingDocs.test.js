@@ -2,6 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { buildInvoices, buildQboCsv, buildVerificationForm, buildAppealLetter, build835ErrorReport } from '../lib/billingDocs.js'
 import { blankState } from '../state/store.jsx'
 
+// The demo ledger is seeded around "today" (12 weeks back, 4 forward), so the fixture
+// claims below live in a pinned month no seed can ever reach. These tests used a hardcoded
+// 2026-10 window described as "a clean future month" — that stopped being true the moment
+// the run date entered October 2026: seeded claims fell inside the window and every count
+// below drifted with the calendar (11 claims instead of 2 on 2026-10-12).
+const DOS = '2021-06-15'
+const WIN = { from: '2021-06-01', to: '2021-06-30' }
+
 describe('U7 billingDocs builders (chunk 47)', () => {
   it('buildInvoices: empty range → 0 claims but still returns file with total 0', () => {
     const state = blankState()
@@ -13,22 +21,22 @@ describe('U7 billingDocs builders (chunk 47)', () => {
 
   it('buildInvoices: Balance Only hides paid lines, perClient split N files, numbering increments', () => {
     const state = blankState()
-    // make 2 open claims for different clients in a clean future month
+    // make 2 open claims for different clients, alone inside the pinned fixture month
     const clients = state.clients.slice(0,2)
     const claims = {}
     const base = Object.values(state.claims)[0]
     clients.forEach((cl, i)=>{
       const id = `clm-inv-${i}`
-      claims[id] = { ...base, id, no: `CLM-INV-${i}`, clientId: cl.id, payer: 'Aetna', status: 'submitted', charges: 100*(i+1), paid: 0, adj:0, dosFrom: '2026-10-15', dosTo: '2026-10-15', lines: [{ ...base.lines[0], charge: 100*(i+1), units:1, rate:100*(i+1), dos: '2026-10-15' }], history: [] }
+      claims[id] = { ...base, id, no: `CLM-INV-${i}`, clientId: cl.id, payer: 'Aetna', status: 'submitted', charges: 100*(i+1), paid: 0, adj:0, dosFrom: DOS, dosTo: DOS, lines: [{ ...base.lines[0], charge: 100*(i+1), units:1, rate:100*(i+1), dos: DOS }], history: [] }
     })
     const testState = { ...state, claims: { ...state.claims, ...claims } }
     // Insurer-only balances remain in practice/payer A/R, not patient invoices.
-    expect(buildInvoices(testState, { from: '2026-10-01', to: '2026-10-31' })[0].claims).toHaveLength(0)
-    const invoicesSingle = buildInvoices(testState, { for: 'payer', from: '2026-10-01', to: '2026-10-31', balanceOnly: true, perClient: false })
+    expect(buildInvoices(testState, { ...WIN })[0].claims).toHaveLength(0)
+    const invoicesSingle = buildInvoices(testState, { for: 'payer', ...WIN, balanceOnly: true, perClient: false })
     expect(invoicesSingle.length).toBe(1)
     expect(invoicesSingle[0].claims.length).toBe(2)
 
-    const invoicesPerClient = buildInvoices(testState, { for: 'payer', from: '2026-10-01', to: '2026-10-31', balanceOnly: true, perClient: true })
+    const invoicesPerClient = buildInvoices(testState, { for: 'payer', ...WIN, balanceOnly: true, perClient: true })
     expect(invoicesPerClient.length).toBe(2)
     expect(invoicesPerClient[0].fileName).toMatch(/INV-/)
     expect(invoicesPerClient[1].fileName).toMatch(/INV-/)
@@ -37,13 +45,13 @@ describe('U7 billingDocs builders (chunk 47)', () => {
   it('buildInvoices: tax applied only when >0', () => {
     const state = blankState()
     const base = Object.values(state.claims)[0]
-    const claims = { 'clm-tax': { ...base, id:'clm-tax', no:'CLM-100', clientId: state.clients[0].id, payer:'Aetna', status:'submitted', charges:100, paid:0, adj:0, dosFrom:'2026-10-15', dosTo:'2026-10-15', lines:[{...base.lines[0], charge:100, dos:'2026-10-15'}], history:[] } }
+    const claims = { 'clm-tax': { ...base, id:'clm-tax', no:'CLM-100', clientId: state.clients[0].id, payer:'Aetna', status:'submitted', charges:100, paid:0, adj:0, dosFrom:DOS, dosTo:DOS, lines:[{...base.lines[0], charge:100, dos:DOS}], history:[] } }
     const testState = { ...state, claims: { ...state.claims, ...claims } }
-    const noTax = buildInvoices(testState, { for: 'payer', from:'2026-10-01', to:'2026-10-31', taxId:false, taxPct:0 })
+    const noTax = buildInvoices(testState, { for: 'payer', ...WIN, taxId:false, taxPct:0 })
     expect(noTax[0].content).not.toContain('TAX,')
     expect(noTax[0].content).not.toContain('Tax %')
 
-    const withTax = buildInvoices(testState, { for: 'payer', from:'2026-10-01', to:'2026-10-31', taxId:true, taxPct:10 })
+    const withTax = buildInvoices(testState, { for: 'payer', ...WIN, taxId:true, taxPct:10 })
     expect(withTax[0].content).toContain('TAX,')
     expect(withTax[0].content).toContain('10%')
   })
@@ -59,13 +67,13 @@ describe('U7 billingDocs builders (chunk 47)', () => {
         ...base,
         id, no:`CLM-QBO-${i}`, clientId: state.clients[i % state.clients.length].id,
         payer:'Aetna', status:'submitted', charges:100, paid:0, adj:0,
-        dosFrom:'2026-09-01', dosTo:'2026-09-01',
-        lines: Array.from({length:10}, (_,j)=>({ ...base.lines[0], code:`9715${3+j%5}`, units:1, rate:10, charge:10, dos:'2026-09-01', t0:540, t1:600 })),
+        dosFrom:DOS, dosTo:DOS,
+        lines: Array.from({length:10}, (_,j)=>({ ...base.lines[0], code:`9715${3+j%5}`, units:1, rate:10, charge:10, dos:DOS, t0:540, t1:600 })),
         history:[]
       }
     }
     const testState = { ...state, claims: { ...state.claims, ...claims } }
-    const files = buildQboCsv(testState, { from:'2026-09-01', to:'2026-09-30', invoiceNumberStart: 4127 })
+    const files = buildQboCsv(testState, { ...WIN, invoiceNumberStart: 4127 })
     expect(files.length).toBeGreaterThanOrEqual(2)
     expect(files[0].content.split('\n')[0]).toBe('Invoice Number,Customer,Invoice Date,Due Date,Product/Service,Qty,Unit Price,Amount,Memo,Tax Code')
     // no negatives
