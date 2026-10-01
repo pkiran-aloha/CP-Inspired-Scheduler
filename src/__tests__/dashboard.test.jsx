@@ -413,7 +413,7 @@ describe('drawer detail-link & extras settings', () => {
     R(<App />)
     fireEvent.click(await screen.findByTestId('nav-settings'))
     await screen.findByTestId('settings-modal')
-    fireEvent.click(screen.getByTestId('set-mod-system')) // naming lives in System Settings
+    fireEvent.click(screen.getByTestId('nav-sub-set-system')) // naming lives in System Settings
     await screen.findByTestId('set-extras')
     const preview = () => screen.getByTestId('set-name-preview').textContent
     expect(preview()).not.toContain('@')

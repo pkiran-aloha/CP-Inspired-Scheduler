@@ -17,7 +17,7 @@ import { EARNING_CODES, EARNING_BY_ID, defaultPayrollSettings, earningCodesFor, 
 import { STATUSES, STATUS_ORDER, BILL_CODES, uid } from './model'
 
 /* ── module registry ─────────────────────────────────────────────────────────
- * The rail, the modal's module nav and the palette all read this one list, so a
+ * The sidebar, settings panels and the palette all read this one list, so a
  * module can never exist in one place and be missing from another.
  */
 export const SYSTEM_SETTINGS_SECTIONS = [

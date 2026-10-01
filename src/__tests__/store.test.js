@@ -50,6 +50,29 @@ describe('initial state', () => {
 })
 
 describe('reducer', () => {
+  it.each([{ section: 'settings' }, { settings: true, settingsModule: 'payroll', settingsSub: 'overtime' }])('reveals the sidebar for settings navigation %j', (patch) => {
+    const state = { ui: { section: 'calendar', nav: true } }
+    const next = reducer(state, { type: 'setUI', patch })
+    expect(next.ui.section).toBe('settings')
+    expect(next.ui.nav).toBe(false)
+    if (patch.settings) {
+      expect(next.ui.settings).toBe(false)
+      expect(next.ui.settingsModule).toBe('payroll')
+      expect(next.ui.settingsSub).toBe('overtime')
+    }
+    expect(state.ui.nav).toBe(true) // navigation does not mutate the previous state
+  })
+
+  it('preserves explicit collapse choices and leaves other section navigation alone', () => {
+    const state = { ui: { section: 'settings', nav: false } }
+    const collapsed = reducer(state, { type: 'setUI', patch: { nav: true } })
+    expect(collapsed.ui.nav).toBe(true)
+    const other = reducer(collapsed, { type: 'setUI', patch: { section: 'clients' } })
+    expect(other.ui.nav).toBe(true)
+    const explicit = reducer(other, { type: 'setUI', patch: { section: 'settings', nav: true } })
+    expect(explicit.ui.nav).toBe(true)
+  })
+
   it('creates, updates and deletes appointments, with undo', () => {
     let s = initial()
     const n0 = Object.keys(s.appts).length
