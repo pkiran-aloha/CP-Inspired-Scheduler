@@ -1,57 +1,114 @@
 import React, { useState } from 'react'
 import { Icon } from '../../ui/Icons'
 import { Section, Row, TextField, NumberField, Select, Toggle, Banner, Empty, DataTable, IconButton } from './kit'
-import { svcList, cfTypeLabel } from '../../lib/master'
+import { svcList, cfTypeLabel, CF_SCOPES } from '../../lib/master'
 import {
   integrationsCfg, INTEGRATION_STATUSES, messagesCfg, MESSAGE_CATEGORIES, MERGE_FIELDS,
-  subscriptionCfg, notificationsCfg, settingsOffices, earningCodes, isCancelStatus,
+  subscriptionCfg, notificationsCfg, settingsOffices, earningCodes, isCancelStatus, listOptions,
 } from '../../lib/settingsMasters'
 import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
 import { buildICS, download as downloadText } from '../../lib/ics'
 import { ACCESS_LABELS, SECURITY_AREAS } from '../../lib/security'
 import SecurityView from '../SecurityView'
+import CfDefModal from '../CfDefModal'
 
 /* ── Services (the master lives in Masters; this is its Settings home) ─────── */
 
 export function ServicesPanel({ state, actions, toast, readOnly }) {
   const svcs = svcList(state)
   const appts = Object.values(state.appts || {})
+  const codes = earningCodes(state.settings.payroll)
+  const categoryOptions = listOptions(state.settings, 'service-categories').map((o) => o.label || o)
+  const [editor, setEditor] = useState(null)
   const usage = (sv) => appts.filter((a) => a.service === sv.id).length
   const contracted = (sv) => (state.payers || []).filter((p) => (p.services || []).includes(sv.id) || (p.svcOv || {})[sv.id]).length
+  const saveSvc = (item) => {
+    if (!String(item.label || '').trim()) { toast({ message: 'Service name is required.', kind: 'warn' }); return }
+    if (!String(item.aka || '').trim()) { toast({ message: 'Service AKA is required.', kind: 'warn' }); return }
+    actions.upsertSvc({
+      ...item,
+      label: String(item.label).trim(),
+      aka: String(item.aka).trim(),
+      short: String(item.aka).trim(),
+    })
+    toast({ message: item.id ? `Updated service “${item.label}”` : `Created service “${item.label}”`, kind: 'ok' })
+    setEditor(null)
+  }
   return (
     <Section
       title="Service types"
       sub={`${svcs.filter((s) => s.status !== 'inactive').length} active of ${svcs.length} · ${(state.payers || []).length} payers`}
       testId="set-services"
-      actions={<button className="btn btn-sm btn-primary" data-testid="set-services-open" onClick={() => { actions.setUI({ section: 'masters', mastersTab: 'svcs', payerSel: null, settings: false }) }}>{Icon.edit({ size: 12 })} Open the service master</button>}
+      actions={
+        <div className="set-actions">
+          <button className="btn btn-sm" disabled={readOnly} data-testid="set-svc-add" onClick={() => setEditor({ label: '', aka: '', category: categoryOptions[0] || 'Adaptive Behavior Treatment', code: '97153', unitMins: 15, rate: 65, rounding: 'AMA', defaultEarningCode: codes[0]?.id || 'ABA', trackingId: '', taxable: false, credentials: ['RBT', 'BCBA'], status: 'active' })}>
+            {Icon.plus({ size: 12 })} Add service
+          </button>
+          <button className="btn btn-sm btn-primary" data-testid="set-services-open" onClick={() => { actions.setUI({ section: 'masters', mastersTab: 'svcs', payerSel: null, settings: false }) }}>{Icon.edit({ size: 12 })} Open the service master</button>
+        </div>
+      }
     >
       <DataTable
         testid="set-services-table"
         empty="No service types on file."
         columns={[
-          { key: 'label', label: 'Service', width: '1.6fr' }, { key: 'code', label: 'Billing code', width: '0.8fr' },
-          { key: 'unit', label: 'Unit', width: '0.6fr', num: true }, { key: 'rate', label: 'Rate', width: '0.6fr', num: true },
-          { key: 'cred', label: 'Credentials', width: '1fr' }, { key: 'pay', label: 'Payers', width: '0.6fr', num: true },
-          { key: 'appt', label: 'Appts', width: '0.6fr', num: true }, { key: 'st', label: 'Status', width: '0.7fr' },
+          { key: 'label', label: 'Service / AKA', width: '1.4fr' }, { key: 'cat', label: 'Category', width: '1.1fr' },
+          { key: 'code', label: 'Billing code', width: '0.7fr' }, { key: 'earn', label: 'Earning code', width: '0.75fr' },
+          { key: 'track', label: 'Tracking ID', width: '0.75fr' }, { key: 'tax', label: 'Taxable', width: '0.55fr' },
+          { key: 'rate', label: 'Rate', width: '0.6fr', num: true }, { key: 'pay', label: 'Payers', width: '0.5fr', num: true },
+          { key: 'appt', label: 'Appts', width: '0.5fr', num: true }, { key: 'st', label: 'Status', width: '0.65fr' }, { key: 'act', label: '', width: '50px' },
         ]}
         rows={svcs}
         renderRow={(sv) => (
-          <div className={`set-trow ${sv.status === 'inactive' ? 'off' : ''}`} key={sv.id} data-testid={`set-service-${sv.id}`} style={{ gridTemplateColumns: '1.6fr 0.8fr 0.6fr 0.6fr 1fr 0.6fr 0.6fr 0.7fr' }}>
-            <span><b>{sv.label}</b><i className="set-sub">{sv.rounding || 'AMA'} rounding</i></span>
-            <span className="muted">{sv.code}</span>
-            <span className="num">{sv.unitMins || 30}</span>
+          <div className={`set-trow ${sv.status === 'inactive' ? 'off' : ''}`} key={sv.id} data-testid={`set-service-${sv.id}`} style={{ gridTemplateColumns: '1.4fr 1.1fr 0.7fr 0.75fr 0.75fr 0.55fr 0.6fr 0.5fr 0.5fr 0.65fr 50px' }}>
+            <span><b>{sv.label}</b><i className="set-sub">AKA: {sv.aka || sv.short || sv.label} · {sv.rounding || 'AMA'}</i></span>
+            <span className="muted">{sv.category || 'Adaptive Behavior Treatment'}</span>
+            <span className="muted">{sv.code} ({sv.unitMins || 15}m)</span>
+            <span className="pay-code">{sv.defaultEarningCode || 'ABA'}</span>
+            <span className="muted">{sv.trackingId || '—'}</span>
+            <span>{sv.taxable ? <span className="set-pill warn">taxable</span> : <span className="set-pill">exempt</span>}</span>
             <span className="num">${Number(sv.rate || 0).toFixed(2)}</span>
-            <span className="muted">{(sv.credentials || []).join(', ') || '—'}</span>
             <span className="num">{contracted(sv)}</span>
             <span className="num">{usage(sv)}</span>
             <span>{sv.status === 'inactive' ? <span className="set-pill">inactive</span> : <span className="set-pill on">active</span>}</span>
+            <span className="set-actions">
+              <IconButton icon="edit" title={`Edit ${sv.label}`} disabled={readOnly} testid={`set-svc-edit-${sv.id}`} onClick={() => setEditor({ ...sv })} />
+            </span>
           </div>
         )}
       />
+      {editor && (
+        <div className="set-editor" data-testid="set-svc-editor">
+          <div className="set-editor-head"><b>{editor.id ? `Edit ${editor.label}` : 'Add Service'}</b><button className="iconbtn" onClick={() => setEditor(null)} aria-label="Close">{Icon.x({ size: 13 })}</button></div>
+          <div className="set-grid2">
+            <Row label="Service Name *"><TextField value={editor.label} onCommit={(v) => setEditor({ ...editor, label: v })} wide={240} testid="set-svc-f-label" /></Row>
+            <Row label="Service AKA *"><TextField value={editor.aka || ''} onCommit={(v) => setEditor({ ...editor, aka: v })} wide={180} testid="set-svc-f-aka" /></Row>
+            <Row label="Category *">
+              <Select value={editor.category || categoryOptions[0] || 'Adaptive Behavior Treatment'} wide={220} testid="set-svc-f-category"
+                options={(categoryOptions.length ? categoryOptions : ['Adaptive Behavior Treatment', 'Behavior Assessment', 'Family Guidance', 'Protocol Mod / Supervision']).map((c) => ({ value: c, label: c }))}
+                onChange={(v) => setEditor({ ...editor, category: v })} />
+            </Row>
+            <Row label="Billing Code (CPT)"><TextField value={editor.code || '97153'} onCommit={(v) => setEditor({ ...editor, code: v })} wide={120} testid="set-svc-f-code" /></Row>
+            <Row label="Default Earning Code">
+              <Select value={editor.defaultEarningCode || 'ABA'} wide={200} testid="set-svc-f-earning"
+                options={codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.label}` }))}
+                onChange={(v) => setEditor({ ...editor, defaultEarningCode: v })} />
+            </Row>
+            <Row label="Third-Party Tracking ID"><TextField value={editor.trackingId || ''} onCommit={(v) => setEditor({ ...editor, trackingId: v })} wide={180} testid="set-svc-f-tracking" placeholder="e.g. EVV-97153" /></Row>
+            <Row label="Master Rate ($)"><NumberField value={editor.rate ?? 65} min={0} max={2000} step={0.5} suffix="$" testid="set-svc-f-rate" onCommit={(v) => setEditor({ ...editor, rate: v })} /></Row>
+            <Row label="Unit Minutes"><NumberField value={editor.unitMins ?? 15} min={5} max={240} step={5} suffix="min" testid="set-svc-f-unit" onCommit={(v) => setEditor({ ...editor, unitMins: v })} /></Row>
+            <Row label="Taxable"><Toggle on={!!editor.taxable} testid="set-svc-f-taxable" onChange={(v) => setEditor({ ...editor, taxable: v })} /></Row>
+            <Row label="Active Status"><Toggle on={editor.status !== 'inactive'} testid="set-svc-f-status" onChange={(v) => setEditor({ ...editor, status: v ? 'active' : 'inactive' })} /></Row>
+          </div>
+          <div className="set-editor-foot">
+            <button className="btn btn-sm" onClick={() => setEditor(null)}>Cancel</button>
+            <button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-svc-save" onClick={() => saveSvc(editor)}>{editor.id ? 'Save service' : 'Create service'}</button>
+          </div>
+        </div>
+      )}
       <p className="set-hint">
-        Service types feed the appointment wizard, quick-add, rate cards and every claim line. Editing them here would duplicate the
-        master, so the full editor lives in one place — Masters → Service Types — and this panel is its Settings entry point.
+        Service types feed the appointment wizard, quick-add, payroll default earning codes, rate cards and every claim line.
       </p>
     </Section>
   )
@@ -59,36 +116,64 @@ export function ServicesPanel({ state, actions, toast, readOnly }) {
 
 export function CustomFieldsPanel({ state, actions, toast, readOnly }) {
   const defs = state.customFields || []
+  const [modalDef, setModalDef] = useState(undefined) // undefined = closed, null = new, obj = edit
   const picks = Object.values(state.appts || {}).reduce((t, a) => t + Object.keys(a.pcfs || {}).length, 0)
+  const scopeLabel = (id) => CF_SCOPES.find((s) => s.id === id)?.label || id
   return (
     <Section
-      title="Appointment custom fields"
+      title="Custom fields"
       sub={`${defs.filter((d) => d.status !== 'inactive').length} active of ${defs.length} · ${picks} values captured on appointments`}
       testId="set-custom-fields"
-      actions={<button className="btn btn-sm btn-primary" data-testid="set-cf-open" onClick={() => { actions.setUI({ section: 'masters', mastersTab: 'cfdefs', payerSel: null, settings: false }) }}>{Icon.edit({ size: 12 })} Open the custom-field master</button>}
+      actions={
+        <div className="set-actions">
+          <button className="btn btn-sm" disabled={readOnly} data-testid="set-cf-add" onClick={() => setModalDef(null)}>
+            {Icon.plus({ size: 12 })} Add custom field
+          </button>
+          <button className="btn btn-sm btn-primary" data-testid="set-cf-open" onClick={() => { actions.setUI({ section: 'masters', mastersTab: 'cfdefs', payerSel: null, settings: false }) }}>{Icon.edit({ size: 12 })} Open the custom-field master</button>
+        </div>
+      }
     >
       <DataTable
         testid="set-cf-table"
         empty="No custom fields defined."
         columns={[
-          { key: 'label', label: 'Field', width: '1.5fr' }, { key: 'type', label: 'Type', width: '0.9fr' },
-          { key: 'req', label: 'Required', width: '0.7fr' }, { key: 'opt', label: 'Options', width: '1.4fr' }, { key: 'st', label: 'Status', width: '0.8fr' },
+          { key: 'label', label: 'Field', width: '1.3fr' }, { key: 'type', label: 'Controller', width: '0.95fr' },
+          { key: 'scope', label: 'Assigned to', width: '1.3fr' }, { key: 'req', label: 'Required', width: '0.65fr' },
+          { key: 'opt', label: 'Options / Format', width: '1.1fr' }, { key: 'st', label: 'Status', width: '0.65fr' }, { key: 'act', label: '', width: '50px' },
         ]}
         rows={defs}
-        renderRow={(d) => (
-          <div className={`set-trow ${d.status === 'inactive' ? 'off' : ''}`} key={d.id} data-testid={`set-cf-${d.id}`} style={{ gridTemplateColumns: '1.5fr 0.9fr 0.7fr 1.4fr 0.8fr' }}>
-            <span><b>{d.label}</b>{d.note ? <i className="set-sub">{d.note}</i> : null}</span>
-            <span className="muted">{cfTypeLabel ? cfTypeLabel(d.type) : d.type}</span>
-            <span>{d.required ? <span className="set-pill warn">required</span> : <span className="set-pill">optional</span>}</span>
-            <span className="muted">{(d.options || []).slice(0, 4).join(', ') || '—'}</span>
-            <span>{d.status === 'inactive' ? <span className="set-pill">inactive</span> : <span className="set-pill on">active</span>}</span>
-          </div>
-        )}
+        renderRow={(d) => {
+          const scopes = Array.isArray(d.assignedTo) && d.assignedTo.length ? d.assignedTo : ['appointment', 'payer']
+          return (
+            <div className={`set-trow ${d.status === 'inactive' ? 'off' : ''}`} key={d.id} data-testid={`set-cf-${d.id}`} style={{ gridTemplateColumns: '1.3fr 0.95fr 1.3fr 0.65fr 1.1fr 0.65fr 50px' }}>
+              <span><b>{d.label}</b>{d.note ? <i className="set-sub">{d.note}</i> : null}</span>
+              <span className="muted">{cfTypeLabel ? cfTypeLabel(d.type) : d.type}</span>
+              <span className="muted" style={{ fontSize: 11.5 }}>{scopes.map(scopeLabel).join(', ')}</span>
+              <span>{d.required ? <span className="set-pill warn">required</span> : <span className="set-pill">optional</span>}</span>
+              <span className="muted">{(d.options || []).slice(0, 4).join(', ') || (d.textFormat && d.textFormat !== 'any' ? `Format: ${d.textFormat}` : '—')}</span>
+              <span>{d.status === 'inactive' ? <span className="set-pill">inactive</span> : <span className="set-pill on">active</span>}</span>
+              <span className="set-actions">
+                <IconButton icon="edit" title={`Edit ${d.label}`} disabled={readOnly} testid={`set-cf-edit-${d.id}`} onClick={() => setModalDef(d)} />
+              </span>
+            </div>
+          )
+        }}
       />
       <Banner tone="info" testid="set-cf-note">
-        Custom fields are <b>opt-in</b>: nothing is pre-loaded on an appointment. A payer only sees the fields its profile picked.
-        The full editor (types, options, required flags, signatures) is Masters → Custom Fields.
+        Custom fields are <b>opt-in</b> and scoped to Client Authorization, Client Profile, Payer Profile, Schedule Appointment, or Staff Profile.
       </Banner>
+      {modalDef !== undefined && (
+        <CfDefModal
+          def={modalDef}
+          onClose={(saved) => {
+            if (saved && typeof saved === 'object' && saved.label) {
+              actions.upsertCfDef(modalDef ? { ...modalDef, ...saved } : saved)
+              toast({ message: modalDef ? `Updated field “${saved.label}”` : `Created field “${saved.label}”`, kind: 'ok' })
+            }
+            setModalDef(undefined)
+          }}
+        />
+      )}
     </Section>
   )
 }
@@ -212,6 +297,10 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
                   {row.id === 'int-telehealth' && (
                     <Row label="Telehealth room URL"><TextField value={row.roomUrl} disabled={readOnly} wide={260} testid="set-integration-room" onCommit={(v) => patch(row.id, { roomUrl: v })} /></Row>
                   )}
+                  <Row label="API Key / Token"><TextField value={row.apiKey || ''} disabled={readOnly} wide={240} testid="set-integration-apikey" placeholder="e.g. sk_live_..." onCommit={(v) => patch(row.id, { apiKey: v })} /></Row>
+                  <Row label="Client ID / Account ID"><TextField value={row.clientId || ''} disabled={readOnly} wide={200} testid="set-integration-clientid" placeholder="Partner client ID" onCommit={(v) => patch(row.id, { clientId: v })} /></Row>
+                  <Row label="Sandbox mode"><Toggle on={row.sandbox !== false} disabled={readOnly} testid="set-integration-sandbox" onChange={(v) => patch(row.id, { sandbox: v })} /></Row>
+                  <Row label="Auto-sync session notes"><Toggle on={!!row.syncEnabled} disabled={readOnly} testid="set-integration-sync" onChange={(v) => patch(row.id, { syncEnabled: v })} /></Row>
                   <Row label="Internal note" stack><TextField value={row.note} disabled={readOnly} wide={420} testid="set-integration-note" onCommit={(v) => patch(row.id, { note: v })} /></Row>
                 </div>
               </>
@@ -220,8 +309,7 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
         </div>
         <Banner tone="warn" testid="set-integrations-note">
           Nothing here opens a network connection. What exists is real <b>local export</b> (ICS feed, QuickBooks CSV, backup JSON);
-          EMR/FHIR, clearinghouse and eligibility rows are documented seams kept honest by their status — there is no live EDI or
-          API traffic in this demo.
+          clinical data collection partners (Ensora, Hi Rasmus, Motivity, Welina, Catalyst, Passage Health), clearinghouse and eligibility rows are documented seams kept honest by their status.
         </Banner>
       </Section>
     </>
@@ -232,6 +320,9 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
 
 export function MessagingPanel({ state, actions, toast, readOnly }) {
   const cfg = messagesCfg(state.settings)
+  const rem = cfg.appointmentReminders || {
+    sendToStaff: true, staffScope: 'all', sendToClient: true, clientScope: 'all', scheduleHoursBefore: 24, scheduleTime: '09:00',
+  }
   const [editor, setEditor] = useState(null)
   const [optout, setOptout] = useState({ phone: '', name: '', reason: 'Replied STOP' })
   const [preview, setPreview] = useState(null)
@@ -240,6 +331,7 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
     toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
     return res
   }
+  const patchRem = (changes) => patch({ appointmentReminders: { ...rem, ...changes } })
   const saveTemplate = (item) => {
     const res = actions.settingsOp('template.upsert', { item })
     toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
@@ -259,6 +351,44 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
 
   return (
     <>
+      <Section title="Appointment Reminders" sub="Automated SMS reminder preferences for staff and clients" testId="set-msg-reminders">
+        <div className="set-grid2">
+          <Row label="Send Text Messages to Staff">
+            <Toggle on={rem.sendToStaff !== false} disabled={readOnly} testid="set-msg-rem-staff" onChange={(v) => patchRem({ sendToStaff: v })} />
+          </Row>
+          <Row label="Select Staff">
+            <Select value={rem.staffScope || 'all'} wide={200} disabled={readOnly || rem.sendToStaff === false} testid="set-msg-rem-staff-scope"
+              options={[{ value: 'all', label: 'All Assigned Staff' }, { value: 'rbt', label: 'Direct Therapy (RBT/BT) Only' }, { value: 'supervisors', label: 'Clinical Supervisors (BCBA)' }]}
+              onChange={(v) => patchRem({ staffScope: v })} />
+          </Row>
+          <Row label="Send Text Messages to Client">
+            <Toggle on={rem.sendToClient !== false} disabled={readOnly} testid="set-msg-rem-client" onChange={(v) => patchRem({ sendToClient: v })} />
+          </Row>
+          <Row label="Select Client">
+            <Select value={rem.clientScope || 'all'} wide={200} disabled={readOnly || rem.sendToClient === false} testid="set-msg-rem-client-scope"
+              options={[{ value: 'all', label: 'All Active Clients' }, { value: 'center', label: 'Center-Based Clients Only' }, { value: 'home', label: 'Home-Program Clients Only' }]}
+              onChange={(v) => patchRem({ clientScope: v })} />
+          </Row>
+          <Row label="Schedule Time (Lead Window)">
+            <Select value={String(rem.scheduleHoursBefore ?? 24)} wide={200} disabled={readOnly} testid="set-msg-rem-hours"
+              options={[{ value: '2', label: '2 hours before session' }, { value: '24', label: '24 hours before session' }, { value: '48', label: '48 hours before session' }]}
+              onChange={(v) => patchRem({ scheduleHoursBefore: Number(v) })} />
+          </Row>
+          <Row label="Organization Code *" hint="Short prefix included in all outbound SMS messages">
+            <TextField value={cfg.orgCode || 'ALOHA'} disabled={readOnly} wide={140} testid="set-msg-orgcode" onCommit={(v) => patch({ orgCode: v.toUpperCase() })} />
+          </Row>
+        </div>
+        <div className="set-msg-preview" data-testid="set-msg-rem-preview" style={{ marginTop: 10 }}>
+          <b>Live Sample Reminder Preview ({cfg.orgCode || 'ALOHA'})</b>
+          <p style={{ margin: '4px 0 0' }}>
+            <b>Client SMS:</b> [{cfg.orgCode || 'ALOHA'}] Hi {state.clients?.[0]?.guardian || 'Guardian'}, reminder that {state.clients?.[0]?.name || 'Client'} has an appointment on {todayISO()} at 09:00 at {settingsOffices(state.settings)[0]?.name || 'Main Center'}. Reply C to confirm or STOP to opt out.
+          </p>
+          <p style={{ margin: '4px 0 0' }}>
+            <b>Staff SMS:</b> [{cfg.orgCode || 'ALOHA'}] Reminder for {state.staff?.[0]?.name || 'Staff'}: Session with {state.clients?.[0]?.name || 'Client'} on {todayISO()} at 09:00 ({rem.scheduleHoursBefore ?? 24}h notice).
+          </p>
+        </div>
+      </Section>
+
       <Section title="Sending identity" sub="Who the message says it is from" testId="set-msg-sender">
         <div className="set-grid2">
           <Row label="Texting enabled" hint="Off by default — this demo never transmits messages"><Toggle on={!!cfg.enabled} disabled={readOnly} testid="set-msg-enabled" onChange={(v) => patch({ enabled: v })} /></Row>

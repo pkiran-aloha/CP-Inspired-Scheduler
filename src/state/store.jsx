@@ -377,8 +377,14 @@ export function reducer(state, action) {
       const cur = state[action.coll] || {}
       return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
     }
-    case 'setUI':
-      return { ...state, ui: { ...state.ui, ...action.patch } }
+    case 'setUI': {
+      const patch = { ...action.patch }
+      if (patch.settings === true) {
+        patch.section = 'settings'
+        patch.settings = false
+      }
+      return { ...state, ui: { ...state.ui, ...patch } }
+    }
     case 'setSettings':
       return { ...state, settings: { ...state.settings, ...action.patch } }
     /**
@@ -458,16 +464,30 @@ export function reducer(state, action) {
       const touched = ['settings']
       const clients = [...(next.clients || [])]
       const staff = [...(next.staff || [])]
+      const payers = [...(next.payers || [])]
+      const payProfiles = [...(next.payProfiles || [])]
       const appts = { ...next.appts }
       if (plan.creates.length || plan.patches.length) {
-        if (action.importType === 'clients') {
+        if (['clients', 'client-contacts', 'client-authorizations'].includes(action.importType)) {
           for (const c of plan.creates) clients.push(c)
           for (const { id, patch } of plan.patches) { const i = clients.findIndex((c) => c.id === id); if (i >= 0) clients[i] = { ...clients[i], ...patch } }
           next = { ...next, clients }; touched.push('clients')
-        } else if (action.importType === 'staff') {
+        } else if (['staff', 'staff-qualifications', 'staff-npis', 'staff-earning-codes'].includes(action.importType)) {
           for (const s of plan.creates) staff.push(s)
-          for (const { id, patch } of plan.patches) { const i = staff.findIndex((s) => s.id === id); if (i >= 0) staff[i] = { ...staff[i], ...patch } }
-          next = { ...next, staff }; touched.push('staff')
+          for (const { id, patch } of plan.patches) {
+            const i = staff.findIndex((s) => s.id === id)
+            if (i >= 0) staff[i] = { ...staff[i], ...patch }
+            if (patch.payProfilePatch) {
+              const pi = payProfiles.findIndex((p) => p.staffId === id)
+              if (pi >= 0) payProfiles[pi] = { ...payProfiles[pi], ...patch.payProfilePatch }
+              if (!touched.includes('payProfiles')) touched.push('payProfiles')
+            }
+          }
+          next = { ...next, staff, ...(touched.includes('payProfiles') ? { payProfiles } : {}) }; touched.push('staff')
+        } else if (['payers', 'payer-services'].includes(action.importType)) {
+          for (const p of plan.creates) payers.push(p)
+          for (const { id, patch } of plan.patches) { const i = payers.findIndex((p) => p.id === id); if (i >= 0) payers[i] = { ...payers[i], ...patch } }
+          next = { ...next, payers }; touched.push('payers')
         } else {
           for (const a of plan.creates) appts[a.id] = a
           for (const { id, patch } of plan.patches) if (appts[id]) appts[id] = { ...appts[id], ...patch, updatedAt: Date.now() }

@@ -25,7 +25,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
-import { isCancelStatus, statusMapFor, statusOrderFor } from '../lib/settingsMasters'
+import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
@@ -164,12 +164,27 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     set({ pcfs: n })
     toast({ message: `Template “${t.label}” removed from the master — a value already captured on this session is kept as saved`, kind: 'info' })
   }
+  const statusCfg = statusFor(settings, f.status)
+  const sysCfg = systemConfigFor(settings)
+  const valReport = useMemo(
+    () => evaluateAppointmentValidations(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }),
+    [state, f.type, f.date, f.start, f.end, f.service, f.status, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id],
+  )
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')
   if (needsStaff && !f.staffIds.length) errors.push('Add at least one staff member')
   if (needsClient && !f.clientIds.length) errors.push('Add a client')
   if (showClinic) errors.push(...pcfsErrors(apptPcfDefs.filter((d) => !d._stale), f.pcfs))
+  if (statusCfg?.noteRequired && !String(f.notes || '').trim()) {
+    errors.push(`Status “${statusCfg.label}” requires a note`)
+  }
+  if (f.status === 'completed' && statusCfg?.allowToComplete === false) {
+    errors.push(`Status “${statusCfg.label}” cannot be completed`)
+  }
+  for (const stop of valReport.stops || []) {
+    errors.push(`STOP · ${stop.label}: ${stop.message}`)
+  }
 
   const conflicts = useMemo(() => {
     if (dur <= 0 || !f.date) return []
@@ -187,7 +202,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const onContract = Boolean(rateRes && /contract/.test(rateRes.source))
   const svcMod = svcOvr?.modifier || (billPayer ? (ensurePayer(billPayer).svcs || []).find((x) => x.id === f.service)?.modifier : null)
   const rate = f.rate ?? (f.type === 'drive' ? 0 : rateRes && Number.isFinite(rateRes.rate) && rateRes.rate ? rateRes.rate : code.rate)
-  const sigReq = Boolean(billRules?.appt?.sigRequired)
+  const sigReq = Boolean(billRules?.appt?.sigRequired || sysCfg.general?.staffSignatureRequired || sysCfg.general?.staffSigRequiredToComplete)
   const concNote = useMemo(() => concurrentNote(state, { payer: billPayer, svcId: f.service, clientId: (f.clientIds || [])[0], date: f.date, start: f.start, end: f.end, excludeId: f.id === '__draft__' ? undefined : f.id }), [f.date, f.start, f.end, f.service, JSON.stringify(f.clientIds), billPayer?.id, state.appts])
   const mileage = f.type === 'drive' ? true : !!f.mileage
   const distance = Number(f.distance) || 0
@@ -302,7 +317,18 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   }
   const inputCls = (bad) => `input ${bad ? 'bad' : ''}`
   const showE = (k) => showErrs && errors.some((e) => e.toLowerCase().includes(k))
-  const locOptions = [...new Set([...LOCATIONS, ...Object.values(appts).map((a) => a.location).filter(Boolean)])].map((l) => ({ value: l, label: l }))
+  const excludedOfficeNames = new Set(
+    settingsOffices(settings)
+      .filter((o) => o.excludeFromLocations || o.isLocation === false || o.active === false)
+      .map((o) => o.name),
+  )
+  const locOptions = [
+    ...new Set([
+      ...locationOptions(settings),
+      ...LOCATIONS.filter((l) => !excludedOfficeNames.has(l)),
+      ...Object.values(appts).map((a) => a.location).filter((l) => l && !excludedOfficeNames.has(l)),
+    ]),
+  ].map((l) => ({ value: l, label: l }))
 
   const verifier = STAFF_BY_ID[f.verification?.completedBy]
 
@@ -501,6 +527,19 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                             </div>
                           ))}
                           <span className="muted">You can still save; the booking gets flagged on the calendar.</span>
+                        </div>
+                      </div>
+                    )}
+                    {(valReport.stops.length > 0 || valReport.warns.length > 0 || valReport.flags.length > 0) && (
+                      <div className={`warnbox ${valReport.stops.length > 0 ? 'danger' : 'warn'}`} data-testid="appt-validation-banner">
+                        <span>{Icon.alert({ size: 16 })}</span>
+                        <div>
+                          <b>Appointment Validations ({valReport.stops.length ? 'Blocked by Stop Rule' : valReport.warns.length ? 'Warning' : 'Flagged'})</b>
+                          {valReport.items.slice(0, 4).map((item, idx) => (
+                            <div key={`${item.id}-${idx}`} style={{ marginTop: 3 }}>
+                              <b>[{item.severity.toUpperCase()}] {item.label}:</b> {item.message}
+                            </div>
+                          ))}
                         </div>
                       </div>
                     )}

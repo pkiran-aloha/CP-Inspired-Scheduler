@@ -6,9 +6,12 @@ import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
 import { NAME_STYLES, apptAutoTitle, titleAudit } from '../../lib/apptName'
 import { createWorkspaceBackup, readWorkspaceBackup } from '../../lib/workspaceBackup'
-import { notificationsCfg } from '../../lib/settingsMasters'
+import {
+  notificationsCfg, SYSTEM_SETTINGS_SECTIONS, systemConfigCfg, appointmentValidationsCfg,
+  VALIDATION_LEVELS, clearinghousesCfg, evvCfg, integrationsCfg, INTEGRATION_STATUSES,
+} from '../../lib/settingsMasters'
 import { RANGE_PRESETS, DIMS, METRICS } from '../../lib/analytics'
-import { Section, Row, NumberField, Select, Toggle, Banner } from './kit'
+import { Section, Row, TextField, NumberField, Select, Toggle, Seg, Banner, DataTable, IconButton } from './kit'
 
 /**
  * System Settings — workspace preferences, appointment naming, smart scheduling,
@@ -16,12 +19,14 @@ import { Section, Row, NumberField, Select, Toggle, Banner } from './kit'
  * demo-data actions. Everything here writes through the same guarded actions the
  * standalone modal used, so one Undo reverses any single change.
  */
-export function SystemPanel({ state, actions, toast, readOnly, canManageWorkspace, canManageDemo, canRebuildTitles, bytes = 0 }) {
+export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWorkspace, canManageDemo, canRebuildTitles, bytes = 0 }) {
   const { settings, appts, claims, staff, clients } = state
+  const activeSub = sub || 'general'
   const fileRef = useRef(null)
   const [arm, setArm] = useState(null) // two-step confirmation instead of native confirm()
   const [pendingRestore, setPendingRestore] = useState(null)
   const [healthOpen, setHealthOpen] = useState(false)
+  const [chEditor, setChEditor] = useState(null)
 
   const sm = smartCfg(settings)
   const patchSmart = (section, v) => {
@@ -32,7 +37,47 @@ export function SystemPanel({ state, actions, toast, readOnly, canManageWorkspac
   const patch = (p) => !readOnly && actions.setSettings(p)
 
   const notify = notificationsCfg(settings)
-  const setNotify = (v) => patch({ notifications: { ...notify, ...v } })
+  const setNotify = (v) => {
+    const res = actions.settingsOp('notifications.patch', { patch: v })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
+
+  const sysCfg = systemConfigCfg(settings)
+  const patchSysCfg = (sectionKey, changes) => {
+    const res = actions.settingsOp('systemConfig.patch', { patch: { [sectionKey]: { ...(sysCfg[sectionKey] || {}), ...changes } } })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
+
+  const valCfg = appointmentValidationsCfg(settings)
+  const patchVal = (group, ruleKey, level) => {
+    const res = actions.settingsOp('appointmentValidations.patch', {
+      patch: { [group]: { ...(valCfg[group] || {}), [ruleKey]: level } },
+    })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
+
+  const chRows = clearinghousesCfg(settings)
+  const saveCh = (item) => {
+    const res = actions.settingsOp('clearinghouse.upsert', { item })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+    if (res.ok) setChEditor(null)
+  }
+  const removeCh = (id) => {
+    const res = actions.settingsOp('clearinghouse.remove', { id })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
+
+  const evv = evvCfg(settings)
+  const patchEvv = (changes) => {
+    const res = actions.settingsOp('evv.patch', { patch: changes })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
+
+  const clinicalRows = integrationsCfg(settings).filter((r) => r.category === 'clinical')
+  const patchIntegration = (id, changes) => {
+    const res = actions.settingsOp('integration.patch', { id, patch: changes })
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
 
   const staffById = Object.fromEntries(staff.map((x) => [x.id, x]))
   const audit = titleAudit(appts)
@@ -97,126 +142,356 @@ export function SystemPanel({ state, actions, toast, readOnly, canManageWorkspac
     </div>
   )
 
-  return (
-    <>
-      <Section title="Display & workspace" sub="Theme, week start, clock and the money defaults new rows pick up" testId="set-sys-display">
-        <div className="set-grid2">
-          <Row label="Theme">
-            <div className="viewseg">
-              {['light', 'dark'].map((t) => (
-                <button key={t} className={settings.theme === t ? 'on' : ''} disabled={readOnly} onClick={() => patch({ theme: t })}>{t === 'light' ? 'Light' : 'Dark'}</button>
-              ))}
-            </div>
-          </Row>
-          <Row label="Week starts on">
-            <div className="viewseg">
-              {[0, 1].map((d) => (
-                <button key={d} className={settings.weekStart === d ? 'on' : ''} disabled={readOnly} onClick={() => patch({ weekStart: d })}>{d === 0 ? 'Sunday' : 'Monday'}</button>
-              ))}
-            </div>
-          </Row>
-          <Row label="24-hour clock"><Toggle on={!!settings.h24} disabled={readOnly} testid="set-sys-h24" onChange={(v) => patch({ h24: v })} /></Row>
-          <Row label="Default rate / unit"><NumberField value={settings.defaultRate} min={0} max={1000} suffix="$" testid="set-sys-rate" onCommit={(v) => patch({ defaultRate: v })} /></Row>
-          <Row label="Mileage rate / mile"><NumberField value={settings.mileageRate} min={0} max={10} step={0.05} suffix="$" testid="set-sys-mileage" onCommit={(v) => patch({ mileageRate: v })} /></Row>
-          <Row label="Weekday hours"><span className="set-inline"><NumberField value={settings.workday?.[0] ?? 8} min={0} max={23} testid="set-sys-wd0" onCommit={(v) => patch({ workday: [v, settings.workday?.[1] ?? 18] })} /><span className="muted">→</span><NumberField value={settings.workday?.[1] ?? 18} min={1} max={24} testid="set-sys-wd1" onCommit={(v) => patch({ workday: [settings.workday?.[0] ?? 8, v] })} /></span></Row>
-        </div>
-      </Section>
+  const ValidationRuleRow = ({ group, ruleKey, label, hint }) => {
+    const val = (valCfg[group] || {})[ruleKey] || 'none'
+    return (
+      <Row label={label} hint={hint}>
+        <Seg
+          value={val}
+          disabled={readOnly}
+          testid={`set-val-${group}-${ruleKey}`}
+          ariaLabel={`${label} validation level`}
+          options={VALIDATION_LEVELS.map((l) => ({ value: l.id, label: l.label }))}
+          onChange={(v) => patchVal(group, ruleKey, v)}
+        />
+      </Row>
+    )
+  }
 
-      <Section title="Appointment naming" sub="The convention every auto-title follows — the preview uses your real seeded client and staff" testId="set-sys-naming">
-        <Row label="Convention">
-          <div className="viewseg" role="group" aria-label="Appointment naming convention" data-testid="set-naming">
-            {Object.entries(NAME_STYLES).map(([k, n]) => (
-              <button key={k} className={(settings.apptNameStyle || 'ehr') === k ? 'on' : ''} disabled={readOnly} data-testid={`set-name-${k}`} title={n.desc} onClick={() => patch({ apptNameStyle: k })}>{n.label}</button>
-            ))}
+  const sectionBlocks = {
+    general: (
+      <React.Fragment key="sys-block-general">
+        <Section title="General Settings" sub="Session security, signature policies, cache refresh, and supervision job titles" testId="set-sys-general">
+          <div className="set-grid2">
+            <Row label="Staff Signature Required to Complete Appointments" hint="Requires a clinician signature before a session can be marked Completed">
+              <Toggle on={sysCfg.general?.staffSignatureRequired !== false} disabled={readOnly} testid="set-sys-gen-sigreq" onChange={(v) => patchSysCfg('general', { staffSignatureRequired: v })} />
+            </Row>
+            <Row label="MFA Required" hint="Enforces multi-factor verification policy on user accounts">
+              <Toggle on={!!sysCfg.general?.mfaRequired} disabled={readOnly} testid="set-sys-gen-mfa" onChange={(v) => patchSysCfg('general', { mfaRequired: v })} />
+            </Row>
+            <Row label="Screen Lock in Minutes" hint="Idle time before locking the active clinical screen">
+              <NumberField value={sysCfg.general?.screenLockMinutes ?? 15} min={1} max={240} suffix="min" disabled={readOnly} testid="set-sys-gen-lock" onCommit={(v) => patchSysCfg('general', { screenLockMinutes: v })} />
+            </Row>
+            <Row label="Locked Session Auto Logout in Minutes" hint="Time on lock screen before terminating the session">
+              <NumberField value={sysCfg.general?.autoLogoutMinutes ?? 60} min={5} max={480} suffix="min" disabled={readOnly} testid="set-sys-gen-logout" onCommit={(v) => patchSysCfg('general', { autoLogoutMinutes: v })} />
+            </Row>
+            <Row label="Maximum Appointment Length" hint="Hard ceiling on a single scheduled session (in minutes)">
+              <NumberField value={sysCfg.general?.maxAppointmentLengthMins ?? 480} min={30} max={1440} step={15} suffix="min" disabled={readOnly} testid="set-sys-gen-maxlen" onCommit={(v) => patchSysCfg('general', { maxAppointmentLengthMins: v })} />
+            </Row>
+            <Row label="Refresh Cache in Seconds" hint="Schedule board polling / refresh interval">
+              <NumberField value={sysCfg.general?.refreshCacheSeconds ?? 300} min={15} max={3600} step={15} suffix="sec" disabled={readOnly} testid="set-sys-gen-cache" onCommit={(v) => patchSysCfg('general', { refreshCacheSeconds: v })} />
+            </Row>
+            <Row label="Supervision Job Titles" hint="Comma-separated roles recognized as clinical supervisors" stack>
+              <TextField
+                value={(sysCfg.general?.supervisionJobTitles || ['BCBA', 'BCBA-D', 'BCaBA', 'Clinical Director']).join(', ')}
+                disabled={readOnly}
+                wide={420}
+                testid="set-sys-gen-suptitles"
+                onCommit={(v) => patchSysCfg('general', { supervisionJobTitles: v.split(',').map((x) => x.trim()).filter(Boolean) })}
+              />
+            </Row>
           </div>
-        </Row>
-        <Row label="Title extras">
-          <div className="viewseg set-extras" role="group" aria-label="Title extras" data-testid="set-extras">
-            {[['program', 'Program', 'append the client’s program'], ['location', 'Location', 'append “@ where”'], ['service', 'Service', 'use the curated service line (and its CPT in code style) instead of the generic type'], ['staff', 'Staff', 'append the assigned crew, e.g. (Ana R., RBT)']].map(([k, lab, tip]) => {
-              const on = k === 'staff' ? !!settings.apptNameStaff : !!(settings.apptTitleExtras || {})[k]
-              return (
-                <button key={k} className={on ? 'on' : ''} disabled={readOnly} data-testid={`set-extra-${k}`} title={tip} onClick={() => { if (k === 'staff') patch({ apptNameStaff: !on }); else patch({ apptTitleExtras: { ...(settings.apptTitleExtras || {}), [k]: !on } }) }}>{lab}</button>
-              )
-            })}
-          </div>
-        </Row>
-        <div className="set-nam" data-testid="set-name-preview">{sampleTitle}</div>
-        <Row label="Title health">
-          {audit.total > 0 ? (
-            <button className="btn btn-sm set-flag" data-testid="set-name-review" title="List the flagged titles and rebuild them" onClick={() => setHealthOpen((v) => !v)}>
-              {Icon.alert({ size: 12 })} {audit.total} flagged
-            </button>
-          ) : (
-            <span className="set-ok" data-testid="set-name-clean">✓ {Object.keys(appts).length} titles pass</span>
-          )}
-        </Row>
-        {audit.total > 0 && (
-          <div className="set-health" data-testid="set-health">
-            <div className="sh-why">
-              {audit.legacy.length > 0 && <span>{audit.legacy.length} legacy “(Type) …” shape</span>}
-              {audit.untitled.length > 0 && <span>{audit.untitled.length} blank</span>}
-              {audit.long.length > 0 && <span>{audit.long.length} over 72 chars for agenda rows</span>}
-            </div>
-            {healthOpen && (
-              <div className="sh-list">
-                {[...audit.legacy, ...audit.untitled, ...audit.long].slice(0, 8).map((id) => (
-                  <button key={id} type="button" data-testid={`sh-row-${id}`} onClick={() => actions.setUI({ section: 'calendar', view: 'week', anchor: appts[id].date, detail: id, settings: false })}>
-                    <b>{appts[id].title?.trim() || '— no title —'}</b>
-                    <i>{appts[id].date}</i>
-                  </button>
+        </Section>
+
+        <Section title="Display & workspace" sub="Theme, week start, clock and the money defaults new rows pick up" testId="set-sys-display">
+          <div className="set-grid2">
+            <Row label="Theme">
+              <div className="viewseg">
+                {['light', 'dark'].map((t) => (
+                  <button key={t} className={settings.theme === t ? 'on' : ''} disabled={readOnly} onClick={() => patch({ theme: t })}>{t === 'light' ? 'Light' : 'Dark'}</button>
                 ))}
-                {audit.total > 8 && <span className="sh-more">+{audit.total - 8} more flagged</span>}
               </div>
-            )}
-            {canRebuildTitles ? (
-              <button className="btn btn-sm btn-primary" data-testid="set-name-apply" title="Rebuild only the flagged titles from their real client / service / time — every other title is untouched" onClick={restyle} disabled={readOnly}>
-                {Icon.zap({ size: 12 })} Rework {audit.total} title{audit.total === 1 ? '' : 's'}
+            </Row>
+            <Row label="Week starts on">
+              <div className="viewseg">
+                {[0, 1].map((d) => (
+                  <button key={d} className={settings.weekStart === d ? 'on' : ''} disabled={readOnly} onClick={() => patch({ weekStart: d })}>{d === 0 ? 'Sunday' : 'Monday'}</button>
+                ))}
+              </div>
+            </Row>
+            <Row label="24-hour clock"><Toggle on={!!settings.h24} disabled={readOnly} testid="set-sys-h24" onChange={(v) => patch({ h24: v })} /></Row>
+            <Row label="Default rate / unit"><NumberField value={settings.defaultRate} min={0} max={1000} suffix="$" testid="set-sys-rate" onCommit={(v) => patch({ defaultRate: v })} /></Row>
+            <Row label="Mileage rate / mile"><NumberField value={settings.mileageRate} min={0} max={10} step={0.05} suffix="$" testid="set-sys-mileage" onCommit={(v) => patch({ mileageRate: v })} /></Row>
+            <Row label="Weekday hours"><span className="set-inline"><NumberField value={settings.workday?.[0] ?? 8} min={0} max={23} testid="set-sys-wd0" onCommit={(v) => patch({ workday: [v, settings.workday?.[1] ?? 18] })} /><span className="muted">→</span><NumberField value={settings.workday?.[1] ?? 18} min={1} max={24} testid="set-sys-wd1" onCommit={(v) => patch({ workday: [settings.workday?.[0] ?? 8, v] })} /></span></Row>
+          </div>
+        </Section>
+
+        <Section title="Appointment naming" sub="The convention every auto-title follows — the preview uses your real seeded client and staff" testId="set-sys-naming">
+          <Row label="Convention">
+            <div className="viewseg" role="group" aria-label="Appointment naming convention" data-testid="set-naming">
+              {Object.entries(NAME_STYLES).map(([k, n]) => (
+                <button key={k} className={(settings.apptNameStyle || 'ehr') === k ? 'on' : ''} disabled={readOnly} data-testid={`set-name-${k}`} title={n.desc} onClick={() => patch({ apptNameStyle: k })}>{n.label}</button>
+              ))}
+            </div>
+          </Row>
+          <Row label="Title extras">
+            <div className="viewseg set-extras" role="group" aria-label="Title extras" data-testid="set-extras">
+              {[['program', 'Program', 'append the client’s program'], ['location', 'Location', 'append “@ where”'], ['service', 'Service', 'use the curated service line (and its CPT in code style) instead of the generic type'], ['staff', 'Staff', 'append the assigned crew, e.g. (Ana R., RBT)']].map(([k, lab, tip]) => {
+                const on = k === 'staff' ? !!settings.apptNameStaff : !!(settings.apptTitleExtras || {})[k]
+                return (
+                  <button key={k} className={on ? 'on' : ''} disabled={readOnly} data-testid={`set-extra-${k}`} title={tip} onClick={() => { if (k === 'staff') patch({ apptNameStaff: !on }); else patch({ apptTitleExtras: { ...(settings.apptTitleExtras || {}), [k]: !on } }) }}>{lab}</button>
+                )
+              })}
+            </div>
+          </Row>
+          <div className="set-nam" data-testid="set-name-preview">{sampleTitle}</div>
+          <Row label="Title health">
+            {audit.total > 0 ? (
+              <button className="btn btn-sm set-flag" data-testid="set-name-review" title="List the flagged titles and rebuild them" onClick={() => setHealthOpen((v) => !v)}>
+                {Icon.alert({ size: 12 })} {audit.total} flagged
               </button>
-            ) : <span className="muted">Bulk title rebuild requires full Calendar and Settings access with all-office scope.</span>}
+            ) : (
+              <span className="set-ok" data-testid="set-name-clean">✓ {Object.keys(appts).length} titles pass</span>
+            )}
+          </Row>
+          {audit.total > 0 && (
+            <div className="set-health" data-testid="set-health">
+              <div className="sh-why">
+                {audit.legacy.length > 0 && <span>{audit.legacy.length} legacy “(Type) …” shape</span>}
+                {audit.untitled.length > 0 && <span>{audit.untitled.length} blank</span>}
+                {audit.long.length > 0 && <span>{audit.long.length} over 72 chars for agenda rows</span>}
+              </div>
+              {healthOpen && (
+                <div className="sh-list">
+                  {[...audit.legacy, ...audit.untitled, ...audit.long].slice(0, 8).map((id) => (
+                    <button key={id} type="button" data-testid={`sh-row-${id}`} onClick={() => actions.setUI({ section: 'calendar', view: 'week', anchor: appts[id].date, detail: id, settings: false })}>
+                      <b>{appts[id].title?.trim() || '— no title —'}</b>
+                      <i>{appts[id].date}</i>
+                    </button>
+                  ))}
+                  {audit.total > 8 && <span className="sh-more">+{audit.total - 8} more flagged</span>}
+                </div>
+              )}
+              {canRebuildTitles ? (
+                <button className="btn btn-sm btn-primary" data-testid="set-name-apply" title="Rebuild only the flagged titles from their real client / service / time — every other title is untouched" onClick={restyle} disabled={readOnly}>
+                  {Icon.zap({ size: 12 })} Rework {audit.total} title{audit.total === 1 ? '' : 's'}
+                </button>
+              ) : <span className="muted">Bulk title rebuild requires full Calendar and Settings access with all-office scope.</span>}
+            </div>
+          )}
+        </Section>
+      </React.Fragment>
+    ),
+
+    clearinghouse: (
+      <Section
+        key="sys-block-clearinghouse"
+        title="Clearing House Integration"
+        sub="EDI 837P / 835 clearinghouse connections used by Payer profiles and claim exports"
+        testId="set-sys-clearinghouse"
+        actions={
+          <button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-ch-add" onClick={() => setChEditor({ name: '', vendor: 'Office Ally', receiverId: '', submitterId: '', sftpUser: '', sandbox: true, active: true, isDefault: false })}>
+            {Icon.plus({ size: 12 })} Add Clearing House
+          </button>
+        }
+      >
+        <DataTable
+          testid="set-ch-table"
+          empty="No clearinghouses configured."
+          columns={[
+            { key: 'name', label: 'Clearing House', width: '1.3fr' },
+            { key: 'rec', label: 'Receiver ID', width: '0.9fr' },
+            { key: 'sub', label: 'Submitter ID', width: '0.9fr' },
+            { key: 'sftp', label: 'SFTP / API User', width: '1fr' },
+            { key: 'env', label: 'Environment', width: '0.75fr' },
+            { key: 'st', label: 'Status', width: '0.7fr' },
+            { key: 'act', label: '', width: '80px' },
+          ]}
+          rows={chRows}
+          renderRow={(ch) => (
+            <div className={`set-trow ${ch.active === false ? 'off' : ''}`} key={ch.id} data-testid={`set-ch-${ch.id}`} style={{ gridTemplateColumns: '1.3fr 0.9fr 0.9fr 1fr 0.75fr 0.7fr 80px' }}>
+              <span><b>{ch.name}</b>{ch.isDefault ? <span className="set-pill on" style={{ marginLeft: 6 }}>default</span> : null}</span>
+              <span className="muted">{ch.receiverId || '—'}</span>
+              <span className="muted">{ch.submitterId || '—'}</span>
+              <span className="muted">{ch.sftpUser || '—'}</span>
+              <span>{ch.sandbox ? <span className="set-pill warn">sandbox</span> : <span className="set-pill on">production</span>}</span>
+              <span>{ch.active === false ? <span className="set-pill">inactive</span> : <span className="set-pill on">active</span>}</span>
+              <span className="set-actions">
+                <IconButton icon="edit" title={`Edit ${ch.name}`} disabled={readOnly} testid={`set-ch-edit-${ch.id}`} onClick={() => setChEditor({ ...ch })} />
+                {!ch.isDefault && <IconButton icon="trash" tone="danger" title={`Remove ${ch.name}`} disabled={readOnly} testid={`set-ch-del-${ch.id}`} onClick={() => removeCh(ch.id)} />}
+              </span>
+            </div>
+          )}
+        />
+        {chEditor && (
+          <div className="set-editor" data-testid="set-ch-editor">
+            <div className="set-editor-head"><b>{chEditor.id ? `Edit ${chEditor.name}` : 'Add Clearing House'}</b><button className="iconbtn" onClick={() => setChEditor(null)} aria-label="Close">{Icon.x({ size: 13 })}</button></div>
+            <div className="set-grid2">
+              <Row label="Clearing House Name *"><TextField value={chEditor.name} wide={220} testid="set-ch-f-name" onCommit={(v) => setChEditor({ ...chEditor, name: v })} /></Row>
+              <Row label="Receiver ID (ISA08)"><TextField value={chEditor.receiverId} wide={160} testid="set-ch-f-rec" onCommit={(v) => setChEditor({ ...chEditor, receiverId: v })} /></Row>
+              <Row label="Submitter ID (ISA06)"><TextField value={chEditor.submitterId} wide={160} testid="set-ch-f-sub" onCommit={(v) => setChEditor({ ...chEditor, submitterId: v })} /></Row>
+              <Row label="SFTP / API Username"><TextField value={chEditor.sftpUser} wide={180} testid="set-ch-f-sftp" onCommit={(v) => setChEditor({ ...chEditor, sftpUser: v })} /></Row>
+              <Row label="Sandbox Mode"><Toggle on={!!chEditor.sandbox} testid="set-ch-f-sandbox" onChange={(v) => setChEditor({ ...chEditor, sandbox: v })} /></Row>
+              <Row label="Active"><Toggle on={chEditor.active !== false} testid="set-ch-f-active" onChange={(v) => setChEditor({ ...chEditor, active: v })} /></Row>
+              <Row label="Default Clearinghouse"><Toggle on={!!chEditor.isDefault} testid="set-ch-f-default" onChange={(v) => setChEditor({ ...chEditor, isDefault: v })} /></Row>
+            </div>
+            <div className="set-editor-foot">
+              <button className="btn btn-sm" onClick={() => setChEditor(null)}>Cancel</button>
+              <button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-ch-save" onClick={() => saveCh(chEditor)}>{chEditor.id ? 'Save clearinghouse' : 'Add clearinghouse'}</button>
+            </div>
           </div>
         )}
       </Section>
+    ),
 
-      <Section title="Smart scheduling" sub="How candidate staff are ranked for open sessions" testId="set-sys-smart">
+    billing: (
+      <Section key="sys-block-billing" title="Billing defaults" sub="ERA automation, AR Manager behaviour, and authorization/filing controls" testId="set-sys-billing">
         <div className="set-grid2">
-          <Row label="Staff suggestions shown" hint="How many candidate staff the detail card offers for open sessions">
-            <div className="viewseg" data-testid="set-smart-suggest">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} className={sm.suggest.count === n ? 'on' : ''} disabled={readOnly} onClick={() => patchSmart('suggest', { count: n })}>{n}</button>
-              ))}
-            </div>
+          <Row label="Enable ERA (835 Electronic Remittance)" hint="Allows importing and auto-matching 835 ERA payment files">
+            <Toggle on={sysCfg.billing?.enableEra !== false} disabled={readOnly} testid="set-bill-era" onChange={(v) => patchSysCfg('billing', { enableEra: v })} />
           </Row>
-          <Row label="Backfill candidates" hint="Ranked alternatives offered when a session needs cover">
-            <div className="viewseg" data-testid="set-smart-backfill">
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} className={sm.backfill.count === n ? 'on' : ''} disabled={readOnly} onClick={() => patchSmart('backfill', { count: n })}>{n}</button>
-              ))}
-            </div>
+          <Row label="AR Manager - Load Records on Generate" hint="Automatically populates aging records when opening the AR ledger">
+            <Toggle on={sysCfg.billing?.arLoadOnGenerate !== false} disabled={readOnly} testid="set-bill-arload" onChange={(v) => patchSysCfg('billing', { arLoadOnGenerate: v })} />
           </Row>
-          <Row label="Min backfill confidence" hint="Candidates scoring below this are never suggested for re-staffing (0–100)">
-            <NumberField value={sm.backfill.minScore} min={0} max={100} suffix="%" testid="set-smart-min" disabled={readOnly} onCommit={(v) => patchSmart('backfill', { minScore: v })} />
+          <Row label="Auto Transfer to Secondary" hint="Automatically queues secondary COB claims when primary posts a balance">
+            <Toggle on={sysCfg.billing?.autoTransferSecondary !== false} disabled={readOnly} testid="set-bill-autosec" onChange={(v) => patchSysCfg('billing', { autoTransferSecondary: v })} />
           </Row>
-          <Row label="Backfill: same care team only">
-            <Toggle on={!!sm.backfill.sameTeamOnly} disabled={readOnly} testid="set-smart-team" onChange={(v) => patchSmart('backfill', { sameTeamOnly: v })} />
+          <Row label="New ERA Preview" hint="Shows side-by-side line adjudication preview before posting ERA">
+            <Toggle on={sysCfg.billing?.newEraPreview !== false} disabled={readOnly} testid="set-bill-erapreview" onChange={(v) => patchSysCfg('billing', { newEraPreview: v })} />
           </Row>
-          <Row label="Backfill: auto-fill button in inbox">
-            <Toggle on={!!sm.backfill.autoFill} disabled={readOnly} testid="set-smart-autofill" onChange={(v) => patchSmart('backfill', { autoFill: v })} />
+          <Row label="Strict authorization (block billing without auth)">
+            <Toggle on={!!settings.billing?.strictAuth} disabled={readOnly} testid="set-bill-strictAuth" onChange={(v) => patch({ billing: { ...settings.billing, strictAuth: v } })} />
           </Row>
-          <Row label="Backfill: flag tight turnarounds">
-            <Toggle on={!!sm.backfill.turnaround} disabled={readOnly} testid="set-smart-turnaround" onChange={(v) => patchSmart('backfill', { turnaround: v })} />
+          <Row label="Supervision check (require supervisor for RBT)">
+            <Toggle on={settings.billing?.supervisionCheck !== false} disabled={readOnly} testid="set-bill-supervision" onChange={(v) => patch({ billing: { ...settings.billing, supervisionCheck: v } })} />
           </Row>
-        </div>
-        <div className="set-weights">
-          <div className="menu-h" style={{ padding: '4px 0 6px' }}>Ranking weights (50% = neutral)</div>
-          <Slider label="Care-team affinity" value={sm.weights.team} onChange={(v) => patchSmart('weights', { team: v })} hint="How strongly to prefer staff on the client's care team" testid="set-smart-w-team" />
-          <Slider label="Client history" value={sm.weights.history} onChange={(v) => patchSmart('weights', { history: v })} hint="Prior sessions with this client (continuity of care)" testid="set-smart-w-history" />
-          <Slider label="Program & cert fit" value={sm.weights.fit} onChange={(v) => patchSmart('weights', { fit: v })} hint="Role ↔ program match, billing-code certifications, last-to-cover" testid="set-smart-w-fit" />
-          <Slider label="Workload balance" value={sm.weights.load} onChange={(v) => patchSmart('weights', { load: v })} hint="Spread sessions across the team" testid="set-smart-w-load" />
-          <button className="btn btn-ghost btn-sm" style={{ marginTop: 4, alignSelf: 'flex-start' }} disabled={readOnly} data-testid="set-smart-reset" onClick={() => patchSmart('weights', { team: 60, history: 55, fit: 55, load: 45 })}>{Icon.undo({ size: 12 })} Reset weights</button>
+          <Row label="Invoice sequence"><NumberField value={settings.billing?.invoiceSeq ?? 1} min={1} max={100000} testid="set-bill-seq" disabled={readOnly} onCommit={(v) => patch({ billing: { ...settings.billing, invoiceSeq: v } })} /></Row>
+          <Row label="Default filing deadline"><NumberField value={settings.billing?.defaultFilingDays ?? 90} min={0} max={365} suffix="days" testid="set-bill-filing" disabled={readOnly} onCommit={(v) => patch({ billing: { ...settings.billing, defaultFilingDays: v } })} /></Row>
         </div>
       </Section>
+    ),
 
-      <Section title="Notifications" sub="Which local reminders this workspace surfaces — nothing is emailed or texted" testId="set-sys-notify">
+    appointment: (
+      <React.Fragment key="sys-block-appointments">
+        <Section title="Appointment Settings" sub="Clock-in/out automation, signature completion triggers, and verification time sync" testId="set-sys-appointments">
+          <div className="set-grid2">
+            <Row label="Enable Clock In & Out" hint="Displays EVV clock-in and clock-out timestamps on session cards">
+              <Toggle on={sysCfg.appointment?.enableClockInOut !== false} disabled={readOnly} testid="set-appt-clockinout" onChange={(v) => patchSysCfg('appointment', { enableClockInOut: v })} />
+            </Row>
+            <Row label="Clock Out completes Appointment" hint="Automatically transitions session status to Completed upon Clock Out">
+              <Toggle on={!!sysCfg.appointment?.clockOutCompletesAppt} disabled={readOnly} testid="set-appt-clockcomplete" onChange={(v) => patchSysCfg('appointment', { clockOutCompletesAppt: v })} />
+            </Row>
+            <Row label="Staff Signature Completes Appointment" hint="Automatically transitions session status to Completed when signed & verified">
+              <Toggle on={sysCfg.appointment?.staffSigCompletesAppt !== false} disabled={readOnly} testid="set-appt-sigcomplete" onChange={(v) => patchSysCfg('appointment', { staffSigCompletesAppt: v })} />
+            </Row>
+            <Row label="Sync Verification Time to Appointment Time" hint="Updates scheduled start/end times to match verified EVV timestamps">
+              <Toggle on={!!sysCfg.appointment?.syncVerifTimeToAppt} disabled={readOnly} testid="set-appt-synctime" onChange={(v) => patchSysCfg('appointment', { syncVerifTimeToAppt: v })} />
+            </Row>
+          </div>
+        </Section>
+
+        <Section title="Smart scheduling" sub="How candidate staff are ranked for open sessions" testId="set-sys-smart">
+          <div className="set-grid2">
+            <Row label="Staff suggestions shown" hint="How many candidate staff the detail card offers for open sessions">
+              <div className="viewseg" data-testid="set-smart-suggest">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} className={sm.suggest.count === n ? 'on' : ''} disabled={readOnly} onClick={() => patchSmart('suggest', { count: n })}>{n}</button>
+                ))}
+              </div>
+            </Row>
+            <Row label="Backfill candidates" hint="Ranked alternatives offered when a session needs cover">
+              <div className="viewseg" data-testid="set-smart-backfill">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button key={n} className={sm.backfill.count === n ? 'on' : ''} disabled={readOnly} onClick={() => patchSmart('backfill', { count: n })}>{n}</button>
+                ))}
+              </div>
+            </Row>
+            <Row label="Min backfill confidence" hint="Candidates scoring below this are never suggested for re-staffing (0–100)">
+              <NumberField value={sm.backfill.minScore} min={0} max={100} suffix="%" testid="set-smart-min" disabled={readOnly} onCommit={(v) => patchSmart('backfill', { minScore: v })} />
+            </Row>
+            <Row label="Backfill: same care team only">
+              <Toggle on={!!sm.backfill.sameTeamOnly} disabled={readOnly} testid="set-smart-team" onChange={(v) => patchSmart('backfill', { sameTeamOnly: v })} />
+            </Row>
+            <Row label="Backfill: auto-fill button in inbox">
+              <Toggle on={!!sm.backfill.autoFill} disabled={readOnly} testid="set-smart-autofill" onChange={(v) => patchSmart('backfill', { autoFill: v })} />
+            </Row>
+            <Row label="Backfill: flag tight turnarounds">
+              <Toggle on={!!sm.backfill.turnaround} disabled={readOnly} testid="set-smart-turnaround" onChange={(v) => patchSmart('backfill', { turnaround: v })} />
+            </Row>
+          </div>
+          <div className="set-weights">
+            <div className="menu-h" style={{ padding: '4px 0 6px' }}>Ranking weights (50% = neutral)</div>
+            <Slider label="Care-team affinity" value={sm.weights.team} onChange={(v) => patchSmart('weights', { team: v })} hint="How strongly to prefer staff on the client's care team" testid="set-smart-w-team" />
+            <Slider label="Client history" value={sm.weights.history} onChange={(v) => patchSmart('weights', { history: v })} hint="Prior sessions with this client (continuity of care)" testid="set-smart-w-history" />
+            <Slider label="Program & cert fit" value={sm.weights.fit} onChange={(v) => patchSmart('weights', { fit: v })} hint="Role ↔ program match, billing-code certifications, last-to-cover" testid="set-smart-w-fit" />
+            <Slider label="Workload balance" value={sm.weights.load} onChange={(v) => patchSmart('weights', { load: v })} hint="Spread sessions across the team" testid="set-smart-w-load" />
+            <button className="btn btn-ghost btn-sm" style={{ marginTop: 4, alignSelf: 'flex-start' }} disabled={readOnly} data-testid="set-smart-reset" onClick={() => patchSmart('weights', { team: 60, history: 55, fit: 55, load: 45 })}>{Icon.undo({ size: 12 })} Reset weights</button>
+          </div>
+        </Section>
+      </React.Fragment>
+    ),
+
+    validations: (
+      <Section
+        key="sys-block-validations"
+        title="Appointment Validations"
+        sub="Configure rule enforcement (None, Flag, Warn, Stop) when scheduling or editing appointments"
+        testId="set-sys-validations"
+      >
+        <Banner tone="info" testid="set-val-banner">
+          <b>Stop</b> blocks saving the appointment; <b>Warn</b> requires acknowledgement in the booking modal; <b>Flag</b> badges the session; <b>None</b> disables the check. Higher credentials configured under <b>Settings → Qualification</b> (e.g., BCBA covering RBT) automatically satisfy lower-tier credential requirements.
+        </Banner>
+        <div className="set-subcard" style={{ marginBottom: 12 }}>
+          <b style={{ display: 'block', marginBottom: 8 }}>Staff Validations</b>
+          <div className="set-grid2">
+            <ValidationRuleRow group="staff" ruleKey="qualification" label="Qualification" hint="Staff holds required credential (or a covering higher credential) for the service" />
+            <ValidationRuleRow group="staff" ruleKey="serviceProvider" label="Service Provider" hint="At least one rendering provider is assigned to the session" />
+            <ValidationRuleRow group="staff" ruleKey="overlap" label="Overlap" hint="Staff member is double-booked on another appointment in the same window" />
+            <ValidationRuleRow group="staff" ruleKey="missingNpi" label="Missing NPI / Medicaid ID" hint="Staff member has a 10-digit NPI or Medicaid ID on file" />
+            <ValidationRuleRow group="staff" ruleKey="payRate" label="Pay Rate" hint="Staff member has an hourly pay rate or payroll profile configured" />
+            <ValidationRuleRow group="staff" ruleKey="unavailable" label="Unavailable" hint="Staff member has an overlapping Unavailable / PTO block" />
+          </div>
+        </div>
+        <div className="set-subcard" style={{ marginBottom: 12 }}>
+          <b style={{ display: 'block', marginBottom: 8 }}>Client Validations</b>
+          <div className="set-grid2">
+            <ValidationRuleRow group="client" ruleKey="overlap" label="Overlap" hint="Client is booked on another appointment in the same window" />
+            <ValidationRuleRow group="client" ruleKey="clientAssignment" label="Client Assignment" hint="Assigned staff member belongs to the client's care team" />
+            <ValidationRuleRow group="client" ruleKey="duplicateOverlap" label="Duplicate Overlap" hint="Identical client, service, and time window already exists" />
+          </div>
+        </div>
+        <div className="set-subcard">
+          <b style={{ display: 'block', marginBottom: 8 }}>Payer Validations</b>
+          <div className="set-grid2">
+            <ValidationRuleRow group="payer" ruleKey="cancelledNoShow" label="Cancelled / No-Show Appointments" hint="Alerts when a cancelled/no-show status is marked billable" />
+            <ValidationRuleRow group="payer" ruleKey="regionalCenter" label="Regional Center" hint="Verifies active authorization window for Regional Center / Medicaid payers" />
+          </div>
+        </div>
+      </Section>
+    ),
+
+    notifications: (
+      <Section key="sys-block-notifications" title="Notifications" sub="Staff alerts, credential expiry reminders, and operational billing notifications" testId="set-sys-notify">
+        <div className="set-subcard" style={{ marginBottom: 12 }}>
+          <b style={{ display: 'block', marginBottom: 8 }}>Staff Notifications</b>
+          <div className="set-grid2">
+            <Row label="Staff Birthday"><Toggle on={notify.staffBirthday !== false} disabled={readOnly} testid="set-notify-birthday" onChange={(v) => setNotify({ staffBirthday: v })} /></Row>
+            <Row label="Clinical Team Updates"><Toggle on={notify.clinicalTeam !== false} disabled={readOnly} testid="set-notify-team" onChange={(v) => setNotify({ clinicalTeam: v })} /></Row>
+            <Row label="Sub-ordinate Alerts"><Toggle on={!!notify.subordinate} disabled={readOnly} testid="set-notify-subordinate" onChange={(v) => setNotify({ subordinate: v })} /></Row>
+            <Row label="Supervisor Alerts"><Toggle on={notify.supervisor !== false} disabled={readOnly} testid="set-notify-supervisor" onChange={(v) => setNotify({ supervisor: v })} /></Row>
+            <Row label="Qualification Expiration">
+              <div className="set-inline">
+                <Toggle on={notify.qualificationExpiration !== false} disabled={readOnly} testid="set-notify-qualexp" onChange={(v) => setNotify({ qualificationExpiration: v })} />
+                <Select value={notify.qualificationExpirationFreq || '30d'} wide={140} disabled={readOnly || notify.qualificationExpiration === false} testid="set-notify-qualexp-freq"
+                  options={[{ value: '7d', label: '7 days prior' }, { value: '14d', label: '14 days prior' }, { value: '30d', label: '30 days prior' }, { value: '60d', label: '60 days prior' }]}
+                  onChange={(v) => setNotify({ qualificationExpirationFreq: v })} />
+              </div>
+            </Row>
+            <Row label="Incomplete Appointments">
+              <div className="set-inline">
+                <Toggle on={notify.incompleteAppointments !== false} disabled={readOnly} testid="set-notify-incomplete" onChange={(v) => setNotify({ incompleteAppointments: v })} />
+                <NumberField value={notify.incompleteLookbackDays ?? 7} min={1} max={90} suffix="days" disabled={readOnly || notify.incompleteAppointments === false} testid="set-notify-incomplete-days" onCommit={(v) => setNotify({ incompleteLookbackDays: v })} />
+              </div>
+            </Row>
+            <Row label="Time Sheet Submission">
+              <div className="set-inline">
+                <Toggle on={notify.timesheetSubmission !== false} disabled={readOnly} testid="set-notify-timesheet" onChange={(v) => setNotify({ timesheetSubmission: v })} />
+                <NumberField value={notify.timesheetOffsetHours ?? 24} min={1} max={168} suffix="hrs" disabled={readOnly || notify.timesheetSubmission === false} testid="set-notify-timesheet-hrs" onCommit={(v) => setNotify({ timesheetOffsetHours: v })} />
+              </div>
+            </Row>
+            <Row label="Client Assignment"><Toggle on={notify.clientAssignment !== false} disabled={readOnly} testid="set-notify-assignment" onChange={(v) => setNotify({ clientAssignment: v })} /></Row>
+          </div>
+        </div>
         <div className="set-grid2">
           <Row label="Timely filing deadlines"><Toggle on={notify.timelyFiling !== false} disabled={readOnly} testid="set-sys-filing" onChange={(v) => setNotify({ timelyFiling: v })} /></Row>
           <Row label="Authorisation expiries"><Toggle on={notify.authExpiry !== false} disabled={readOnly} testid="set-sys-auth" onChange={(v) => setNotify({ authExpiry: v })} /></Row>
@@ -227,101 +502,221 @@ export function SystemPanel({ state, actions, toast, readOnly, canManageWorkspac
         </div>
         <Banner tone="info">Notification preferences only change what the local workspace highlights. This demo never sends mail, SMS or push messages.</Banner>
       </Section>
+    ),
 
-      <Section title="Analytics defaults" sub="The range, metric and dimension the Analytics board opens with" testId="set-sys-an">
-        <div className="set-grid2">
-          <Row label="Default range"><Select value={settings.analytics?.range || '30d'} wide={150} disabled={readOnly} testid="set-an-range" options={RANGE_PRESETS.map((p) => ({ value: p.id, label: p.label }))} onChange={(v) => patch({ analytics: { ...settings.analytics, range: v } })} /></Row>
-          <Row label="Metric"><Select value={settings.analytics?.metric || 'sessions'} wide={170} disabled={readOnly} testid="set-an-metric" options={Object.entries(METRICS).map(([id, m]) => ({ value: id, label: m.label }))} onChange={(v) => patch({ analytics: { ...settings.analytics, metric: v } })} /></Row>
-          <Row label="Dimension"><Select value={settings.analytics?.dim || 'staff'} wide={170} disabled={readOnly} testid="set-an-dim" options={Object.entries(DIMS).map(([id, d]) => ({ value: id, label: d.label }))} onChange={(v) => patch({ analytics: { ...settings.analytics, dim: v } })} /></Row>
-        </div>
-      </Section>
-
-      <Section title="Billing defaults" sub="Authorisation and filing behaviour the billing desk reads" testId="set-sys-billing">
-        <Row label="Strict authorization (block billing without auth)">
-          <Toggle on={!!settings.billing?.strictAuth} disabled={readOnly} testid="set-bill-strictAuth" onChange={(v) => patch({ billing: { ...settings.billing, strictAuth: v } })} />
-        </Row>
-        <Row label="Supervision check (require supervisor for RBT)">
-          <Toggle on={settings.billing?.supervisionCheck !== false} disabled={readOnly} testid="set-bill-supervision" onChange={(v) => patch({ billing: { ...settings.billing, supervisionCheck: v } })} />
-        </Row>
-        <div className="set-grid2">
-          <Row label="Invoice sequence"><NumberField value={settings.billing?.invoiceSeq ?? 1} min={1} max={100000} testid="set-bill-seq" disabled={readOnly} onCommit={(v) => patch({ billing: { ...settings.billing, invoiceSeq: v } })} /></Row>
-          <Row label="Default filing deadline"><NumberField value={settings.billing?.defaultFilingDays ?? 90} min={0} max={365} suffix="days" testid="set-bill-filing" disabled={readOnly} onCommit={(v) => patch({ billing: { ...settings.billing, defaultFilingDays: v } })} /></Row>
-        </div>
-      </Section>
-
-      <Section title="Data & backup" sub="Everything lives in this browser — export before big edits" testId="set-sys-data">
-        <div className="set-vault">
-          <div className="sv-stats" data-testid="set-storage-stat">
-            <div><b>{Object.keys(appts).length}</b><span>appointments</span></div>
-            <div><b>{Object.keys(claims).length}</b><span>claims</span></div>
-            <div><b>{clients.length}</b><span>clients</span></div>
-            <div><b>{Math.max(1, Math.round(bytes / 1024))} KB</b><span>local storage</span></div>
-          </div>
-          <div className="sv-actions">
-            <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={doExport} data-testid="set-export">{Icon.download({ size: 12 })} Export workspace (.json)</button>
-            <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={() => fileRef.current?.click()} data-testid="set-import">{Icon.copy({ size: 12 })} Restore backup…</button>
-            <input ref={fileRef} type="file" disabled={!canManageWorkspace} accept="application/json,.json" data-testid="set-import-file" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
-          </div>
-          {!canManageWorkspace && <p className="sv-legacy">Workspace backup and restore require full access to every module plus all-office scope. Switch to an authorized administrator or contact one.</p>}
-          <p className="muted" style={{ fontSize: 10.8, margin: '2px 0 0', lineHeight: 1.5 }}>
-            The JSON includes appointments, billing ledgers, payers, service &amp; field masters, settings, reports and dashboards. Undo is available in this tab only.
-          </p>
-          {pendingRestore && (
-            <div className="sv-restore-preview" data-testid="set-restore-preview" role="status">
-              <b>Replace this workspace?</b>
-              <span>{pendingRestore.counts.appointments} appointment{pendingRestore.counts.appointments === 1 ? '' : 's'} · {pendingRestore.counts.claims} claim{pendingRestore.counts.claims === 1 ? '' : 's'} · {pendingRestore.counts.payments} payment{pendingRestore.counts.payments === 1 ? '' : 's'} in backup. Your current data will be replaced; export it first if you need a copy.</span>
-              {pendingRestore.legacy && <span className="sv-legacy">Older partial backup: payer/service/field masters and billing ledgers were not included in that format. Missing data will reset to demo defaults or empty ledgers.</span>}
-              <div className="sv-actions">
-                <button className="btn btn-sm btn-primary" type="button" data-testid="set-restore-confirm" onClick={confirmRestore}>Replace workspace</button>
-                <button className="btn btn-sm" type="button" data-testid="set-restore-cancel" onClick={() => setPendingRestore(null)}>Cancel</button>
-              </div>
+    'clinical-integrations': (
+      <Section key="sys-block-clinical" title="Clinical Integrations" sub="ABA clinical data-collection platforms (Ensora, Hi Rasmus, Motivity, Welina, Catalyst, Passage Health)" testId="set-sys-clinical-integrations">
+        <DataTable
+          testid="set-sys-clinical-table"
+          empty="No clinical integrations configured."
+          columns={[
+            { key: 'name', label: 'Partner Platform', width: '1.3fr' },
+            { key: 'vendor', label: 'Vendor', width: '1fr' },
+            { key: 'sync', label: 'Auto-Sync Notes', width: '0.8fr' },
+            { key: 'status', label: 'Connection Mode', width: '1.2fr' },
+          ]}
+          rows={clinicalRows}
+          renderRow={(r) => (
+            <div className="set-trow" key={r.id} data-testid={`set-sys-clin-${r.id}`} style={{ gridTemplateColumns: '1.3fr 1fr 0.8fr 1.2fr' }}>
+              <span><b>{r.name}</b><i className="set-sub">{r.detail}</i></span>
+              <span className="muted">{r.vendor}</span>
+              <span><Toggle on={!!r.syncEnabled} disabled={readOnly} testid={`set-sys-clin-sync-${r.id}`} onChange={(v) => patchIntegration(r.id, { syncEnabled: v })} /></span>
+              <span>
+                <Select
+                  value={r.status}
+                  wide={175}
+                  disabled={readOnly}
+                  testid={`set-sys-clin-status-${r.id}`}
+                  options={Object.entries(INTEGRATION_STATUSES).map(([id, v]) => ({ value: id, label: v.label }))}
+                  onChange={(v) => patchIntegration(r.id, { status: v })}
+                />
+              </span>
             </div>
           )}
-        </div>
+        />
       </Section>
+    ),
 
-      <Section title="Demo data" sub="Rebuild the fictional sample workspace, or clear the schedule while keeping masters" testId="set-sys-demo">
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button
-            className="btn btn-sm"
-            data-testid="set-reseed"
-            disabled={!canManageDemo}
-            onClick={() => {
-              if (arm !== 'reseed') return setArm('reseed')
-              setArm(null)
-              const result = actions.reseed()
-              if (result?.ok === false) return
-              toast({ message: 'Demo schedule & billing regenerated', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
-            }}
-          >
-            {Icon.zap({ size: 13 })} {arm === 'reseed' ? 'Click again to regenerate schedule & billing' : 'Regenerate demo data'}
-          </button>
-          <button
-            className="btn btn-sm"
-            style={arm === 'clear' ? { color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' } : { color: 'var(--danger)' }}
-            data-testid="set-clear"
-            disabled={!canManageDemo}
-            onClick={() => {
-              if (arm !== 'clear') return setArm('clear')
-              setArm(null)
-              const result = actions.clearDemo()
-              if (result?.ok === false) return
-              toast({ message: 'Schedule & billing cleared — masters and settings kept', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
-            }}
-          >
-            {Icon.trash({ size: 13 })} {arm === 'clear' ? 'Really clear schedule & billing?' : 'Clear schedule & billing'}
-          </button>
-          {arm && <button className="btn btn-sm btn-ghost" onClick={() => setArm(null)}>Cancel</button>}
-          {!canManageDemo && <span className="muted" style={{ fontSize: 10.5 }}>Reset actions require full access to affected modules and all-office scope.</span>}
-        </div>
-        <div className="set-banner info" data-testid="set-sys-about">
-          {Icon.info({ size: 14 })}
-          <div>
-            <b>Aloha ABA · local demo build</b>
-            <span>Vite + React, browser-only persistence under <code>aloha-aba.v3</code>. No server, no PHI, no payer connection — every name, claim and telephone number here is fictional.</span>
-          </div>
+    evv: (
+      <Section key="sys-block-evv" title="EVV Integrations" sub="Electronic Visit Verification (Sandata & state Medicaid aggregators)" testId="set-sys-evv">
+        <div className="set-grid2">
+          <Row label="Enable Sandata EVV"><Toggle on={!!evv.sandataEnabled} disabled={readOnly} testid="set-evv-enabled" onChange={(v) => patchEvv({ sandataEnabled: v })} /></Row>
+          <Row label="Auto-Sync Completed Home Visits"><Toggle on={evv.autoSyncCompletedVisits !== false} disabled={readOnly} testid="set-evv-autosync" onChange={(v) => patchEvv({ autoSyncCompletedVisits: v })} /></Row>
+          <Row label="Sandata Provider ID"><TextField value={evv.providerId || ''} wide={180} disabled={readOnly} testid="set-evv-providerid" onCommit={(v) => patchEvv({ providerId: v })} /></Row>
+          <Row label="Company / Account ID"><TextField value={evv.companyId || ''} wide={180} disabled={readOnly} testid="set-evv-companyid" onCommit={(v) => patchEvv({ companyId: v })} /></Row>
+          <Row label="Aggregator Username"><TextField value={evv.username || ''} wide={200} disabled={readOnly} testid="set-evv-username" onCommit={(v) => patchEvv({ username: v })} /></Row>
+          <Row label="State Medicaid Program"><TextField value={evv.stateProgram || 'CA-DHCS'} wide={140} disabled={readOnly} testid="set-evv-state" onCommit={(v) => patchEvv({ stateProgram: v })} /></Row>
+          <Row label="GPS Geofence Tolerance"><NumberField value={evv.gpsToleranceFeet ?? 500} min={50} max={5280} step={50} suffix="ft" disabled={readOnly} testid="set-evv-gps" onCommit={(v) => patchEvv({ gpsToleranceFeet: v })} /></Row>
         </div>
       </Section>
+    ),
+
+    other: (
+      <React.Fragment key="sys-block-other">
+        <Section title="Other Settings" sub="Distance units, Client Portal visible balance columns, and accepted payment gateway methods" testId="set-sys-other">
+          <div className="set-grid2">
+            <Row label="Distance Unit">
+              <Seg
+                value={sysCfg.other?.distanceUnit || 'miles'}
+                disabled={readOnly}
+                testid="set-other-distance"
+                ariaLabel="Distance unit"
+                options={[{ value: 'miles', label: 'Miles' }, { value: 'km', label: 'Kilometers' }]}
+                onChange={(v) => patchSysCfg('other', { distanceUnit: v })}
+              />
+            </Row>
+            <Row label="Payment Gateway Methods" stack>
+              <div className="set-inline" style={{ flexWrap: 'wrap', gap: 6 }}>
+                {[['card', 'Credit / Debit Card'], ['ach', 'ACH Bank Transfer'], ['check', 'Check'], ['cash', 'Cash']].map(([id, label]) => {
+                  const rawMethods = sysCfg.other?.paymentGatewayMethods
+                  const methods = Array.isArray(rawMethods) ? rawMethods : ['card', 'ach', 'check']
+                  const on = methods.includes(id)
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`checkbox ${on ? 'on' : ''}`}
+                      disabled={readOnly}
+                      data-testid={`set-other-pay-${id}`}
+                      onClick={() => patchSysCfg('other', { paymentGatewayMethods: on ? methods.filter((x) => x !== id) : [...methods, id] })}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Row>
+            <Row label="Client Portal — Current Balance Columns" stack>
+              <div className="set-inline" style={{ flexWrap: 'wrap', gap: 6 }}>
+                {[['totalCharges', 'Total Charges'], ['insurancePaid', 'Insurance Paid'], ['patientResponsibility', 'Patient Responsibility'], ['currentBalance', 'Current Balance']].map(([id, label]) => {
+                  const rawCols = sysCfg.other?.portalBalanceColumns
+                  const cols = Array.isArray(rawCols) ? rawCols : ['totalCharges', 'insurancePaid', 'patientResponsibility', 'currentBalance']
+                  const on = cols.includes(id)
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`checkbox ${on ? 'on' : ''}`}
+                      disabled={readOnly}
+                      data-testid={`set-other-col-${id}`}
+                      onClick={() => patchSysCfg('other', { portalBalanceColumns: on ? cols.filter((x) => x !== id) : [...cols, id] })}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+            </Row>
+          </div>
+        </Section>
+
+        <Section title="Analytics defaults" sub="The range, metric and dimension the Analytics board opens with" testId="set-sys-an">
+          <div className="set-grid2">
+            <Row label="Default range"><Select value={settings.analytics?.range || '30d'} wide={150} disabled={readOnly} testid="set-an-range" options={RANGE_PRESETS.map((p) => ({ value: p.id, label: p.label }))} onChange={(v) => patch({ analytics: { ...settings.analytics, range: v } })} /></Row>
+            <Row label="Metric"><Select value={settings.analytics?.metric || 'sessions'} wide={170} disabled={readOnly} testid="set-an-metric" options={Object.entries(METRICS).map(([id, m]) => ({ value: id, label: m.label }))} onChange={(v) => patch({ analytics: { ...settings.analytics, metric: v } })} /></Row>
+            <Row label="Dimension"><Select value={settings.analytics?.dim || 'staff'} wide={170} disabled={readOnly} testid="set-an-dim" options={Object.entries(DIMS).map(([id, d]) => ({ value: id, label: d.label }))} onChange={(v) => patch({ analytics: { ...settings.analytics, dim: v } })} /></Row>
+          </div>
+        </Section>
+
+        <Section title="Data & backup" sub="Everything lives in this browser — export before big edits" testId="set-sys-data">
+          <div className="set-vault">
+            <div className="sv-stats" data-testid="set-storage-stat">
+              <div><b>{Object.keys(appts).length}</b><span>appointments</span></div>
+              <div><b>{Object.keys(claims).length}</b><span>claims</span></div>
+              <div><b>{clients.length}</b><span>clients</span></div>
+              <div><b>{Math.max(1, Math.round(bytes / 1024))} KB</b><span>local storage</span></div>
+            </div>
+            <div className="sv-actions">
+              <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={doExport} data-testid="set-export">{Icon.download({ size: 12 })} Export workspace (.json)</button>
+              <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={() => fileRef.current?.click()} data-testid="set-import">{Icon.copy({ size: 12 })} Restore backup…</button>
+              <input ref={fileRef} type="file" disabled={!canManageWorkspace} accept="application/json,.json" data-testid="set-import-file" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
+            </div>
+            {!canManageWorkspace && <p className="sv-legacy">Workspace backup and restore require full access to every module plus all-office scope. Switch to an authorized administrator or contact one.</p>}
+            <p className="muted" style={{ fontSize: 10.8, margin: '2px 0 0', lineHeight: 1.5 }}>
+              The JSON includes appointments, billing ledgers, payers, service &amp; field masters, settings, reports and dashboards. Undo is available in this tab only.
+            </p>
+            {pendingRestore && (
+              <div className="sv-restore-preview" data-testid="set-restore-preview" role="status">
+                <b>Replace this workspace?</b>
+                <span>{pendingRestore.counts.appointments} appointment{pendingRestore.counts.appointments === 1 ? '' : 's'} · {pendingRestore.counts.claims} claim{pendingRestore.counts.claims === 1 ? '' : 's'} · {pendingRestore.counts.payments} payment{pendingRestore.counts.payments === 1 ? '' : 's'} in backup. Your current data will be replaced; export it first if you need a copy.</span>
+                {pendingRestore.legacy && <span className="sv-legacy">Older partial backup: payer/service/field masters and billing ledgers were not included in that format. Missing data will reset to demo defaults or empty ledgers.</span>}
+                <div className="sv-actions">
+                  <button className="btn btn-sm btn-primary" type="button" data-testid="set-restore-confirm" onClick={confirmRestore}>Replace workspace</button>
+                  <button className="btn btn-sm" type="button" data-testid="set-restore-cancel" onClick={() => setPendingRestore(null)}>Cancel</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Demo data" sub="Rebuild the fictional sample workspace, or clear the schedule while keeping masters" testId="set-sys-demo">
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              className="btn btn-sm"
+              data-testid="set-reseed"
+              disabled={!canManageDemo}
+              onClick={() => {
+                if (arm !== 'reseed') return setArm('reseed')
+                setArm(null)
+                const result = actions.reseed()
+                if (result?.ok === false) return
+                toast({ message: 'Demo schedule & billing regenerated', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
+              }}
+            >
+              {Icon.zap({ size: 13 })} {arm === 'reseed' ? 'Click again to regenerate schedule & billing' : 'Regenerate demo data'}
+            </button>
+            <button
+              className="btn btn-sm"
+              style={arm === 'clear' ? { color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' } : { color: 'var(--danger)' }}
+              data-testid="set-clear"
+              disabled={!canManageDemo}
+              onClick={() => {
+                if (arm !== 'clear') return setArm('clear')
+                setArm(null)
+                const result = actions.clearDemo()
+                if (result?.ok === false) return
+                toast({ message: 'Schedule & billing cleared — masters and settings kept', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
+              }}
+            >
+              {Icon.trash({ size: 13 })} {arm === 'clear' ? 'Really clear schedule & billing?' : 'Clear schedule & billing'}
+            </button>
+            {arm && <button className="btn btn-sm btn-ghost" onClick={() => setArm(null)}>Cancel</button>}
+            {!canManageDemo && <span className="muted" style={{ fontSize: 10.5 }}>Reset actions require full access to affected modules and all-office scope.</span>}
+          </div>
+          <div className="set-banner info" data-testid="set-sys-about">
+            {Icon.info({ size: 14 })}
+            <div>
+              <b>Aloha ABA · local demo build</b>
+              <span>Vite + React, browser-only persistence under <code>aloha-aba.v3</code>. No server, no PHI, no payer connection — every name, claim and telephone number here is fictional.</span>
+            </div>
+          </div>
+        </Section>
+      </React.Fragment>
+    ),
+  }
+
+  const orderedKeys = [
+    activeSub,
+    ...SYSTEM_SETTINGS_SECTIONS.map((s) => s.id).filter((id) => id !== activeSub),
+  ]
+
+  return (
+    <>
+      <div className="set-subnav" data-testid="set-sys-subnav" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 4 }}>
+        {SYSTEM_SETTINGS_SECTIONS.map((sec) => (
+          <button
+            key={sec.id}
+            type="button"
+            className={`set-pill ${activeSub === sec.id ? 'on' : ''}`}
+            style={{ cursor: 'pointer', border: '1px solid var(--border)' }}
+            data-testid={`set-sys-tab-${sec.id}`}
+            onClick={() => actions.setUI({ settingsModule: 'system', settingsSub: sec.id })}
+          >
+            {sec.label}
+          </button>
+        ))}
+      </div>
+      {orderedKeys.map((k) => sectionBlocks[k] || null)}
     </>
   )
 }

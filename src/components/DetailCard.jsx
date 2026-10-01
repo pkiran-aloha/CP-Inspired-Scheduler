@@ -6,7 +6,7 @@ import { Icon } from '../ui/Icons'
 import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek, todayISO } from '../lib/date'
 import { needsCoverFor, backfillFor } from '../lib/smart'
 import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
-import { isCancelStatus, statusFor } from '../lib/settingsMasters'
+import { isCancelStatus, statusFor, systemConfigFor } from '../lib/settingsMasters'
 
 export default function DetailCard({ appt, onClose, onEdit }) {
   const state = useStore()
@@ -61,9 +61,15 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     toast({ message: `Marked ${statusFor(settings, s).label}${extra.edited ? ' (exception on this occurrence)' : ''}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
   }
   const quickVerify = () => {
+    const curStatus = statusFor(settings, appt.status)
+    if (curStatus?.allowToComplete === false) {
+      toast({ message: `Status “${curStatus.label}” is configured with Allow To Complete off in Settings → Appointment Status`, kind: 'warn' })
+      return
+    }
+    const sigCompletes = systemConfigFor(settings).appointment?.staffSigCompletesAppt !== false
     const sigStaff = staffById[ver?.completedBy || appt.staffIds?.[0]] || staff[0]
     actions.update(appt.id, {
-      status: 'completed',
+      status: sigCompletes ? 'completed' : appt.status,
       verification: {
         completedBy: sigStaff.id,
         checks: Object.fromEntries(VERIFY_CHECKS.map((c) => [c.id, true])),
@@ -72,7 +78,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
         signature: { mode: 'type', text: sigStaff.name, staffId: sigStaff.id, staffName: sigStaff.name, certification: sigStaff.cert, timestamp: new Date().toISOString(), geo: null },
       },
     })
-    toast({ message: 'Session completed & signed ✓', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
+    toast({ message: sigCompletes ? 'Session completed & signed ✓' : 'Session signed & verified ✓', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
   }
   const revert = () => {
     const pattern = series.find((s) => s.id !== appt.id && !s.edited)

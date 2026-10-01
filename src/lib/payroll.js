@@ -353,7 +353,15 @@ export function scheduleLines(state, staffId, period) {
       continue
     }
 
+    const defCodes = payroll.defaultEarningCodes || {}
     let code = APPT_CODE[a.type]
+    if (a.type === 'drive' && defCodes.drive && codes[defCodes.drive]) code = defCodes.drive
+    else if ((a.type === 'admin' || a.type === 'meeting' || a.type === 'supervision') && defCodes.nonService && codes[defCodes.nonService] && a.type === 'admin') code = defCodes.nonService
+    // if appointment has a service with an explicit defaultEarningCode in the active earning codes, honour it
+    if ((a.type === 'service' || a.type === 'evaluation') && a.service && Array.isArray(state.svcs)) {
+      const svcRec = state.svcs.find((s) => s.id === a.service)
+      if (svcRec?.defaultEarningCode && codes[svcRec.defaultEarningCode]) code = svcRec.defaultEarningCode
+    }
     // a configured status may name the earning code a session in that state earns
     if (statusCfg?.payrollCode && codes[statusCfg.payrollCode]) code = statusCfg.payrollCode
     let unpaid = false
@@ -364,9 +372,9 @@ export function scheduleLines(state, staffId, period) {
       else if (/training|CEU|conference/i.test(a.title || '')) code = payroll.payTraining ? 'TRAIN' : null
       else unpaid = true
     }
-    if (a.type === 'break') { if (!payroll.payBreaks) unpaid = true; else code = 'ADMIN' }
-    if (code === 'DRIVE' && !payroll.payDrive) unpaid = true
-    if (code === 'ADMIN' && !payroll.payAdmin) unpaid = true
+    if (a.type === 'break') { if (!payroll.payBreaks) unpaid = true; else code = (defCodes.breakTime && codes[defCodes.breakTime]) ? defCodes.breakTime : 'ADMIN' }
+    if ((code === 'DRIVE' || a.type === 'drive') && !payroll.payDrive) unpaid = true
+    if ((code === 'ADMIN' || a.type === 'admin') && !payroll.payAdmin) unpaid = true
     if (code === 'TRAIN' && !payroll.payTraining) unpaid = true
     if (!code || unpaid) continue
 
@@ -539,17 +547,20 @@ export function earningsFor(state, staffId, periodId) {
   // 4) overtime premium — exempt staff are excluded, and only worked/premium-eligible
   //    hours count toward the workweek threshold
   const otRows = []
+  const staffRec = (state.staff || []).find((s) => s.id === staffId)
+  const officeOtRule = staffRec?.officeId && payroll.officeOvertimeRules?.[staffRec.officeId]
+  const effectiveWeeklyOt = Number(officeOtRule?.weeklyOtHours || payroll.otAfterHours) || 40
   if (profile?.classification === 'nonexempt' && profile?.payType !== 'salary' ? true : profile?.classification === 'nonexempt') {
     for (const w of weeks) {
       const inWeek = lines.filter((l) => l.date >= w.start && l.date <= w.end)
       const worked = inWeek.filter((l) => codes[l.code]?.otEligible && codes[l.code]?.kind !== 'leave')
       const workedHours = worked.reduce((t, l) => t + (l.hours || 0), 0)
-      if (workedHours <= payroll.otAfterHours) continue
+      if (workedHours <= effectiveWeeklyOt) continue
       const straight = worked.reduce((t, l) => t + cents(l), 0)
       // nondiscretionary additions earned this week spread into the regular rate
       const nondisc = inWeek.filter((l) => codes[l.code]?.nondisc).reduce((t, l) => t + cents(l), 0)
       const regularRateCents = Math.round((straight + nondisc) / workedHours) // per hour, in cents
-      const otHours = +(workedHours - payroll.otAfterHours).toFixed(4)
+      const otHours = +(workedHours - effectiveWeeklyOt).toFixed(4)
       const premium = Math.round(otHours * regularRateCents * (payroll.otMultiplier - 1))
       otRows.push({
         code: 'OT', label: `Overtime premium — week of ${w.start}`, hours: otHours, minutes: Math.round(otHours * 60),
@@ -582,6 +593,8 @@ export function earningsFor(state, staffId, periodId) {
 export const defaultPayrollSettings = () => ({
   frequency: 'biweekly',
   anchor: '2026-01-05',
+  processor: 'ADP',
+  mileageRate: 0.67,
   payLagDays: 5,
   workWeekStart: 1,             // Monday — FLSA workweek, not the calendar's week start
   otAfterHours: 40,
@@ -592,6 +605,8 @@ export const defaultPayrollSettings = () => ({
   payAdmin: true,
   payTraining: true,
   evvRequired: true,
+  defaultEarningCodes: { nonService: 'ADMIN', drive: 'DRIVE', breakTime: 'ADMIN' },
+  officeOvertimeRules: {},
   cancelPolicy: { freeNoticeHours: 24, payShortNoticePct: 50, payNoShowPct: 100, payUnknownNoticePct: 0 },
   approvals: { requireTimesheet: true, requireApproval: true, separateApprover: true, lockAfterProcess: true },
   defaultState: 'CA',

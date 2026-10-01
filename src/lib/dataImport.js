@@ -15,9 +15,36 @@ import { STATUSES } from './model'
 import { apptStatusList, officeNames, settingsOffices } from './settingsMasters'
 import { parseISO, isoDate } from './date'
 
+export const IMPORT_CATEGORIES = [
+  {
+    id: 'payer',
+    label: 'Payer',
+    blurb: 'Import payer master profiles and contracted service fee schedules.',
+    types: ['payers', 'payer-services'],
+  },
+  {
+    id: 'staff',
+    label: 'Staff',
+    blurb: 'Import staff profiles, credentials/qualifications, NPIs, and earning code pay rates.',
+    types: ['staff', 'staff-qualifications', 'staff-npis', 'staff-earning-codes'],
+  },
+  {
+    id: 'client',
+    label: 'Client',
+    blurb: 'Import client demographics, parent/guardian contacts, and authorization windows.',
+    types: ['clients', 'client-contacts', 'client-authorizations'],
+  },
+  {
+    id: 'appointments',
+    label: 'Appointments',
+    blurb: 'Bulk-schedule historical or upcoming sessions against existing clients and staff.',
+    types: ['appointments'],
+  },
+]
+
 export const IMPORT_TYPES = [
   {
-    id: 'clients', label: 'Clients', icon: 'pin',
+    id: 'clients', category: 'client', subLabel: 'Profile', label: 'Clients', icon: 'pin',
     blurb: 'One row per client chart — demographics, guardian contact, program and home location.',
     fields: [
       { key: 'name', label: 'Client name', required: true, sample: 'Ava Thompson' },
@@ -34,7 +61,29 @@ export const IMPORT_TYPES = [
     ],
   },
   {
-    id: 'staff', label: 'Staff', icon: 'team',
+    id: 'client-contacts', category: 'client', subLabel: 'Contacts', label: 'Client Contacts', icon: 'pin',
+    blurb: 'Import parent, guardian, and emergency contacts linked to existing clients.',
+    fields: [
+      { key: 'client', label: 'Client name', required: true, sample: 'Ava Thompson' },
+      { key: 'guardian', label: 'Contact name', required: true, sample: 'Erik Thompson' },
+      { key: 'relation', label: 'Relationship', sample: 'Father' },
+      { key: 'guardianPhone', label: 'Phone', sample: '(408) 555-0131' },
+      { key: 'guardianEmail', label: 'Email', sample: 'erik@example.com' },
+    ],
+  },
+  {
+    id: 'client-authorizations', category: 'client', subLabel: 'Authorizations', label: 'Client Authorizations', icon: 'pin',
+    blurb: 'Update client authorization numbers, weekly hours, and start/end dates.',
+    fields: [
+      { key: 'client', label: 'Client name', required: true, sample: 'Ava Thompson' },
+      { key: 'authNo', label: 'Authorization #', required: true, sample: 'AUTH-2026-99102' },
+      { key: 'authWeekly', label: 'Weekly hours', sample: '25' },
+      { key: 'authStart', label: 'Start date', required: true, sample: '2026-01-01' },
+      { key: 'authEnd', label: 'End date', required: true, sample: '2026-12-31' },
+    ],
+  },
+  {
+    id: 'staff', category: 'staff', subLabel: 'Profile', label: 'Staff', icon: 'team',
     blurb: 'One row per employee — role, credentials, contact details and the office they work from.',
     fields: [
       { key: 'name', label: 'Full name', required: true, sample: 'Jordan Alvarez' },
@@ -49,7 +98,57 @@ export const IMPORT_TYPES = [
     ],
   },
   {
-    id: 'appointments', label: 'Appointments', icon: 'cal',
+    id: 'staff-qualifications', category: 'staff', subLabel: 'Qualifications', label: 'Staff Qualifications', icon: 'team',
+    blurb: 'Import credential and license assignments for existing staff members.',
+    fields: [
+      { key: 'staff', label: 'Staff name', required: true, sample: 'Jordan Alvarez' },
+      { key: 'cert', label: 'Qualification', required: true, sample: 'RBT' },
+      { key: 'licenseNo', label: 'Certificate #', sample: 'RBT-24-01-0001' },
+      { key: 'expiresAt', label: 'Expiration date', sample: '2027-06-30' },
+    ],
+  },
+  {
+    id: 'staff-npis', category: 'staff', subLabel: "NPI's", label: 'Staff NPIs', icon: 'team',
+    blurb: 'Assign 10-digit National Provider Identifiers and taxonomy codes to staff.',
+    fields: [
+      { key: 'staff', label: 'Staff name', required: true, sample: 'Jordan Alvarez' },
+      { key: 'npi', label: 'NPI', required: true, sample: '1234567893', help: '10-digit National Provider Identifier' },
+      { key: 'taxonomy', label: 'Taxonomy code', sample: '106S00000X' },
+      { key: 'medicaidId', label: 'Medicaid ID', sample: 'CA-MED-9041' },
+    ],
+  },
+  {
+    id: 'staff-earning-codes', category: 'staff', subLabel: 'Earning Codes', label: 'Staff Earning Codes', icon: 'team',
+    blurb: 'Assign per-earning-code hourly pay rates to staff payroll profiles.',
+    fields: [
+      { key: 'staff', label: 'Staff name', required: true, sample: 'Jordan Alvarez' },
+      { key: 'code', label: 'Earning code', required: true, sample: 'REG' },
+      { key: 'rate', label: 'Hourly rate', required: true, sample: '27.50' },
+    ],
+  },
+  {
+    id: 'payers', category: 'payer', subLabel: 'Profile', label: 'Payer Profiles', icon: 'shield',
+    blurb: 'Import insurance payers, EDI payer IDs, clearinghouse and timely filing rules.',
+    fields: [
+      { key: 'name', label: 'Payer name', required: true, sample: 'Cigna Behavioral Health' },
+      { key: 'payerId', label: 'EDI Payer ID', sample: '62308' },
+      { key: 'cmsType', label: 'CMS Program Type', sample: 'Commercial' },
+      { key: 'clearingHouse', label: 'Clearinghouse', sample: 'Availity' },
+      { key: 'phone', label: 'Phone', sample: '(800) 882-4462' },
+    ],
+  },
+  {
+    id: 'payer-services', category: 'payer', subLabel: 'Services', label: 'Payer Services', icon: 'shield',
+    blurb: 'Import payer-specific contracted CPT codes and charge rates.',
+    fields: [
+      { key: 'payer', label: 'Payer name', required: true, sample: 'Aetna' },
+      { key: 'code', label: 'Billing code', required: true, sample: '97153' },
+      { key: 'label', label: 'Service name', sample: 'Direct ABA 1:1' },
+      { key: 'charge', label: 'Contracted rate', required: true, sample: '68.00' },
+    ],
+  },
+  {
+    id: 'appointments', category: 'appointments', subLabel: 'Appointments', label: 'Appointments', icon: 'cal',
     blurb: 'One row per session. Client and staff names must already exist in the roster.',
     fields: [
       { key: 'date', label: 'Date', required: true, sample: '2026-10-06', help: 'YYYY-MM-DD or M/D/YYYY' },
@@ -207,6 +306,72 @@ export function validateImport(state, typeId, matrix, mapping) {
       if (rec.office && !officeNames(state.settings).includes(rec.office)) errs.push(`Office “${rec.office}” is not in the office master`)
       const dup = (state.staff || []).find((s) => s.name.toLowerCase() === rec.name.toLowerCase())
       rec.existingId = dup?.id || null
+    } else if (typeId === 'client-contacts') {
+      rec.clientName = clean(raw.client, 80)
+      const client = (state.clients || []).find((c) => c.name.toLowerCase() === rec.clientName.toLowerCase())
+      if (!client) errs.push(`Client “${rec.clientName}” is not in the roster`)
+      rec.existingId = client?.id || null
+      rec.guardian = clean(raw.guardian, 80)
+      rec.relation = clean(raw.relation, 40)
+      rec.guardianPhone = clean(raw.guardianPhone, 24)
+      rec.guardianEmail = clean(raw.guardianEmail, 120)
+      if (!isEmail(rec.guardianEmail)) errs.push('Email does not look valid')
+    } else if (typeId === 'client-authorizations') {
+      rec.clientName = clean(raw.client, 80)
+      const client = (state.clients || []).find((c) => c.name.toLowerCase() === rec.clientName.toLowerCase())
+      if (!client) errs.push(`Client “${rec.clientName}” is not in the roster`)
+      rec.existingId = client?.id || null
+      rec.authNo = clean(raw.authNo, 60)
+      rec.authWeekly = raw.authWeekly === '' ? 20 : Number(raw.authWeekly)
+      if (!Number.isFinite(rec.authWeekly) || rec.authWeekly <= 0) errs.push('Weekly hours must be a positive number')
+      rec.authStart = parseDateCell(raw.authStart)
+      rec.authEnd = parseDateCell(raw.authEnd)
+      if (!rec.authStart) errs.push('Start date must be YYYY-MM-DD or M/D/YYYY')
+      if (!rec.authEnd) errs.push('End date must be YYYY-MM-DD or M/D/YYYY')
+      if (rec.authStart && rec.authEnd && rec.authEnd < rec.authStart) errs.push('End date must be on or after start date')
+    } else if (typeId === 'staff-qualifications') {
+      rec.staffName = clean(raw.staff, 80)
+      const person = (state.staff || []).find((s) => s.name.toLowerCase() === rec.staffName.toLowerCase())
+      if (!person) errs.push(`Staff “${rec.staffName}” is not in the roster`)
+      rec.existingId = person?.id || null
+      rec.cert = clean(raw.cert, 80)
+      rec.licenseNo = clean(raw.licenseNo, 60)
+      rec.expiresAt = raw.expiresAt ? parseDateCell(raw.expiresAt) : ''
+      if (raw.expiresAt && !rec.expiresAt) errs.push('Expiration date must be YYYY-MM-DD or M/D/YYYY')
+    } else if (typeId === 'staff-npis') {
+      rec.staffName = clean(raw.staff, 80)
+      const person = (state.staff || []).find((s) => s.name.toLowerCase() === rec.staffName.toLowerCase())
+      if (!person) errs.push(`Staff “${rec.staffName}” is not in the roster`)
+      rec.existingId = person?.id || null
+      rec.npi = clean(raw.npi, 20).replace(/\D/g, '')
+      if (!/^\d{10}$/.test(rec.npi)) errs.push('NPI must be a 10-digit number')
+      rec.taxonomy = clean(raw.taxonomy, 30)
+      rec.medicaidId = clean(raw.medicaidId, 40)
+    } else if (typeId === 'staff-earning-codes') {
+      rec.staffName = clean(raw.staff, 80)
+      const person = (state.staff || []).find((s) => s.name.toLowerCase() === rec.staffName.toLowerCase())
+      if (!person) errs.push(`Staff “${rec.staffName}” is not in the roster`)
+      rec.existingId = person?.id || null
+      rec.code = clean(raw.code, 20).toUpperCase()
+      rec.rate = Number(raw.rate)
+      if (!Number.isFinite(rec.rate) || rec.rate < 0 || rec.rate > 500) errs.push('Hourly rate must be between 0 and 500')
+    } else if (typeId === 'payers') {
+      rec.name = clean(raw.name, 80)
+      rec.payerId = clean(raw.payerId, 30)
+      rec.cmsType = clean(raw.cmsType, 60) || 'Commercial'
+      rec.clearingHouse = clean(raw.clearingHouse, 60) || 'Office Ally'
+      rec.phone = clean(raw.phone, 24)
+      const dup = (state.payers || []).find((p) => p.name.toLowerCase() === rec.name.toLowerCase())
+      rec.existingId = dup?.id || null
+    } else if (typeId === 'payer-services') {
+      rec.payerName = clean(raw.payer, 80)
+      const payer = (state.payers || []).find((p) => p.name.toLowerCase() === rec.payerName.toLowerCase())
+      if (!payer) errs.push(`Payer “${rec.payerName}” is not in the payer master`)
+      rec.existingId = payer?.id || null
+      rec.code = clean(raw.code, 20)
+      rec.label = clean(raw.label, 80) || rec.code
+      rec.charge = Number(raw.charge)
+      if (!Number.isFinite(rec.charge) || rec.charge < 0) errs.push('Contracted rate must be a non-negative number')
     } else {
       rec.date = parseDateCell(raw.date)
       if (!rec.date) errs.push('Date must be YYYY-MM-DD or M/D/YYYY')
@@ -272,8 +437,9 @@ export function planImport(state, typeId, matrix, mapping, { mode = 'skip', at =
   const patches = []
   let skipped = 0
   let updated = 0
+  const isChildPatchType = ['client-contacts', 'client-authorizations', 'staff-qualifications', 'staff-npis', 'staff-earning-codes', 'payer-services'].includes(typeId)
   for (const rec of check.records) {
-    if (rec.existingId && mode === 'skip') { skipped++; continue }
+    if (!isChildPatchType && rec.existingId && mode === 'skip') { skipped++; continue }
     if (typeId === 'clients') {
       const row = {
         id: rec.existingId || `c-${uid()}`, name: rec.name, dob: rec.dob || '', sex: rec.sex || 'X',
@@ -283,6 +449,14 @@ export function planImport(state, typeId, matrix, mapping, { mode = 'skip', at =
         referralSource: rec.referralSource, notes: rec.notes, importedAt: at,
       }
       if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(withCosmetics(row))
+    } else if (typeId === 'client-contacts') {
+      const existing = (state.clients || []).find((c) => c.id === rec.existingId)
+      const contacts = [...(existing?.contacts || []), { id: `ct-${uid()}`, name: rec.guardian, relation: rec.relation || 'Guardian', phone: rec.guardianPhone, email: rec.guardianEmail }]
+      patches.push({ id: rec.existingId, patch: { guardian: rec.guardian || existing?.guardian, guardianPhone: rec.guardianPhone || existing?.guardianPhone, guardianEmail: rec.guardianEmail || existing?.guardianEmail, contacts } })
+      updated++
+    } else if (typeId === 'client-authorizations') {
+      patches.push({ id: rec.existingId, patch: { authNo: rec.authNo, authWeekly: rec.authWeekly, authStart: rec.authStart, authEnd: rec.authEnd } })
+      updated++
     } else if (typeId === 'staff') {
       const row = {
         id: rec.existingId || `s-${uid()}`, name: rec.name, role: rec.role, cert: rec.cert, email: rec.email,
@@ -290,6 +464,26 @@ export function planImport(state, typeId, matrix, mapping, { mode = 'skip', at =
         office: rec.office, importedAt: at, source: 'data-import',
       }
       if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(withStaffCosmetics(row))
+    } else if (typeId === 'staff-qualifications') {
+      const existing = (state.staff || []).find((s) => s.id === rec.existingId)
+      const qualifications = [...(existing?.qualifications || []), { id: `sq-${uid()}`, name: rec.cert, licenseNo: rec.licenseNo, expiresAt: rec.expiresAt }]
+      patches.push({ id: rec.existingId, patch: { cert: rec.cert || existing?.cert, qualifications } })
+      updated++
+    } else if (typeId === 'staff-npis') {
+      patches.push({ id: rec.existingId, patch: { npi: rec.npi, taxonomy: rec.taxonomy, medicaidId: rec.medicaidId } })
+      updated++
+    } else if (typeId === 'staff-earning-codes') {
+      patches.push({ id: rec.existingId, patch: { code: rec.code, rate: rec.rate } })
+      updated++
+    } else if (typeId === 'payers') {
+      const row = {
+        id: rec.existingId || `pay-${uid()}`, name: rec.name, payerId: rec.payerId, cmsType: rec.cmsType,
+        clearingHouse: rec.clearingHouse, phone: rec.phone, status: 'active', source: 'data-import', importedAt: at,
+      }
+      if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(row)
+    } else if (typeId === 'payer-services') {
+      patches.push({ id: rec.existingId, patch: { service: { id: `psvc-${uid()}`, code: rec.code, label: rec.label, charge: rec.charge, status: 'active' } } })
+      updated++
     } else {
       const row = {
         id: rec.existingId || `a-${uid()}`, date: rec.date, start: rec.start, end: rec.end,
