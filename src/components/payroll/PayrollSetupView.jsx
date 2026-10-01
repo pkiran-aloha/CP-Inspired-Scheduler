@@ -4,7 +4,7 @@ import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import { PaySubNav, money } from './PayrollCommon'
-import { EARNING_CODES, PAY_FREQUENCIES, WORKED_CODES, defaultPayrollSettings } from '../../lib/payroll'
+import { earningCodesFor, PAY_FREQUENCIES, defaultPayrollSettings } from '../../lib/payroll'
 import { periodsFor } from '../../lib/payroll'
 
 const FREQ = ['weekly', 'biweekly', 'semimonthly', 'monthly']
@@ -177,7 +177,7 @@ export default function PayrollSetupView() {
           <div className="py-thead" style={{ gridTemplateColumns: '90px 2fr 1.2fr 130px 120px 120px' }}>
             <span>Code</span><span>Description</span><span>Duty</span><span>Counts to OT</span><span>In regular rate</span><span>Taxable</span>
           </div>
-          {EARNING_CODES.map((c) => (
+          {earningCodesFor(payroll).map((c) => (
             <div key={c.id} className="py-trow" data-testid={`pay-setup-code-${c.id}`} style={{ gridTemplateColumns: '90px 2fr 1.2fr 130px 120px 120px', minHeight: 48, cursor: 'default' }}>
               <span className="pay-code">{c.id}</span>
               <span>{c.label}</span>
@@ -189,7 +189,7 @@ export default function PayrollSetupView() {
           ))}
         </div>
         <div className="pay-hint">
-          {WORKED_CODES.length} worked codes count toward the workweek. Nondiscretionary bonuses are spread into the regular rate before the
+          {earningCodesFor(payroll).filter((c) => c.kind === 'worked').length} worked codes count toward the workweek. Nondiscretionary bonuses are spread into the regular rate before the
           overtime premium is calculated — that is the rule most manual payrolls get wrong.
         </div>
       </Section>

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, visibleApptsFor, layoutLanes, slotBlocks, groupOverlaps } from '../state/store'
 import { DAY_SHORT, fmtDur, fmtTime, parseISO, snap, todayISO } from '../lib/date'
 import { SNAP, TYPES, findConflicts } from '../lib/model'
+import { isCancelStatus } from '../lib/settingsMasters'
 import { Icon, TypeGlyph } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import StackPopover from './StackPopover'
@@ -99,7 +100,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
     for (const dd of dayData)
       for (const a of dd.list) {
         if (a.status === 'cancelled' || s.has(a.id)) continue
-        const hit = findConflicts(appts, a, staffById, clientsById)
+        const hit = findConflicts(appts, a, staffById, clientsById, (k) => isCancelStatus(settings, k))
         if (hit.length) {
           s.add(a.id)
           s.add(hit[0].other.id)
@@ -215,7 +216,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
     const prev = { id: d.id, date: d.a.date, start: d.a.start, end: d.a.end }
     actions.move(d.id, { date, start, end })
     const a2 = { ...d.a, date, start, end }
-    const clash = findConflicts(appts, a2, staffById, clientsById)
+    const clash = findConflicts(appts, a2, staffById, clientsById, (k) => isCancelStatus(settings, k))
     toast({
       message:
         d.mode === 'resize'

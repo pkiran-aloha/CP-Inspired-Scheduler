@@ -2,7 +2,8 @@ import React, { useMemo } from 'react'
 import { PersonAvatar } from '../ui/avatars'
 import { useStore, visibleApptsFor } from '../state/store'
 import { DAY_SHORT, fmtDur, fmtRange, MONTHS, parseISO, todayISO } from '../lib/date'
-import { computeBilling, STATUSES, TYPES } from '../lib/model'
+import { computeBilling, TYPES } from '../lib/model'
+import { statusFor } from '../lib/settingsMasters'
 import { Icon } from '../ui/Icons'
 
 export default function AgendaView({ days, onOpenDetail, onNew }) {
@@ -38,7 +39,7 @@ export default function AgendaView({ days, onOpenDetail, onNew }) {
                 )}
                 {list.map((a) => {
                   const t = TYPES[a.type] || TYPES.service
-                  const st = STATUSES[a.status]
+                  const st = statusFor(settings, a.status)
                   const bill = computeBilling(a)
                   return (
                     <div key={a.id} className="ag-row" onClick={() => onOpenDetail(a.id)} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onOpenDetail(a.id)}>
@@ -63,7 +64,7 @@ export default function AgendaView({ days, onOpenDetail, onNew }) {
                         </span>
                         {bill > 0 && <span className="nowrap" style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--ok)' }}>${bill.toFixed(2)}</span>}
                         <span className="sbadge" title={st.label}>
-                          <i style={{ background: st.dot }} />
+                          <i style={{ background: st.color || st.dot }} />
                           {st.label}
                         </span>
                       </span>

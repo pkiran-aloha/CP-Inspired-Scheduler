@@ -5,7 +5,8 @@ import { useToast } from '../ui/Toast'
 import { Icon } from '../ui/Icons'
 import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek, todayISO } from '../lib/date'
 import { needsCoverFor, backfillFor } from '../lib/smart'
-import { computeBilling, RECURRENCES, STATUSES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
+import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
+import { isCancelStatus, statusFor } from '../lib/settingsMasters'
 
 export default function DetailCard({ appt, onClose, onEdit }) {
   const state = useStore()
@@ -27,7 +28,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     if (claimOfAppt) { actions.setUI({ section:'billing', bilJump: claimOfAppt.id }); onClose() }
     else if (client) { actions.setUI({ section:'billing', bilPreset:'last4' }); onClose() }
   }
-  const conflicts = useMemo(() => findConflicts(appts, appt, staffById, clientById), [appts, appt.id, appt.date, appt.start, appt.end])
+  const conflicts = useMemo(() => findConflicts(appts, appt, staffById, clientById, (k) => isCancelStatus(settings, k)), [appts, appt.id, appt.date, appt.start, appt.end, settings])
   const series = useMemo(() => (appt.seriesId ? seriesSiblings(appts, appt) : []), [appts, appt.seriesId, appt.id])
   const nowIso = todayISO()
   const nextOcc = series.find((s) => s.date > appt.date && s.date >= nowIso) || series.find((s) => s.date > appt.date)
@@ -50,14 +51,14 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     if (!cl?.authWeekly) return null
     const wk = new Set(Array.from({ length: 7 }, (_, i) => isoDate(addDays(startOfWeek(parseISO(appt.date), settings.weekStart), i))))
     const mins = Object.values(appts)
-      .filter((a) => a.id !== appt.id && wk.has(a.date) && a.status !== 'cancelled' && (a.type === 'service' || a.type === 'evaluation') && (a.clientIds || []).includes(cid))
+      .filter((a) => a.id !== appt.id && wk.has(a.date) && !isCancelStatus(settings, a.status) && (a.type === 'service' || a.type === 'evaluation') && (a.clientIds || []).includes(cid))
       .reduce((t, a) => t + (a.end - a.start), 0)
     return { booked: Math.round(mins / 6) / 10, auth: cl.authWeekly }
   }
   const setStatus = (s, extra = {}) => {
     const prev = { status: appt.status, edited: appt.edited }
     actions.update(appt.id, { status: s, ...extra })
-    toast({ message: `Marked ${STATUSES[s].label}${extra.edited ? ' (exception on this occurrence)' : ''}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
+    toast({ message: `Marked ${statusFor(settings, s).label}${extra.edited ? ' (exception on this occurrence)' : ''}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
   }
   const quickVerify = () => {
     const sigStaff = staffById[ver?.completedBy || appt.staffIds?.[0]] || staff[0]
@@ -120,8 +121,8 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             </span>
             <span className="sbadge">{t.label}</span>
             <span className="sbadge">
-              <i style={{ background: STATUSES[appt.status]?.dot }} />
-              {STATUSES[appt.status]?.label}
+              <i style={{ background: statusFor(settings, appt.status).color }} />
+              {statusFor(settings, appt.status).label}
             </span>
             {appt.abaHr && <span className="sbadge" title="Counts toward authorized ABA hours">⚡ ABA hr</span>}
             {appt.edited && appt.seriesId && <span className="sbadge" title="This occurrence was changed independently from the series">✎ exception</span>}
@@ -370,7 +371,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             <button className="btn btn-sm" onClick={duplicate} title="Duplicate on the same day">
               {Icon.copy({ size: 13 })} Duplicate
             </button>
-            {appt.status !== 'cancelled' && (
+            {!isCancelStatus(settings, appt.status) && (
               <button
                 className="btn btn-sm"
                 onClick={() => (appt.seriesId ? setStatus('cancelled', { edited: true }) : setStatus('cancelled'))}

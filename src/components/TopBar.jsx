@@ -4,6 +4,7 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { todayISO } from '../lib/date'
 import { STATUS_ORDER, STATUSES } from '../lib/model'
+import { apptStatusList, isCancelStatus } from '../lib/settingsMasters'
 import { buildICS, download } from '../lib/ics'
 import { scanNeedsCover } from '../lib/smart'
 import { DEMO_RESET_AREAS, resolveAccount } from '../lib/security'
@@ -46,16 +47,27 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
     }
     const staffById = Object.fromEntries(state.staff.map((s) => [s.id, s]))
     const clientsById = Object.fromEntries(state.clients.map((c) => [c.id, c]))
-    download('pulse-aba-calendar.ics', buildICS(list, staffById, clientsById))
+    download('pulse-aba-calendar.ics', buildICS(list, staffById, clientsById, (k) => isCancelStatus(settings, k)))
     toast({ message: `Exported ${list.length} events to .ics`, kind: 'ok' })
   }
 
   const f = ui.filters
   const toggleStatus = (s) => {
-    const has = f.statuses.includes(s)
-    actions.setFilters({ statuses: has ? f.statuses.filter((x) => x !== s) : [...f.statuses, s] })
+    if (STATUS_ORDER.includes(s)) {
+      const has = f.statuses.includes(s)
+      actions.setFilters({ statuses: has ? f.statuses.filter((x) => x !== s) : [...f.statuses, s] })
+    } else {
+      // custom statuses toggle through an explicit hide-list so a newly added
+      // status is visible immediately without rewriting the saved filter array
+      const hidden = f.hiddenStatuses || []
+      actions.setFilters({ hiddenStatuses: hidden.includes(s) ? hidden.filter((x) => x !== s) : [...hidden, s] })
+    }
   }
-  const filtersOn = f.statuses.length < STATUS_ORDER.length || f.abaOnly
+  // statuses come from Settings → Appointment Status; a key the filter array has never
+  // seen (a custom status) is shown until the user deliberately hides it
+  const statusList = apptStatusList(settings, { activeOnly: true })
+  const statusOn = (key) => f.statuses.includes(key) || (!STATUS_ORDER.includes(key) && !(f.hiddenStatuses || []).includes(key))
+  const filtersOn = statusList.some((s) => !statusOn(s.key)) || f.abaOnly
 
   return (
     <header className="topbar no-print" ref={wrapRef}>
@@ -114,12 +126,12 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         {menu === 'filter' && (
           <div className="menu" style={{ width: 240 }}>
             <div className="menu-h">Show statuses</div>
-            {STATUS_ORDER.map((s) => (
-              <label key={s} className={`menu-check ${f.statuses.includes(s) ? 'on' : ''}`} onClick={() => toggleStatus(s)}>
-                <span className="cb">{f.statuses.includes(s) && Icon.check({ size: 10, strokeWidth: 3 })}</span>
+            {statusList.map((s) => (
+              <label key={s.key} className={`menu-check ${statusOn(s.key) ? 'on' : ''}`} onClick={() => toggleStatus(s.key)} data-testid={`status-filter-${s.key}`}>
+                <span className="cb">{statusOn(s.key) && Icon.check({ size: 10, strokeWidth: 3 })}</span>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}>
-                  <i style={{ width: 7, height: 7, borderRadius: 9, background: STATUSES[s].dot }} />
-                  {STATUSES[s].label}
+                  <i style={{ width: 7, height: 7, borderRadius: 9, background: s.color || STATUSES[s.key]?.dot || '#94a3b8' }} />
+                  {s.label}
                 </span>
               </label>
             ))}
@@ -134,7 +146,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
                 <button
                   className="menu-item"
                   onClick={() => {
-                    actions.setFilters({ statuses: [...STATUS_ORDER], abaOnly: false })
+                    actions.setFilters({ statuses: [...STATUS_ORDER], hiddenStatuses: [], abaOnly: false })
                     setMenu(null)
                   }}
                 >
@@ -188,7 +200,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
                 })}
               </select>
             </div>
-            {canManageSecurity && <button className="menu-item" onClick={() => { actions.setUI({ section: 'security', securityTab: 'accounts' }); setMenu(null) }} data-testid="open-security-accounts">{Icon.shield({ size: 14 })} Manage accounts &amp; roles</button>}
+            {canManageSecurity && <button className="menu-item" onClick={() => { actions.setUI({ settings: true, settingsModule: 'security', settingsSub: 'accounts' }); setMenu(null) }} data-testid="open-security-accounts">{Icon.shield({ size: 14 })} Manage accounts &amp; roles</button>}
             {canSchedule && <button
               className="menu-item"
               onClick={() => {
@@ -210,7 +222,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
             {canOpenSettings && <button
               className="menu-item"
               onClick={() => {
-                actions.setUI({ settings: true })
+                actions.setUI({ settings: true, settingsModule: 'system' })
                 setMenu(null)
               }}
             >

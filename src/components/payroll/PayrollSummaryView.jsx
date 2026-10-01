@@ -4,7 +4,7 @@ import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import { PaySubNav, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
-import { EARNING_BY_ID, computeRun, runBreakdown, annualSummary, periodFromId, periodsFor, grossToNet } from '../../lib/payroll'
+import { earningIndex, computeRun, runBreakdown, annualSummary, periodFromId, periodsFor, grossToNet } from '../../lib/payroll'
 import { registerSpec, registerCsv, payrollCsv } from '../../lib/payrollExport'
 import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
 import { download } from '../../lib/ics'
@@ -114,7 +114,7 @@ export default function PayrollSummaryView() {
                 <div className="pay-line head" style={{ gridTemplateColumns: '1.6fr 92px 110px 92px' }}><span>Code</span><span className="num">Hours</span><span className="num">Amount</span><span className="num">Staff</span></div>
                 {breakdown.byCode.map((c) => (
                   <div key={c.code} className="pay-line" style={{ gridTemplateColumns: '1.6fr 92px 110px 92px' }} data-testid={`pay-sum-code-${c.code}`}>
-                    <span><span className="pay-code">{c.code}</span> {EARNING_BY_ID[c.code]?.short || c.label}</span>
+                    <span><span className="pay-code">{c.code}</span> {earningIndex(state.settings?.payroll)[c.code]?.short || c.label}</span>
                     <span className="num">{hrs(c.minutes / 60)}</span>
                     <span className="num">{money(c.cents)}</span>
                     <span className="num muted">{c.staff}</span>

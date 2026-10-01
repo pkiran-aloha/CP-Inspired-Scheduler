@@ -25,7 +25,7 @@ export function weekAnalytics(state, days) {
 
   for (const a of list) {
     byType[a.type] = (byType[a.type] || 0) + 1
-    if (a.status === 'cancelled') {
+    if (a.status === 'cancelled' || (isCancelStatus(state.settings, a.status) && a.status !== 'no-show')) {
       cancelled++
       continue
     }
@@ -102,7 +102,8 @@ export const fmtK = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : `${Math.ro
 // Shared by the Analytics page AND the Reports engine so both read identical numbers.
 
 import { addDays, daysInMonth, isoDate, parseISO, startOfWeek, todayISO } from './date'
-import { STATUSES, BILL_CODES, SERVICES } from './model'
+import { BILL_CODES, SERVICES } from './model'
+import { statusFor, isCancelStatus } from './settingsMasters'
 
 const rawIn = (state, days) => {
   const set = new Set(days)
@@ -160,7 +161,7 @@ export function rangeMetrics(state, days) {
   const cover = scanNeedsCover(state, days)
   for (const a of list) {
     m[a.type] = (m[a.type] || 0) + 1
-    if (a.status === 'cancelled') {
+    if (a.status === 'cancelled' || (isCancelStatus(state.settings, a.status) && a.status !== 'no-show')) {
       m.cancelled++
       continue
     }
@@ -250,7 +251,7 @@ export function pivotRows(state, days, dim) {
     if (!key) return
     const r = acc.get(key) || acc.set(key, { key, label, sub: sub || '', color: color || null, sessions: 0, minutes: 0, units: 0, revenue: 0, cancelled: 0, noShow: 0, appts: 0, ids: new Set() }).get(key)
     r.appts++
-    if (a.status === 'cancelled') {
+    if (a.status === 'cancelled' || (isCancelStatus(state.settings, a.status) && a.status !== 'no-show')) {
       r.cancelled++
       return
     }
@@ -270,7 +271,7 @@ export function pivotRows(state, days, dim) {
     else if (dim === 'team') for (const t of teams) { if ((t.staffIds || []).some((s) => (a.staffIds || []).includes(s)) || (t.clientIds || []).some((c) => (a.clientIds || []).includes(c))) touch(t.id, t.name.replace('Care Team · ', ''), `${(t.staffIds || []).length} staff · ${(t.clientIds || []).length} clients`, t.color, a, charge / Math.max(1, teams.length)) }
     else if (dim === 'program') for (const c of a.clientIds || []) { const p = clients[c]; touch(p?.program || 'Unassigned', p?.program || 'Unassigned', '', p?.color, a, charge / Math.max(1, (a.clientIds || []).length)) }
     else if (dim === 'type') touch(a.type, TYPES[a.type]?.label || a.type, '', TYPES[a.type]?.color, a, charge)
-    else if (dim === 'status') touch(a.status, STATUSES[a.status]?.label || a.status, '', STATUSES[a.status]?.dot, a, charge)
+    else if (dim === 'status') { const cfg = statusFor(state.settings, a.status); touch(a.status, cfg.label || a.status, '', cfg.color, a, charge) }
     else if (dim === 'code') { if (TYPES[a.type]?.billable && a.billing?.code) touch(a.billing.code, a.billing.code, BILL_CODES.find((b) => b.id === a.billing.code)?.label.split(' · ')[1] || '', null, a, charge) }
     else if (dim === 'location') { const loc = a.location || 'Unspecified'; touch(loc, loc, '', null, a, charge) }
     else if (dim === 'payer') { for (const c of a.clientIds || []) { const ins = clients[c]?.insurer || 'Self-pay'; touch(ins, ins, '', null, a, charge / Math.max(1, (a.clientIds || []).length)) } }

@@ -1,0 +1,346 @@
+/**
+ * chunk-42 — Data Import.
+ *
+ * A real import path for the three records a practice actually migrates first:
+ * clients, staff and appointments. The planner is deliberately conservative —
+ * nothing is written until the whole file validates, every row is reported with
+ * a line number and a reason, and the commit is one undoable transaction with a
+ * log entry so the workspace remembers what came in and what was skipped.
+ *
+ * There is no OCR, no Excel parsing and no network fetch: the operator pastes or
+ * picks a UTF-8 CSV. That is the honest seam.
+ */
+import { uid } from './model'
+import { STATUSES } from './model'
+import { apptStatusList, officeNames, settingsOffices } from './settingsMasters'
+import { parseISO, isoDate } from './date'
+
+export const IMPORT_TYPES = [
+  {
+    id: 'clients', label: 'Clients', icon: 'pin',
+    blurb: 'One row per client chart — demographics, guardian contact, program and home location.',
+    fields: [
+      { key: 'name', label: 'Client name', required: true, sample: 'Ava Thompson' },
+      { key: 'dob', label: 'Date of birth', sample: '2018-04-12', help: 'YYYY-MM-DD or M/D/YYYY' },
+      { key: 'sex', label: 'Sex', sample: 'F', help: 'M / F / X' },
+      { key: 'guardian', label: 'Guardian', sample: 'D. Thompson' },
+      { key: 'guardianPhone', label: 'Guardian phone', sample: '(408) 555-0107' },
+      { key: 'guardianEmail', label: 'Guardian email', sample: 'd.thompson@example.com' },
+      { key: 'program', label: 'Program', sample: 'Center-based · 1:1' },
+      { key: 'home', label: 'Home location', sample: 'Main Center', help: 'Must match an office/location in Settings → Organization' },
+      { key: 'payer', label: 'Payer', sample: 'Aetna', help: 'Matched against the payer master by name or short name' },
+      { key: 'referralSource', label: 'Referral source', sample: 'Pediatrician' },
+      { key: 'notes', label: 'Notes', sample: '' },
+    ],
+  },
+  {
+    id: 'staff', label: 'Staff', icon: 'team',
+    blurb: 'One row per employee — role, credentials, contact details and the office they work from.',
+    fields: [
+      { key: 'name', label: 'Full name', required: true, sample: 'Jordan Alvarez' },
+      { key: 'role', label: 'Role', required: true, sample: 'RBT · Center' },
+      { key: 'cert', label: 'Credential', sample: 'RBT #24-01-0001' },
+      { key: 'email', label: 'Email', sample: 'jordan.alvarez@example.com' },
+      { key: 'phone', label: 'Phone', sample: '(408) 555-0109' },
+      { key: 'fte', label: 'FTE', sample: '1', help: '0–1' },
+      { key: 'targetWeekH', label: 'Target hours / week', sample: '32' },
+      { key: 'payrollRate', label: 'Pay rate', sample: '27', help: 'Hourly rate for payroll defaults' },
+      { key: 'office', label: 'Office', sample: 'Main Center', help: 'Must match an office in Settings → Organization' },
+    ],
+  },
+  {
+    id: 'appointments', label: 'Appointments', icon: 'cal',
+    blurb: 'One row per session. Client and staff names must already exist in the roster.',
+    fields: [
+      { key: 'date', label: 'Date', required: true, sample: '2026-10-06', help: 'YYYY-MM-DD or M/D/YYYY' },
+      { key: 'start', label: 'Start', required: true, sample: '09:00', help: 'HH:MM (24-hour) or H:MM AM/PM' },
+      { key: 'end', label: 'End', required: true, sample: '11:00' },
+      { key: 'client', label: 'Client', required: true, sample: 'Ava Thompson', help: 'Matched against the client roster' },
+      { key: 'staff', label: 'Staff', required: true, sample: 'Jordan Alvarez; Neha Peyyeti', help: 'Separate multiple staff with a semicolon' },
+      { key: 'type', label: 'Type', sample: 'service', help: 'service / supervision / evaluation / drive / break / unavailable' },
+      { key: 'location', label: 'Location', sample: 'Main Center' },
+      { key: 'status', label: 'Status', sample: 'active', help: 'Status key or label from Settings → Appointment Status' },
+      { key: 'title', label: 'Title (optional)', sample: '' },
+      { key: 'notes', label: 'Notes', sample: '' },
+    ],
+  },
+]
+
+export const importType = (id) => IMPORT_TYPES.find((t) => t.id === id) || IMPORT_TYPES[0]
+export const IMPORT_LIMIT = 500
+
+/* ── CSV ───────────────────────────────────────────────────────────────────── */
+
+/** RFC-4180-ish: quoted fields, escaped quotes, CRLF or LF. */
+export function parseCSV(text) {
+  const src = String(text || '').replace(/^\uFEFF/, '')
+  const rows = []
+  let row = []
+  let field = ''
+  let quoted = false
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i]
+    if (quoted) {
+      if (ch === '"') {
+        if (src[i + 1] === '"') { field += '"'; i++ }
+        else quoted = false
+      } else field += ch
+    } else if (ch === '"') quoted = true
+    else if (ch === ',') { row.push(field); field = '' }
+    else if (ch === '\n') { row.push(field); rows.push(row); row = []; field = '' }
+    else if (ch !== '\r') field += ch
+  }
+  if (field.length || row.length) { row.push(field); rows.push(row) }
+  const clean = rows.filter((r) => r.some((c) => String(c).trim() !== ''))
+  if (!clean.length) return { header: [], rows: [] }
+  const header = clean[0].map((h) => String(h).trim())
+  return { header, rows: clean.slice(1).map((r) => header.map((_, i) => String(r[i] ?? '').trim())) }
+}
+
+export const toCSV = (header, rows) => [header, ...rows]
+  .map((r) => r.map((c) => (/[",\n]/.test(String(c)) ? `"${String(c).replace(/"/g, '""')}"` : String(c))).join(','))
+  .join('\n')
+
+export function templateCSV(typeId) {
+  const type = importType(typeId)
+  const header = type.fields.map((f) => f.label)
+  const sample = type.fields.map((f) => f.sample)
+  const second = type.fields.map((f) => (f.key === 'name' || f.key === 'client' ? '' : f.key === 'date' ? '2026-10-07' : ''))
+  return toCSV(header, [sample, second])
+}
+
+/* ── mapping ───────────────────────────────────────────────────────────────── */
+
+const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '')
+export function guessMapping(typeId, header) {
+  const type = importType(typeId)
+  const map = {}
+  const used = new Set()
+  header.forEach((col, i) => {
+    const label = norm(col)
+    if (!label) return
+    let hit = type.fields.find((f) => norm(f.label) === label || norm(f.key) === label)
+    if (!hit) hit = type.fields.find((f) => !used.has(f.key) && (norm(f.label).startsWith(label) || label.startsWith(norm(f.label)) || norm(f.label).includes(label)))
+    if (hit && !used.has(hit.key)) { map[i] = hit.key; used.add(hit.key) }
+  })
+  return map
+}
+
+/* ── coercion + validation ─────────────────────────────────────────────────── */
+
+const US_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+export function parseDateCell(value) {
+  const s = String(value || '').trim()
+  if (!s) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s
+  const m = US_DATE.exec(s)
+  if (!m) return null
+  const [, a, b, y] = m
+  const month = Number(a)
+  const day = Number(b)
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null
+  return `${y}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+}
+
+export function parseTimeCell(value) {
+  const s = String(value || '').trim().toLowerCase()
+  if (!s) return null
+  const m = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/.exec(s)
+  if (!m) return null
+  let h = Number(m[1])
+  const min = Number(m[2] || 0)
+  if (m[3] === 'pm' && h < 12) h += 12
+  if (m[3] === 'am' && h === 12) h = 0
+  if (h > 23 || min > 59) return null
+  return h * 60 + min
+}
+
+const clean = (v, max = 160) => String(v == null ? '' : v).trim().slice(0, max)
+const isEmail = (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+
+/** Turn raw mapped rows into typed records + per-row errors. */
+export function validateImport(state, typeId, matrix, mapping) {
+  const type = importType(typeId)
+  const required = type.fields.filter((f) => f.required).map((f) => f.key)
+  const issues = []
+  const records = []
+  const seen = new Set()
+  matrix.forEach((row, index) => {
+    const raw = {}
+    for (const [col, key] of Object.entries(mapping)) if (key) raw[key] = row[Number(col)] ?? ''
+    const line = index + 2 // header is line 1
+    const errs = []
+    for (const key of required) if (!clean(raw[key])) errs.push(`${type.fields.find((f) => f.key === key).label} is required`)
+    const rec = { line, raw }
+    if (typeId === 'clients') {
+      rec.name = clean(raw.name, 80)
+      rec.dob = parseDateCell(raw.dob)
+      if (raw.dob && !rec.dob) errs.push('Date of birth must be YYYY-MM-DD or M/D/YYYY')
+      if (rec.dob && rec.dob > isoDate(new Date())) errs.push('Date of birth is in the future')
+      rec.sex = /^(m|f|x)$/i.test(clean(raw.sex)) ? clean(raw.sex).toUpperCase() : ''
+      if (raw.sex && !rec.sex) errs.push('Sex must be M, F or X')
+      rec.guardian = clean(raw.guardian, 80)
+      rec.guardianPhone = clean(raw.guardianPhone, 24)
+      rec.guardianEmail = clean(raw.guardianEmail, 120)
+      if (!isEmail(rec.guardianEmail)) errs.push('Guardian email does not look valid')
+      rec.program = clean(raw.program, 80)
+      rec.home = clean(raw.home, 80)
+      if (rec.home && !officeNames(state.settings).includes(rec.home)) errs.push(`Home location “${rec.home}” is not an office — add it in Settings → Organization first`)
+      rec.referralSource = clean(raw.referralSource, 80)
+      rec.notes = clean(raw.notes, 400)
+      const dup = (state.clients || []).find((c) => c.name.toLowerCase() === rec.name.toLowerCase() && (rec.dob ? c.dob === rec.dob : true))
+      rec.existingId = dup?.id || null
+    } else if (typeId === 'staff') {
+      rec.name = clean(raw.name, 80)
+      rec.role = clean(raw.role, 80)
+      rec.cert = clean(raw.cert, 80)
+      rec.email = clean(raw.email, 120)
+      if (!isEmail(rec.email)) errs.push('Email does not look valid')
+      rec.phone = clean(raw.phone, 24)
+      rec.fte = raw.fte === '' ? 1 : Number(raw.fte)
+      if (!Number.isFinite(rec.fte) || rec.fte < 0 || rec.fte > 1) errs.push('FTE must be a number between 0 and 1')
+      rec.targetWeekH = raw.targetWeekH === '' ? 20 : Number(raw.targetWeekH)
+      if (!Number.isFinite(rec.targetWeekH) || rec.targetWeekH < 0 || rec.targetWeekH > 80) errs.push('Target hours must be between 0 and 80')
+      rec.payrollRate = raw.payrollRate === '' ? 0 : Number(raw.payrollRate)
+      if (!Number.isFinite(rec.payrollRate) || rec.payrollRate < 0 || rec.payrollRate > 500) errs.push('Pay rate must be between 0 and 500')
+      rec.office = clean(raw.office, 80)
+      if (rec.office && !officeNames(state.settings).includes(rec.office)) errs.push(`Office “${rec.office}” is not in the office master`)
+      const dup = (state.staff || []).find((s) => s.name.toLowerCase() === rec.name.toLowerCase())
+      rec.existingId = dup?.id || null
+    } else {
+      rec.date = parseDateCell(raw.date)
+      if (!rec.date) errs.push('Date must be YYYY-MM-DD or M/D/YYYY')
+      rec.start = parseTimeCell(raw.start)
+      rec.end = parseTimeCell(raw.end)
+      if (rec.start == null) errs.push('Start time must be HH:MM or H:MM AM/PM')
+      if (rec.end == null) errs.push('End time must be HH:MM or H:MM AM/PM')
+      if (rec.start != null && rec.end != null && rec.end <= rec.start) errs.push('End time must be after the start time')
+      rec.clientName = clean(raw.client, 80)
+      const client = (state.clients || []).find((c) => c.name.toLowerCase() === rec.clientName.toLowerCase())
+      if (!client) errs.push(`Client “${rec.clientName}” is not in the roster`)
+      rec.clientId = client?.id || null
+      rec.staffNames = clean(raw.staff, 200).split(/[;|]/).map((s) => s.trim()).filter(Boolean)
+      rec.staffIds = []
+      for (const name of rec.staffNames) {
+        const person = (state.staff || []).find((s) => s.name.toLowerCase() === name.toLowerCase())
+        if (!person) errs.push(`Staff “${name}” is not in the roster`)
+        else rec.staffIds.push(person.id)
+      }
+      if (!rec.staffIds.length) errs.push('At least one known staff member is required')
+      rec.type = clean(raw.type, 24).toLowerCase() || 'service'
+      if (!['service', 'supervision', 'evaluation', 'drive', 'break', 'unavailable'].includes(rec.type)) errs.push(`Type “${rec.type}” is not a schedulable type`)
+      rec.location = clean(raw.location, 80)
+      rec.statusKey = null
+      const statusRaw = clean(raw.status, 40)
+      if (statusRaw) {
+        const hit = apptStatusList(state.settings).find((s) => s.key === statusRaw.toLowerCase() || s.label.toLowerCase() === statusRaw.toLowerCase())
+        if (!hit) errs.push(`Status “${statusRaw}” is not in the appointment status list`)
+        else rec.statusKey = hit.key
+      } else rec.statusKey = 'active'
+      rec.title = clean(raw.title, 120)
+      rec.notes = clean(raw.notes, 400)
+      const key = `${rec.clientId}|${rec.date}|${rec.start}`
+      if (rec.clientId && rec.date && rec.start != null) {
+        if (seen.has(key)) errs.push('Duplicate row: same client, date and start time')
+        seen.add(key)
+        const clash = Object.values(state.appts || {}).find((a) => (a.clientIds || []).includes(rec.clientId) && a.date === rec.date && a.start === rec.start)
+        rec.existingId = clash?.id || null
+      }
+    }
+    if (errs.length) issues.push({ line, errors: errs, name: rec.name || rec.clientName || '' })
+    records.push(rec)
+  })
+  return {
+    records, issues,
+    valid: records.length - issues.length,
+    total: records.length,
+    duplicates: records.filter((r) => r.existingId).length,
+  }
+}
+
+/**
+ * Commit plan. `mode` decides what happens to a row that matches an existing
+ * record: skip it (default, safest) or update the chart in place.
+ */
+export function planImport(state, typeId, matrix, mapping, { mode = 'skip', at = Date.now() } = {}) {
+  const check = validateImport(state, typeId, matrix, mapping)
+  if (!check.total) return { ok: false, msg: 'Nothing to import — the file has no data rows.' }
+  if (check.issues.length) return { ok: false, msg: `${check.issues.length} of ${check.total} rows need fixing before anything is imported.`, check }
+  if (check.total > IMPORT_LIMIT) return { ok: false, msg: `This demo imports up to ${IMPORT_LIMIT} rows at a time (file has ${check.total}).`, check }
+
+  const creates = []
+  const patches = []
+  let skipped = 0
+  let updated = 0
+  for (const rec of check.records) {
+    if (rec.existingId && mode === 'skip') { skipped++; continue }
+    if (typeId === 'clients') {
+      const row = {
+        id: rec.existingId || `c-${uid()}`, name: rec.name, dob: rec.dob || '', sex: rec.sex || 'X',
+        guardian: rec.guardian, guardianPhone: rec.guardianPhone, guardianEmail: rec.guardianEmail,
+        program: rec.program || 'Center-based · 1:1', home: rec.home || officeNames(state.settings)[0] || '',
+        insurer: payerName(state, rec.raw.payer) || 'Self-pay', status: 'active', source: 'data-import',
+        referralSource: rec.referralSource, notes: rec.notes, importedAt: at,
+      }
+      if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(withCosmetics(row))
+    } else if (typeId === 'staff') {
+      const row = {
+        id: rec.existingId || `s-${uid()}`, name: rec.name, role: rec.role, cert: rec.cert, email: rec.email,
+        phone: rec.phone, fte: rec.fte, targetWeekH: rec.targetWeekH, payrollRate: rec.payrollRate,
+        office: rec.office, importedAt: at, source: 'data-import',
+      }
+      if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(withStaffCosmetics(row))
+    } else {
+      const row = {
+        id: rec.existingId || `a-${uid()}`, date: rec.date, start: rec.start, end: rec.end,
+        clientIds: [rec.clientId], staffIds: rec.staffIds, type: rec.type, status: rec.statusKey,
+        location: rec.location || '', title: rec.title || '', notes: rec.notes, source: 'data-import',
+        billing: { status: null }, documents: [], custom: {}, pcfs: {},
+      }
+      if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(row)
+    }
+  }
+  const counts = { created: creates.length, updated, skipped }
+  const entry = { id: `imp-${uid()}`, at, type: typeId, file: '', counts, mode, by: 'local user' }
+  return { ok: true, creates, patches, counts, entry, check }
+}
+
+const payerName = (state, raw) => {
+  const needle = clean(raw).toLowerCase()
+  if (!needle) return ''
+  const hit = (state.payers || []).find((p) => p.name.toLowerCase() === needle || (p.aka || '').toLowerCase() === needle)
+  return hit?.name || ''
+}
+
+const COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6', '#f97316', '#a855f7', '#22c55e', '#e11d48', '#06b6d4']
+const AVATARS = ['fox', 'panda', 'cat', 'bear', 'owl', 'penguin', 'frog', 'bunny', 'koala', 'sloth', 'octopus', 'unicorn', 'robot', 'chick']
+const hashOf = (s) => [...String(s)].reduce((t, c) => (t * 31 + c.charCodeAt(0)) % 997, 7)
+const initialsOf = (name) => String(name).split(/\s+/).slice(0, 2).map((p) => p[0] || '').join('').toUpperCase()
+
+function withCosmetics(row) {
+  const h = hashOf(row.name)
+  return { ...row, initials: initialsOf(row.name), color: COLORS[h % COLORS.length], avatar: AVATARS[h % AVATARS.length], authWeekly: 10, program: row.program || 'Center-based · 1:1' }
+}
+function withStaffCosmetics(row) {
+  const h = hashOf(row.name)
+  return { ...row, initials: initialsOf(row.name), color: COLORS[h % COLORS.length], avatar: AVATARS[h % AVATARS.length] }
+}
+
+/** Rows the UI shows as a preview table (first N with their verdict). */
+export function previewRows(typeId, matrix, mapping, check, limit = 8) {
+  const type = importType(typeId)
+  return matrix.slice(0, limit).map((row, i) => {
+    const rec = check.records[i]
+    const issue = check.issues.find((x) => x.line === i + 2)
+    return {
+      line: i + 2,
+      cells: type.fields.map((f) => ({ key: f.key, value: mapping && Object.entries(mapping).some(([col, key]) => key === f.key && Number(col) < row.length) ? rec?.raw?.[f.key] ?? '' : '—' })),
+      error: issue ? issue.errors.join('; ') : null,
+      duplicate: !!rec?.existingId,
+    }
+  })
+}
+
+export const officeNameSet = (state) => new Set(settingsOffices(state.settings).map((o) => o.name))
+export const statusLabelFor = (state, key) => apptStatusList(state.settings).find((s) => s.key === key)?.label || STATUSES[key]?.label || key || ''
+export const importsToday = (state) => (state.settings?.importLog || []).filter((e) => e.at >= Date.now() - 86400000).length

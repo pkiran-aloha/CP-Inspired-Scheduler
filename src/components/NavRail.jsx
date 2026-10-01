@@ -39,10 +39,9 @@ export const SECTIONS = [
     { id: 'pay-setup', to: 'pay-setup', label: 'Payroll Setup' },
   ] },
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
-  { id: 'security', label: 'Security', icon: 'shield', kbd: 'S', desc: 'User accounts and role-based access', subs: [
-    { id: 'security-accounts', to: 'security', label: 'User Accounts', patch: { securityTab: 'accounts' } },
-    { id: 'security-roles', to: 'security', label: 'User Roles', patch: { securityTab: 'roles' } },
-  ] },
+  // Security is not a rail section any more: user accounts & roles are the Security
+  // module inside Settings. `section: 'security'` still works (bookmarks, command
+  // palette history) — App routes it straight to that module.
 ]
 
 /**

@@ -43,7 +43,7 @@ import QuickBooksPayrollView from './components/payroll/QuickBooksPayrollView'
 import PayrollSetupView from './components/payroll/PayrollSetupView'
 import NeedsCover from './components/NeedsCover'
 import SettingsModal from './components/SettingsModal'
-import SecurityView from './components/SecurityView'
+import SecurityRedirect from './components/SecurityRedirect'
 import CommandPalette from './components/CommandPalette'
 import KeysHelp from './components/KeysHelp'
 import { slidePreset } from './lib/analytics'
@@ -231,7 +231,7 @@ function Shell() {
       <NavRail />
       <div className="appbody">
         <SectionBoundary key={section}>
-        {!routeAllowed ? <div className="access-denied" role="alert"><div className="access-denied-icon">{Icon.shield({ size: 18 })}</div><h2>Access restricted</h2><p>Your current role does not have permission to view this module.</p><button className="btn btn-sm" type="button" onClick={() => actions.setUI({ section: 'security', securityTab: 'accounts' })}>Open demo access settings</button></div> : <>
+        {!routeAllowed ? <div className="access-denied" role="alert"><div className="access-denied-icon">{Icon.shield({ size: 18 })}</div><h2>Access restricted</h2><p>Your current role does not have permission to view this module.</p><button className="btn btn-sm" type="button" onClick={() => actions.setUI({ settings: true, settingsModule: 'security', settingsSub: 'accounts' })}>Open demo access settings</button></div> : <>
         {state.accessLevel(area) === 'view' && <div className="rbac-readonly-banner" role="note">View-only access: changes to this module are disabled for the current demo role.</div>}
         {section === 'calendar' && (
           <>
@@ -299,7 +299,7 @@ function Shell() {
         {section === 'pay-idmap' && <PayrollIdMappingView />}
         {section === 'pay-qbo' && <QuickBooksPayrollView />}
         {section === 'pay-setup' && <PayrollSetupView />}
-        {section === 'security' && <SecurityView />}
+        {section === 'security' && <SecurityRedirect />}
         </>}
         </SectionBoundary>
       </div>
@@ -353,7 +353,13 @@ function Shell() {
           }}
         />
       )}
-      {ui.settings && state.canAccess('settings', 'view') && <SettingsModal onClose={() => actions.setUI({ settings: false })} />}
+      {(ui.settings || section === 'security') && state.canAccess('settings', 'view') && (
+        <SettingsModal
+          forcedModule={section === 'security' ? 'security' : null}
+          forcedSub={section === 'security' ? (ui.securityTab || 'accounts') : null}
+          onClose={() => actions.setUI({ settings: false, ...(section === 'security' ? { section: firstAccessibleSection(state) || 'calendar' } : {}) })}
+        />
+      )}
       {palette && (
         <CommandPalette
           onClose={() => setPalette(false)}

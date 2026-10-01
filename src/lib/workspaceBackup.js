@@ -53,7 +53,7 @@ function validate(data, fields) {
       (data.dash.boards !== undefined && (!Array.isArray(data.dash.boards) || data.dash.boards.some((b) => !record(b) || !Array.isArray(b.widgets))))) {
     throw new Error('Backup has invalid saved reports or dashboards')
   }
-  if (fields.includes('security')) validateSecurityConfig(data.security, data.staff)
+  if (fields.includes('security')) validateSecurityConfig(data.security, data.staff, data.settings)
   if (Object.values(data.appts).some((a) => typeof a.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.date) ||
       !Number.isFinite(a.start) || !Number.isFinite(a.end) || !Array.isArray(a.clientIds) || !Array.isArray(a.staffIds) ||
       typeof a.type !== 'string' || typeof a.status !== 'string')) {

@@ -3,7 +3,7 @@ import { useStore } from '../state/store'
 import { SectionBar } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
-import { ACCESS_LABELS, SECURITY_AREAS, SECURITY_OFFICES, ROLE_TEMPLATES, resolveAccount } from '../lib/security'
+import { ACCESS_LABELS, SECURITY_AREAS, ROLE_TEMPLATES, resolveAccount, securityOffices } from '../lib/security'
 import { uid } from '../lib/model'
 
 const GROUPS = [
@@ -160,7 +160,7 @@ function RoleTab({ state, editable }) {
   )
 }
 
-function AccountEditor({ account, isNew, staffOptions, roles, canEdit, onSave, onCancel }) {
+function AccountEditor({ account, isNew, staffOptions, roles, officeOptions = SECURITY_OFFICES, canEdit, onSave, onCancel }) {
   const [staffId, setStaffId] = useState(account?.staffId || '')
   const [roleId, setRoleId] = useState(account?.roleId || '')
   const [offices, setOffices] = useState(account?.officeIds?.filter((id) => id !== '*') || [])
@@ -193,7 +193,7 @@ function AccountEditor({ account, isNew, staffOptions, roles, canEdit, onSave, o
         </div>
         <fieldset className="sec-office-fieldset" disabled={!canEdit}>
           <legend>Office access <em>Choose at least one</em></legend>
-          <div className="sec-office-grid">{SECURITY_OFFICES.map((office) => <label key={office} className={`sec-office-option ${offices.includes(office) ? 'on' : ''}`}>
+          <div className="sec-office-grid">{officeOptions.map((office) => <label key={office} className={`sec-office-option ${offices.includes(office) ? 'on' : ''}`}>
             <input type="checkbox" checked={offices.includes(office)} onChange={() => toggleOffice(office)} data-testid={`security-office-${office.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} />
             <span>{office}</span>
           </label>)}</div>
@@ -206,7 +206,8 @@ function AccountEditor({ account, isNew, staffOptions, roles, canEdit, onSave, o
 }
 
 function AccountTab({ state, editable }) {
-  const { security, staff, actions } = state
+  const { security, staff, actions, settings } = state
+  const officeOptions = securityOffices(settings)
   const toast = useToast()
   const [query, setQuery] = useState('')
   const [editor, setEditor] = useState(null)
@@ -306,36 +307,44 @@ function AccountTab({ state, editable }) {
         </div>
       </details>
 
-      {editor && <AccountEditor account={editor.account} isNew={editor.isNew} staffOptions={editor.isNew || !editor.account?.staffId ? staffOptions : staff} roles={security.roles} canEdit={editable} onSave={saveAccount} onCancel={() => setEditor(null)} />}
+      {editor && <AccountEditor account={editor.account} isNew={editor.isNew} officeOptions={officeOptions} staffOptions={editor.isNew || !editor.account?.staffId ? staffOptions : staff} roles={security.roles} canEdit={editable} onSave={saveAccount} onCancel={() => setEditor(null)} />}
       {bulkOpen && <div className="sec-modal-backdrop" role="presentation" onMouseDown={(e) => e.target === e.currentTarget && setBulkOpen(false)}><div className="sec-modal" role="dialog" aria-modal="true" aria-labelledby="sec-bulk-title">
         <div className="sec-modal-head"><div><span className="sec-kicker">Bulk assignment</span><h3 id="sec-bulk-title">Assign office(s) &amp; role</h3></div><button className="iconbtn" type="button" aria-label="Close" onClick={() => setBulkOpen(false)}>{Icon.x({ size: 14 })}</button></div>
         <label className="sec-field"><span>Role for {selected.length} accounts</span><select className="input" value={bulkRole} onChange={(e) => setBulkRole(e.target.value)} data-testid="security-bulk-role"><option value="">Choose a role…</option>{security.roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
-        <fieldset className="sec-office-fieldset"><legend>Office access <em>Choose at least one</em></legend><div className="sec-office-grid">{SECURITY_OFFICES.map((office) => <label key={office} className={`sec-office-option ${bulkOffices.includes(office) ? 'on' : ''}`}><input type="checkbox" checked={bulkOffices.includes(office)} onChange={() => setBulkOffices((current) => current.includes(office) ? current.filter((value) => value !== office) : [...current, office])} />{office}</label>)}</div></fieldset>
+        <fieldset className="sec-office-fieldset"><legend>Office access <em>Choose at least one</em></legend><div className="sec-office-grid">{officeOptions.map((office) => <label key={office} className={`sec-office-option ${bulkOffices.includes(office) ? 'on' : ''}`}><input type="checkbox" checked={bulkOffices.includes(office)} onChange={() => setBulkOffices((current) => current.includes(office) ? current.filter((value) => value !== office) : [...current, office])} />{office}</label>)}</div></fieldset>
         <div className="sec-modal-foot"><span className="muted">Protected administrator accounts are excluded.</span><button className="btn btn-sm" type="button" onClick={() => setBulkOpen(false)}>Cancel</button><button className="btn btn-sm btn-primary" type="button" onClick={assignBulk} data-testid="security-bulk-save">Apply assignments</button></div>
       </div></div>}
     </>
   )
 }
 
-export default function SecurityView() {
+export default function SecurityView({ embedded = false }) {
   const state = useStore()
-  const { ui, actions, security } = state
+  const { ui, actions, security, settings } = state
+  const officeOptions = securityOffices(settings)
   const tab = ['accounts', 'roles'].includes(ui.securityTab) ? ui.securityTab : 'accounts'
   const editable = state.canAccess('security', 'full')
   const setTab = (value) => actions.setUI({ securityTab: value })
   const activeAccounts = security.accounts.filter((account) => account.status === 'active').length
 
   return (
-    <div className="sectionpage sec-page" data-testid="security-page">
-      <SectionBar icon="shield" title="Security" sub="Role-based access profiles and staff account assignments">
-        <span className="sec-current-role"><i /> Previewing: <b>{state.currentAccount?.name || 'No active account'}</b><span>· {state.currentRole?.name || 'No role'}</span></span>
-      </SectionBar>
+    <div className={embedded ? 'sec-page sec-embed' : 'sectionpage sec-page'} data-testid="security-page">
+      {!embedded && (
+        <SectionBar icon="shield" title="Security" sub="Role-based access profiles and staff account assignments">
+          <span className="sec-current-role"><i /> Previewing: <b>{state.currentAccount?.name || 'No active account'}</b><span>· {state.currentRole?.name || 'No role'}</span></span>
+        </SectionBar>
+      )}
       <div className="sec-demo-banner" role="note" data-testid="security-demo-warning">
         <span className="sec-demo-icon">{Icon.alert({ size: 14 })}</span><span><b>Local demo access controls — not authentication.</b> Permissions are enforced in this browser UI and its state actions only. There are no passwords or server-side identity checks; do not use this mode for real client data.</span>
       </div>
       <div className="sec-tabs" role="tablist" aria-label="Security settings">
-        <button type="button" role="tab" aria-selected={tab === 'accounts'} className={tab === 'accounts' ? 'on' : ''} onClick={() => setTab('accounts')} data-testid="security-tab-accounts">User Accounts <span>{activeAccounts}</span></button>
-        <button type="button" role="tab" aria-selected={tab === 'roles'} className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')} data-testid="security-tab-roles">User Roles <span>{security.roles.length}</span></button>
+        {!embedded && (
+          <>
+            <button type="button" role="tab" aria-selected={tab === 'accounts'} className={tab === 'accounts' ? 'on' : ''} onClick={() => setTab('accounts')} data-testid="security-tab-accounts">User Accounts <span>{activeAccounts}</span></button>
+            <button type="button" role="tab" aria-selected={tab === 'roles'} className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')} data-testid="security-tab-roles">User Roles <span>{security.roles.length}</span></button>
+          </>
+        )}
+        <span className="sec-current-role" style={{ marginLeft: embedded ? 0 : 'auto' }}><i /> Previewing: <b>{state.currentAccount?.name || 'No active account'}</b><span>· {state.currentRole?.name || 'No role'}</span></span>
         {!editable && <span className="sec-view-pill">View only</span>}
       </div>
       <div className="sec-content" role="tabpanel">

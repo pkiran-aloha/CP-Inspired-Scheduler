@@ -133,10 +133,10 @@ export function autoBilling(a, durMin) {
 }
 
 // double-booking detection: same staff or same client, overlapping time, both "occupying"
-export function findConflicts(appts, a, allStaff = {}, allClients = {}) {
+export function findConflicts(appts, a, allStaff = {}, allClients = {}, isCancel = (s) => s === 'cancelled' || s === 'no-show') {
   const out = []
   for (const b of Object.values(appts)) {
-    if (b.id === a.id || b.date !== a.date || b.status === 'cancelled') continue
+    if (b.id === a.id || b.date !== a.date || isCancel(b.status) || isCancel(a.status)) continue
     if (!timeOverlap(a.start, a.end, b.start, b.end)) continue
     if (!overlapsType(a) || !overlapsType(b)) {
       if (!(overlapsType(b) && !overlapsType(a))) continue

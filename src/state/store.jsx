@@ -7,6 +7,8 @@ import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeR
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
+import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
+import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/workspaceBackup'
 import { previewEra, planEraImport, planParkedEraPost } from '../lib/eraPosting'
@@ -24,7 +26,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid))))))))
+  const normalized = normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid)))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 
@@ -45,7 +47,9 @@ export function blankState() {
   // survives every downstream module that reads a client row.
   const seedInt = seedIntake({ appts: apptsWithClaims, clients: clientsWithSec, staff: STAFF, payers: PAYERS, today: todayISO() })
   const clientsWithIntake = clientsWithSec.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
-  return {
+  // chunk-42: a fresh workspace carries the full settings masters (offices, appointment
+  // statuses, custom lists, qualifications, messaging & integration records).
+  return normalizeSettingsMasters({
     appts: apptsWithClaims,
     claims,
     payments: paymentsFromClaims(Object.values(claims), { at: Date.now() }),
@@ -90,8 +94,10 @@ export function blankState() {
       clientSel: [],
       teamSel: [],
       filters: { statuses: ['active', 'confirmed', 'completed', 'no-show', 'cancelled'], abaOnly: false },
+      settingsModule: 'organization', // Settings modal: which module is open
+      settingsSub: null, // … and which sub-tab inside it
     },
-  }
+  })
 }
 
 export function initial() {
@@ -375,6 +381,106 @@ export function reducer(state, action) {
       return { ...state, ui: { ...state.ui, ...action.patch } }
     case 'setSettings':
       return { ...state, settings: { ...state.settings, ...action.patch } }
+    /**
+     * chunk-42 — one settings transaction.
+     *
+     * Re-plans against the live state (a stale dialog cannot write an invalid
+     * value), applies the settings patch AND every cascade it implies — office
+     * renames re-point appointments, clients, payroll profiles, intake and
+     * account office scopes — in a single action, so a single Undo reverses the
+     * whole change. The snapshot covers only the collections this op touched.
+     */
+    case 'settingsTx': {
+      const plan = planSettingsOp(state, action.op, action.payload || {})
+      if (!plan.ok) return state
+      const settings = { ...state.settings, ...(plan.patch || {}) }
+      let next = { ...state, settings }
+      const touched = ['settings']
+      const casc = plan.cascades
+      if (casc) {
+        if (casc.appts) {
+          const appts = { ...next.appts }
+          for (const { id, patch } of casc.appts.patches || []) if (appts[id]) appts[id] = { ...appts[id], ...patch, updatedAt: Date.now() }
+          for (const a of casc.appts.creates || []) appts[a.id] = a
+          if ((casc.appts.patches || []).length || (casc.appts.creates || []).length) { next = { ...next, appts }; touched.push('appts') }
+        }
+        if (casc.clients) {
+          const clients = [...(next.clients || [])]
+          for (const { id, patch } of casc.clients.patches || []) {
+            const i = clients.findIndex((c) => c.id === id)
+            if (i >= 0) clients[i] = { ...clients[i], ...patch }
+          }
+          for (const c of casc.clients.creates || []) clients.push(c)
+          if ((casc.clients.patches || []).length || (casc.clients.creates || []).length) { next = { ...next, clients }; touched.push('clients') }
+        }
+        if (casc.staff) {
+          const staff = [...(next.staff || [])]
+          for (const { id, patch } of casc.staff.patches || []) {
+            const i = staff.findIndex((s) => s.id === id)
+            if (i >= 0) staff[i] = { ...staff[i], ...patch }
+          }
+          for (const s of casc.staff.creates || []) staff.push(s)
+          if ((casc.staff.patches || []).length || (casc.staff.creates || []).length) { next = { ...next, staff }; touched.push('staff') }
+        }
+        if (casc.payProfiles) {
+          const profiles = [...(next.payProfiles || [])]
+          for (const { staffId, patch } of casc.payProfiles.patches || []) {
+            const i = profiles.findIndex((p) => p.staffId === staffId)
+            if (i >= 0) profiles[i] = { ...profiles[i], ...patch }
+          }
+          if ((casc.payProfiles.patches || []).length) { next = { ...next, payProfiles: profiles }; touched.push('payProfiles') }
+        }
+        if (casc.intakeRequests) {
+          const reqs = { ...(next.intakeRequests || {}) }
+          for (const { id, patch } of casc.intakeRequests.patches || []) if (reqs[id]) reqs[id] = { ...reqs[id], ...patch }
+          if ((casc.intakeRequests.patches || []).length) { next = { ...next, intakeRequests: reqs }; touched.push('intakeRequests') }
+        }
+        if (casc.security?.accounts?.length) {
+          const accounts = (next.security?.accounts || []).map((a) => {
+            const hit = casc.security.accounts.find((x) => x.id === a.id)
+            return hit ? { ...a, officeIds: hit.officeIds } : a
+          })
+          next = { ...next, security: { ...next.security, accounts } }
+          touched.push('security')
+        }
+      }
+      return { ...next, history: pushSnap(state, touched) }
+    }
+    /**
+     * chunk-42 — Data Import commit. The planner re-runs against the live
+     * workspace (rows can go stale while a preview is on screen) and the import
+     * lands as one undoable transaction with a log entry on settings.
+     */
+    case 'importTx': {
+      const plan = planImport(state, action.importType, action.matrix || [], action.mapping || {}, { mode: action.mode || 'skip' })
+      if (!plan.ok) return state
+      let next = state
+      const touched = ['settings']
+      const clients = [...(next.clients || [])]
+      const staff = [...(next.staff || [])]
+      const appts = { ...next.appts }
+      if (plan.creates.length || plan.patches.length) {
+        if (action.importType === 'clients') {
+          for (const c of plan.creates) clients.push(c)
+          for (const { id, patch } of plan.patches) { const i = clients.findIndex((c) => c.id === id); if (i >= 0) clients[i] = { ...clients[i], ...patch } }
+          next = { ...next, clients }; touched.push('clients')
+        } else if (action.importType === 'staff') {
+          for (const s of plan.creates) staff.push(s)
+          for (const { id, patch } of plan.patches) { const i = staff.findIndex((s) => s.id === id); if (i >= 0) staff[i] = { ...staff[i], ...patch } }
+          next = { ...next, staff }; touched.push('staff')
+        } else {
+          for (const a of plan.creates) appts[a.id] = a
+          for (const { id, patch } of plan.patches) if (appts[id]) appts[id] = { ...appts[id], ...patch, updatedAt: Date.now() }
+          next = { ...next, appts }; touched.push('appts')
+        }
+      }
+      const entry = { ...plan.entry, file: action.fileName || plan.entry.file }
+      return {
+        ...next,
+        settings: { ...next.settings, importLog: appendImportLog(next.settings, entry) },
+        history: pushSnap(state, touched),
+      }
+    }
     case 'securityTx': {
       const result = applySecurityChange(state.security, action.operation, { ...(action.payload || {}), staff: state.staff }, action.actorId, action.at)
       return result.ok ? { ...state, security: result.security } : state
@@ -579,7 +685,7 @@ export function StoreProvider({ children }) {
     {children}
     {saveError && <div className="storage-warning" role="alert" data-testid="storage-warning">
       Changes aren't saved in this browser (storage full or unavailable). Export a backup before closing this tab.
-      <button className="btn btn-sm" type="button" onClick={() => dispatch({ type: 'setUI', patch: { settings: true } })}>Open Settings</button>
+      <button className="btn btn-sm" type="button" onClick={() => dispatch({ type: 'setUI', patch: { settings: true, settingsModule: 'system' } })}>Open Settings</button>
     </div>}
   </Ctx.Provider>
 }
@@ -591,13 +697,38 @@ function createActions(state, dispatch, rawState = state) {
     const action = { type: 'securityTx', operation, payload, actorId, at }
     const decision = authorizeAction(rawState, action)
     if (!decision.ok) return decision
-    const result = applySecurityChange(rawState.security, operation, { ...payload, staff: rawState.staff }, actorId, at)
+    const result = applySecurityChange(rawState.security, operation, { ...payload, staff: rawState.staff, settings: rawState.settings }, actorId, at)
     if (!result.ok) return result
     const dispatched = dispatch(action)
     return dispatched?.ok === false ? dispatched : result
   }
   return {
     setUI: (patch) => dispatch({ type: 'setUI', patch }),
+    /** Open the Settings modal on a specific module (and optional sub-tab). */
+    openSettings: (module, sub) => dispatch({ type: 'setUI', patch: { settings: true, ...(module ? { settingsModule: module } : {}), ...(sub !== undefined ? { settingsSub: sub } : {}) } }),
+    /**
+     * Every Settings sub-module edit funnels through here: permissions and the
+     * domain guards are checked on the live state, then one settingsTx applies
+     * the change and its cascades so a single Undo reverses everything.
+     */
+    settingsOp: (op, payload = {}) => {
+      if (!canAccess(rawState, 'settings', 'full')) return { ok: false, msg: 'Settings changes need full access to the Workspace settings module.' }
+      if (String(op).startsWith('office.') && !currentAccount(rawState)?.officeIds?.includes('*')) {
+        return { ok: false, msg: 'The office master is shared by every location — it needs all-office scope.' }
+      }
+      const plan = planSettingsOp(rawState, op, payload)
+      if (!plan.ok) return plan
+      const decided = dispatch({ type: 'settingsTx', op, payload })
+      return decided?.ok === false ? decided : { ok: true, msg: plan.msg, detail: plan.detail || null }
+    },
+    /** Data Import: validate the whole file first, then commit as one transaction. */
+    importRows: (importType, matrix, mapping, options = {}) => {
+      const plan = planImport(rawState, importType, matrix, mapping, options)
+      if (!plan.ok) return { ...plan, check: plan.check }
+      const decided = dispatch({ type: 'importTx', importType, matrix, mapping, mode: options.mode, fileName: options.fileName })
+      if (decided?.ok === false) return decided
+      return { ok: true, msg: `${plan.counts.created} created · ${plan.counts.updated} updated · ${plan.counts.skipped} skipped`, counts: plan.counts }
+    },
     securityMutation,
     switchDemoAccount: (id) => securityMutation('account.switch', { id }),
     setSettings: (patch) => dispatch({ type: 'setSettings', patch }),
