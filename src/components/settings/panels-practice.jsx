@@ -4,11 +4,11 @@ import { Section, Row, TextField, NumberField, Select, Toggle, Seg, Banner, Empt
 import {
   settingsOffices, officeUsage, OFFICE_TYPES, US_STATES, TIMEZONES,
   apptStatusList, statusUsage, customLists, customListById, listOptions, QUALIFICATION_TYPES,
-  qualificationList, earningCodes, masterUsage,
+  qualificationList, qualificationCoveredBy, earningCodes, masterUsage,
 } from '../../lib/settingsMasters'
 
 const fmtWhen = (ts) => (ts ? new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
-const blankOffice = { name: '', type: 'Center', isLocation: true, parent: '', address: '', city: '', state: 'CA', zip: '', phone: '', npi: '', timezone: 'America/Los_Angeles', scope: true, active: true, note: '' }
+const blankOffice = { name: '', type: 'Center', isLocation: true, excludeFromLocations: false, parent: '', address: '', city: '', state: 'CA', zip: '', addressNotes: '', phone: '', fax: '', email: '', taxIdType: 'EIN', ein: '', npi: '', timezone: 'America/Los_Angeles', scope: true, active: true, note: '' }
 
 /* ── Organization ─────────────────────────────────────────────────────────── */
 
@@ -123,16 +123,28 @@ export function OrganizationPanel({ state, actions, toast, readOnly }) {
               <Row label="Name *"><TextField value={editor.name} onCommit={(v) => setEditor({ ...editor, name: v })} wide={220} testid="set-office-f-name" /></Row>
               <Row label="Type"><Select value={editor.type} wide={200} testid="set-office-f-type" options={OFFICE_TYPES.map((t) => ({ value: t, label: t }))} onChange={(v) => setEditor({ ...editor, type: v })} /></Row>
               <Row label="Schedulable location" hint="Off when this is only a payroll/access grouping">
-                <Toggle on={editor.isLocation !== false} testid="set-office-f-loc" onChange={(v) => setEditor({ ...editor, isLocation: v })} />
+                <Toggle on={editor.isLocation !== false} testid="set-office-f-loc" onChange={(v) => setEditor({ ...editor, isLocation: v, excludeFromLocations: !v })} />
+              </Row>
+              <Row label="Exclude from location options" hint="Hide this office from appointment location dropdowns">
+                <Toggle on={editor.excludeFromLocations != null ? !!editor.excludeFromLocations : editor.isLocation === false} testid="set-office-f-exclude-loc" onChange={(v) => setEditor({ ...editor, excludeFromLocations: v, isLocation: !v })} />
               </Row>
               <Row label="Parent" hint="Optional — a room inside a center, for example"><TextField value={editor.parent} onCommit={(v) => setEditor({ ...editor, parent: v })} wide={220} testid="set-office-f-parent" /></Row>
+              <Row label="Tax ID Type & EIN" hint="Optional office-level EIN override">
+                <div className="set-inline">
+                  <Select value={editor.taxIdType || 'EIN'} wide={84} testid="set-office-f-taxtype" options={[{ value: 'EIN', label: 'EIN' }, { value: 'SSN', label: 'SSN' }]} onChange={(v) => setEditor({ ...editor, taxIdType: v })} />
+                  <TextField value={editor.ein || ''} onCommit={(v) => setEditor({ ...editor, ein: v })} wide={140} placeholder="12-3456789" testid="set-office-f-ein" />
+                </div>
+              </Row>
               <Row label="Street"><TextField value={editor.address} onCommit={(v) => setEditor({ ...editor, address: v })} wide={260} testid="set-office-f-address" /></Row>
               <Row label="City"><TextField value={editor.city} onCommit={(v) => setEditor({ ...editor, city: v })} wide={180} testid="set-office-f-city" /></Row>
               <Row label="State">
                 <Select value={editor.state || 'CA'} wide={84} testid="set-office-f-state" options={US_STATES.map((s) => ({ value: s, label: s }))} onChange={(v) => setEditor({ ...editor, state: v })} />
               </Row>
               <Row label="ZIP"><TextField value={editor.zip} onCommit={(v) => setEditor({ ...editor, zip: v })} wide={92} testid="set-office-f-zip" /></Row>
+              <Row label="Address notes"><TextField value={editor.addressNotes || ''} onCommit={(v) => setEditor({ ...editor, addressNotes: v })} wide={240} placeholder="Suite, gate code…" testid="set-office-f-addrnotes" /></Row>
               <Row label="Phone"><TextField value={editor.phone} onCommit={(v) => setEditor({ ...editor, phone: v })} wide={160} testid="set-office-f-phone" /></Row>
+              <Row label="Fax"><TextField value={editor.fax || ''} onCommit={(v) => setEditor({ ...editor, fax: v })} wide={160} testid="set-office-f-fax" /></Row>
+              <Row label="Email"><TextField value={editor.email || ''} onCommit={(v) => setEditor({ ...editor, email: v })} wide={220} testid="set-office-f-email" /></Row>
               <Row label="NPI" hint="Optional 10-digit NPI for this location"><TextField value={editor.npi} onCommit={(v) => setEditor({ ...editor, npi: v })} wide={160} testid="set-office-f-npi" /></Row>
               <Row label="Timezone">
                 <Select value={editor.timezone || TIMEZONES[0]} wide={220} testid="set-office-f-tz" options={TIMEZONES.map((t) => ({ value: t, label: t.replace('America/', '') }))} onChange={(v) => setEditor({ ...editor, timezone: v })} />
@@ -220,20 +232,27 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
       title="Appointment statuses"
       sub={`${rows.filter((s) => s.active !== false).length} active of ${rows.length}`}
       testId="set-status-list"
-      actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-status-add" onClick={() => setEditor({ key: '', label: '', color: SWATCHES[0], active: true, pays: true, payrollCode: '', cancelBand: false, note: '' })}>{Icon.plus({ size: 12 })} Add status</button>}
+      actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-status-add" onClick={() => setEditor({ key: '', label: '', aka: '', color: SWATCHES[0], active: true, pays: true, billable: true, noteRequired: false, isCancellation: false, allowToComplete: true, payrollCode: '', cancelBand: false, note: '' })}>{Icon.plus({ size: 12 })} Add status</button>}
     >
       <DataTable
         testid="set-status-table"
         empty="No statuses configured."
         columns={[
-          { key: 'o', label: '', width: '54px' }, { key: 'label', label: 'Status', width: '1.3fr' }, { key: 'key', label: 'Key', width: '1fr' },
-          { key: 'pays', label: 'Pays', width: '0.6fr' }, { key: 'code', label: 'Payroll code', width: '1fr' },
-          { key: 'band', label: 'Cancel band', width: '0.8fr' }, { key: 'use', label: 'Used', width: '0.5fr', num: true },
-          { key: 'act', label: '', width: '100px' },
+          { key: 'o', label: '', width: '50px' },
+          { key: 'label', label: 'Status Name', width: '1.3fr' },
+          { key: 'aka', label: 'AKA', width: '0.55fr' },
+          { key: 'notereq', label: 'Note Req', width: '0.65fr' },
+          { key: 'band', label: 'Cancellation', width: '0.7fr' },
+          { key: 'comp', label: 'Allow Complete', width: '0.8fr' },
+          { key: 'pays', label: 'Payable', width: '0.6fr' },
+          { key: 'bill', label: 'Billable', width: '0.6fr' },
+          { key: 'code', label: 'Payroll code', width: '0.95fr' },
+          { key: 'use', label: 'Used', width: '0.45fr', num: true },
+          { key: 'act', label: '', width: '96px' },
         ]}
         rows={rows}
         renderRow={(s, i) => (
-          <div className={`set-trow ${s.active === false ? 'off' : ''}`} key={s.key} data-testid={`set-status-${s.key}`} style={{ gridTemplateColumns: '54px 1.3fr 1fr 0.6fr 1fr 0.8fr 0.5fr 100px' }}>
+          <div className={`set-trow ${s.active === false ? 'off' : ''}`} key={s.key} data-testid={`set-status-${s.key}`} style={{ gridTemplateColumns: '50px 1.3fr 0.55fr 0.65fr 0.7fr 0.8fr 0.6fr 0.6fr 0.95fr 0.45fr 96px' }}>
             <span className="set-order">
               <IconButton icon="chevDown" title="Move down" disabled={readOnly || i === rows.length - 1} testid={`set-status-down-${s.key}`} onClick={() => move(s.key, 'down')} />
               <IconButton icon="chevDown" title="Move up" disabled={readOnly || i === 0} testid={`set-status-up-${s.key}`} onClick={() => move(s.key, 'up')} />
@@ -244,14 +263,17 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
               {s.system && <i className="set-sub">built-in</i>}
               {s.active === false && <i className="set-sub">inactive</i>}
             </span>
-            <span className="muted"><code>{s.key}</code></span>
+            <span className="muted"><code>{s.aka || s.key.slice(0, 3).toUpperCase()}</code></span>
+            <span><Toggle on={!!s.noteRequired} disabled={readOnly} testid={`set-status-notereq-${s.key}`} onChange={(v) => patch(s, { noteRequired: v })} /></span>
+            <span><Toggle on={!!(s.isCancellation ?? s.cancelBand)} disabled={readOnly} testid={`set-status-band-${s.key}`} onChange={(v) => patch(s, { cancelBand: v, isCancellation: v })} /></span>
+            <span><Toggle on={s.allowToComplete !== false} disabled={readOnly} testid={`set-status-complete-${s.key}`} onChange={(v) => patch(s, { allowToComplete: v })} /></span>
             <span><Toggle on={s.pays !== false} disabled={readOnly} testid={`set-status-pays-${s.key}`} onChange={(v) => patch(s, { pays: v })} /></span>
+            <span><Toggle on={s.billable !== false} disabled={readOnly} testid={`set-status-billable-${s.key}`} onChange={(v) => patch(s, { billable: v })} /></span>
             <span>
-              <Select value={s.payrollCode || ''} disabled={readOnly} wide={130} testid={`set-status-code-${s.key}`}
+              <Select value={s.payrollCode || ''} disabled={readOnly} wide={120} testid={`set-status-code-${s.key}`}
                 options={[{ value: '', label: 'By appointment type' }, ...codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.short || c.label}` }))]}
                 onChange={(v) => patch(s, { payrollCode: v })} />
             </span>
-            <span><Toggle on={!!s.cancelBand} disabled={readOnly} testid={`set-status-band-${s.key}`} onChange={(v) => patch(s, { cancelBand: v })} /></span>
             <span className="num">{statusUsage(state, s.key)}</span>
             <span className="set-actions">
               <IconButton icon="edit" title={`Edit ${s.label}`} disabled={readOnly} testid={`set-status-edit-${s.key}`} onClick={() => setEditor({ ...s })} />
@@ -262,9 +284,9 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
         )}
       />
       <Banner tone="info" testid="set-status-note">
-        A status with <b>Pays</b> off produces no payroll line at all. <b>Cancel band</b> applies the cancellation policy
-        percentages (free-notice hours, short-notice and no-show shares from Payroll → General), and the payroll code decides the
-        earning code. <b>Completed</b> remains the status claims are staged from.
+        A status with <b>Payable</b> off produces no payroll line at all. <b>Cancellation</b> applies the cancellation policy
+        percentages (free-notice hours, short-notice and no-show shares from Payroll → General), <b>Note Req</b> requires a reason
+        on the appointment before saving, and <b>Billable</b> controls whether completed sessions in this status stage for claims.
       </Banner>
 
       {editor && (
@@ -272,6 +294,7 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
           <div className="set-editor-head"><b>{editor.key ? `Edit ${editor.label}` : 'New appointment status'}</b><button className="iconbtn" onClick={() => setEditor(null)} aria-label="Close editor">{Icon.x({ size: 13 })}</button></div>
           <div className="set-grid2">
             <Row label="Label *"><TextField value={editor.label} onCommit={(v) => setEditor({ ...editor, label: v })} wide={200} testid="set-status-f-label" /></Row>
+            <Row label="AKA *" hint="Short code shown on compact badges"><TextField value={editor.aka || ''} onCommit={(v) => setEditor({ ...editor, aka: v })} wide={100} placeholder="ACT" testid="set-status-f-aka" /></Row>
             <Row label="Key" hint="Lower-case identifier stored on appointments"><TextField value={editor.key} onCommit={(v) => setEditor({ ...editor, key: v })} wide={180} testid="set-status-f-key" disabled={!!editor.system} /></Row>
             <Row label="Colour">
               <div className="set-swatches" role="group" aria-label="Status colour">
@@ -280,11 +303,14 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
                 ))}
               </div>
             </Row>
+            <Row label="Note required" hint="Require a note when an appointment uses this status"><Toggle on={!!editor.noteRequired} testid="set-status-f-notereq" onChange={(v) => setEditor({ ...editor, noteRequired: v })} /></Row>
+            <Row label="Allow to complete" hint="Allow sessions in this status to be verified/completed"><Toggle on={editor.allowToComplete !== false} testid="set-status-f-complete" onChange={(v) => setEditor({ ...editor, allowToComplete: v })} /></Row>
             <Row label="Pays payroll" hint="Off = appointments in this status never produce a payable line"><Toggle on={editor.pays !== false} testid="set-status-f-pays" onChange={(v) => setEditor({ ...editor, pays: v })} /></Row>
+            <Row label="Billable" hint="Allow completed sessions in this status to stage for billing"><Toggle on={editor.billable !== false} testid="set-status-f-billable" onChange={(v) => setEditor({ ...editor, billable: v })} /></Row>
             <Row label="Earning code">
               <Select value={editor.payrollCode || ''} wide={220} testid="set-status-f-code" options={[{ value: '', label: 'By appointment type' }, ...codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.short || c.label}` }))]} onChange={(v) => setEditor({ ...editor, payrollCode: v })} />
             </Row>
-            <Row label="Cancellation band"><Toggle on={!!editor.cancelBand} testid="set-status-f-band" onChange={(v) => setEditor({ ...editor, cancelBand: v })} /></Row>
+            <Row label="Cancellation band"><Toggle on={!!(editor.isCancellation ?? editor.cancelBand)} testid="set-status-f-band" onChange={(v) => setEditor({ ...editor, cancelBand: v, isCancellation: v })} /></Row>
             <Row label="Note" stack><TextField value={editor.note} onCommit={(v) => setEditor({ ...editor, note: v })} wide={420} testid="set-status-f-note" /></Row>
           </div>
           <div className="set-editor-foot">
@@ -369,7 +395,10 @@ export function CustomListsPanel({ state, actions, toast, readOnly, sub }) {
                   <TextField value={selected.name} disabled={readOnly} wide={240} testid="set-list-name" onCommit={(v) => act('list.upsert', { item: { ...selected, name: v } })} />
                   <span className="muted">{LIST_NOTES[selected.id] || 'Pick list used across the suite.'}</span>
                 </div>
-                <div className="set-actions">
+                <div className="set-actions" style={{ gap: 10 }}>
+                  <span className="muted" style={{ fontSize: 11 }}>Editable</span>
+                  <Toggle on={selected.editable !== false} disabled={readOnly} testid="set-list-editable" onChange={(v) => act('list.upsert', { item: { ...selected, editable: v } })} />
+                  <span className="muted" style={{ fontSize: 11 }}>Active</span>
                   <Toggle on={selected.status !== 'inactive'} disabled={readOnly} testid="set-list-active" onChange={(v) => act('list.upsert', { item: { ...selected, status: v ? 'active' : 'inactive' } })} />
                   {!selected.system && <IconButton icon="trash" tone="danger" title="Delete list" disabled={readOnly} testid="set-list-del" onClick={() => act('list.remove', { id: selected.id })} />}
                 </div>
@@ -377,16 +406,17 @@ export function CustomListsPanel({ state, actions, toast, readOnly, sub }) {
               <DataTable
                 testid="set-list-options"
                 empty="No options yet — add the first one below."
-                columns={[{ key: 'label', label: 'Option', width: '1.6fr' }, { key: 'use', label: 'Active', width: '0.7fr' }, { key: 'act', label: '', width: '90px' }]}
+                columns={[{ key: 'label', label: 'Option', width: '1.5fr' }, { key: 'edit', label: 'Editable', width: '0.6fr' }, { key: 'use', label: 'Active', width: '0.6fr' }, { key: 'act', label: '', width: '90px' }]}
                 rows={options}
                 renderRow={(o, i) => (
-                  <div className={`set-trow ${o.active === false ? 'off' : ''}`} key={o.id} data-testid={`set-list-option-${o.id}`} style={{ gridTemplateColumns: '1.6fr 0.7fr 90px' }}>
-                    <span><TextField value={o.label} disabled={readOnly} wide={260} testid={`set-list-option-text-${o.id}`} onCommit={(v) => act('list.optionUpdate', { listId: selected.id, optionId: o.id, patch: { label: v } })} /></span>
-                    <span><Toggle on={o.active !== false} disabled={readOnly} testid={`set-list-option-active-${o.id}`} onChange={(v) => act('list.optionUpdate', { listId: selected.id, optionId: o.id, patch: { active: v } })} /></span>
+                  <div className={`set-trow ${o.active === false ? 'off' : ''}`} key={o.id} data-testid={`set-list-option-${o.id}`} style={{ gridTemplateColumns: '1.5fr 0.6fr 0.6fr 90px' }}>
+                    <span><TextField value={o.label} disabled={readOnly || selected.editable === false || o.editable === false} wide={260} testid={`set-list-option-text-${o.id}`} onCommit={(v) => act('list.optionUpdate', { listId: selected.id, optionId: o.id, patch: { label: v } })} /></span>
+                    <span><Toggle on={o.editable !== false} disabled={readOnly || selected.editable === false} testid={`set-list-option-editable-${o.id}`} onChange={(v) => act('list.optionUpdate', { listId: selected.id, optionId: o.id, patch: { editable: v } })} /></span>
+                    <span><Toggle on={o.active !== false} disabled={readOnly || selected.editable === false} testid={`set-list-option-active-${o.id}`} onChange={(v) => act('list.optionUpdate', { listId: selected.id, optionId: o.id, patch: { active: v } })} /></span>
                     <span className="set-actions">
-                      <IconButton icon="chevDown" title="Move down" disabled={readOnly || i === options.length - 1} testid={`set-list-option-down-${o.id}`} onClick={() => act('list.optionMove', { listId: selected.id, optionId: o.id, dir: 'down' })} />
-                      <IconButton icon="chevDown" title="Move up" disabled={readOnly || i === 0} testid={`set-list-option-up-${o.id}`} onClick={() => act('list.optionMove', { listId: selected.id, optionId: o.id, dir: 'up' })} />
-                      <IconButton icon="trash" tone="danger" title="Remove option" disabled={readOnly} testid={`set-list-option-del-${o.id}`} onClick={() => act('list.optionRemove', { listId: selected.id, optionId: o.id })} />
+                      <IconButton icon="chevDown" title="Move down" disabled={readOnly || selected.editable === false || i === options.length - 1} testid={`set-list-option-down-${o.id}`} onClick={() => act('list.optionMove', { listId: selected.id, optionId: o.id, dir: 'down' })} />
+                      <IconButton icon="chevDown" title="Move up" disabled={readOnly || selected.editable === false || i === 0} testid={`set-list-option-up-${o.id}`} onClick={() => act('list.optionMove', { listId: selected.id, optionId: o.id, dir: 'up' })} />
+                      <IconButton icon="trash" tone="danger" title="Remove option" disabled={readOnly || selected.editable === false || o.editable === false} testid={`set-list-option-del-${o.id}`} onClick={() => act('list.optionRemove', { listId: selected.id, optionId: o.id })} />
                     </span>
                   </div>
                 )}
@@ -452,38 +482,43 @@ export function QualificationPanel({ state, actions, toast, readOnly }) {
       title="Qualifications & credentials"
       sub={`${rows.filter((q) => q.status !== 'inactive').length} active of ${rows.length}`}
       testId="set-quals"
-      actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-qual-add" onClick={() => setEditor({ name: '', type: 'certification', authority: '', code: '', expires: true, documentRequired: true, appliesTo: [], status: 'active' })}>{Icon.plus({ size: 12 })} Add qualification</button>}
+      actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-qual-add" onClick={() => setEditor({ name: '', type: 'certification', authority: '', code: '', expires: true, lifeTime: false, covers: [], documentRequired: true, appliesTo: [], status: 'active' })}>{Icon.plus({ size: 12 })} Add qualification</button>}
     >
       <DataTable
         testid="set-qual-table"
         empty="No qualifications configured."
         columns={[
-          { key: 'name', label: 'Qualification', width: '1.3fr' }, { key: 'type', label: 'Type', width: '0.9fr' },
-          { key: 'auth', label: 'Issuer', width: '1fr' }, { key: 'code', label: 'Code', width: '0.7fr' },
-          { key: 'exp', label: 'Expires', width: '0.6fr' }, { key: 'doc', label: 'Doc required', width: '0.8fr' },
-          { key: 'hold', label: 'Providers', width: '0.7fr', num: true }, { key: 'act', label: '', width: '90px' },
+          { key: 'name', label: 'Qualification', width: '1.2fr' }, { key: 'type', label: 'Type', width: '0.8fr' },
+          { key: 'auth', label: 'Issuer', width: '0.8fr' }, { key: 'code', label: 'Code', width: '0.55fr' },
+          { key: 'exp', label: 'Life Time / Expiry', width: '0.75fr' }, { key: 'cov', label: 'Covers', width: '1.1fr' },
+          { key: 'covby', label: 'Covered By', width: '1fr' }, { key: 'hold', label: 'Providers', width: '0.55fr', num: true }, { key: 'act', label: '', width: '90px' },
         ]}
         rows={rows}
-        renderRow={(q) => (
-          <div className={`set-trow ${q.status === 'inactive' ? 'off' : ''}`} key={q.id} data-testid={`set-qual-${q.id}`} style={{ gridTemplateColumns: '1.3fr 0.9fr 1fr 0.7fr 0.6fr 0.8fr 0.7fr 90px' }}>
-            <span><b>{q.name}</b>{q.appliesTo?.length ? <i className="set-sub">roles: {q.appliesTo.join(', ')}</i> : null}</span>
-            <span className="muted">{QUALIFICATION_TYPES.find((t) => t.id === q.type)?.label || q.type}</span>
-            <span className="muted">{q.authority || '—'}</span>
-            <span className="muted">{q.code || '—'}</span>
-            <span>{q.expires ? <span className="set-pill warn">expires</span> : <span className="set-pill">no expiry</span>}</span>
-            <span>{q.documentRequired ? <span className="set-pill on">required</span> : <span className="set-pill">not required</span>}</span>
-            <span className="num">{holders(q.name)}</span>
-            <span className="set-actions">
-              <IconButton icon="edit" title={`Edit ${q.name}`} disabled={readOnly} testid={`set-qual-edit-${q.id}`} onClick={() => setEditor({ ...q })} />
-              <IconButton icon={q.status === 'inactive' ? 'check' : 'ban'} title={q.status === 'inactive' ? 'Reactivate' : 'Deactivate'} disabled={readOnly} testid={`set-qual-toggle-${q.id}`} onClick={() => patch(q, { status: q.status === 'inactive' ? 'active' : 'inactive' })} />
-              <IconButton icon="trash" tone="danger" title={`Remove ${q.name}`} disabled={readOnly} testid={`set-qual-del-${q.id}`} onClick={() => remove(q)} />
-            </span>
-          </div>
-        )}
+        renderRow={(q) => {
+          const coveredNames = (q.covers || []).map((cid) => rows.find((r) => r.id === cid)?.name || cid).filter(Boolean)
+          const coveredByNames = qualificationCoveredBy(settings, q.id).map((r) => r.name)
+          return (
+            <div className={`set-trow ${q.status === 'inactive' ? 'off' : ''}`} key={q.id} data-testid={`set-qual-${q.id}`} style={{ gridTemplateColumns: '1.2fr 0.8fr 0.8fr 0.55fr 0.75fr 1.1fr 1fr 0.55fr 90px' }}>
+              <span><b>{q.name}</b>{q.appliesTo?.length ? <i className="set-sub">roles: {q.appliesTo.join(', ')}</i> : null}</span>
+              <span className="muted">{QUALIFICATION_TYPES.find((t) => t.id === q.type)?.label || q.type}</span>
+              <span className="muted">{q.authority || '—'}</span>
+              <span className="muted">{q.code || '—'}</span>
+              <span>{q.lifeTime || !q.expires ? <span className="set-pill on">life time</span> : <span className="set-pill warn">expires</span>}</span>
+              <span className="muted" style={{ fontSize: 11.5 }}>{coveredNames.length ? coveredNames.join(', ') : '—'}</span>
+              <span className="muted" style={{ fontSize: 11.5 }}>{coveredByNames.length ? coveredByNames.join(', ') : '—'}</span>
+              <span className="num">{holders(q.name)}</span>
+              <span className="set-actions">
+                <IconButton icon="edit" title={`Edit ${q.name}`} disabled={readOnly} testid={`set-qual-edit-${q.id}`} onClick={() => setEditor({ ...q })} />
+                <IconButton icon={q.status === 'inactive' ? 'check' : 'ban'} title={q.status === 'inactive' ? 'Reactivate' : 'Deactivate'} disabled={readOnly} testid={`set-qual-toggle-${q.id}`} onClick={() => patch(q, { status: q.status === 'inactive' ? 'active' : 'inactive' })} />
+                <IconButton icon="trash" tone="danger" title={`Remove ${q.name}`} disabled={readOnly} testid={`set-qual-del-${q.id}`} onClick={() => remove(q)} />
+              </span>
+            </div>
+          )
+        }}
       />
       <p className="set-hint">
-        Credentials held by provider records are matched by name. Expiry dates on individual staff credentials are tracked in the
-        staff profile — this list defines what the practice recognises. {providers.length} provider record{providers.length === 1 ? '' : 's'} on file.
+        Credentials held by provider records are matched by name, and higher credentials automatically satisfy covered lower-tier
+        qualifications during Appointment Validations (for example <b>BCBA</b> covers <b>BCaBA</b> and <b>RBT</b>). {providers.length} provider record{providers.length === 1 ? '' : 's'} on file.
       </p>
 
       {editor && (
@@ -496,10 +531,32 @@ export function QualificationPanel({ state, actions, toast, readOnly }) {
             </Row>
             <Row label="Issuing body"><TextField value={editor.authority} onCommit={(v) => setEditor({ ...editor, authority: v })} wide={200} testid="set-qual-f-auth" /></Row>
             <Row label="Abbreviation / code"><TextField value={editor.code} onCommit={(v) => setEditor({ ...editor, code: v })} wide={140} testid="set-qual-f-code" /></Row>
-            <Row label="Expires"><Toggle on={!!editor.expires} testid="set-qual-f-expires" onChange={(v) => setEditor({ ...editor, expires: v })} /></Row>
+            <Row label="Life Time" hint="On = credential never expires"><Toggle on={!!editor.lifeTime || !editor.expires} testid="set-qual-f-lifetime" onChange={(v) => setEditor({ ...editor, lifeTime: v, expires: !v })} /></Row>
+            <Row label="Expires"><Toggle on={!!editor.expires} testid="set-qual-f-expires" onChange={(v) => setEditor({ ...editor, expires: v, lifeTime: !v })} /></Row>
             <Row label="Document required"><Toggle on={!!editor.documentRequired} testid="set-qual-f-doc" onChange={(v) => setEditor({ ...editor, documentRequired: v })} /></Row>
             <Row label="Applies to roles" hint="Comma-separated role fragments, optional" stack>
               <TextField value={(editor.appliesTo || []).join(', ')} onCommit={(v) => setEditor({ ...editor, appliesTo: v.split(',').map((x) => x.trim()).filter(Boolean) })} wide={360} testid="set-qual-f-roles" />
+            </Row>
+            <Row label="Covers qualifications" hint="Staff holding this qualification satisfy the selected lower-tier qualifications" stack>
+              <div className="set-inline" style={{ flexWrap: 'wrap', gap: 6 }}>
+                {rows.filter((r) => r.id !== editor.id).map((other) => {
+                  const on = (editor.covers || []).includes(other.id)
+                  return (
+                    <button
+                      key={other.id}
+                      type="button"
+                      className={`checkbox ${on ? 'on' : ''}`}
+                      data-testid={`set-qual-f-covers-${other.id}`}
+                      onClick={() => {
+                        const cur = editor.covers || []
+                        setEditor({ ...editor, covers: on ? cur.filter((x) => x !== other.id) : [...cur, other.id] })
+                      }}
+                    >
+                      {other.name}
+                    </button>
+                  )
+                })}
+              </div>
             </Row>
           </div>
           <div className="set-editor-foot">

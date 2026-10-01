@@ -8,6 +8,7 @@ import { stagedAppts } from '../lib/claims'
 import { RANGE_PRESETS } from '../lib/analytics'
 import { useMedia } from '../lib/useMedia'
 import { canAccessSection, resolveAccount } from '../lib/security'
+import { SETTINGS_MODULES } from '../lib/settingsMasters'
 import { addDays, isoDate, parseISO, todayISO } from '../lib/date'
 
 const RANGE_PRESET_OPTS = RANGE_PRESETS
@@ -39,9 +40,21 @@ export const SECTIONS = [
     { id: 'pay-setup', to: 'pay-setup', label: 'Payroll Setup' },
   ] },
   { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
-  // Security is not a rail section any more: user accounts & roles are the Security
-  // module inside Settings. `section: 'security'` still works (bookmarks, command
-  // palette history) — App routes it straight to that module.
+  { id: 'settings', label: 'Settings', icon: 'dots', kbd: '0', desc: 'Practice configuration, masters, rules & system settings', subs: SETTINGS_MODULES.map((m) => ({
+    id: `set-${m.id}`,
+    to: 'settings',
+    moduleId: m.id,
+    label: m.label,
+    patch: { settingsModule: m.id, settingsSub: m.tabs?.[0]?.id || null, ...(m.id === 'security' ? { securityTab: 'accounts' } : {}) },
+    children: (m.tabs || []).map((t) => ({
+      id: `set-${m.id}-${t.id}`,
+      to: 'settings',
+      moduleId: m.id,
+      subId: t.id,
+      label: t.label,
+      patch: { settingsModule: m.id, settingsSub: t.id, ...(m.id === 'security' ? { securityTab: t.id } : {}) },
+    })),
+  })) },
 ]
 
 /**
@@ -97,13 +110,20 @@ export default function NavRail() {
           const canOpenParent = canAccessSection(state, s.id, 'view')
           const fallbackSub = (s.subs || []).find((sub) => sub.to && canAccessSection(state, sub.to, 'view'))
           const target = canOpenParent ? s.id : fallbackSub?.to
-          const active = section === s.id || (s.subs || []).some((x) => x.to === section)
+          const active = section === s.id || (s.id === 'settings' && section === 'security') || (s.subs || []).some((x) => x.to && x.to !== 'settings' && x.to === section)
+          const activeSettingsMod = ui.settingsModule || (state.canAccess('settings', 'view') ? 'appointment-status' : 'security')
           return (
           <React.Fragment key={s.id}>
             <button
               className={`nr-item ${active ? 'on' : ''}`}
               data-testid={`nav-${s.id}`}
-              onClick={() => target && actions.setUI({ section: target })}
+              onClick={() => {
+                if (s.id === 'settings') {
+                  actions.setUI({ section: 'settings', settings: false, settingsModule: activeSettingsMod })
+                } else if (target) {
+                  actions.setUI({ section: target })
+                }
+              }}
               title={`${s.label}${collapsed ? ` — ${s.desc}` : ''}  (${s.kbd})`}
               aria-current={active ? 'page' : undefined}
             >
@@ -114,24 +134,58 @@ export default function NavRail() {
               {!collapsed && <span className="nr-label">{s.label}</span>}
               {!collapsed && n > 0 && <span className="nr-count">{n}</span>}
             </button>
-            {/* section sub-list (Masters → Payers / Service Types · Billing → desk / provider ids) */}
+            {/* section sub-list (Masters → Payers / Service Types · Billing → desk / provider ids · Settings → 13 modules) */}
             {s.subs && active && !collapsed && (
               <div className="nr-sub" role="group" aria-label={`${s.label} lists`}>
-                {s.subs.map((sub) => sub.group ? (
-                  // a named sub-module inside the section (Clients → Intake Manager), matching
-                  // how the practice talks about the work rather than how the routes are cut
-                  <div className="nr-subgroup" key={sub.group} data-testid={`nav-group-${sub.group.toLowerCase().replace(/\s+/g, '-')}`}>{sub.group}</div>
-                ) : sub.to && !canAccessSection(state, sub.to, 'view') ? null : (
-                  <button
-                    key={sub.id}
-                    className={`nr-subitem ${sub.to ? sub.to === section && (!sub.patch?.securityTab || ui.securityTab === sub.patch.securityTab) ? 'on' : '' : (section === s.id && ui.mastersTab === sub.id) ? 'on' : ''}`}
-                    data-testid={`nav-sub-${sub.id}`}
-                    onClick={() => actions.setUI({ section: sub.to || s.id, mastersTab: sub.id, payerSel: null, ...(sub.patch || {}) })}
-                  >
-                    <span className="nr-subdot" />
-                    {sub.label}
-                  </button>
-                ))}
+                {s.subs.map((sub) => {
+                  if (sub.group) {
+                    return <div className="nr-subgroup" key={sub.group} data-testid={`nav-group-${sub.group.toLowerCase().replace(/\s+/g, '-')}`}>{sub.group}</div>
+                  }
+                  if (s.id === 'settings') {
+                    const allowed = sub.moduleId === 'security' ? state.canAccess('security', 'view') : state.canAccess('settings', 'view')
+                    if (!allowed) return null
+                    const modOn = activeSettingsMod === sub.moduleId
+                    return (
+                      <React.Fragment key={sub.id}>
+                        <button
+                          className={`nr-subitem ${modOn ? 'on' : ''}`}
+                          data-testid={`nav-sub-${sub.id}`}
+                          onClick={() => actions.setUI({ section: 'settings', settings: false, ...(sub.patch || {}) })}
+                        >
+                          <span className="nr-subdot" />
+                          {sub.label}
+                        </button>
+                        {modOn && (sub.children || []).map((child) => {
+                          const childOn = (ui.settingsSub || sub.children[0]?.subId) === child.subId
+                          return (
+                            <button
+                              key={child.id}
+                              className={`nr-subitem nr-subchild ${childOn ? 'on' : ''}`}
+                              style={{ paddingLeft: 28, fontSize: 11.5 }}
+                              data-testid={`nav-sub-${child.id}`}
+                              onClick={() => actions.setUI({ section: 'settings', settings: false, ...(child.patch || {}) })}
+                            >
+                              <span className="nr-subdot" />
+                              {child.label}
+                            </button>
+                          )
+                        })}
+                      </React.Fragment>
+                    )
+                  }
+                  if (sub.to && !canAccessSection(state, sub.to, 'view')) return null
+                  return (
+                    <button
+                      key={sub.id}
+                      className={`nr-subitem ${sub.to ? sub.to === section && (!sub.patch?.securityTab || ui.securityTab === sub.patch.securityTab) ? 'on' : '' : (section === s.id && ui.mastersTab === sub.id) ? 'on' : ''}`}
+                      data-testid={`nav-sub-${sub.id}`}
+                      onClick={() => actions.setUI({ section: sub.to || s.id, mastersTab: sub.id, payerSel: null, ...(sub.patch || {}) })}
+                    >
+                      <span className="nr-subdot" />
+                      {sub.label}
+                    </button>
+                  )
+                })}
               </div>
             )}
           </React.Fragment>
@@ -174,10 +228,6 @@ export default function NavRail() {
           <span className="nr-ic">{state.settings.theme === 'dark' ? Icon.sun({ size: 15 }) : Icon.moon({ size: 15 })}</span>
           {!collapsed && <span className="nr-label">Theme</span>}
         </button>
-        {state.canAccess('settings', 'view') && <button className="nr-item" onClick={() => actions.setUI({ settings: true })} data-testid="nav-settings" title="Application settings">
-          <span className="nr-ic">{Icon.dots({ size: 15 })}</span>
-          {!collapsed && <span className="nr-label">Settings</span>}
-        </button>}
         <div className="nr-build" data-testid="app-build" title={"Build running in this tab — if a newer one is deployed, you’ll be offered a refresh"}>
           {collapsed ? 'v36' : `v36 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>

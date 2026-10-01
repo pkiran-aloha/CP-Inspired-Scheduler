@@ -171,7 +171,21 @@ function ServiceTypesView() {
 
 /** Add/edit one service type — mirrors the payer form field style. */
 function SvModal({ svc, onClose }) {
-  const [f, setF] = useState(() => ({ label: svc?.label || '', code: svc?.code || '97151', unitMins: svc?.unitMins ?? 30, rate: svc?.rate ?? 32, rounding: svc?.rounding || 'AMA', credentials: svc?.credentials || [], status: svc?.status || 'active', note: svc?.note || '' }))
+  const [f, setF] = useState(() => ({
+    label: svc?.label || '',
+    aka: svc?.aka || '',
+    category: svc?.category || 'Treatment',
+    code: svc?.code || '97151',
+    unitMins: svc?.unitMins ?? 30,
+    rate: svc?.rate ?? 32,
+    rounding: svc?.rounding || 'AMA',
+    defaultEarningCode: svc?.defaultEarningCode || 'BILLABLE',
+    trackingId: svc?.trackingId || '',
+    taxable: !!svc?.taxable,
+    credentials: svc?.credentials || [],
+    status: svc?.status || 'active',
+    note: svc?.note || '',
+  }))
   const [err, setErr] = useState({})
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(null) }
@@ -182,7 +196,13 @@ function SvModal({ svc, onClose }) {
   const save = () => {
     const label = f.label.trim()
     if (!label) { setErr({ label: 'Name the service type' }); return }
-    onClose({ ...f, label, rate: Number(f.rate) || 0, unitMins: Number(f.unitMins) || 30 })
+    onClose({
+      ...f,
+      label,
+      aka: (f.aka || label.slice(0, 6).toUpperCase()).trim(),
+      rate: Number(f.rate) || 0,
+      unitMins: Number(f.unitMins) || 30,
+    })
   }
   return (
     <div className="modal pm-modal py-modal" data-testid="sv-modal" role="dialog" aria-modal="true" aria-label={svc ? `Service type — ${svc.label}` : 'Add Service Type'} tabIndex={-1}>
@@ -192,10 +212,28 @@ function SvModal({ svc, onClose }) {
       </div>
       <div className="modal-body">
         <div className="py-sec">{Icon.clipboard({ size: 12 })} Service definition</div>
-        <label className="bil-fld pm-fld">
-          <span>Service Name{err.label && <i className="pm-err"> — {err.label}</i>}</span>
-          <input className={`input${err.label ? ' err' : ''}`} value={f.label} data-testid="sv-label" onChange={(e) => set('label', e.target.value)} placeholder="e.g. Adaptive / Daily Living Skills" />
-        </label>
+        <div className="py-two">
+          <label className="bil-fld pm-fld">
+            <span>Service Name{err.label && <i className="pm-err"> — {err.label}</i>}</span>
+            <input className={`input${err.label ? ' err' : ''}`} value={f.label} data-testid="sv-label" onChange={(e) => set('label', e.target.value)} placeholder="e.g. Adaptive / Daily Living Skills" />
+          </label>
+          <label className="bil-fld pm-fld">
+            <span>Service AKA</span>
+            <input className="input" value={f.aka} data-testid="sv-aka" onChange={(e) => set('aka', e.target.value)} placeholder="e.g. DTT" />
+          </label>
+        </div>
+        <div className="py-two">
+          <label className="bil-fld pm-fld">
+            <span>Category</span>
+            <select className="input" value={f.category} data-testid="sv-category" onChange={(e) => set('category', e.target.value)}>
+              {['Assessment', 'Treatment', 'Supervision', 'Caregiver Training', 'Consultation', 'Social Skills'].map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </label>
+          <label className="bil-fld pm-fld">
+            <span>Default Earning Code</span>
+            <input className="input" value={f.defaultEarningCode} data-testid="sv-earning-code" onChange={(e) => set('defaultEarningCode', e.target.value)} placeholder="BILLABLE" />
+          </label>
+        </div>
         <div className="py-two">
           <label className="bil-fld pm-fld">
             <span>Billing Code</span>
@@ -216,6 +254,19 @@ function SvModal({ svc, onClose }) {
           <label className="bil-fld pm-fld">
             <span>Rounding</span>
             <Dropdown testid="sv-round" value={f.rounding} onChange={(v) => set('rounding', v)} options={ROUNDINGS.map((r) => ({ value: r, label: r }))} />
+          </label>
+        </div>
+        <div className="py-two">
+          <label className="bil-fld pm-fld">
+            <span>Third-Party Tracking ID</span>
+            <input className="input" value={f.trackingId} data-testid="sv-tracking-id" onChange={(e) => set('trackingId', e.target.value)} placeholder="Optional EVV/clearinghouse ID" />
+          </label>
+          <label className="bil-fld pm-fld" style={{ justifyContent: 'center' }}>
+            <span>Taxable</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 6 }}>
+              <input type="checkbox" checked={!!f.taxable} data-testid="sv-taxable" onChange={(e) => set('taxable', e.target.checked)} />
+              Apply sales/service tax
+            </label>
           </label>
         </div>
         <div className="py-two">

@@ -1,11 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { blankState } from '../state/store'
 import {
-  SETTINGS_MODULES, settingsModule, settingsOffices, officeNames, apptStatusList, statusMapFor, statusOrderFor,
-  statusFor, statusLabels, statusColorOf, isCancelStatus, customLists, listOptions, qualificationList,
-  messagesCfg, integrationsCfg, subscriptionCfg, notificationsCfg, earningCodes, masterUsage, officeUsage,
-  statusUsage, codeUsage, planSettingsOp, officeCascade, normalizeSettingsMasters, appendImportLog, IMPORT_LOG_LIMIT,
+  SETTINGS_MODULES, SYSTEM_SETTINGS_SECTIONS, settingsModule, settingsOffices, officeNames, locationOptions,
+  apptStatusList, statusMapFor, statusOrderFor, statusFor, statusLabels, statusColorOf, isCancelStatus,
+  customLists, listOptions, qualificationList, qualificationSatisfactionFor, staffSatisfiesCredentials,
+  evaluateAppointmentValidations, messagesCfg, integrationsCfg, subscriptionCfg, notificationsCfg,
+  earningCodes, masterUsage, officeUsage, statusUsage, codeUsage, planSettingsOp, officeCascade,
+  normalizeSettingsMasters, appendImportLog, IMPORT_LOG_LIMIT,
 } from '../lib/settingsMasters'
+import { stagedAppts } from '../lib/claims'
+import { scheduleLines, earningsFor, periodFor } from '../lib/payroll'
+import { IMPORT_TYPES, IMPORT_CATEGORIES, parseCsv, planImport } from '../lib/dataImport'
 
 const fresh = () => blankState()
 
@@ -199,3 +204,161 @@ describe('import log', () => {
     expect(settings.importLog[settings.importLog.length - 1].count).toBe(IMPORT_LOG_LIMIT + 4) // newest last; the UI reverses
   })
 })
+
+describe('system settings hierarchy & upstream/downstream integration', () => {
+  it('exposes the 9 System Settings sub-sections in the agreed hierarchy', () => {
+    expect(SYSTEM_SETTINGS_SECTIONS.map((s) => s.label)).toEqual([
+      'General Settings',
+      'Clearing House Integration',
+      'Billing Settings',
+      'Appointment Settings',
+      'Appointment Validations',
+      'Notification Settings',
+      'Clinical Integrations',
+      'EVV Integrations',
+      'Other Settings',
+    ])
+  })
+
+  it('excludes offices with excludeFromLocations=true from appointment location options', () => {
+    const s = fresh()
+    const target = settingsOffices(s.settings)[0]
+    expect(locationOptions(s.settings)).toContain(target.name)
+    const res = planSettingsOp(s, 'office.upsert', { item: { ...target, excludeFromLocations: true } })
+    expect(res.ok).toBe(true)
+    s.settings = { ...s.settings, ...res.patch }
+    expect(locationOptions(s.settings)).not.toContain(target.name)
+  })
+
+  it('evaluates transitive qualification coverage (BCBA-D -> BCBA -> BCaBA -> RBT)', () => {
+    const s = fresh()
+    const bcbaCovered = qualificationSatisfactionFor(s.settings, ['BCBA-D'])
+    expect(bcbaCovered.has('BCBA-D')).toBe(true)
+    expect(bcbaCovered.has('BCBA')).toBe(true)
+    expect(bcbaCovered.has('BCaBA')).toBe(true)
+    expect(bcbaCovered.has('RBT')).toBe(true)
+
+    expect(staffSatisfiesCredentials(s.settings, { role: 'BCBA · Supervisor', credentials: ['BCBA'] }, ['RBT'])).toBe(true)
+    expect(staffSatisfiesCredentials(s.settings, { role: 'RBT · Line Tech', credentials: ['RBT'] }, ['BCBA'])).toBe(false)
+  })
+
+  it('evaluates Staff, Client, and Payer appointment validation rules across None, Flag, Warn, and Stop', () => {
+    const s = fresh()
+    // Configure qualification=stop, missingNpi=warn, payRate=flag
+    const patchRes = planSettingsOp(s, 'appointmentValidations.patch', {
+      patch: {
+        staff: {
+          qualification: 'stop',
+          serviceProvider: 'none',
+          overlap: 'stop',
+          missingNpi: 'warn',
+          payRate: 'flag',
+          unavailable: 'stop',
+        },
+      },
+    })
+    expect(patchRes.ok).toBe(true)
+    s.settings = { ...s.settings, ...patchRes.patch }
+
+    const rbt = s.staff.find((st) => st.role?.includes('RBT')) || s.staff[0]
+    const staffNoNpiNoPay = { ...rbt, role: 'RBT', cert: 'RBT', credentials: ['RBT'], npi: '', hourlyCents: 0, payrollRate: 0 }
+    s.staff = s.staff.map((st) => (st.id === rbt.id ? staffNoNpiNoPay : st))
+    s.payProfiles = (s.payProfiles || []).map((p) => (p.staffId === rbt.id ? { ...p, baseRate: 0 } : p))
+    const client = s.clients[0]
+
+    const evalRes = evaluateAppointmentValidations(s, {
+      id: 'test-appt-1',
+      type: 'service',
+      service: 'sup', // requires BCBA
+      date: '2026-10-01',
+      start: 540,
+      end: 600,
+      staffIds: [rbt.id],
+      clientIds: [client.id],
+      status: 'active',
+    })
+    expect(evalRes.stops.some((x) => x.id === 'staff.qualification')).toBe(true)
+    expect(evalRes.warns.some((x) => x.id === 'staff.missingNpi')).toBe(true)
+    expect(evalRes.flags.some((x) => x.id === 'staff.payRate')).toBe(true)
+  })
+
+  it('respects Appointment Status billable=false in Billing stagedAppts', () => {
+    const s = fresh()
+    const beforeCount = stagedAppts(s).length
+    expect(beforeCount).toBeGreaterThan(0)
+    // Flip all statuses to billable: false
+    s.settings = {
+      ...s.settings,
+      apptStatuses: apptStatusList(s.settings).map((st) => ({ ...st, billable: false })),
+    }
+    const afterCount = stagedAppts(s).length
+    expect(afterCount).toBe(0)
+  })
+
+  it('applies payroll defaultEarningCodes and per-office overtime thresholds in payroll calculations', () => {
+    const s = fresh()
+    const staffMember = s.staff[0]
+    const period = periodFor(s.settings.payroll, '2026-09-30')
+    // Give staffMember a break appointment and 10 hours of service on one day at Main Center
+    s.settings.payroll = {
+      ...s.settings.payroll,
+      payBreaks: true,
+      defaultEarningCodes: { nonService: 'ADMIN', drive: 'DRIVE', breakTime: 'PTO' },
+      officeOvertimeRules: {
+        'off-main-center': {
+          officeId: 'off-main-center',
+          officeName: 'Main Center',
+          weeklyOtHours: 40,
+        },
+      },
+    }
+    s.payProfiles = (s.payProfiles || []).map((p) =>
+      p.staffId === staffMember.id ? { ...p, payType: 'hourly', classification: 'nonexempt', baseRate: 30 } : p
+    )
+    s.appts = {
+      b1: {
+        id: 'b1',
+        type: 'break',
+        status: 'completed',
+        date: period.start,
+        start: 480,
+        end: 510,
+        staffIds: [staffMember.id],
+        clientIds: [],
+      },
+      s1: {
+        id: 's1',
+        type: 'service',
+        status: 'completed',
+        date: period.start,
+        start: 480,
+        end: 1080, // 10 hours
+        staffIds: [staffMember.id],
+        clientIds: [s.clients[0].id],
+        location: 'Main Center',
+      },
+    }
+    const lines = scheduleLines(s, staffMember.id, period)
+    expect(lines.find((l) => l.apptId === 'b1')?.code).toBe('PTO')
+    const earn = earningsFor(s, staffMember.id, period.id)
+    expect(earn.workedHours).toBeGreaterThan(0)
+  })
+
+  it('supports all 4 Data Import categories and 10 import types', () => {
+    expect(IMPORT_CATEGORIES.map((c) => c.id)).toEqual(['payer', 'staff', 'client', 'appointments'])
+    expect(IMPORT_TYPES.map((t) => t.id)).toEqual([
+      'clients', 'client-contacts', 'client-authorizations',
+      'staff', 'staff-qualifications', 'staff-npis', 'staff-earning-codes',
+      'payers', 'payer-services',
+      'appointments',
+    ])
+    const s = fresh()
+    const matrix = [['Aetna Behavioral', '60054', 'Commercial', 'Availity', '800-555-0199']]
+    const mapping = { 0: 'name', 1: 'payerId', 2: 'cmsType', 3: 'clearingHouse', 4: 'phone' }
+    const plan = planImport(s, 'payers', matrix, mapping)
+    expect(plan.ok).toBe(true)
+    expect(plan.counts.created).toBe(1)
+    expect(plan.creates[0].name).toBe('Aetna Behavioral')
+  })
+})
+

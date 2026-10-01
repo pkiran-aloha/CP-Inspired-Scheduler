@@ -52,4 +52,36 @@ describe('settings shell — every module and sub-tab renders', () => {
       expect(body).not.toMatch(/undefined|NaN|\[object Object\]/)
     }
   })
+
+  it('renders Settings in NavRail with nested hierarchy and allows navigating all 13 modules', async () => {
+    R(<App />)
+    const settingsNavBtn = await screen.findByTestId('nav-settings')
+    fireEvent.click(settingsNavBtn)
+    await screen.findByTestId('settings-page')
+
+    // In NavRail, Settings is active and all 13 modules are accessible
+    expect(screen.getByTestId('nav-sub-set-appointment-status')).toBeTruthy()
+    expect(screen.getByTestId('nav-sub-set-payroll')).toBeTruthy()
+    expect(screen.getByTestId('nav-sub-set-system')).toBeTruthy()
+
+    // Navigating via sidebar sub-items changes settingsModule
+    fireEvent.click(screen.getByTestId('nav-sub-set-payroll'))
+    await screen.findByTestId('settings-panel-payroll')
+    await waitFor(() => expect(stored().ui.settingsModule).toBe('payroll'))
+
+    // Navigating via sidebar nested child tab (e.g. Payroll -> Earning Code)
+    const earnCodeSub = screen.getByTestId('nav-sub-set-payroll-earning-codes')
+    expect(earnCodeSub).toBeTruthy()
+    fireEvent.click(earnCodeSub)
+    await waitFor(() => expect(stored().ui.settingsSub).toBe('earning-codes'))
+
+    // Navigating to System Settings renders the 9 sub-sections
+    fireEvent.click(screen.getByTestId('nav-sub-set-system'))
+    await screen.findByTestId('settings-panel-system')
+    expect(screen.getByTestId('set-sys-tab-general')).toBeTruthy()
+    expect(screen.getByTestId('set-sys-tab-clearinghouse')).toBeTruthy()
+    expect(screen.getByTestId('set-sys-tab-validations')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('set-sys-tab-validations'))
+    expect(await screen.findByTestId('set-sys-validations')).toBeTruthy()
+  })
 })

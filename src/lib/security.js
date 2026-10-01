@@ -491,6 +491,9 @@ export function areaForSection(section) {
 }
 
 export function canAccessSection(state, section, minimum = 'view') {
+  if (section === 'settings') {
+    return canAccess(state, 'settings', minimum) || canAccess(state, 'security', minimum)
+  }
   const area = areaForSection(section)
   return !!area && canAccess(state, area, minimum)
 }

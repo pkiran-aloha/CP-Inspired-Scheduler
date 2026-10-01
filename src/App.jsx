@@ -85,8 +85,10 @@ function Shell() {
   const [kbHelp, setKbHelp] = useState(false)
 
   const section = ui.section || 'calendar'
-  const area = areaForSection(section)
-  const routeAllowed = !!area && state.canAccess(area, 'view')
+  const area = section === 'settings' && ui.settingsModule === 'security' ? 'security' : areaForSection(section)
+  const routeAllowed = section === 'settings'
+    ? (state.canAccess('settings', 'view') || state.canAccess('security', 'view'))
+    : (!!area && state.canAccess(area, 'view'))
   const canScheduleEdit = state.canAccess('calendar', 'full')
   const accessFingerprint = JSON.stringify(state.currentRole?.permissions || {})
   const officeFingerprint = state.currentAccount?.officeIds?.join('|') || ''
@@ -156,6 +158,7 @@ function Shell() {
       if (['input', 'textarea', 'select'].includes(tag) || e.metaKey || e.ctrlKey) return
       if (e.key === '?') { e.preventDefault(); setKbHelp(true); return }
       if (/^[1-9]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'masters', 'payroll'][Number(k) - 1] })
+      else if (k === '0') actions.setUI({ section: 'settings' })
       else if (k === 't') actions.setUI({ anchor: todayISO() })
       else if ((k === 'n' || k === 'a') && section === 'calendar' && canScheduleEdit) setPicking({ date: todayISO(), start: 9 * 60, end: 10 * 60 })
       else if (['d', 'w', 'm', 'g', 'h'].includes(k)) actions.setUI({ section: 'calendar', view: { d: 'day', w: 'week', m: 'month', g: 'agenda', h: 'timeline' }[k] })
@@ -299,7 +302,13 @@ function Shell() {
         {section === 'pay-idmap' && <PayrollIdMappingView />}
         {section === 'pay-qbo' && <QuickBooksPayrollView />}
         {section === 'pay-setup' && <PayrollSetupView />}
-        {section === 'security' && <SecurityRedirect />}
+        {(section === 'settings' || section === 'security') && (
+          <SettingsModal
+            forcedModule={section === 'security' ? 'security' : null}
+            forcedSub={section === 'security' ? (ui.securityTab || 'accounts') : null}
+            onClose={() => actions.setUI({ section: firstAccessibleSection(state) || 'calendar', settings: false })}
+          />
+        )}
         </>}
         </SectionBoundary>
       </div>
@@ -351,13 +360,6 @@ function Shell() {
             setQuickAdd(null)
             openCreate('service', pre)
           }}
-        />
-      )}
-      {(ui.settings || section === 'security') && state.canAccess('settings', 'view') && (
-        <SettingsModal
-          forcedModule={section === 'security' ? 'security' : null}
-          forcedSub={section === 'security' ? (ui.securityTab || 'accounts') : null}
-          onClose={() => actions.setUI({ settings: false, ...(section === 'security' ? { section: firstAccessibleSection(state) || 'calendar' } : {}) })}
         />
       )}
       {palette && (

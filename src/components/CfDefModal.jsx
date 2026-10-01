@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react'
 import { Icon } from '../ui/Icons'
 import { Dropdown } from './fields'
-import { CF_TYPES } from '../lib/master'
+import { CF_TYPES, CF_TEXT_FORMATS, CF_SCOPES } from '../lib/master'
 
 /** The full custom-field template editor — shared by Masters → Custom Fields and
  *  the payer "Add Custom Fields" modal so there is exactly one place that defines fields. */
 export default function CfDefModal({ def, onClose }) {
   const [f, setF] = useState(() => ({
-    label: def?.label || '', type: def?.type || 'text', options: (def?.options || []).slice(),
+    label: def?.label || '', type: def?.type || 'text', textFormat: def?.textFormat || 'any',
+    options: (def?.options || []).slice(),
     onLabel: def?.onLabel || 'Yes', offLabel: def?.offLabel || 'No', required: Boolean(def?.required),
+    assignedTo: Array.isArray(def?.assignedTo) ? def.assignedTo.slice() : ['appointment', 'payer'],
     note: def?.note || '', status: def?.status || 'active',
   }))
   const [errs, setErrs] = useState({})
@@ -19,12 +21,26 @@ export default function CfDefModal({ def, onClose }) {
   }, [onClose])
   const set = (k, v, extra) => { setF((x) => ({ ...x, [k]: v, ...(extra || {}) })); setErrs((e) => ({ ...e, [k]: undefined })) }
   const listy = f.type === 'select' || f.type === 'multi'
+  const toggleScope = (scopeId) => {
+    set('assignedTo', f.assignedTo.includes(scopeId) ? f.assignedTo.filter((x) => x !== scopeId) : [...f.assignedTo, scopeId])
+  }
   const save = () => {
     const E = {}
     if (!String(f.label).trim()) E.label = 'Give the field a label'
     if (listy && !f.options.filter(Boolean).length) E.options = 'Add at least one option for this list'
     if (Object.keys(E).length) { setErrs(E); return }
-    onClose({ label: String(f.label).trim(), type: f.type, options: listy ? f.options.filter((o) => String(o).trim()) : [], onLabel: f.onLabel || 'Yes', offLabel: f.offLabel || 'No', required: f.required, note: f.note, status: f.status })
+    onClose({
+      label: String(f.label).trim(),
+      type: f.type,
+      textFormat: f.type === 'text' ? f.textFormat : 'any',
+      options: listy ? f.options.filter((o) => String(o).trim()) : [],
+      onLabel: f.onLabel || 'Yes',
+      offLabel: f.offLabel || 'No',
+      required: f.required,
+      assignedTo: f.assignedTo,
+      note: f.note,
+      status: f.status,
+    })
   }
   return (
     <div className="modal pm-modal py-modal cf-modal" data-testid="cf-modal" role="dialog" aria-modal="true" aria-label={def ? `Template — ${def.label}` : 'New field template'} tabIndex={-1}>
@@ -40,10 +56,18 @@ export default function CfDefModal({ def, onClose }) {
             {errs.label && <i className="pm-err">{errs.label}</i>}
           </label>
           <label className="bil-fld pm-fld">
-            <span>Field Type</span>
+            <span>Field Controller / Type *</span>
             <Dropdown testid="cf-type" value={f.type} onChange={(v) => set('type', v, ['select', 'multi'].includes(v) && !f.options.length ? { options: [''] } : {})} options={CF_TYPES.map((t) => ({ value: t.id, label: t.label }))} />
           </label>
         </div>
+        {f.type === 'text' && (
+          <div className="py-two">
+            <label className="bil-fld pm-fld">
+              <span>Text Format</span>
+              <Dropdown testid="cf-text-format" value={f.textFormat} onChange={(v) => set('textFormat', v)} options={CF_TEXT_FORMATS.map((t) => ({ value: t.id, label: t.label }))} />
+            </label>
+          </div>
+        )}
         {listy && (
           <div className="cf-optbox" data-testid="cf-optbox">
             <span className="cf-boxlabel">{f.type === 'select' ? 'List options — pick one (radio)' : 'List options — pick any (checkbox)'}</span>
@@ -70,6 +94,19 @@ export default function CfDefModal({ def, onClose }) {
         )}
         {f.type === 'signature' && <div className="cf-hint" data-testid="cf-sig-hint">{Icon.shield({ size: 12 })} Bookers get the full signature pad (type or draw) wherever this field is picked.</div>}
         {f.type === 'date' && <div className="cf-hint">{Icon.cal({ size: 12 })} Renders a date/time picker wherever this field is picked.</div>}
+        <div className="cf-optbox" data-testid="cf-assigned-box">
+          <span className="cf-boxlabel">Assigned to (entity scopes)</span>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+            {CF_SCOPES.map((sc) => {
+              const on = f.assignedTo.includes(sc.id)
+              return (
+                <button key={sc.id} type="button" className={`checkbox ${on ? 'on' : ''}`} data-testid={`cf-scope-${sc.id}`} onClick={() => toggleScope(sc.id)}>
+                  {sc.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
         <label className="bil-fld pm-fld">
           <span>Usage note (shown in pickers)</span>
           <textarea className="input py-ta" rows={2} value={f.note} data-testid="cf-note" placeholder="What is this field for, when to fill it…" onChange={(e) => set('note', e.target.value)} />

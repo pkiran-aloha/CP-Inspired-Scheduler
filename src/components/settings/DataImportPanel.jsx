@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { useToast } from '../../ui/Toast'
 import { Icon } from '../../ui/Icons'
 import { Section, Row, Select, Seg, Banner, Empty, DataTable, IconButton, Toggle } from './kit'
-import { IMPORT_TYPES, IMPORT_LIMIT, importType, parseCSV, guessMapping, validateImport, previewRows, templateCSV } from '../../lib/dataImport'
+import { IMPORT_CATEGORIES, IMPORT_TYPES, IMPORT_LIMIT, importType, parseCSV, guessMapping, validateImport, previewRows, templateCSV } from '../../lib/dataImport'
 import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
 
@@ -18,6 +18,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
   const [fileName, setFileName] = useState('')
   const [pasteOpen, setPasteOpen] = useState(false)
   const [paste, setPaste] = useState('')
+  const [showGuidelines, setShowGuidelines] = useState(false)
   const fileRef = useRef(null)
   const def = importType(type)
   const log = (state.settings.importLog || []).slice().reverse()
@@ -25,6 +26,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
   const check = useMemo(() => (matrix.length ? validateImport(state, type, matrix, mapping) : null), [state, type, matrix, mapping])
   const preview = useMemo(() => (check ? previewRows(type, matrix, mapping, check, 6) : []), [type, matrix, mapping, check])
   const mappedCount = Object.values(mapping).filter(Boolean).length
+  const step = !matrix.length ? 1 : check?.issues?.length ? 2 : 3
 
   const reset = () => { setMatrix([]); setHeader([]); setMapping({}); setFileName(''); setPaste(''); setPasteOpen(false) }
   const chooseType = (id) => { setType(id); reset() }
@@ -55,14 +57,46 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
 
   return (
     <>
-      <Section title="What are you importing?" sub="CSV only — a header row plus one record per line" testId="set-import-type">
-        <div className="set-import-types">
-          {IMPORT_TYPES.map((t) => (
-            <button key={t.id} type="button" className={`set-import-card ${type === t.id ? 'on' : ''}`} data-testid={`set-import-type-${t.id}`} onClick={() => chooseType(t.id)}>
-              <span className="set-import-ic">{Icon[t.icon]({ size: 16 })}</span>
-              <b>{t.label}</b>
-              <i>{t.blurb}</i>
+      <Section
+        title="Data Import Wizard"
+        sub="Step 1: Import Type → Step 2: Column Mapping → Step 3: Review & Import"
+        testId="set-import-type"
+        actions={
+          <div className="set-inline">
+            <span className={`set-pill ${step === 1 ? 'on' : ''}`}>1 · Import Type</span>
+            <span className={`set-pill ${step === 2 ? 'warn' : step > 2 ? 'on' : ''}`}>2 · Mapping</span>
+            <span className={`set-pill ${step === 3 ? 'on' : ''}`}>3 · Review & Import</span>
+            <button type="button" className="btn btn-sm" data-testid="set-import-guidelines-btn" onClick={() => setShowGuidelines((v) => !v)}>
+              {Icon.info({ size: 12 })} Import Guidelines
             </button>
+          </div>
+        }
+      >
+        {showGuidelines && (
+          <Banner tone="info" testid="set-import-guidelines">
+            <b>Import Order & Validation Rules:</b> Import <b>Payer Profiles</b> and <b>Offices</b> first, then <b>Staff Profiles</b> (followed by Qualifications, NPIs, and Earning Codes), then <b>Client Profiles</b> (followed by Contacts and Authorizations), and finally <b>Appointments</b>. Every import runs as an atomic, undoable transaction.
+          </Banner>
+        )}
+        <div className="set-grid2" style={{ gap: 12 }}>
+          {IMPORT_CATEGORIES.map((cat) => (
+            <div key={cat.id} className="set-subcard" data-testid={`set-import-cat-${cat.id}`}>
+              <div style={{ marginBottom: 8 }}>
+                <b>{cat.label}</b>
+                <div className="muted" style={{ fontSize: 11.5 }}>{cat.blurb}</div>
+              </div>
+              <div className="set-import-types" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))', gap: 8 }}>
+                {cat.types.map((tid) => {
+                  const t = importType(tid)
+                  return (
+                    <button key={t.id} type="button" className={`set-import-card ${type === t.id ? 'on' : ''}`} data-testid={`set-import-type-${t.id}`} onClick={() => chooseType(t.id)}>
+                      <span className="set-import-ic">{Icon[t.icon || 'file']({ size: 15 })}</span>
+                      <b>{t.subLabel || t.label}</b>
+                      <i style={{ fontSize: 11 }}>{t.label}</i>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           ))}
         </div>
       </Section>

@@ -32,12 +32,13 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
   const readOnly = state.accessLevel('settings') !== 'full'
 
   const wanted = forcedModule || ui.settingsModule
-  const active = settingsModule(SETTINGS_MODULES.some((m) => m.id === wanted) ? wanted : 'organization')
+  const defaultMod = state.canAccess('settings', 'view') ? 'organization' : 'security'
+  const active = settingsModule(SETTINGS_MODULES.some((m) => m.id === wanted) ? wanted : defaultMod)
   // Security's sub-tabs are the module's own tab pair; keep ui.securityTab in step so
   // the embedded SecurityView and the sub-tab bar never disagree.
   const wanted0 = forcedSub ?? ui.settingsSub ?? (active.id === 'security' ? ui.securityTab || 'accounts' : active.tabs?.[0]?.id ?? null)
   // a stale sub-tab from another module (or an old save) can never blank a panel
-  const sub = active.tabs ? (active.tabs.some((t) => t.id === wanted0) ? wanted0 : active.tabs[0].id) : null
+  const sub = active.tabs?.length ? (active.tabs.some((t) => t.id === wanted0) ? wanted0 : active.tabs[0].id) : null
   if (active.id === 'security' && (ui.securityTab || 'accounts') !== (sub === 'roles' ? 'roles' : 'accounts')) {
     // Radically simpler than an effect: one deferred write keeps the two in sync.
     queueMicrotask(() => actions.setUI({ securityTab: sub === 'roles' ? 'roles' : 'accounts' }))
@@ -60,10 +61,17 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
   }, [query])
 
   const open = (mod, nextSub) => actions.setUI({
+    section: 'settings',
+    settings: false,
     settingsModule: mod,
     settingsSub: nextSub === undefined ? null : nextSub,
     ...(mod === 'security' ? { securityTab: nextSub === 'roles' ? 'roles' : 'accounts' } : {}),
   })
+
+  const handleClose = () => {
+    if (onClose) onClose()
+    else actions.setUI({ section: 'calendar', settings: false })
+  }
 
   const panel = (() => {
     const props = { state, actions, toast, readOnly }
@@ -86,16 +94,23 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
   })()
 
   return (
-    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal set-modal set-modal-lg" role="dialog" aria-label="Settings" data-testid="settings-modal">
-        <div className="modal-head">
-          <h2>{Icon.dots({ size: 15 })} Settings</h2>
-          <span className="spacer" />
-          {readOnly && <span className="set-readonly" data-testid="settings-readonly">View only — settings changes are disabled</span>}
-          <span className="muted" style={{ fontSize: 11 }}>saved to this browser automatically</span>
-          <button className="modal-x" onClick={onClose} aria-label="Close Settings" data-testid="settings-close">{Icon.x({ size: 14 })}</button>
-        </div>
-        <div className="set-shell">
+    <div className="sectionpage set-page" data-testid="settings-page">
+      <div className="set-workspace" role="dialog" aria-label="Settings" data-testid="settings-modal" style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+        <header className="secbar no-print" style={{ borderBottom: '1px solid var(--line)' }}>
+          <span className="secbar-ic">{Icon.dots({ size: 17 })}</span>
+          <div className="secbar-t">
+            <h2>Settings · {active.label}</h2>
+            <span>{active.blurb}</span>
+          </div>
+          <div className="secbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            {readOnly && <span className="set-readonly" data-testid="settings-readonly">View only — settings changes are disabled</span>}
+            <span className="muted" style={{ fontSize: 11 }}>saved to this browser automatically</span>
+            <button className="btn btn-sm" onClick={handleClose} aria-label="Close Settings" data-testid="settings-close">
+              {Icon.chevronL({ size: 13 })} Back to Calendar
+            </button>
+          </div>
+        </header>
+        <div className="set-shell" style={{ flex: 1, minHeight: 0 }}>
           <aside className="set-nav" role="tablist" aria-label="Settings modules" data-testid="settings-nav">
             <label className="set-navsearch">
               <span className="sr-only">Search settings</span>
@@ -106,11 +121,29 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
               <div key={g.label} className="set-navgroupwrap">
                 <div className="set-navgroup">{g.label}</div>
                 {g.modules.map((m) => (
-                  <button key={m.id} role="tab" aria-selected={active.id === m.id} className={`set-navitem ${active.id === m.id ? 'on' : ''}`}
-                    data-testid={`set-mod-${m.id}`} onClick={() => open(m.id, m.tabs?.[0]?.id ?? null)}>
-                    <span className="set-navic">{Icon[m.icon]?.({ size: 14 }) || Icon.dots({ size: 14 })}</span>
-                    <span>{m.label}</span>
-                  </button>
+                  <React.Fragment key={m.id}>
+                    <button role="tab" aria-selected={active.id === m.id} className={`set-navitem ${active.id === m.id ? 'on' : ''}`}
+                      data-testid={`set-mod-${m.id}`} onClick={() => open(m.id, m.tabs?.[0]?.id ?? null)}>
+                      <span className="set-navic">{Icon[m.icon]?.({ size: 14 }) || Icon.dots({ size: 14 })}</span>
+                      <span>{m.label}</span>
+                    </button>
+                    {m.tabs?.length > 0 && active.id === m.id && (
+                      <div className="set-navsubs" role="group" aria-label={`${m.label} sub-items`} style={{ paddingLeft: 26, display: 'grid', gap: 2, marginBottom: 4 }}>
+                        {m.tabs.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className={`set-navitem set-navsubitem ${sub === t.id ? 'on' : ''}`}
+                            style={{ fontSize: 12, padding: '5px 10px' }}
+                            data-testid={`set-sub-${m.id}-${t.id}`}
+                            onClick={() => open(m.id, t.id)}
+                          >
+                            <span>• {t.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </React.Fragment>
                 ))}
               </div>
             ))}
@@ -122,7 +155,7 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
                 <h3 data-testid="settings-title">{active.label}</h3>
                 <p>{active.blurb}</p>
               </div>
-              {active.tabs && (
+              {active.tabs?.length > 0 && (
                 <div className="viewseg" role="group" aria-label={`${active.label} tabs`} data-testid="settings-subtabs">
                   {active.tabs.map((t) => (
                     <button key={t.id} className={sub === t.id ? 'on' : ''} data-testid={`set-sub-${t.id}`} onClick={() => open(active.id, t.id)}>{t.label}</button>
@@ -131,7 +164,9 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
               )}
             </header>
             <div className="set-body" data-testid={`settings-panel-${active.id}`}>
-              {panel}
+              <div data-testid={`panel-${active.id}`}>
+                {panel}
+              </div>
             </div>
             <footer className="set-foot">
               <span>v36 · build {typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'} · {Math.max(1, Math.round(bytes / 1024))} KB local</span>

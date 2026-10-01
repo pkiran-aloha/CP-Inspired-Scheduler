@@ -163,14 +163,32 @@ const DEFAULT_RULES = {
 }
 
 export const CF_TYPES = [
-  { id: 'text', label: 'Free text' },
+  { id: 'text', label: 'Free text (Single line)' },
+  { id: 'textarea', label: 'Paragraph text' },
   { id: 'select', label: 'Single select (radio)' },
   { id: 'multi', label: 'Multi select (checkbox)' },
   { id: 'toggle', label: 'Toggle' },
   { id: 'date', label: 'Date / time' },
   { id: 'signature', label: 'Signature' },
 ]
+export const CF_TEXT_FORMATS = [
+  { id: 'any', label: 'Any Text' },
+  { id: 'number', label: 'Number' },
+  { id: 'email', label: 'Email' },
+  { id: 'phone', label: 'Phone Number' },
+  { id: 'url', label: 'URL' },
+]
+export const CF_SCOPES = [
+  { id: 'authorization', label: 'Client Authorization' },
+  { id: 'client', label: 'Client Profile' },
+  { id: 'payer', label: 'Payer Profile' },
+  { id: 'appointment', label: 'Schedule Appointment' },
+  { id: 'provider', label: 'Staff Profile' },
+]
 export const cfTypeLabel = (t) => CF_TYPES.find((x) => x.id === t)?.label || t
+export function customFieldsForScope(state, scopeId) {
+  return (state.customFields || []).filter((d) => d.status !== 'inactive' && Array.isArray(d.assignedTo) && d.assignedTo.includes(scopeId))
+}
 // custom-field defs may be legacy strings ("label") or plain {label,value} — migrate to typed defs
 export function cfDefs(p, defsList = []) {
   // payer.cf holds master template ids now; older saves carried inline defs or bare labels — resolve both
@@ -246,7 +264,23 @@ export function payerForAppt(state, clientIds) {
 
 // master service list: store slice when seeded (editable), static model otherwise
 export function svcList(state) {
-  return state.svcs && state.svcs.length ? state.svcs : SERVICES.map((s) => ({ ...s, status: 'active', unitMins: BILL_CODES.find((c) => c.id === s.code)?.unitMins || 30, rate: BILL_CODES.find((c) => c.id === s.code)?.rate || 0, rounding: 'AMA' }))
+  const base = state.svcs && state.svcs.length
+    ? state.svcs
+    : SERVICES.map((s) => ({
+        ...s,
+        status: 'active',
+        unitMins: BILL_CODES.find((c) => c.id === s.code)?.unitMins || 30,
+        rate: BILL_CODES.find((c) => c.id === s.code)?.rate || 0,
+        rounding: 'AMA',
+      }))
+  return base.map((s) => ({
+    aka: s.aka || s.short || s.label,
+    category: s.category || (s.code === '97151' || s.code === '97152' ? 'Behavior Assessment' : s.code === '97155' ? 'Protocol Mod / Supervision' : s.code === '97156' || s.code === '97157' ? 'Family Guidance' : 'Adaptive Behavior Treatment'),
+    defaultEarningCode: s.defaultEarningCode || (s.code === '97155' || s.code === '97156' ? 'SUPV' : 'ABA'),
+    trackingId: s.trackingId || '',
+    taxable: Boolean(s.taxable),
+    ...s,
+  }))
 }
 export const activeSvcs = (state) => svcList(state).filter((s) => s.status !== 'inactive')
 

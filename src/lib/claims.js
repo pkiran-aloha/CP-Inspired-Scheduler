@@ -69,12 +69,18 @@ export const dxFor = (client) => {
 export function stagedAppts(state, days) {
   const needVer = state.settings.billing?.requireVerification !== false
   const strictAuth = state.settings.billing?.strictAuth === true
+  const statusMap = Object.fromEntries((state.settings?.apptStatuses || []).map((s) => [s.key, s]))
+  const isBillableStatus = (st) => {
+    const cfg = statusMap[st]
+    if (cfg) return cfg.billable === true
+    return st === 'completed'
+  }
   const clientById = Object.fromEntries((state.clients||[]).map((c)=>[c.id,c]))
   const clientIds = new Set((state.clients || []).map((c) => c.id))
   const list = Object.values(state.appts)
     .filter((a) => a.clientIds?.[0] && clientIds.has(a.clientIds[0]))
     .filter((a) => !days || days.includes(a.date))
-    .filter((a) => TYPES[a.type]?.billable && a.status === 'completed' && !a.billing?.status)
+    .filter((a) => TYPES[a.type]?.billable && isBillableStatus(a.status) && !a.billing?.status)
     .filter((a) => (a.billing?.units > 0) || (a.billing?.mileage && a.billing?.distance > 0))
     .filter((a) => !needVer || !TYPES[a.type].hasVerification || a.verification?.verifyStatus === 'verified')
     .filter((a) => {
