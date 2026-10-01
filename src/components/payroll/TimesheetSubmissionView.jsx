@@ -4,7 +4,7 @@ import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import { PaySubNav, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
-import { EARNING_BY_ID, MANUAL_CODES, sheetFor, timesheet, periodsFor, periodFor, earningsFor } from '../../lib/payroll'
+import { earningIndex, earningCodesFor, sheetFor, timesheet, periodsFor, periodFor, earningsFor } from '../../lib/payroll'
 import { timesheetHtml } from '../../lib/payrollExport'
 import { download } from '../../lib/ics'
 import { todayISO } from '../../lib/date'
@@ -229,7 +229,7 @@ export default function TimesheetSubmissionView() {
                 {detailTs.lines.map((l) => (
                   <div key={l.id} className="pay-line" data-testid={`pay-ts-line-${l.id}`}>
                     <span>{l.date}</span>
-                    <span><span className="pay-code">{l.code}</span> {EARNING_BY_ID[l.code]?.short}</span>
+                    <span><span className="pay-code">{l.code}</span> {earningIndex(payroll)[l.code]?.short}</span>
                     <span className="num">{hrs(l.hours)}</span>
                     <span className="num">{l.rate ? `$${Number(l.rate).toFixed(2)}` : '—'}</span>
                     <span className="num">{money(l.amount != null ? l.amount : Math.round(l.hours * l.rate * 100))}</span>
@@ -243,7 +243,7 @@ export default function TimesheetSubmissionView() {
               <div className="pay-adjform">
                 <label className="pay-field"><span>Earning code</span>
                   <select className="input" value={adj.code} onChange={(e) => setAdj({ ...adj, code: e.target.value })} data-testid="pay-ts-adj-code">
-                    {MANUAL_CODES.map((c) => <option key={c} value={c}>{EARNING_BY_ID[c].label}</option>)}
+                    {earningCodesFor(payroll).filter((c) => c.kind !== 'worked').map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                   </select>
                 </label>
                 <label className="pay-field"><span>Date in period</span>
@@ -266,7 +266,7 @@ export default function TimesheetSubmissionView() {
                   {detailTs.sheet.adjustments.map((a) => (
                     <div key={a.id} className="pay-line">
                       <span>{a.date}</span>
-                      <span><span className="pay-code">{a.code}</span> {EARNING_BY_ID[a.code]?.short}</span>
+                      <span><span className="pay-code">{a.code}</span> {earningIndex(payroll)[a.code]?.short}</span>
                       <span className="num">{['BONUS', 'BONUSX', 'MILE', 'EXP'].includes(a.code) ? '—' : hrs(a.hours)}</span>
                       <span className="num">{['BONUS', 'BONUSX', 'MILE', 'EXP'].includes(a.code) ? `$${a.hours.toFixed(2)}` : ''}</span>
                       <span />

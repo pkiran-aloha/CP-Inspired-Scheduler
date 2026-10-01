@@ -4,7 +4,7 @@ import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import { PaySubNav, money, hrs, PayKpis, StaffCell, Pager, StatusPill } from './PayrollCommon'
-import { EARNING_CODES, EARNING_BY_ID, profileFor, linesInRange, periodsFor, periodFromId, eligibleProfiles, duplicatePayrollIds, OFFICES } from '../../lib/payroll'
+import { earningCodesFor, earningIndex, profileFor, linesInRange, periodsFor, periodFromId, eligibleProfiles, duplicatePayrollIds, OFFICES } from '../../lib/payroll'
 import { payrollCsv } from '../../lib/payrollExport'
 import { download } from '../../lib/ics'
 import { todayISO } from '../../lib/date'
@@ -55,7 +55,7 @@ export default function QuickBooksPayrollView() {
       const lines = linesInRange(state, p.staffId, start, end)
       for (const l of lines) {
         if (!codes.includes(l.code)) continue
-        const code = EARNING_BY_ID[l.code]
+        const code = earningIndex(payroll)[l.code]
         out.push({
           id: `${p.staffId}-${l.id}`, staffId: p.staffId, name: s?.name || p.staffId, role: s?.role || '',
           payrollId: p.payrollId || '', office: p.office || '', payType: p.payType,
@@ -179,7 +179,7 @@ export default function QuickBooksPayrollView() {
           <div className="pay-field" style={{ gridColumn: 'span 3' }}>
             <span>Earning code * <i className="muted">— the wage items the provider books</i></span>
             <div className="pay-chips" data-testid="pay-qbo-codes">
-              {EARNING_CODES.filter((c) => c.kind !== 'expense').map((c) => {
+              {earningCodesFor(payroll).filter((c) => c.kind !== 'expense').map((c) => {
                 const on = codes.includes(c.id)
                 return (
                   <button key={c.id} className={`pay-chip ${on ? 'on' : ''}`} data-testid={`pay-qbo-code-${c.id}`}
@@ -188,7 +188,7 @@ export default function QuickBooksPayrollView() {
                   </button>
                 )
               })}
-              <button className="pay-link" data-testid="pay-qbo-codes-all" onClick={() => setCodes(EARNING_CODES.filter((c) => c.kind !== 'expense').map((c) => c.id))}>select all</button>
+              <button className="pay-link" data-testid="pay-qbo-codes-all" onClick={() => setCodes(earningCodesFor(payroll).filter((c) => c.kind !== 'expense').map((c) => c.id))}>select all</button>
             </div>
           </div>
         </div>

@@ -47,6 +47,14 @@ export const EARNING_BY_ID = Object.fromEntries(EARNING_CODES.map((c) => [c.id, 
 export const WORKED_CODES = EARNING_CODES.filter((c) => c.kind === 'worked').map((c) => c.id)
 export const MANUAL_CODES = ['ADMIN', 'TRAIN', 'PTO', 'HOL', 'BONUS', 'BONUSX', 'MILE', 'EXP']
 
+// chunk-42: the earning-code master is editable in Settings → Payroll → Earning Code.
+// Every read goes through these resolvers so a practice can rename, deactivate or add
+// a code and have payroll, the register, the stub and the exports all follow.
+// `EARNING_BY_ID` remains the *default* index (used by tests and legacy callers).
+export const earningCodesFor = (payroll) => (Array.isArray(payroll?.earningCodes) && payroll.earningCodes.length ? payroll.earningCodes : EARNING_CODES)
+export const earningIndex = (payroll) => Object.fromEntries(earningCodesFor(payroll).map((c) => [c.id, c]))
+export const earningLabel = (payroll, code) => earningIndex(payroll)[code]?.label || code
+
 // Appointment type → earning code. Unavailable/break blocks are deliberately
 // absent: they are not hours worked unless a policy explicitly pays them.
 export const APPT_CODE = { service: 'REG', supervision: 'SUP', evaluation: 'EVAL', drive: 'DRIVE' }
@@ -256,7 +264,7 @@ export function duplicatePayrollIds(profiles = []) {
 // Rates
 // ---------------------------------------------------------------------------
 export function rateFor(profile, code, payroll) {
-  const c = EARNING_BY_ID[code]
+  const c = earningIndex(payroll)[code]
   if (!c) return 0
   if (c.kind === 'expense') return 0
   if (code === 'OT') return 0 // premium is derived, never rate-entered
@@ -308,6 +316,10 @@ export const isEvvVerified = (a) => /^verified/.test(evvStatus(a))
  */
 export function scheduleLines(state, staffId, period) {
   const payroll = state.settings?.payroll || defaultPayrollSettings()
+  const codes = earningIndex(payroll)
+  // chunk-42: appointment statuses are configured in Settings and can change what a
+  // session pays — or stop it paying at all. Read from the live workspace.
+  const statusMap = Object.fromEntries((state.settings?.apptStatuses || []).map((s) => [s.key, s]))
   const profile = profileFor(state, staffId)
   const lines = []
   for (const a of Object.values(state.appts || {})) {
@@ -316,8 +328,11 @@ export function scheduleLines(state, staffId, period) {
     const liveMins = minutesOf(a)
     if (!liveMins) continue
 
-    if (a.status === 'cancelled' || a.status === 'no-show') {
-      const code = 'CANC'
+    const statusCfg = statusMap[a.status]
+    if (statusCfg && statusCfg.pays === false) continue
+    const cancelish = statusCfg ? !!statusCfg.cancelBand : (a.status === 'cancelled' || a.status === 'no-show')
+    if (cancelish) {
+      const code = statusCfg?.payrollCode || 'CANC'
       const notice = Number.isFinite(a.cancelNoticeHours) ? a.cancelNoticeHours : null
       const door = !!a.cancelAtDoor || a.status === 'no-show'
       const policy = payroll.cancelPolicy
@@ -329,7 +344,7 @@ export function scheduleLines(state, staffId, period) {
       else { pct = policy.payShortNoticePct; why = `cancelled with ${notice}h notice (< ${policy.freeNoticeHours}h band)` }
       if (pct <= 0) continue
       const mins = Math.round(liveMins * (pct / 100))
-      const code0 = EARNING_BY_ID[code]
+      const code0 = codes[code] || { kind: 'cancellation' }
       lines.push({
         id: `l-${a.id}-canc`, apptId: a.id, date: a.date, code, minutes: mins, hours: +(mins / 60).toFixed(4),
         rate: rateFor(profile, 'REG', payroll), kind: code0.kind, source: 'schedule', note: why,
@@ -339,6 +354,8 @@ export function scheduleLines(state, staffId, period) {
     }
 
     let code = APPT_CODE[a.type]
+    // a configured status may name the earning code a session in that state earns
+    if (statusCfg?.payrollCode && codes[statusCfg.payrollCode]) code = statusCfg.payrollCode
     let unpaid = false
     if (a.type === 'unavailable') {
       // PTO/Holiday blocks are the only 'unavailable' blocks that pay
@@ -356,7 +373,7 @@ export function scheduleLines(state, staffId, period) {
     // A leave/bonus code pays at the profile rate; worked codes use their rate.
     const { minutes, delta } = applyRounding(liveMins, payroll.rounding)
     if (minutes <= 0) continue
-    const c = EARNING_BY_ID[code]
+    const c = codes[code]
     lines.push({
       id: `l-${a.id}`, apptId: a.id, date: a.date, code, minutes, hours: +(minutes / 60).toFixed(4),
       rate: rateFor(profile, code, payroll), kind: c?.kind || 'worked', source: 'schedule',
@@ -372,10 +389,11 @@ export function adjustmentLines(state, staffId, period) {
   const sheet = sheetFor(state, staffId, period.id)
   const profile = profileFor(state, staffId)
   const payroll = state.settings?.payroll || defaultPayrollSettings()
+  const codes = earningIndex(payroll)
   return (sheet.adjustments || [])
     .filter((adj) => adj.date >= period.start && adj.date <= period.end)
     .map((adj) => {
-      const c = EARNING_BY_ID[adj.code]
+      const c = codes[adj.code]
       const isFlat = adj.code === 'BONUS' || adj.code === 'BONUSX' || adj.code === 'MILE' || adj.code === 'EXP'
       const minutes = isFlat ? 0 : Math.max(0, Math.round((Number(adj.hours) || 0) * 60))
       const hours = isFlat ? 0 : +(minutes / 60).toFixed(4)
@@ -425,13 +443,14 @@ export function linesInRange(state, staffId, start, end) {
   return out.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
 }
 
-export function lineTotals(lines = []) {
+export function lineTotals(lines = [], payroll = null) {
   const cents = (l) => (l.amount != null ? l.amount : Math.round(l.hours * l.rate * 100))
+  const codes = earningIndex(payroll)
   const byCode = {}
   let minutes = 0
   let straight = 0
   for (const l of lines) {
-    const c = EARNING_BY_ID[l.code]
+    const c = codes[l.code]
     if (l.kind === 'worked' || l.kind === 'cancellation' || l.kind === 'leave' || l.kind === 'premium') minutes += l.minutes || 0
     const v = cents(l)
     straight += c?.taxable === false ? 0 : v
@@ -462,6 +481,7 @@ export function lineTotals(lines = []) {
  */
 export function earningsFor(state, staffId, periodId) {
   const payroll = state.settings?.payroll || defaultPayrollSettings()
+  const codes = earningIndex(payroll)
   const profile = profileFor(state, staffId)
   const period = periodFromId(payroll, periodId) || { id: periodId }
   const { lines } = timesheet(state, staffId, periodId)
@@ -484,7 +504,7 @@ export function earningsFor(state, staffId, periodId) {
     // 3) straight-time worked rows, grouped by code, valued per line
     const groups = new Map()
     for (const l of lines) {
-      const c = EARNING_BY_ID[l.code]
+      const c = codes[l.code]
       if (!c || c.kind === 'expense') continue
       const g = groups.get(l.code) || { code: l.code, label: c.label, minutes: 0, rates: [], cents: 0 }
       // accumulate whole minutes, derive hours once — summing pre-rounded hours
@@ -507,7 +527,7 @@ export function earningsFor(state, staffId, periodId) {
   // 3b) non-taxable reimbursements are paid with payroll but never taxed, and they
   //     apply to every pay type — a salaried clinician still gets mileage back
   for (const l of lines) {
-    const c = EARNING_BY_ID[l.code]
+    const c = codes[l.code]
     if (!c || c.kind !== 'expense') continue
     rows.push({
       code: l.code, label: c.label, hours: 0, minutes: 0, rate: 0,
@@ -522,12 +542,12 @@ export function earningsFor(state, staffId, periodId) {
   if (profile?.classification === 'nonexempt' && profile?.payType !== 'salary' ? true : profile?.classification === 'nonexempt') {
     for (const w of weeks) {
       const inWeek = lines.filter((l) => l.date >= w.start && l.date <= w.end)
-      const worked = inWeek.filter((l) => EARNING_BY_ID[l.code]?.otEligible && EARNING_BY_ID[l.code]?.kind !== 'leave')
+      const worked = inWeek.filter((l) => codes[l.code]?.otEligible && codes[l.code]?.kind !== 'leave')
       const workedHours = worked.reduce((t, l) => t + (l.hours || 0), 0)
       if (workedHours <= payroll.otAfterHours) continue
       const straight = worked.reduce((t, l) => t + cents(l), 0)
       // nondiscretionary additions earned this week spread into the regular rate
-      const nondisc = inWeek.filter((l) => EARNING_BY_ID[l.code]?.nondisc).reduce((t, l) => t + cents(l), 0)
+      const nondisc = inWeek.filter((l) => codes[l.code]?.nondisc).reduce((t, l) => t + cents(l), 0)
       const regularRateCents = Math.round((straight + nondisc) / workedHours) // per hour, in cents
       const otHours = +(workedHours - payroll.otAfterHours).toFixed(4)
       const premium = Math.round(otHours * regularRateCents * (payroll.otMultiplier - 1))
@@ -540,10 +560,10 @@ export function earningsFor(state, staffId, periodId) {
   }
   rows.push(...otRows)
 
-  const grossCents = rows.filter((r) => EARNING_BY_ID[r.code]?.taxable !== false).reduce((t, r) => t + r.cents, 0)
-  const reimbursementCents = rows.filter((r) => EARNING_BY_ID[r.code]?.taxable === false).reduce((t, r) => t + r.cents, 0)
+  const grossCents = rows.filter((r) => codes[r.code]?.taxable !== false).reduce((t, r) => t + r.cents, 0)
+  const reimbursementCents = rows.filter((r) => codes[r.code]?.taxable === false).reduce((t, r) => t + r.cents, 0)
   const taxableCents = grossCents
-  const workedHours = rows.filter((r) => r.code !== 'OT' && (EARNING_BY_ID[r.code]?.kind === 'worked' || EARNING_BY_ID[r.code]?.kind === 'cancellation')).reduce((t, r) => t + (r.hours || 0), 0)
+  const workedHours = rows.filter((r) => r.code !== 'OT' && (codes[r.code]?.kind === 'worked' || codes[r.code]?.kind === 'cancellation')).reduce((t, r) => t + (r.hours || 0), 0)
   const otHours = otRows.reduce((t, r) => t + r.hours, 0)
   // delivered clinical hours drive the cost-per-hour KPI practices track
   const deliveredMinutes = lines.filter((l) => l.meta?.type === 'service' || l.meta?.type === 'evaluation').reduce((t, l) => t + (l.minutes || 0), 0)
@@ -846,6 +866,7 @@ export function runTotals(lines = []) {
 
 /** Aggregate a run (or preview) by office and by earning code for summaries. */
 export function runBreakdown(run, state) {
+  const codes = earningIndex(state?.settings?.payroll)
   const byOffice = {}
   const byCode = {}
   for (const l of run.lines || []) {
@@ -857,7 +878,7 @@ export function runBreakdown(run, state) {
     byOffice[off].deliveredHours += l.deliveredHours || 0
     byOffice[off].employerCents += l.employerCents || 0
     for (const r of l.earnings || []) {
-      byCode[r.code] = byCode[r.code] || { code: r.code, label: EARNING_BY_ID[r.code]?.label || r.label, minutes: 0, cents: 0, staff: new Set() }
+      byCode[r.code] = byCode[r.code] || { code: r.code, label: codes[r.code]?.label || r.label, minutes: 0, cents: 0, staff: new Set() }
       byCode[r.code].minutes += r.minutes || 0
       byCode[r.code].cents += r.cents
       byCode[r.code].staff.add(l.staffId)
@@ -883,6 +904,7 @@ export function planSheet(state, staffId, periodId, action, opts = {}) {
   const cur = (state.paySheets || {})[key] || { id: key, staffId, periodId, status: 'open', adjustments: [], audit: [] }
   const at = opts.at || Date.now()
   const who = opts.who || 'Payroll admin'
+  const payroll = state.settings?.payroll || defaultPayrollSettings()
   let next = { ...cur, audit: [...(cur.audit || []), { at, who, action: `sheet ${action}` }] }
   if (action === 'submit') {
     if (!['open', 'rejected'].includes(cur.status)) {
@@ -907,7 +929,7 @@ export function planSheet(state, staffId, periodId, action, opts = {}) {
     next = { ...next, status: 'open', revertedAt: at, revertedBy: who }
   } else if (action === 'adjust') {
     const adj = opts.adjustment
-    if (!adj || !adj.code || !EARNING_BY_ID[adj.code]) return { ok: false, msg: 'Pick a valid earning code for the adjustment' }
+    if (!adj || !adj.code || !earningIndex(payroll)[adj.code]) return { ok: false, msg: 'Pick a valid earning code for the adjustment' }
     if (adj.date < (opts.period?.start || '') || adj.date > (opts.period?.end || '')) return { ok: false, msg: 'Adjustment date falls outside this pay period' }
     const isFlat = ['BONUS', 'BONUSX', 'MILE', 'EXP'].includes(adj.code)
     const hours = Number(adj.hours)

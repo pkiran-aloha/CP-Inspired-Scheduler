@@ -37,9 +37,25 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
       ['staff', 'Stf', 'Staff directory', 'team'], ['billing', 'Bil', 'Billing & claims desk', 'dollar'],
       ['analytics', 'An', 'Analytics', 'spark'], ['reports', 'Rep', 'Reports desk', 'clipboard'],
       ['masters', 'Mst', 'Masters — payers & service types', 'clipboard'], ['dashboard', 'Dash', 'Analytics dashboard', 'dashboard'],
-      ['security', 'Sec', 'Security · accounts & roles', 'shield'],
     ]
     secs.filter(([id]) => can(id)).forEach(([id, key, label, icon], i) => out.push({ g: 'Jump to', k: key === 'Cal' ? String(i + 1) : undefined, icon, t: label, hint: 'section', run: go({ section: id }) }))
+    // chunk-42: every Settings sub-module is one search away, opened on its own panel
+    if (can('settings')) {
+      const openSettings = (module, sub) => () => { actions.setUI({ settings: true, settingsModule: module, settingsSub: sub ?? null }); onClose() }
+      out.push({ g: 'Settings', icon: 'house', t: 'Organization — practice profile', hint: 'name, tax ID, NPI, offices & locations', run: openSettings('organization') })
+      out.push({ g: 'Settings', icon: 'checkCircle', t: 'Appointment statuses', hint: 'the status list and what each one pays', run: openSettings('appointment-status') })
+      out.push({ g: 'Settings', icon: 'rows', t: 'Custom lists', hint: 'general & service-type pick lists', run: openSettings('custom-lists', 'general') })
+      out.push({ g: 'Settings', icon: 'star', t: 'Qualifications & credentials', hint: 'degrees, certifications, licences', run: openSettings('qualification') })
+      out.push({ g: 'Settings', icon: 'team', t: 'Payroll settings', hint: 'cycles, earning codes, overtime rules', run: openSettings('payroll', 'general') })
+      out.push({ g: 'Settings', icon: 'badge', t: 'Earning codes', hint: 'what each payable duty is called', run: openSettings('payroll', 'earning-codes') })
+      out.push({ g: 'Settings', icon: 'clock', t: 'Overtime rules', hint: 'workweek, multiplier, daily rules', run: openSettings('payroll', 'overtime') })
+      out.push({ g: 'Settings', icon: 'shield', t: 'Security — user accounts & roles', hint: 'local demo access control', run: openSettings('security', 'accounts') })
+      out.push({ g: 'Settings', icon: 'download', t: 'Data import', hint: 'bring clients, staff or appointments in from CSV', run: openSettings('data-import') })
+      out.push({ g: 'Settings', icon: 'phone', t: 'Text messaging services', hint: 'sender identity, templates, opt-outs', run: openSettings('text-messaging') })
+      out.push({ g: 'Settings', icon: 'zap', t: 'Clinical integrations', hint: 'local exports and documented seams', run: openSettings('clinical-integrations') })
+      out.push({ g: 'Settings', icon: 'dots', t: 'System settings', hint: 'display, naming, analytics, backup', run: openSettings('system') })
+      out.push({ g: 'Settings', icon: 'dollar', t: 'Subscription portal', hint: 'plan, seats and the external portal', run: openSettings('subscription') })
+    }
     if (can('masters')) {
       out.push({ g: 'Jump to', icon: 'shield', t: 'Payer directory', hint: 'masters · payers', run: go({ section: 'masters', mastersTab: 'payers', payerSel: null }) })
       out.push({ g: 'Jump to', icon: 'clipboard', t: 'Service types master', hint: 'masters · service list', run: go({ section: 'masters', mastersTab: 'svcs' }) })

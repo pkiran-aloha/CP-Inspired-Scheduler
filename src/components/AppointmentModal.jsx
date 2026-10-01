@@ -13,7 +13,6 @@ import {
   SERVICES,
   SNAP,
   STATUSES,
-  STATUS_ORDER,
   TYPES,
   VERIFY_CHECKS,
   findConflicts,
@@ -26,6 +25,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { apptAutoTitle } from '../lib/apptName'
+import { isCancelStatus, statusMapFor, statusOrderFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
@@ -35,6 +35,10 @@ import SignaturePad from '../ui/SignaturePad'
 export default function AppointmentModal({ mode, initial, onClose, onSaved, onBack }) {
   const state = useStore()
   const { appts, staff, clients, settings, actions } = state
+  // chunk-42: the status list (and its colours) is configured in Settings → Appointment Status
+  const statusMap = statusMapFor(settings)
+  const deadStatus = (k) => isCancelStatus(settings, k)
+  const statusOrder = statusOrderFor(settings)
   const toast = useToast()
   const staffById = useMemo(() => Object.fromEntries(staff.map((s) => [s.id, s])), [staff])
   const clientsById = useMemo(() => Object.fromEntries(clients.map((c) => [c.id, c])), [clients])
@@ -170,7 +174,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const conflicts = useMemo(() => {
     if (dur <= 0 || !f.date) return []
     const virtual = { ...f, id: mode === 'edit' ? f.id : '__draft__', title }
-    return findConflicts(appts, virtual, staffById, clientsById)
+    return findConflicts(appts, virtual, staffById, clientsById, deadStatus)
   }, [appts, f.date, f.start, f.end, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id, dur])
 
   // ---------- billing ----------
@@ -320,8 +324,8 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
             {mode === 'edit' ? 'Edit' : 'Create'} {T.label} Appointment
           </h2>
           <span className="sbadge">
-            <i style={{ background: STATUSES[f.status]?.dot }} />
-            {STATUSES[f.status]?.label}
+            <i style={{ background: (statusMap[f.status] || STATUSES[f.status] || {}).color || (statusMap[f.status] || STATUSES[f.status] || {}).dot }} />
+            {(statusMap[f.status] || STATUSES[f.status] || {}).label || f.status}
           </span>
           {isSeries && <span className="sbadge" title={`${siblings.length} occurrences in this series`}>{Icon.repeat({ size: 11 })} Series · {siblings.length}</span>}
           <span className="f1" />
@@ -854,7 +858,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                   <h3>
                     <span className="pi">{Icon.checkCircle({ size: 14 })}</span> Status
                   </h3>
-                  <Dropdown testid="status-select" value={f.status} onChange={(v) => set({ status: v })} options={STATUS_ORDER.map((s) => ({ value: s, label: STATUSES[s].label }))} />
+                  <Dropdown testid="status-select" value={f.status} onChange={(v) => set({ status: v })} options={statusOrder.map((s) => ({ value: s, label: statusMap[s]?.label || s }))} />
                   <button data-testid="save-appt" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => save(false)}>
                     {mode === 'edit' ? 'Save Changes' : 'Create Appointment'}
                   </button>

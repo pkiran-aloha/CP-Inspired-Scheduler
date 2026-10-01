@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
+import { statusLabels } from '../lib/settingsMasters'
 import { SectionBar } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
@@ -182,7 +183,7 @@ function WidgetBody({ w, ctx }) {
   }
   if (w.type === 'donut') {
     const field = w.cfg.field || 'type'
-    const slices = mixOf(state.appts, days, { field }, filter)
+    const slices = mixOf(state.appts, days, { field }, filter, statusLabels(state.settings))
     const total = slices.reduce((t, s) => t + s.value, 0)
     const active = filter[field]
     return <DonutChart slices={slices} total={total} activeVal={active} onPick={(s) => ctx.setFilter(active === s.key ? { [field]: null } : { [field]: s.key })} />
@@ -488,7 +489,7 @@ export default function DashboardView({ onOpenDetail = null }) {
       rows = br.map((r, i) => [i + 1, r.label, r.value])
     } else if (w.type === 'donut') {
       const field = cfg.field || 'type'
-      const slices = mixOf(state.appts, dd, { field }, filter)
+      const slices = mixOf(state.appts, dd, { field }, filter, statusLabels(state.settings))
       const total = slices.reduce((t, x) => t + x.value, 0) || 1
       head = [field, 'sessions', 'share %']
       rows = slices.map((x) => [x.key, x.value, `${((x.value / total) * 100).toFixed(1)}%`])

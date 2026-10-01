@@ -76,6 +76,8 @@ describe('settings data vault', () => {
   it('exports a backup, restores one, and arms destructive actions before they fire', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
+    await screen.findByTestId('settings-modal')
+    fireEvent.click(screen.getByTestId('set-mod-system')) // data & backup live in System Settings
     await screen.findByTestId('set-storage-stat')
     expect(screen.getByTestId('set-storage-stat').textContent).toContain('KB')
 
@@ -113,6 +115,8 @@ describe('settings data vault', () => {
   it('restores billing records and masters from the UI, then Undo returns the whole workspace', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
+    await screen.findByTestId('settings-modal')
+    fireEvent.click(screen.getByTestId('set-mod-system')) // data & backup live in System Settings
     await screen.findByTestId('set-storage-stat')
     const current = blankState()
     const claim = Object.values(current.claims)[0]
@@ -155,6 +159,9 @@ describe('settings data vault', () => {
   it('warns before restoring an older partial export', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
+    await screen.findByTestId('settings-modal')
+    fireEvent.click(screen.getByTestId('set-mod-system'))
+    await screen.findByTestId('set-import-file')
     const s = blankState()
     const legacy = { exported: new Date().toISOString(), appts: s.appts, claims: s.claims,
       staff: s.staff, clients: s.clients, teams: s.teams, settings: s.settings, reports: s.reports }
@@ -168,6 +175,8 @@ describe('settings data vault', () => {
   it('rejects files that are not an Aloha ABA backup', async () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
+    await screen.findByTestId('settings-modal')
+    fireEvent.click(screen.getByTestId('set-mod-system')) // data & backup live in System Settings
     await screen.findByTestId('set-storage-stat')
     const file = new File(['{"nope":true}'], 'junk.json', { type: 'application/json' })
     const input = screen.getByTestId('set-import-file')

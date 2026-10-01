@@ -111,7 +111,7 @@ export function topBreakdown(appts, days, { dim, metric, top = 8 }, clients, sta
     .map((r) => ({ ...r, pct: max ? Math.max(4, Math.round((r.value / max) * 100)) : 0 }))
 }
 
-export function mixOf(appts, days, { field = 'type' }, filter) {
+export function mixOf(appts, days, { field = 'type' }, filter, statusNames = null) {
   const set = new Set(days)
   const rows = apptsFiltered(appts, filter).filter((a) => set.has(a.date))
   const by = new Map()
@@ -120,7 +120,7 @@ export function mixOf(appts, days, { field = 'type' }, filter) {
     by.set(k, (by.get(k) || 0) + 1)
   }
   const total = rows.length || 1
-  const labels = { service: 'Service', evaluation: 'Evaluation', supervision: 'Supervision', drive: 'Drive time', break: 'Break', unavailable: 'Blocked', team: 'Team', active: 'Active', confirmed: 'Confirmed', completed: 'Completed', 'no-show': 'No-show', cancelled: 'Cancelled' }
+  const labels = { service: 'Service', evaluation: 'Evaluation', supervision: 'Supervision', drive: 'Drive time', break: 'Break', unavailable: 'Blocked', team: 'Team', active: 'Active', confirmed: 'Confirmed', completed: 'Completed', 'no-show': 'No-show', cancelled: 'Cancelled', ...(statusNames || {}) }
   let acc = 0
   return [...by.entries()]
     .sort((a, b) => b[1] - a[1])

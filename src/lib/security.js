@@ -22,6 +22,16 @@ export const SECURITY_AREAS = [
 ]
 
 export const SECURITY_OFFICES = [...OFFICES]
+/**
+ * chunk-42: the office master is editable in Settings → Organization. Access
+ * scoping offers every active office flagged for scope, falling back to the
+ * built-in list for old saves and for callers that have no state handy.
+ */
+export function securityOffices(settings) {
+  const rows = Array.isArray(settings?.offices) ? settings.offices : []
+  const list = rows.filter((o) => o && o.active !== false && o.scope !== false && o.name).map((o) => o.name)
+  return list.length ? [...new Set(list)] : [...SECURITY_OFFICES]
+}
 export const DEMO_RESET_AREAS = ['calendar', 'clients', 'intake', 'billing', 'payroll', 'settings', 'security']
 
 const none = () => Object.fromEntries(SECURITY_AREAS.map(({ id }) => [id, 'none']))
@@ -171,7 +181,7 @@ export function normalizeSecurity(value, staff = []) {
   }
 }
 
-export function validateSecurityConfig(value, staff = []) {
+export function validateSecurityConfig(value, staff = [], settings = null) {
   if (!record(value) || value.schemaVersion !== 1 || !Array.isArray(value.roles) || !Array.isArray(value.accounts) || !Array.isArray(value.audit)) {
     throw new Error('Backup has invalid security settings')
   }
@@ -201,7 +211,7 @@ export function validateSecurityConfig(value, staff = []) {
     const email = emailKey(account?.email)
     if (!record(account) || typeof account.id !== 'string' || !account.id || accountIds.has(account.id) || !roleIds.has(account.roleId) ||
         !['active', 'suspended'].includes(account.status) || !Array.isArray(account.officeIds) ||
-        !account.officeIds.length || new Set(account.officeIds).size !== account.officeIds.length || account.officeIds.some((office) => typeof office !== 'string' || !office.trim() || (office !== '*' && !SECURITY_OFFICES.includes(office))) ||
+        !account.officeIds.length || new Set(account.officeIds).size !== account.officeIds.length || account.officeIds.some((office) => typeof office !== 'string' || !office.trim() || (office !== '*' && !securityOffices(settings).includes(office))) ||
         (account.officeIds.includes('*') && (account.officeIds.length !== 1 || account.roleId !== 'administrator')) ||
         (account.id === 'account-demo-admin' && (account.roleId !== 'administrator' || account.status !== 'active' || account.system !== true || account.staffId != null || account.name !== 'Admin' || email !== 'admin@aloha.example.com' || account.officeIds.length !== 1 || account.officeIds[0] !== '*')) ||
         (account.id !== 'account-demo-admin' && (!!account.system || (account.status === 'active' && !account.staffId))) ||
@@ -476,6 +486,7 @@ export function areaForSection(section) {
   if (section === 'reports') return 'reports'
   if (section === 'dashboard') return 'dashboard'
   if (section === 'security') return 'security'
+  if (section === 'settings') return 'settings'
   return null
 }
 
@@ -485,7 +496,7 @@ export function canAccessSection(state, section, minimum = 'view') {
 }
 
 export function firstAccessibleSection(state) {
-  const order = ['calendar', 'clients', 'intake', 'staff', 'masters', 'billing', 'payroll', 'pay-qbo', 'analytics', 'reports', 'dashboard', 'security']
+  const order = ['calendar', 'clients', 'intake', 'staff', 'masters', 'billing', 'payroll', 'pay-qbo', 'analytics', 'reports', 'dashboard', 'settings', 'security']
   return order.find((section) => canAccessSection(state, section, 'view')) || null
 }
 
@@ -532,6 +543,19 @@ function actionAreas(state, action) {
     case 'dash': return ['dashboard']
     case 'addSavedReport': case 'removeSavedReport': return ['reports']
     case 'securityTx': return action.operation === 'account.switch' ? [] : ['security']
+    // chunk-42: settings sub-module edits. Payroll-owned settings stay behind the
+    // payroll area; everything else is Workspace settings.
+    case 'settingsTx': {
+      const op = String(action.op || '')
+      const areas = ['settings']
+      if (op.startsWith('payroll.') || op.startsWith('earningCode.')) areas.push('payroll')
+      return areas
+    }
+    case 'importTx': {
+      if (action.importType === 'clients') return ['settings', 'clients']
+      if (action.importType === 'staff') return ['settings', 'staff']
+      return ['settings', 'calendar']
+    }
     case 'clearDemo': case 'reseed': return DEMO_RESET_AREAS
     case 'replace': return SECURITY_AREAS.map(({ id }) => id)
     case 'meta': return [] // migration/read-state bookkeeping; contains no user records
@@ -886,7 +910,7 @@ export function applySecurityChange(current, operation, payload = {}, actorId = 
     if (accounts.some((account) => account.staffId === source.staffId && account.id !== source.id)) return { ok: false, msg: 'This staff member already has an account.' }
     const officeIds = [...new Set((source.officeIds || []).map((office) => cleanText(office, 80)).filter(Boolean))]
     if (!officeIds.length) return { ok: false, msg: 'Assign at least one office.' }
-    if (officeIds.some((office) => office !== '*' && !SECURITY_OFFICES.includes(office))) return { ok: false, msg: 'Choose an office from the configured office list.' }
+    if (officeIds.some((office) => office !== '*' && !securityOffices(payload.settings).includes(office))) return { ok: false, msg: 'Choose an office from the configured office list.' }
     if (officeIds.includes('*') && (source.roleId !== 'administrator' || officeIds.length !== 1)) return { ok: false, msg: 'All-office access is reserved for an Administrator account.' }
     const email = emailKey(staff.email)
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return { ok: false, msg: 'The staff profile needs a valid email before it can receive an account.' }

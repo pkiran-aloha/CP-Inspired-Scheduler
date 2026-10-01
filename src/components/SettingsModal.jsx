@@ -1,322 +1,143 @@
-import React, { useRef, useState } from 'react'
-import { blankState, useStore } from '../state/store'
+import React, { useMemo, useState } from 'react'
+import { useStore } from '../state/store'
 import { useToast } from '../ui/Toast'
 import { Icon } from '../ui/Icons'
-import { smartCfg } from '../lib/smart'
-import { downloadDoc } from '../lib/exportKit'
-import { todayISO } from '../lib/date'
-import { NAME_STYLES, apptAutoTitle, titleAudit } from '../lib/apptName'
-import { createWorkspaceBackup, readWorkspaceBackup } from '../lib/workspaceBackup'
 import { DEMO_RESET_AREAS, SECURITY_AREAS } from '../lib/security'
+import { SETTINGS_MODULES, settingsModule } from '../lib/settingsMasters'
+import { OrganizationPanel, AppointmentStatusPanel, CustomListsPanel, QualificationPanel } from './settings/panels-practice'
+import { PayrollPanel } from './settings/PayrollPanel'
+import { DataImportPanel } from './settings/DataImportPanel'
+import { SystemPanel } from './settings/SystemPanel'
+import { ServicesPanel, CustomFieldsPanel, SecurityPanel, IntegrationsPanel, MessagingPanel, SubscriptionPanel } from './settings/panels-extras'
 
-export default function SettingsModal({ onClose }) {
+/**
+ * chunk-42 — Settings is now the practice configuration surface.
+ *
+ * One modal, a module nav on the left (the Aloha settings map: Organization,
+ * Appointment Status, Custom Lists, Custom Fields, Services, Qualification,
+ * Payroll, Security, Text Messaging, Clinical Integrations, Data Import, System,
+ * Subscription) and the module's panel on the right. Every write goes through
+ * `actions.settingsOp`, which validates on the live workspace and applies the
+ * change + its cascades as one Undoable transaction.
+ */
+export default function SettingsModal({ onClose, forcedModule = null, forcedSub = null }) {
   const state = useStore()
-  const { settings, actions, appts, claims, staff, clients, teams } = state
+  const { ui, actions } = state
   const toast = useToast()
+  const [query, setQuery] = useState('')
+
   const canManageWorkspace = state.canAccessAllOffices && SECURITY_AREAS.every(({ id }) => state.canAccess(id, 'full'))
   const canManageDemo = state.canAccessAllOffices && DEMO_RESET_AREAS.every((area) => state.canAccess(area, 'full'))
   const canRebuildTitles = state.canAccessAllOffices && state.canAccess('settings', 'full') && state.canAccess('calendar', 'full')
-  const fileRef = useRef(null)
-  const [arm, setArm] = useState(null) // two-step confirmation instead of native confirm()
-  const [pendingRestore, setPendingRestore] = useState(null)
+  const readOnly = state.accessLevel('settings') !== 'full'
 
-  const sm = smartCfg(settings)
-  const patch = (section, v) => {
-    const next = { weights: { ...sm.weights }, suggest: { ...sm.suggest }, backfill: { ...sm.backfill } }
-    Object.assign(next[section], v)
-    actions.setSettings({ smart: next })
+  const wanted = forcedModule || ui.settingsModule
+  const active = settingsModule(SETTINGS_MODULES.some((m) => m.id === wanted) ? wanted : 'organization')
+  // Security's sub-tabs are the module's own tab pair; keep ui.securityTab in step so
+  // the embedded SecurityView and the sub-tab bar never disagree.
+  const wanted0 = forcedSub ?? ui.settingsSub ?? (active.id === 'security' ? ui.securityTab || 'accounts' : active.tabs?.[0]?.id ?? null)
+  // a stale sub-tab from another module (or an old save) can never blank a panel
+  const sub = active.tabs ? (active.tabs.some((t) => t.id === wanted0) ? wanted0 : active.tabs[0].id) : null
+  if (active.id === 'security' && (ui.securityTab || 'accounts') !== (sub === 'roles' ? 'roles' : 'accounts')) {
+    // Radically simpler than an effect: one deferred write keeps the two in sync.
+    queueMicrotask(() => actions.setUI({ securityTab: sub === 'roles' ? 'roles' : 'accounts' }))
   }
-  const Slider = ({ label, value, onChange, hint }) => (
-    <div className="wgt-row" title={hint}>
-      <span>{label}</span>
-      <input type="range" min={0} max={100} value={value} onChange={(e) => onChange(Number(e.target.value))} style={{ backgroundSize: `${value}% 100%` }} />
-      <em>{value}%</em>
-    </div>
-  )
-  const Row = ({ label, children, hint }) => (
-    <div className="set-row" title={hint}>
-      <span>{label}</span>
-      {children}
-    </div>
-  )
-  const Num = ({ value, onChange, step = 1, suffix }) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-      <input className="input" style={{ width: 74 }} type="number" step={step} min={0} value={value} onChange={(e) => onChange(Number(e.target.value))} />
-      {suffix && <span className="muted" style={{ fontSize: 11 }}>{suffix}</span>}
-    </span>
-  )
 
-  // ---- local data vault ----
   let bytes = 0
-  try {
-    bytes = (localStorage.getItem('aloha-aba.v3') || '').length
-  } catch {}
-  const doExport = () => {
-    if (!canManageWorkspace) { toast({ message: 'Workspace backups require full access to every module and all-office scope.', kind: 'warn' }); return }
-    downloadDoc(`aloha-aba-backup-${todayISO()}.json`, createWorkspaceBackup(state), 'application/json')
-    toast({ message: `Full workspace exported — ${Object.keys(appts).length} appointments, ${Object.keys(claims).length} claims and all billing ledgers`, kind: 'ok' })
-  }
-  const doImport = (file) => {
-    if (!canManageWorkspace) { toast({ message: 'Workspace restore requires full access to every module and all-office scope.', kind: 'warn' }); return }
-    setPendingRestore(null)
-    if (file.size > 50 * 1024 * 1024) {
-      toast({ message: 'Backup is too large to open here (50 MB limit)', kind: 'warn' })
-      if (fileRef.current) fileRef.current.value = ''
-      return
-    }
-    const fr = new FileReader()
-    fr.onload = () => {
-      try {
-        setPendingRestore(readWorkspaceBackup(String(fr.result), blankState()))
-      } catch (err) {
-        toast({ message: err.message, kind: 'warn' })
-      }
-      if (fileRef.current) fileRef.current.value = ''
-    }
-    fr.onerror = () => { toast({ message: 'Could not read that backup file', kind: 'warn' }); if (fileRef.current) fileRef.current.value = '' }
-    fr.readAsText(file)
-  }
-  const confirmRestore = () => {
-    if (!pendingRestore) return
-    const { data, counts } = pendingRestore
-    const result = actions.replace(data)
-    if (result?.ok === false) return // guarded dispatch already explains why restore was denied
-    setPendingRestore(null)
-    toast({ message: `Backup restored — ${counts.appointments} appointments, ${counts.claims} claims and ${counts.payments} payments`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() }, duration: 8000 })
-  }
+  try { bytes = (localStorage.getItem('aloha-aba.v3') || '').length } catch { /* storage is unavailable; the stats show 1 KB */ }
 
-  const clientsById = Object.fromEntries(clients.map((c) => [c.id, c]))
-  const staffById = Object.fromEntries(staff.map((x) => [x.id, x]))
-  const audit = titleAudit(appts)
-  const [healthOpen, setHealthOpen] = useState(false)
-  const sampleClient = clients[0] || { name: 'Ana Reyes' }
-  const sampleStaff = staff[0] || { name: 'Dhananjay Masal', role: 'RBT · Center' }
-  const sampleTitle = apptAutoTitle({
-    type: 'service',
-    clientIds: [sampleClient.id, clients[1]?.id].filter(Boolean),
-    staffIds: [sampleStaff.id, staff[1]?.id].filter(Boolean),
-    start: 540, end: 600,
-    clients: { [sampleClient.id]: sampleClient, ...(clients[1] ? { [clients[1].id]: clients[1] } : {}) },
-    staff: staffById, settings,
-    serviceOverride: 'dtt', locationOverride: sampleClient.home || 'Main Center',
+  const groups = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    const hit = (m) => !q || `${m.label} ${m.blurb} ${m.group} ${(m.tabs || []).map((t) => t.label).join(' ')}`.toLowerCase().includes(q)
+    const out = []
+    for (const m of SETTINGS_MODULES) {
+      if (!hit(m)) continue
+      let g = out.find((x) => x.label === m.group)
+      if (!g) { g = { label: m.group, modules: [] }; out.push(g) }
+      g.modules.push(m)
+    }
+    return out
+  }, [query])
+
+  const open = (mod, nextSub) => actions.setUI({
+    settingsModule: mod,
+    settingsSub: nextSub === undefined ? null : nextSub,
+    ...(mod === 'security' ? { securityTab: nextSub === 'roles' ? 'roles' : 'accounts' } : {}),
   })
-  const restyle = () => {
-    const result = actions.relabel()
-    if (result?.ok === false) return // guarded dispatch already explains why the rebuild was denied
-    toast({ message: `${audit.total} flagged title${audit.total === 1 ? '' : 's'} rebuilt to the “${NAME_STYLES[settings.apptNameStyle || 'ehr'].label}” convention`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
-    setHealthOpen(false)
-  }
+
+  const panel = (() => {
+    const props = { state, actions, toast, readOnly }
+    switch (active.id) {
+      case 'organization': return <OrganizationPanel {...props} />
+      case 'appointment-status': return <AppointmentStatusPanel {...props} />
+      case 'custom-lists': return <CustomListsPanel {...props} sub={sub} />
+      case 'services': return <ServicesPanel {...props} />
+      case 'custom-fields': return <CustomFieldsPanel {...props} />
+      case 'qualification': return <QualificationPanel {...props} />
+      case 'payroll': return <PayrollPanel {...props} sub={sub} />
+      case 'security': return <SecurityPanel {...props} sub={sub} />
+      case 'clinical-integrations': return <IntegrationsPanel {...props} />
+      case 'text-messaging': return <MessagingPanel {...props} />
+      case 'data-import': return <DataImportPanel {...props} />
+      case 'system': return <SystemPanel {...props} canManageWorkspace={canManageWorkspace} canManageDemo={canManageDemo} canRebuildTitles={canRebuildTitles} bytes={bytes} />
+      case 'subscription': return <SubscriptionPanel {...props} />
+      default: return null
+    }
+  })()
 
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal set-modal" role="dialog" aria-label="Settings">
+      <div className="modal set-modal set-modal-lg" role="dialog" aria-label="Settings" data-testid="settings-modal">
         <div className="modal-head">
           <h2>{Icon.dots({ size: 15 })} Settings</h2>
           <span className="spacer" />
+          {readOnly && <span className="set-readonly" data-testid="settings-readonly">View only — settings changes are disabled</span>}
           <span className="muted" style={{ fontSize: 11 }}>saved to this browser automatically</span>
-          <button className="modal-x" onClick={onClose} aria-label="Close">
-            {Icon.x({ size: 14 })}
-          </button>
+          <button className="modal-x" onClick={onClose} aria-label="Close Settings" data-testid="settings-close">{Icon.x({ size: 14 })}</button>
         </div>
-        <div className="modal-body set-cols">
-          <div className="set-col">
-            <div className="menu-h">Workspace</div>
-            <Row label="Theme">
-              <div className="viewseg">
-                {['light', 'dark'].map((t) => (
-                  <button key={t} className={settings.theme === t ? 'on' : ''} onClick={() => actions.setSettings({ theme: t })}>
-                    {t === 'light' ? 'Light' : 'Dark'}
+        <div className="set-shell">
+          <aside className="set-nav" role="tablist" aria-label="Settings modules" data-testid="settings-nav">
+            <label className="set-navsearch">
+              <span className="sr-only">Search settings</span>
+              {Icon.search({ size: 13 })}
+              <input className="input" value={query} placeholder="Search settings…" data-testid="set-search" onChange={(e) => setQuery(e.target.value)} />
+            </label>
+            {groups.map((g) => (
+              <div key={g.label} className="set-navgroupwrap">
+                <div className="set-navgroup">{g.label}</div>
+                {g.modules.map((m) => (
+                  <button key={m.id} role="tab" aria-selected={active.id === m.id} className={`set-navitem ${active.id === m.id ? 'on' : ''}`}
+                    data-testid={`set-mod-${m.id}`} onClick={() => open(m.id, m.tabs?.[0]?.id ?? null)}>
+                    <span className="set-navic">{Icon[m.icon]?.({ size: 14 }) || Icon.dots({ size: 14 })}</span>
+                    <span>{m.label}</span>
                   </button>
                 ))}
               </div>
-            </Row>
-            <Row label="Week starts on">
-              <div className="viewseg">
-                {[0, 1].map((d) => (
-                  <button key={d} className={settings.weekStart === d ? 'on' : ''} onClick={() => actions.setSettings({ weekStart: d })}>
-                    {d === 0 ? 'Sunday' : 'Monday'}
-                  </button>
-                ))}
+            ))}
+            {!groups.length && <div className="set-navempty">No settings module matches “{query}”.</div>}
+          </aside>
+          <section className="set-main">
+            <header className="set-head">
+              <div>
+                <h3 data-testid="settings-title">{active.label}</h3>
+                <p>{active.blurb}</p>
               </div>
-            </Row>
-            <Row label="24-hour clock">
-              <button className={`toggle ${settings.h24 ? 'on' : ''}`} onClick={() => actions.setSettings({ h24: !settings.h24 })} aria-pressed={settings.h24} />
-            </Row>
-            <Row label="Default rate / unit">
-              <Num value={settings.defaultRate} onChange={(v) => actions.setSettings({ defaultRate: v })} suffix="$" />
-            </Row>
-            <Row label="Mileage rate / mile">
-              <Num value={settings.mileageRate} step={0.05} onChange={(v) => actions.setSettings({ mileageRate: v })} suffix="$" />
-            </Row>
-            <div className="menu-h" style={{ paddingTop: 14 }}>Appointment naming</div>
-            <Row label="Convention">
-              <div className="viewseg" role="group" aria-label="Appointment naming convention" data-testid="set-naming">
-                {Object.entries(NAME_STYLES).map(([k, n]) => (
-                  <button key={k} className={(settings.apptNameStyle || 'ehr') === k ? 'on' : ''} data-testid={`set-name-${k}`} title={n.desc} onClick={() => actions.setSettings({ apptNameStyle: k })}>
-                    {n.label}
-                  </button>
-                ))}
-              </div>
-            </Row>
-            <Row label="Title extras">
-              <div className="viewseg set-extras" role="group" aria-label="Title extras" data-testid="set-extras">
-                {[['program', 'Program', 'append the client’s program'], ['location', 'Location', 'append “@ where”'], ['service', 'Service', 'use the curated service line (and its CPT in code style) instead of the generic type'], ['staff', 'Staff', 'append the assigned crew, e.g. (Ana R., RBT)']].map(([k, lab, tip]) => {
-                  const on = k === 'staff' ? !!settings.apptNameStaff : !!(settings.apptTitleExtras || {})[k]
-                  return (
-                    <button key={k} className={on ? 'on' : ''} data-testid={`set-extra-${k}`} title={tip} onClick={() => { if (k === 'staff') actions.setSettings({ apptNameStaff: !on }); else actions.setSettings({ apptTitleExtras: { ...(settings.apptTitleExtras || {}), [k]: !on } }) }}>
-                      {lab}
-                    </button>
-                  )
-                })}
-              </div>
-            </Row>
-            <div className="set-nam" data-testid="set-name-preview">
-              {sampleTitle}
-            </div>
-            <Row label="Title health">
-              {audit.total > 0 ? (
-                <button className="btn btn-sm set-flag" data-testid="set-name-review" title="List the flagged titles and rebuild them" onClick={() => setHealthOpen((v) => !v)}>
-                  {Icon.alert({ size: 12 })} {audit.total} flagged
-                </button>
-              ) : (
-                <span className="set-ok" data-testid="set-name-clean">✓ {Object.keys(appts).length} titles pass</span>
-              )}
-            </Row>
-            {audit.total > 0 && (
-              <div className="set-health" data-testid="set-health">
-                <div className="sh-why">
-                  {audit.legacy.length > 0 && <span>{audit.legacy.length} legacy “(Type) …” shape</span>}
-                  {audit.untitled.length > 0 && <span>{audit.untitled.length} blank</span>}
-                  {audit.long.length > 0 && <span>{audit.long.length} over 72 chars for agenda rows</span>}
+              {active.tabs && (
+                <div className="viewseg" role="group" aria-label={`${active.label} tabs`} data-testid="settings-subtabs">
+                  {active.tabs.map((t) => (
+                    <button key={t.id} className={sub === t.id ? 'on' : ''} data-testid={`set-sub-${t.id}`} onClick={() => open(active.id, t.id)}>{t.label}</button>
+                  ))}
                 </div>
-                {healthOpen && (
-                  <div className="sh-list">
-                    {[...audit.legacy, ...audit.untitled, ...audit.long].slice(0, 8).map((id) => (
-                      <button key={id} type="button" data-testid={`sh-row-${id}`} onClick={() => { actions.setUI({ section: 'calendar', view: 'week', anchor: appts[id].date, detail: id }); onClose() }}>
-                        <b>{appts[id].title?.trim() || '— no title —'}</b>
-                        <i>{appts[id].date}</i>
-                      </button>
-                    ))}
-                    {audit.total > 8 && <span className="sh-more">+{audit.total - 8} more flagged</span>}
-                  </div>
-                )}
-                {canRebuildTitles ? <button className="btn btn-sm btn-primary" data-testid="set-name-apply" title="Rebuild only the flagged titles from their real client / service / time — every other title is untouched" onClick={restyle}>
-                  {Icon.zap({ size: 12 })} Rework {audit.total} title{audit.total === 1 ? '' : 's'}
-                </button> : <span className="muted">Bulk title rebuild requires full Calendar and Settings access with all-office scope.</span>}
-              </div>
-            )}
-            <div className="menu-h" style={{ paddingTop: 14 }}>Data & backup</div>
-            <div className="set-vault">
-              <div className="sv-stats" data-testid="set-storage-stat">
-                <div><b>{Object.keys(appts).length}</b><span>appointments</span></div>
-                <div><b>{Object.keys(claims).length}</b><span>claims</span></div>
-                <div><b>{clients.length}</b><span>clients</span></div>
-                <div><b>{Math.max(1, Math.round(bytes / 1024))} KB</b><span>local storage</span></div>
-              </div>
-              <div className="sv-actions">
-                <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={doExport} data-testid="set-export">{Icon.download({ size: 12 })} Export workspace (.json)</button>
-                <button className="btn btn-sm" disabled={!canManageWorkspace} onClick={() => fileRef.current?.click()} data-testid="set-import">{Icon.copy({ size: 12 })} Restore backup…</button>
-                <input ref={fileRef} type="file" disabled={!canManageWorkspace} accept="application/json,.json" data-testid="set-import-file" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && doImport(e.target.files[0])} />
-              </div>
-              {!canManageWorkspace && <p className="sv-legacy">Workspace backup and restore require full access to every module plus all-office scope. Switch to an authorized administrator or contact one.</p>}
-              <p className="muted" style={{ fontSize: 10.8, margin: '2px 0 0', lineHeight: 1.5 }}>
-                Everything lives in this browser. Export before big edits: the JSON includes appointments, billing ledgers, payers, service &amp; field masters, reports and dashboards. Undo is available in this tab only.
-              </p>
-              {pendingRestore && <div className="sv-restore-preview" data-testid="set-restore-preview" role="status">
-                <b>Replace this workspace?</b>
-                <span>{pendingRestore.counts.appointments} appointment{pendingRestore.counts.appointments === 1 ? '' : 's'} · {pendingRestore.counts.claims} claim{pendingRestore.counts.claims === 1 ? '' : 's'} · {pendingRestore.counts.payments} payment{pendingRestore.counts.payments === 1 ? '' : 's'} in backup. Your current data will be replaced; export it first if you need a copy.</span>
-                {pendingRestore.legacy && <span className="sv-legacy">Older partial backup: payer/service/field masters and billing ledgers were not included in that format. Missing data will reset to demo defaults or empty ledgers.</span>}
-                <div className="sv-actions">
-                  <button className="btn btn-sm btn-primary" type="button" data-testid="set-restore-confirm" onClick={confirmRestore}>Replace workspace</button>
-                  <button className="btn btn-sm" type="button" data-testid="set-restore-cancel" onClick={() => setPendingRestore(null)}>Cancel</button>
-                </div>
-              </div>}
-            </div>
-            <div style={{ padding: '10px 0 4px', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                className="btn btn-sm"
-                data-testid="set-reseed"
-                disabled={!canManageDemo}
-                onClick={() => {
-                  if (arm !== 'reseed') return setArm('reseed')
-                  setArm(null)
-                  const result = actions.reseed()
-                  if (result?.ok === false) return
-                  toast({ message: 'Demo schedule & billing regenerated', kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } })
-                  onClose()
-                }}
-              >
-                {Icon.zap({ size: 13 })} {arm === 'reseed' ? 'Click again to regenerate schedule & billing' : 'Regenerate demo data'}
-              </button>
-              <button
-                className="btn btn-sm"
-                style={arm === 'clear' ? { color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' } : { color: 'var(--danger)' }}
-                data-testid="set-clear"
-                disabled={!canManageDemo}
-                onClick={() => {
-                  if (arm !== 'clear') return setArm('clear')
-                  setArm(null)
-                  const result = actions.clearDemo()
-                  if (result?.ok === false) return
-                  toast({ message: 'Schedule & billing cleared — masters and settings kept', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
-                  onClose()
-                }}
-              >
-                {Icon.trash({ size: 13 })} {arm === 'clear' ? 'Really clear schedule & billing?' : 'Clear schedule & billing'}
-              </button>
-              {arm && (
-                <button className="btn btn-sm btn-ghost" onClick={() => setArm(null)}>
-                  Cancel
-                </button>
               )}
-              {!canManageDemo && <span className="muted" style={{ fontSize: 10.5 }}>Reset actions require full access to affected modules and all-office scope.</span>}
+            </header>
+            <div className="set-body" data-testid={`settings-panel-${active.id}`}>
+              {panel}
             </div>
-          </div>
-          <div className="set-col">
-            <div className="menu-h">Smart scheduling</div>
-            <Row label="Staff suggestions shown" hint="How many candidate staff the detail card offers for open sessions">
-              <div className="viewseg">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} className={sm.suggest.count === n ? 'on' : ''} onClick={() => patch('suggest', { count: n })}>{n}</button>
-                ))}
-              </div>
-            </Row>
-            <Row label="Backfill candidates" hint="Ranked alternatives offered when a session needs cover">
-              <div className="viewseg">
-                {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} className={sm.backfill.count === n ? 'on' : ''} onClick={() => patch('backfill', { count: n })}>{n}</button>
-                ))}
-              </div>
-            </Row>
-            <Row label="Min backfill confidence" hint="Candidates scoring below this are never suggested for re-staffing (0–100)">
-              <Num value={sm.backfill.minScore} onChange={(v) => patch('backfill', { minScore: Math.max(0, Math.min(100, v)) })} />
-            </Row>
-            <Row label="Backfill: same care team only">
-              <button className={`toggle ${sm.backfill.sameTeamOnly ? 'on' : ''}`} onClick={() => patch('backfill', { sameTeamOnly: !sm.backfill.sameTeamOnly })} aria-pressed={sm.backfill.sameTeamOnly} />
-            </Row>
-            <Row label="Backfill: auto-fill button in inbox">
-              <button className={`toggle ${sm.backfill.autoFill ? 'on' : ''}`} onClick={() => patch('backfill', { autoFill: !sm.backfill.autoFill })} aria-pressed={sm.backfill.autoFill} />
-            </Row>
-            <Row label="Backfill: flag tight turnarounds">
-              <button className={`toggle ${sm.backfill.turnaround ? 'on' : ''}`} onClick={() => patch('backfill', { turnaround: !sm.backfill.turnaround })} aria-pressed={sm.backfill.turnaround} />
-            </Row>
-            <div style={{ paddingTop: 10 }}>
-              <div className="menu-h" style={{ padding: '4px 0 6px' }}>Ranking weights (50% = neutral)</div>
-              <Slider label="Care-team affinity" value={sm.weights.team} onChange={(v) => patch('weights', { team: v })} hint="How strongly to prefer staff on the client's care team" />
-              <Slider label="Client history" value={sm.weights.history} onChange={(v) => patch('weights', { history: v })} hint="Prior sessions with this client (continuity of care)" />
-              <Slider label="Program & cert fit" value={sm.weights.fit} onChange={(v) => patch('weights', { fit: v })} hint="Role ↔ program match, billing-code certifications, last-to-cover" />
-              <Slider label="Workload balance" value={sm.weights.load} onChange={(v) => patch('weights', { load: v })} hint="Spread sessions across the team" />
-              <button className="btn btn-ghost btn-sm" style={{ marginTop: 4 }} onClick={() => patch('weights', { team: 60, history: 55, fit: 55, load: 45 })}>{Icon.undo({ size: 12 })} Reset weights</button>
-            </div>
-            <div className="menu-h" style={{ paddingTop: 14 }}>Billing</div>
-            <Row label="Strict authorization (block billing without auth)"><button className={`toggle ${settings.billing?.strictAuth ? 'on' : ''}`} data-testid="set-bill-strictAuth" onClick={()=>actions.setSettings({ billing: { ...settings.billing, strictAuth: !settings.billing?.strictAuth } })} aria-pressed={!!settings.billing?.strictAuth} /></Row>
-            <Row label="Supervision check (require supervisor for RBT)"><button className={`toggle ${settings.billing?.supervisionCheck!==false ? 'on' : ''}`} data-testid="set-bill-supervision" onClick={()=>actions.setSettings({ billing: { ...settings.billing, supervisionCheck: !(settings.billing?.supervisionCheck!==false) } })} aria-pressed={settings.billing?.supervisionCheck!==false} /></Row>
-            <Row label="Invoice sequence"><Num value={settings.billing?.invoiceSeq ?? 1} onChange={(v)=>actions.setSettings({ billing: { ...settings.billing, invoiceSeq: Math.max(1, Math.round(v)||1) } })} /></Row>
-            <Row label="Default filing deadline"><Num value={settings.billing?.defaultFilingDays ?? 90} onChange={(v)=>actions.setSettings({ billing: { ...settings.billing, defaultFilingDays: Math.max(0, Math.round(v)||0) } })} suffix="days" /></Row>
-            <p className="muted" style={{ fontSize: 11, lineHeight: 1.5, margin: '12px 0 0' }}>
-              This demo persists to your browser's local storage. Connect a backend by replacing the persistence effect in <code>src/state/store.jsx</code>.
-            </p>
-          </div>
+            <footer className="set-foot">
+              <span>v36 · build {typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'} · {Math.max(1, Math.round(bytes / 1024))} KB local</span>
+              <span className="muted">Demo data only — no PHI, no payer connection.</span>
+            </footer>
+          </section>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
+import { isCancelStatus } from '../lib/settingsMasters'
 import { Icon } from '../ui/Icons'
 import { Dropdown } from './fields'
 import { fmtDur, fmtTime } from '../lib/date'
@@ -39,7 +40,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
   const effStaffId = staffId || suggestions[0]?.id || ''
 
   const draft = { id: '__q__', date: slot.date, start: slot.start, end: slot.end, staffIds: effStaffId ? [effStaffId] : [], clientIds: clientId ? [clientId] : [], status: 'active' }
-  const conflicts = useMemo(() => (clientId ? findConflicts(appts, draft, staffById, clientsById) : []), [clientId, effStaffId, slot.date, slot.start, slot.end])
+  const conflicts = useMemo(() => (clientId ? findConflicts(appts, draft, staffById, clientsById, (k) => isCancelStatus(settings, k)) : []), [clientId, effStaffId, slot.date, slot.start, slot.end, settings])
 
   const book = () => {
     if (!clientId) return

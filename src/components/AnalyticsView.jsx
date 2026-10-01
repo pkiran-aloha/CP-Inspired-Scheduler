@@ -4,7 +4,8 @@ import { SectionBar, RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { DAY_SHORT, addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
-import { TYPES, STATUSES } from '../lib/model'
+import { TYPES } from '../lib/model'
+import { statusColorOf } from '../lib/settingsMasters'
 import { METRICS, DIMS, pivotRows, heatMatrix, bucketize, resolveRange, rangeMetrics, metricOf, seriesFor, delta, priorDays } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { intakeKpis, sourceStats } from '../lib/intake'
@@ -528,10 +529,10 @@ export default function AnalyticsView() {
               <span className="pi">{Icon.alert({ size: 14 })}</span> Attendance & recovery
             </h3>
             <div className="risk-row">
-              <span className="risk-pill" style={{ '--rc': STATUSES.cancelled.dot }}>
+              <span className="risk-pill" style={{ '--rc': statusColorOf(settings, 'cancelled') }}>
                 <b>{cur.cancelled}</b> cancelled
               </span>
-              <span className="risk-pill" style={{ '--rc': STATUSES['no-show'].dot }}>
+              <span className="risk-pill" style={{ '--rc': statusColorOf(settings, 'no-show') }}>
                 <b>{cur.noShow}</b> no-shows
               </span>
               <span className="risk-pill" style={{ '--rc': 'var(--accent)' }}>

@@ -64,7 +64,7 @@ const REPORTS_RAW = [
       const rows = list.map((a) => ({
         date: a.date, time: `${String(Math.floor(a.start / 60)).padStart(2, '0')}:${String(a.start % 60).padStart(2, '0')}`,
         client: firstClient(a, clients), staff: namesOf(a.staffIds, staff), type: TYPES[a.type].label,
-        status: STATUSES[a.status].label, minutes: a.end - a.start, units: a.billing?.units || 0, charge: r2(computeBilling(a)),
+        status: STATUSES[a.status]?.label || a.status, minutes: a.end - a.start, units: a.billing?.units || 0, charge: r2(computeBilling(a)),
         _link: { kind: 'appt', id: a.id, date: a.date },
       }))
       const m = rangeMetrics(state, ctx.days)
