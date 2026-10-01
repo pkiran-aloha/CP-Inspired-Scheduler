@@ -77,7 +77,7 @@ describe('settings data vault', () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
     await screen.findByTestId('settings-modal')
-    fireEvent.click(screen.getByTestId('set-mod-system')) // data & backup live in System Settings
+    fireEvent.click(screen.getByTestId('nav-sub-set-system')) // data & backup live in System Settings
     await screen.findByTestId('set-storage-stat')
     expect(screen.getByTestId('set-storage-stat').textContent).toContain('KB')
 
@@ -116,7 +116,7 @@ describe('settings data vault', () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
     await screen.findByTestId('settings-modal')
-    fireEvent.click(screen.getByTestId('set-mod-system')) // data & backup live in System Settings
+    fireEvent.click(screen.getByTestId('nav-sub-set-system')) // data & backup live in System Settings
     await screen.findByTestId('set-storage-stat')
     const current = blankState()
     const claim = Object.values(current.claims)[0]
@@ -160,7 +160,7 @@ describe('settings data vault', () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
     await screen.findByTestId('settings-modal')
-    fireEvent.click(screen.getByTestId('set-mod-system'))
+    fireEvent.click(screen.getByTestId('nav-sub-set-system'))
     await screen.findByTestId('set-import-file')
     const s = blankState()
     const legacy = { exported: new Date().toISOString(), appts: s.appts, claims: s.claims,
@@ -176,7 +176,7 @@ describe('settings data vault', () => {
     render(<App />)
     fireEvent.click(screen.getByTestId('nav-settings'))
     await screen.findByTestId('settings-modal')
-    fireEvent.click(screen.getByTestId('set-mod-system')) // data & backup live in System Settings
+    fireEvent.click(screen.getByTestId('nav-sub-set-system')) // data & backup live in System Settings
     await screen.findByTestId('set-storage-stat')
     const file = new File(['{"nope":true}'], 'junk.json', { type: 'application/json' })
     const input = screen.getByTestId('set-import-file')

@@ -72,7 +72,18 @@ export default function NavRail() {
   // collapse/expand click wins and persists across sections and reloads.
   const narrow = useMedia('(max-width: 1279px)')
   const collapsed = ui.nav ?? (section === 'calendar' || narrow)
+  const wantedSettingsMod = section === 'security' ? 'security' : ui.settingsModule
+  const activeSettingsMod = SETTINGS_MODULES.some((m) => m.id === wantedSettingsMod)
+    ? wantedSettingsMod
+    : state.canAccess('settings', 'view') ? 'organization' : 'security'
   useEffect(() => setPreviewOpen(false), [state.currentAccount?.id])
+  // the settings hierarchy lives only in this rail — when it opens, bring the
+  // active module into view instead of leaving the list scrolled out of sight
+  useEffect(() => {
+    if (section !== 'settings' && section !== 'security') return
+    const el = document.querySelector('[data-nr-active-module="true"]')
+    if (typeof el?.scrollIntoView === 'function') el.scrollIntoView({ block: 'nearest' })
+  }, [section, activeSettingsMod, collapsed])
 
   // live badges — coverage pressure on Calendar, work-in-the-desk on Billing
   const badges = useMemo(() => {
@@ -111,7 +122,6 @@ export default function NavRail() {
           const fallbackSub = (s.subs || []).find((sub) => sub.to && canAccessSection(state, sub.to, 'view'))
           const target = canOpenParent ? s.id : fallbackSub?.to
           const active = section === s.id || (s.id === 'settings' && section === 'security') || (s.subs || []).some((x) => x.to && x.to !== 'settings' && x.to === section)
-          const activeSettingsMod = ui.settingsModule || (state.canAccess('settings', 'view') ? 'appointment-status' : 'security')
           return (
           <React.Fragment key={s.id}>
             <button
@@ -145,10 +155,13 @@ export default function NavRail() {
                     const allowed = sub.moduleId === 'security' ? state.canAccess('security', 'view') : state.canAccess('settings', 'view')
                     if (!allowed) return null
                     const modOn = activeSettingsMod === sub.moduleId
+                    const wantedSub = section === 'security' ? ui.securityTab : ui.settingsSub ?? (sub.moduleId === 'security' ? ui.securityTab : null)
+                    const activeSub = sub.children.some((child) => child.subId === wantedSub) ? wantedSub : sub.children[0]?.subId
                     return (
                       <React.Fragment key={sub.id}>
                         <button
                           className={`nr-subitem ${modOn ? 'on' : ''}`}
+                          data-nr-active-module={modOn ? 'true' : undefined}
                           data-testid={`nav-sub-${sub.id}`}
                           onClick={() => actions.setUI({ section: 'settings', settings: false, ...(sub.patch || {}) })}
                         >
@@ -156,7 +169,7 @@ export default function NavRail() {
                           {sub.label}
                         </button>
                         {modOn && (sub.children || []).map((child) => {
-                          const childOn = (ui.settingsSub || sub.children[0]?.subId) === child.subId
+                          const childOn = activeSub === child.subId
                           return (
                             <button
                               key={child.id}

@@ -15,7 +15,7 @@ const R = (ui) => { cleanup(); _r = render(ui); return _r }
 async function openModule(id) {
   R(<App />)
   fireEvent.click(await screen.findByTestId('nav-settings'))
-  fireEvent.click(await screen.findByTestId(`set-mod-${id}`))
+  fireEvent.click(await screen.findByTestId(`nav-sub-set-${id}`))
   await screen.findByTestId(`settings-panel-${id}`)
 }
 const commit = (testid, value) => { const el = screen.getByTestId(testid); fire.change(el, { target: { value } }); fire.blur(el) }
@@ -54,7 +54,7 @@ describe('settings modules actually write', () => {
     await openModule('payroll')
     fireEvent.change(screen.getByTestId('set-pay-weekstart'), { target: { value: '3' } })
     await waitFor(() => expect(stored().settings.payroll.workWeekStart).toBe(3))
-    fireEvent.click(screen.getByTestId('set-sub-overtime'))
+    fireEvent.click(screen.getByTestId('nav-sub-set-payroll-overtime'))
     const mult = screen.getByTestId('set-ot-mult')
     fire.change(mult, { target: { value: '1.2' } })
     fire.blur(mult)
@@ -63,7 +63,7 @@ describe('settings modules actually write', () => {
 
   it('adds a service-type custom list with an option', async () => {
     await openModule('custom-lists')
-    fireEvent.click(screen.getByTestId('set-sub-service-type'))
+    fireEvent.click(screen.getByTestId('nav-sub-set-custom-lists-service-type'))
     fireEvent.click(screen.getByTestId('set-list-add'))
     await screen.findByTestId('set-list-editor')
     commit('set-list-f-name', 'Group size')
@@ -122,7 +122,7 @@ describe('settings modules actually write', () => {
   it('imports a pasted CSV, logs it, and shows the new client in the roster', async () => {
     const { unmount } = R(<App />)
     fireEvent.click(await screen.findByTestId('nav-settings'))
-    fireEvent.click(await screen.findByTestId('set-mod-data-import'))
+    fireEvent.click(await screen.findByTestId('nav-sub-set-data-import'))
     await screen.findByTestId('settings-panel-data-import')
     await waitFor(() => expect(stored()).toBeTruthy())
     fireEvent.click(screen.getByTestId('set-import-type-clients'))

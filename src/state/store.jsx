@@ -94,7 +94,7 @@ export function blankState() {
       clientSel: [],
       teamSel: [],
       filters: { statuses: ['active', 'confirmed', 'completed', 'no-show', 'cancelled'], abaOnly: false },
-      settingsModule: 'organization', // Settings modal: which module is open
+      settingsModule: 'organization', // Settings sidebar: which module is open
       settingsSub: null, // … and which sub-tab inside it
     },
   })
@@ -383,6 +383,9 @@ export function reducer(state, action) {
         patch.section = 'settings'
         patch.settings = false
       }
+      // Settings navigation lives only in NavRail, so reveal it for every entry
+      // point (rail, profile menu, keyboard shortcut or command palette).
+      if (patch.section === 'settings' && !Object.hasOwn(patch, 'nav')) patch.nav = false
       return { ...state, ui: { ...state.ui, ...patch } }
     }
     case 'setSettings':

@@ -1090,7 +1090,8 @@ button:focus-visible, a:focus-visible, .chip:focus-visible, .person-pick:focus-v
 .nr-brand .logo { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #6366f1, #8b5cf6); box-shadow: 0 4px 14px -4px rgba(99, 102, 241, .55); flex: 0 0 auto; }
 .nr-brandtxt { display: flex; flex-direction: column; line-height: 1.05; }
 .nr-brandtxt i { font-style: normal; font-size: 9.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-top: 3px; }
-.nr-items { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.nr-items { display: flex; flex-direction: column; gap: 3px; flex: 1; min-height: 0; align-self: stretch; margin: 0 -10px; padding: 0 10px; overflow-y: auto; }
+.nr-items > * { flex-shrink: 0; }
 .nr-foot { display: flex; flex-direction: column; gap: 3px; border-top: 1px solid var(--line); padding-top: 8px; }
 .nr-item {
   display: flex; align-items: center; gap: 11px; width: 100%; border: 0; background: transparent;
@@ -2206,7 +2207,7 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
 /* ── Masters: nav sublist, tab strip, payer deep record, service master ──── */
 .pd-cfn { margin-left: 7px; font-size: 10.5px; font-weight: 700; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 7px; vertical-align: 1px; }
 .nr-sub { display: flex; flex-direction: column; gap: 2px; margin: 1px 0 6px 21px; padding-left: 9px; border-left: 1px solid var(--line-2); }
-.nr-subitem { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
+.nr-subitem { display: flex; align-items: center; gap: 8px; min-height: 26px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--text-2); font: inherit; font-size: 12.5px; cursor: pointer; text-align: left; }
 .nr-subitem:hover { background: var(--panel-3); color: var(--text); }
 .nr-subitem.on { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
 /* a named sub-module inside a section (Clients → Intake Manager) */
@@ -3521,18 +3522,8 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 /* ================= chunk-42: Settings sub-modules ================= */
 .set-page { display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; background: var(--panel); }
 .set-workspace { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-.set-shell { display: grid; grid-template-columns: 240px 1fr; gap: 0; flex: 1; min-height: 0; overflow: hidden; border-top: 1px solid var(--line); }
-.set-nav { border-right: 1px solid var(--line); padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; background: var(--panel-2); }
-.set-navsearch { display: flex; align-items: center; gap: 6px; padding: 0 4px 8px; color: var(--muted); }
-.set-navsearch .input { height: 28px; font-size: 12px; }
-.set-navgroupwrap { display: flex; flex-direction: column; gap: 1px; margin-bottom: 6px; }
-.set-navgroup { font-size: 9.4px; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); padding: 8px 8px 4px; }
-.set-navitem { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; border-radius: 9px; padding: 7px 9px; font-size: 12.4px; font-weight: 620; color: var(--text-2); cursor: pointer; text-align: left; }
-.set-navitem:hover { background: var(--panel); color: var(--text); }
-.set-navitem.on { background: var(--accent-soft); color: var(--accent); font-weight: 750; }
-.set-navic { display: grid; place-items: center; width: 18px; flex: none; }
-.set-navempty { padding: 14px 8px; font-size: 12px; color: var(--muted); }
-.set-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
+.set-shell { display: flex; flex: 1; min-height: 0; overflow: hidden; border-top: 1px solid var(--line); }
+.set-main { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 .set-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 14px 18px 10px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .set-head h3 { margin: 0; font-size: 15.5px; letter-spacing: -.02em; }
 .set-head p { margin: 3px 0 0; font-size: 11.6px; color: var(--muted); line-height: 1.45; max-width: 62ch; }
@@ -3547,7 +3538,7 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .set-sec-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .set-sec-body { display: flex; flex-direction: column; }
 .set-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
-@media (max-width: 980px) { .set-shell { grid-template-columns: 1fr; } .set-nav { border-right: 0; border-bottom: 1px solid var(--line); max-height: 210px; } .set-grid2 { grid-template-columns: 1fr; } }
+@media (max-width: 980px) { .set-grid2 { grid-template-columns: 1fr; } }
 .set-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); min-height: 38px; }
 .set-row.stack { flex-direction: column; align-items: stretch; gap: 5px; }
 .set-row > span:first-child { font-size: 12.2px; font-weight: 650; white-space: nowrap; }

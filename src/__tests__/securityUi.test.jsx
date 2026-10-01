@@ -13,13 +13,13 @@ describe('Security workspace UI', () => {
     render(<App />)
     // Security now lives inside Settings → Security (User Accounts / User Roles).
     fireEvent.click(screen.getByTestId('nav-settings'))
-    fireEvent.click(await screen.findByTestId('set-mod-security'))
+    fireEvent.click(await screen.findByTestId('nav-sub-set-security'))
     expect(await screen.findByTestId('security-page')).toBeTruthy()
     expect(screen.getByTestId('security-demo-warning').textContent).toContain('not authentication')
     expect(screen.getByTestId('security-account-row-account-demo-admin')).toBeTruthy()
     expect(screen.getByTestId('security-account-row-account-s1').textContent).toContain('Prateek Kiran')
 
-    fireEvent.click(screen.getByTestId('set-sub-roles'))
+    fireEvent.click(screen.getByTestId('nav-sub-set-security-roles'))
     expect(screen.getByTestId('security-permission-matrix')).toBeTruthy()
     fireEvent.click(screen.getByTestId('security-add-role'))
     expect(screen.getByTestId('security-role-editor').textContent).toContain('Create a role')
@@ -36,7 +36,7 @@ describe('Security workspace UI', () => {
     expect(screen.getByTestId('security-role-editor')).toBeTruthy()
     expect(screen.getByTestId('security-perm-intake-view').checked).toBe(true)
 
-    fireEvent.click(screen.getByTestId('set-sub-accounts'))
+    fireEvent.click(screen.getByTestId('nav-sub-set-security-accounts'))
     fireEvent.click(screen.getByTestId('security-add-account'))
     expect(screen.getByTestId('security-account-role').value).toBe('')
     fireEvent.change(screen.getByTestId('security-account-staff'), { target: { value: 's2' } })
