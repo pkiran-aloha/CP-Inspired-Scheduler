@@ -283,17 +283,24 @@ describe('create wizard', () => {
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBeGreaterThan(0))
     const before = Object.keys(apptsInStorage()).length
     await addPeople()
-    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
+    // Anchor the series well past the demo seed's forward reach (~5 weeks from the current
+    // Monday) so no seeded weekly appointment can land in the window below. A hardcoded
+    // 2026-12-23 start let the seed's own series bleed into the filter once the run date got
+    // within a month of it — 137 matches instead of 3 on 2027-01-01.
+    const base = new Date()
+    const startISO = isoDate(addDays(base, 100))
+    const expected = [100, 107, 114].map((n) => isoDate(addDays(base, n)))
+    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: startISO } })
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '3' } })
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Created 3 occurrences')).toBeTruthy()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBe(before + 3))
-    const series = Object.values(apptsInStorage()).filter((a) => a.recurrence === 'weekly' && a.date >= '2026-12-23' && a.date <= '2027-01-06')
+    const series = Object.values(apptsInStorage()).filter((a) => a.recurrence === 'weekly' && a.date >= startISO && a.date <= expected[2])
     expect(series.length).toBe(3)
     expect(new Set(series.map((a) => a.title)).size).toBe(1) // one shared, convention-built auto-title
     expect(new Set(series.map((a) => a.seriesId)).size).toBe(1)
-    expect(series.map((a) => a.date).sort()).toEqual(['2026-12-23', '2026-12-30', '2027-01-06'])
+    expect(series.map((a) => a.date).sort()).toEqual(expected)
     expect(series.every((a) => a.recurrence === 'weekly')).toBe(true)
   })
 

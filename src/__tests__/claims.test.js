@@ -2,11 +2,17 @@ import { describe, it, expect } from 'vitest'
 // ---- claim lifecycle engine: pure tests over a synthetic micro-practice ----
 import {
   stagedAppts, planClaims, assembleClaims, nextClaimSeq, claimGate, submitPatch, payPatch,
-  denyPatch, rebillPatch, dropLinePatch, dueOf, agingOf, claimStats, claimCsv, PAYER_POLICY,
+  denyPatch, rebillPatch, dropLinePatch, dueOf, agingOf, claimStats, claimCsv, claimNoAt, PAYER_POLICY,
 } from '../lib/claims'
-import { todayISO, addDays, isoDate } from '../lib/date'
+import { addDays, addMonths, isoDate } from '../lib/date'
 
-const d = (n) => isoDate(addDays(new Date(todayISO() + 'T00:00:00'), n))
+// Claims group by client × DOS-month, so fixture dates are pinned to a fixed anchor
+// instead of "N days before today". Relative dates put last month's services in front of a
+// today-based expectation on the 1st, and straddle a calendar-month boundary on the 12th
+// (d(-11) is then the 1st, d(-12) the previous month's last day) — either way these
+// assertions depended on the day CI happened to run.
+const ANCHOR = '2026-03-15T00:00:00'
+const d = (n) => isoDate(addDays(new Date(ANCHOR), n))
 const appt = (id, clientId, over = {}) => ({
   id, type: 'service', title: '1:1 Discrete Trial Training', date: d(-12), start: 540, end: 600,
   status: 'completed', staffIds: ['s3'], clientIds: [clientId], notes: 'ok', documents: [], custom: {},
@@ -42,7 +48,7 @@ describe('claims engine', () => {
     const st = state([appt('a1', 'c1'), appt('a2', 'c1', { date: d(-11) }), appt('b1', 'c1', { date: d(-45) }), appt('s1', 'c2'), appt('s2', 'c2', { date: d(-40) })])
     const plans = planClaims(st, stagedAppts(st, null))
     const c1Plans = plans.filter((p) => p.clientId === 'c1')
-    expect(c1Plans.length).toBe(2) // Sep (a1+a2) vs Aug (b1) — one form per client × month
+    expect(c1Plans.length).toBe(2) // Mar (a1+a2) vs Jan (b1) — one form per client × month
     expect([...c1Plans.find((p) => p.appts.length === 2).appts].sort()).toEqual(['a1', 'a2'])
     const selfPay = plans.find((p) => p.mode === 'selfpay')
     expect(selfPay.appts.length).toBe(2) // both self-pay months ride ONE invoice
@@ -54,12 +60,28 @@ describe('claims engine', () => {
     const { claims, apptPatch } = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 7 })
     expect(claims.length).toBe(1)
     const c = claims[0]
-    expect(c.no).toBe('CLM-' + todayISO().slice(0, 4) + todayISO().slice(5, 7) + '-007')
+    // numbered off the DOS of the services billed (both lines land in 2026-03), never off the
+    // month the claim happened to be assembled in
+    expect(c.no).toBe('CLM-202603-007')
+    expect(c.no).toBe(claimNoAt('CLM', 7, c.dosFrom))
     expect(c.lines.length).toBe(2)
     expect(c.charges).toBe(Math.round(c.lines.reduce((t, l) => t + l.charge, 0) * 100) / 100)
     expect(apptPatch.length).toBe(2)
     expect(apptPatch[0].patch.billing.status).toBe('claimed')
     expect(nextClaimSeq({ [c.id]: c })).toBe(8)
+  })
+
+  it('keeps the DOS month in the claim number when the services predate the assembly month', () => {
+    // CI regression (2026-10-01): sessions 11–12 days old land in September on the 1st of
+    // October, so assembly produced CLM-202609-007 while the expectation was built from
+    // today's month. planClaims groups by client × DOS-month, so the number must follow the
+    // services billed — a month-of-assembly stamp would label two DOS months alike.
+    const prior = isoDate(addMonths(new Date(), -1))
+    const st = state([appt('a1', 'c1', { date: prior })])
+    const { claims } = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 7 })
+    expect(claims[0].dosFrom).toBe(prior)
+    expect(claims[0].no).toBe(claimNoAt('CLM', 7, prior))
+    expect(claims[0].no.slice(4, 10)).toBe(prior.slice(0, 7).replace('-', ''))
   })
 
   it('submission gate holds any claim carrying a line that fell out of verification', () => {
