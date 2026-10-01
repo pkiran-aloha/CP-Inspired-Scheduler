@@ -6,6 +6,7 @@ import { todayISO } from '../lib/date'
 import { STATUS_ORDER, STATUSES } from '../lib/model'
 import { buildICS, download } from '../lib/ics'
 import { scanNeedsCover } from '../lib/smart'
+import { DEMO_RESET_AREAS, resolveAccount } from '../lib/security'
 
 function useOutside(ref, cb, on) {
   useEffect(() => {
@@ -21,6 +22,13 @@ function useOutside(ref, cb, on) {
 export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
   const state = useStore()
   const { ui, settings, actions } = state
+  const canSchedule = state.canAccess('calendar', 'view')
+  const canScheduleEdit = state.canAccess('calendar', 'full')
+  const canOpenSettings = state.canAccess('settings', 'view')
+  const canManageSecurity = state.canAccess('security', 'view')
+  const canResetDemo = state.canAccessAllOffices && DEMO_RESET_AREAS.every((area) => state.canAccess(area, 'full'))
+  const activeAccount = state.currentAccount
+  const activeRole = state.currentRole
   const toast = useToast()
   const [menu, setMenu] = useState(null) // 'filter' | 'user'
   const wrapRef = useRef(null)
@@ -138,10 +146,10 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         )}
       </div>
 
-      <button className={`iconbtn cover-btn ${cover ? 'alert' : ''}`} data-testid="needs-cover" onClick={() => actions.setUI({ inbox: true })} title={cover ? `${cover} cancelled session${cover > 1 ? 's' : ''} can be backfilled` : 'Needs cover — all clear'}>
+      {canSchedule && <button className={`iconbtn cover-btn ${cover ? 'alert' : ''}`} data-testid="needs-cover" onClick={() => actions.setUI({ inbox: true })} title={cover ? `${cover} cancelled session${cover > 1 ? 's' : ''} can be backfilled` : 'Needs cover — all clear'}>
         {Icon.alert({ size: 15 })}
         {cover > 0 && <span className="cov-n" data-testid="cover-count">{cover}</span>}
-      </button>
+      </button>}
 
       <button className="iconbtn pal-btn" onClick={onPalette} title="Search everything — clients, staff, reports, actions (⌘K)" data-testid="palette-open">
         <kbd>⌘K</kbd>
@@ -150,20 +158,38 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         {settings.theme === 'dark' ? Icon.sun({ size: 15 }) : Icon.moon({ size: 15 })}
       </button>
 
-      <button className="btn btn-primary" onClick={onNew} title="New appointment (N)">
+      {canScheduleEdit && <button className="btn btn-primary" onClick={onNew} title="New appointment (N)">
         {Icon.plus({ size: 15, strokeWidth: 2.4 })} <span className="appt-label">Appointment</span>
-      </button>
+      </button>}
 
       <div className="rel">
         <button className="userchip" onClick={() => setMenu(menu === 'user' ? null : 'user')} aria-haspopup="true">
           <span className="avatar" style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}>
-            AD
+            {(activeAccount?.name || 'User').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
           </span>
-          <span className="uc-name">Admin · {(settings.org?.name || 'Aloha ABA Center').split(' ')[0]}</span> {Icon.chevDown({ size: 12 })}
+          <span className="uc-name">{activeAccount?.name || 'No active user'} · {(settings.org?.name || 'Aloha ABA Center').split(' ')[0]}</span> {Icon.chevDown({ size: 12 })}
         </button>
         {menu === 'user' && (
-          <div className="menu">
-            <button
+          <div className="menu topbar-user-menu">
+            <div className="demo-account-preview">
+              <b>Local demo account preview</b>
+              <span>{activeRole?.name || 'No role'} · not a sign-in session</span>
+              <select aria-label="Preview demo account" value={activeAccount?.id || ''} onChange={(e) => {
+                const account = resolveAccount(state, state.security.accounts.find((item) => item.id === e.target.value))
+                const result = actions.switchDemoAccount(e.target.value)
+                if (result?.ok) toast({ message: `Previewing as ${account?.name || 'selected account'}`, kind: 'info' })
+                else if (result?.msg) toast({ message: result.msg, kind: 'warn' })
+                setMenu(null)
+              }} data-testid="demo-account-switch">
+                {state.security.accounts.filter((account) => account.status === 'active').map((stored) => {
+                  const account = resolveAccount(state, stored)
+                  const role = state.security.roles.find((item) => item.id === account.roleId)
+                  return <option key={account.id} value={account.id}>{account.name} · {role?.name || 'No role'}</option>
+                })}
+              </select>
+            </div>
+            {canManageSecurity && <button className="menu-item" onClick={() => { actions.setUI({ section: 'security', securityTab: 'accounts' }); setMenu(null) }} data-testid="open-security-accounts">{Icon.shield({ size: 14 })} Manage accounts &amp; roles</button>}
+            {canSchedule && <button
               className="menu-item"
               onClick={() => {
                 exportICS()
@@ -171,7 +197,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
               }}
             >
               {Icon.download({ size: 14 })} Export current range (.ics)
-            </button>
+            </button>}
             <button
               className="menu-item"
               onClick={() => {
@@ -181,7 +207,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
             >
               {Icon.print({ size: 14 })} Print / save as PDF
             </button>
-            <button
+            {canOpenSettings && <button
               className="menu-item"
               onClick={() => {
                 actions.setUI({ settings: true })
@@ -189,20 +215,20 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
               }}
             >
               {Icon.dots({ size: 14 })} Settings
-            </button>
+            </button>}
             <div className="menu-sep" />
             <button
               className="menu-item"
               onClick={() => {
-                actions.undo()
-                toast({ message: 'Undone', kind: 'info' })
+                const result = actions.undo()
+                if (result?.ok) toast({ message: 'Undone', kind: 'info' })
                 setMenu(null)
               }}
             >
               {Icon.undo({ size: 14 })} Undo last change
             </button>
             <div className="menu-sep" />
-            <button
+            {canResetDemo && <button
               className="menu-item"
               onClick={() => {
                 actions.reseed()
@@ -211,7 +237,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
               }}
             >
               {Icon.zap({ size: 14 })} Regenerate demo data
-            </button>
+            </button>}
           </div>
         )}
       </div>

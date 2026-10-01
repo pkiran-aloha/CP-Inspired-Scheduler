@@ -23,45 +23,52 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
       actions.setUI(patch)
       onClose()
     }
-    out.push({ g: 'Actions', k: 'N', icon: 'plus', t: 'New appointment / block time', hint: 'opens the booking picker', run: () => { onClose(); onNew() } })
-    out.push({ g: 'Actions', icon: 'dots', t: 'Needs-cover inbox', hint: 'backfill cancelled sessions', run: go({ inbox: true }) })
-    out.push({ g: 'Actions', icon: 'spark', t: 'Today', hint: 'jump the calendar to today (T)', run: go({ section: 'calendar', anchor: todayISO() }) })
-    out.push({ g: 'Actions', icon: 'moon', t: `Switch to ${settings.theme === 'dark' ? 'light' : 'dark'} mode`, hint: 'appearance', run: () => { actions.setSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }); onClose() } })
-    out.push({ g: 'Actions', icon: 'x', t: 'Clear calendar filters', hint: 'reset staff/client/team selection', run: go({ staffSel: [], clientSel: [], teamSel: [], search: '' }) })
-    out.push({ g: 'Actions', k: '?', icon: 'info', t: 'Keyboard shortcuts', hint: 'everything is a keystroke away', run: () => { onClose(); onHelp() } })
-    const secs = [['calendar', 'Cal', 'Calendar board'], ['clients', 'Cli', 'Clients roster'], ['staff', 'Stf', 'Staff directory'], ['billing', 'Bil', 'Billing & claims desk'], ['analytics', 'An', 'Analytics'], ['reports', 'Rep', 'Reports desk'], ['masters', 'Mst', 'Masters — payers & service types'], ['dashboard', 'Dash', 'Analytics dashboard']]
-    secs.forEach(([id, , label], i) => out.push({ g: 'Jump to', k: String(i + 1), icon: id === 'calendar' ? 'cal' : id === 'clients' ? 'user' : id === 'staff' ? 'team' : id === 'billing' ? 'dollar' : id === 'analytics' ? 'spark' : id === 'masters' ? 'clipboard' : id === 'dashboard' ? 'dashboard' : 'clipboard', t: label, hint: 'section', run: go({ section: id }) }))
-    out.push({ g: 'Jump to', icon: 'shield', t: 'Payer directory', hint: 'masters · payers', run: go({ section: 'masters', mastersTab: 'payers', payerSel: null }) })
-    out.push({ g: 'Jump to', icon: 'clipboard', t: 'Service types master', hint: 'masters · service list', run: go({ section: 'masters', mastersTab: 'svcs' }) })
-    const views = [['week', 'W'], ['day', 'D'], ['month', 'M'], ['timeline', 'H'], ['agenda', 'G']]
-    views.forEach(([v, k]) => out.push({ g: 'Jump to', k, icon: 'cal', t: `Calendar · ${v} view`, hint: 'switch view', run: go({ section: 'calendar', view: v }) }))
-    for (const r of REPORTS) out.push({ g: 'Reports', icon: r.icon || 'clipboard', t: r.name, hint: r.blurb.slice(0, 46) + '…', run: go({ section: 'reports', repSel: r.id }) })
-    // ---- Intake Manager: the pre-client pipeline is searchable like anything else
-    out.push({ g: 'Intake', icon: 'user', t: 'Intake Requests — pipeline', hint: 'referrals, screening, benefits & conversion', run: go({ section: 'intake', intakeSel: null }) })
-    out.push({ g: 'Intake', icon: 'plus', t: 'New intake client', hint: 'capture a referral without creating a chart', run: go({ section: 'intake-new', intakeEdit: null }) })
-    out.push({ g: 'Intake', icon: 'zap', t: 'Referral Sources', hint: 'relationship register & conversion scorecard', run: go({ section: 'referrals' }) })
-    out.push({ g: 'Intake', icon: 'alert', t: 'Intake needing attention', hint: 'past SLA or stalled in stage', run: go({ section: 'intake', intakeAttention: 1 }) })
-    for (const r of Object.values(state.intakeRequests || {})) {
-      if (!OPEN_STAGES.includes(r.stage)) continue
-      out.push({ g: 'Intake requests', icon: 'user', t: intakeFullName(r), hint: `${r.no} · ${intakeStageDef(r.stage).short} · ${intakeAgeLabel(r.dob)}`, run: go({ section: 'intake', intakeSel: r.id }) })
+    const can = (area, level = 'view') => state.canAccess(area, level)
+    if (can('calendar', 'full')) out.push({ g: 'Actions', k: 'N', icon: 'plus', t: 'New appointment / block time', hint: 'opens the booking picker', run: () => { onClose(); onNew() } })
+    if (can('calendar')) {
+      out.push({ g: 'Actions', icon: 'dots', t: 'Needs-cover inbox', hint: 'backfill cancelled sessions', run: go({ inbox: true }) })
+      out.push({ g: 'Actions', icon: 'spark', t: 'Today', hint: 'jump the calendar to today (T)', run: go({ section: 'calendar', anchor: todayISO() }) })
+      out.push({ g: 'Actions', icon: 'x', t: 'Clear calendar filters', hint: 'reset staff/client/team selection', run: go({ staffSel: [], clientSel: [], teamSel: [], search: '' }) })
     }
-    out.push({ g: 'Roster', icon: 'plus', t: 'Add client', hint: 'open the new-client form', run: go({ section: 'clients', cliAdd: 1 }) })
-    out.push({ g: 'Roster', icon: 'plus', t: 'Add staff member', hint: 'open the new-staff form', run: go({ section: 'staff', stfAdd: 1 }) })
-    out.push({ g: 'Navigate', icon: 'dashboard', t: 'Open Dashboard', hint: 'widget analytics board', run: go({ section: 'dashboard' }) })
-    for (const c of clients) out.push({ g: 'Clients', icon: 'user', t: c.name, hint: [c.program, c.authWeekly ? `${c.authWeekly}h auth/wk` : null].filter(Boolean).join(' · ') || 'client', run: go({ section: 'clients', cliQ: c.name }) })
-    for (const s of staff)
-      out.push({
-        g: 'Staff',
-        icon: 'team',
-        t: s.name,
-        hint: `${s.role}${s.cert ? ` · ${s.cert}` : ''} — show their week`,
-        run: () => {
-          actions.setUI({ section: 'calendar', view: 'week', anchor: todayISO(), staffSel: [s.id], clientSel: [], teamSel: [] })
-          onClose()
-        },
-      })
+    out.push({ g: 'Actions', icon: 'moon', t: `Switch to ${settings.theme === 'dark' ? 'light' : 'dark'} mode`, hint: 'appearance', run: () => { actions.setSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }); onClose() } })
+    out.push({ g: 'Actions', k: '?', icon: 'info', t: 'Keyboard shortcuts', hint: 'everything is a keystroke away', run: () => { onClose(); onHelp() } })
+    const secs = [
+      ['calendar', 'Cal', 'Calendar board', 'cal'], ['clients', 'Cli', 'Clients roster', 'user'],
+      ['staff', 'Stf', 'Staff directory', 'team'], ['billing', 'Bil', 'Billing & claims desk', 'dollar'],
+      ['analytics', 'An', 'Analytics', 'spark'], ['reports', 'Rep', 'Reports desk', 'clipboard'],
+      ['masters', 'Mst', 'Masters — payers & service types', 'clipboard'], ['dashboard', 'Dash', 'Analytics dashboard', 'dashboard'],
+      ['security', 'Sec', 'Security · accounts & roles', 'shield'],
+    ]
+    secs.filter(([id]) => can(id)).forEach(([id, key, label, icon], i) => out.push({ g: 'Jump to', k: key === 'Cal' ? String(i + 1) : undefined, icon, t: label, hint: 'section', run: go({ section: id }) }))
+    if (can('masters')) {
+      out.push({ g: 'Jump to', icon: 'shield', t: 'Payer directory', hint: 'masters · payers', run: go({ section: 'masters', mastersTab: 'payers', payerSel: null }) })
+      out.push({ g: 'Jump to', icon: 'clipboard', t: 'Service types master', hint: 'masters · service list', run: go({ section: 'masters', mastersTab: 'svcs' }) })
+    }
+    if (can('calendar')) {
+      const views = [['week', 'W'], ['day', 'D'], ['month', 'M'], ['timeline', 'H'], ['agenda', 'G']]
+      views.forEach(([v, k]) => out.push({ g: 'Jump to', k, icon: 'cal', t: `Calendar · ${v} view`, hint: 'switch view', run: go({ section: 'calendar', view: v }) }))
+    }
+    if (can('reports')) for (const r of REPORTS) out.push({ g: 'Reports', icon: r.icon || 'clipboard', t: r.name, hint: r.blurb.slice(0, 46) + '…', run: go({ section: 'reports', repSel: r.id }) })
+    if (can('intake')) {
+      out.push({ g: 'Intake', icon: 'user', t: 'Intake Requests — pipeline', hint: 'referrals, screening, benefits & conversion', run: go({ section: 'intake', intakeSel: null }) })
+      if (can('intake', 'full')) out.push({ g: 'Intake', icon: 'plus', t: 'New intake client', hint: 'capture a referral without creating a chart', run: go({ section: 'intake-new', intakeEdit: null }) })
+      out.push({ g: 'Intake', icon: 'zap', t: 'Referral Sources', hint: 'relationship register & conversion scorecard', run: go({ section: 'referrals' }) })
+      out.push({ g: 'Intake', icon: 'alert', t: 'Intake needing attention', hint: 'past SLA or stalled in stage', run: go({ section: 'intake', intakeAttention: 1 }) })
+      for (const r of Object.values(state.intakeRequests || {})) {
+        if (!OPEN_STAGES.includes(r.stage)) continue
+        out.push({ g: 'Intake requests', icon: 'user', t: intakeFullName(r), hint: `${r.no} · ${intakeStageDef(r.stage).short} · ${intakeAgeLabel(r.dob)}`, run: go({ section: 'intake', intakeSel: r.id }) })
+      }
+    }
+    if (can('clients', 'full')) out.push({ g: 'Roster', icon: 'plus', t: 'Add client', hint: 'open the new-client form', run: go({ section: 'clients', cliAdd: 1 }) })
+    if (can('staff', 'full')) out.push({ g: 'Roster', icon: 'plus', t: 'Add staff member', hint: 'open the new-staff form', run: go({ section: 'staff', stfAdd: 1 }) })
+    if (can('dashboard')) out.push({ g: 'Navigate', icon: 'dashboard', t: 'Open Dashboard', hint: 'widget analytics board', run: go({ section: 'dashboard' }) })
+    if (can('clients')) for (const c of clients) out.push({ g: 'Clients', icon: 'user', t: c.name, hint: [c.program, c.authWeekly ? `${c.authWeekly}h auth/wk` : null].filter(Boolean).join(' · ') || 'client', run: go({ section: 'clients', cliQ: c.name }) })
+    if (can('staff')) for (const s of staff) out.push({
+      g: 'Staff', icon: 'team', t: s.name, hint: `${s.role}${s.cert ? ` · ${s.cert}` : ''} — show their week`,
+      run: () => { if (can('calendar')) actions.setUI({ section: 'calendar', view: 'week', anchor: todayISO(), staffSel: [s.id], clientSel: [], teamSel: [] }); else actions.setUI({ section: 'staff' }); onClose() },
+    })
     return out
-  }, [actions, settings.theme, staff, clients, state.intakeRequests, onClose, onNew, onHelp])
+  }, [actions, state.canAccess, settings.theme, staff, clients, state.intakeRequests, onClose, onNew, onHelp])
 
   const results = useMemo(() => {
     const query = q.trim().toLowerCase()

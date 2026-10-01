@@ -10,6 +10,8 @@ import { computeBilling, RECURRENCES, STATUSES, TYPES, VERIFY_CHECKS, findConfli
 export default function DetailCard({ appt, onClose, onEdit }) {
   const state = useStore()
   const { appts, staff, clients, settings, actions } = state
+  const canEdit = state.canAccess('calendar', 'full')
+  const canViewBilling = state.canAccess('billing', 'view')
   const claimOfAppt = appt.claimId ? state.claims?.[appt.claimId] : null
   const client = appt.clientIds?.[0] ? (clients||[]).find((c)=>c.id===appt.clientIds[0]) : null
   const clientClaims = client ? Object.values(state.claims||{}).filter((c)=>c.clientId===client.id) : []
@@ -142,7 +144,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               </span>
             </div>
           )}
-          {cover.length > 0 && (
+          {canEdit && cover.length > 0 && (
             <div className="backfill" data-testid="backfill-panel">
               <div className="bf-h">
                 {Icon.spark({ size: 13 })} <b>Smart backfill</b>
@@ -189,7 +191,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               )}
             </span>
           </div>
-          {client && (
+          {canViewBilling && client && (
             <div className="kv" data-testid="dc-balance-row">
               <span className="k">Balance</span>
               <span className="v" style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
@@ -227,7 +229,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               <span className="v">{appt.service}</span>
             </div>
           )}
-          {appt.billing && TYPES[appt.type]?.billable && (
+          {canViewBilling && appt.billing && TYPES[appt.type]?.billable && (
             <div className="kv">
               <span className="k">Billing</span>
               <span className="v">
@@ -268,7 +270,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                 ) : (
                   <>
                     <span className="muted" style={{ fontSize: 12 }}>Verification pending</span>
-                    {isPast && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={quickVerify}>Quick verify + sign</button>}
+                    {canEdit && isPast && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={quickVerify}>Quick verify + sign</button>}
                   </>
                 )}
               </div>
@@ -329,7 +331,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                     Jump to next ({fmtDayLabel(nextOcc.date)})
                   </button>
                 )}
-                {appt.edited && (
+                {canEdit && appt.edited && (
                   <button className="btn btn-ghost btn-sm" onClick={revert}>
                     {Icon.undo({ size: 12 })} Revert to series default
                   </button>
@@ -339,7 +341,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
           )}
         </div>
 
-        {confirmDel ? (
+        {canEdit ? (confirmDel ? (
           <div className="dactions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700 }}>Delete “{appt.title}”?</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -387,7 +389,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               {Icon.trash({ size: 13 })} Delete
             </button>
           </div>
-        )}
+        )) : <div className="dactions"><span className="muted">View only</span></div>}
       </div>
     </div>
   )

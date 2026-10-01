@@ -11,6 +11,7 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail, selectedId, setSelectedId }) {
   const state = useStore()
   const { appts, staff, clients, settings, ui, actions } = state
+  const canEdit = state.canAccess('calendar', 'full')
   const toast = useToast()
   const scrollRef = useRef(null)
   const dragRef = useRef(null)
@@ -125,7 +126,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
 
   // ---------- create drag ----------
   const onColDown = (e, dayIdx) => {
-    if (e.button > 0 || dragRef.current) return
+    if (!canEdit || e.button > 0 || dragRef.current) return
     const col = e.currentTarget
     const a0 = snap(minsFromY(e, col), SNAP)
     dragRef.current = { mode: 'create', dayIdx, a0, y0: e.clientY, x0: e.clientX, moved: false, s: a0, e: a0 + 60, col }
@@ -138,6 +139,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
   const onChipDown = (e, a, dayIdx, edge) => {
     if (e.button > 0 || dragRef.current) return
     e.stopPropagation()
+    if (!canEdit) { onOpenDetail(a.id); return }
     const chipEl = e.currentTarget
     const dayCol = chipEl.closest('.tg-colwrap') || chipEl.closest('.tg-col')
     dragRef.current = {
@@ -231,7 +233,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
   const colTemplate = `var(--gutter) repeat(${days.length}, minmax(${colMin}px, 1fr))`
 
   return (
-    <div className="tgrid" onMouseLeave={() => setHover(null)} style={{ '--pph': `${pph}px` }}>
+    <div className={`tgrid ${canEdit ? '' : 'readonly'}`} onMouseLeave={() => setHover(null)} style={{ '--pph': `${pph}px` }}>
       <div className="tg-scroll" ref={scrollRef}>
         <div className="tg-head" style={{ gridTemplateColumns: colTemplate }}>
           <div className="tg-corner" title="ISO week">

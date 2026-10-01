@@ -12,6 +12,8 @@ import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/w
 import { previewEra, planEraImport, planParkedEraPost } from '../lib/eraPosting'
 import { planSecondaryFiling, planSecondarySkip, planSecondaryCancel, normalizeCobLedger } from '../lib/secondaryLedger'
 import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt, planPatientReceipt } from '../lib/paymentLedger'
+import { accessLevel, applySecurityChange, authorizeAction, canAccess, canAccessRecord, currentAccount, currentRole, defaultSecurity, normalizeSecurity, scopeWorkspaceToAccount } from '../lib/security'
+import { useToast } from '../ui/Toast'
 
 const KEY = 'aloha-aba.v3'
 import { apptAutoTitle, needsRework } from '../lib/apptName'
@@ -21,7 +23,10 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // Undo lives in memory for this tab. Persisting 25 copies of the 1,000+ session
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
-const normalizeWorkspace = (state) => normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid))))))))
+const normalizeWorkspace = (state) => {
+  const normalized = normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid))))))))
+  return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
+}
 
 export function blankState() {
   const appts = buildSeed(todayISO())
@@ -68,6 +73,7 @@ export function blankState() {
     teams: TEAMS,
     history: [],
     settings,
+    security: defaultSecurity(STAFF),
     reports: { saved: [] },
     dash: { widgets: DEFAULT_DASH.map((w) => ({ ...w, cfg: { ...w.cfg } })) },
     ui: {
@@ -330,7 +336,13 @@ export function reducer(state, action) {
       const intakeRequests = { ...(state.intakeRequests || {}) }
       for (const r of action.upserts || []) intakeRequests[r.id] = r
       for (const id of action.deletes || []) delete intakeRequests[id]
-      const referralSources = action.sources ? [...action.sources] : state.referralSources
+      const referralSources = action.sources ? (() => {
+        const incoming = Array.isArray(action.sources) ? action.sources : Object.values(action.sources)
+        const current = state.referralSources || []
+        if (currentAccount(state)?.officeIds?.includes('*')) return incoming
+        const outOfScope = current.filter((source) => !canAccessRecord(state, 'referral', source))
+        return [...outOfScope, ...incoming]
+      })() : state.referralSources
       // A conversion hands back a *new* client chart: patch known clients in place
       // and append the ones this transaction introduced, so the chart really lands
       // in the roster every downstream module reads.
@@ -363,6 +375,10 @@ export function reducer(state, action) {
       return { ...state, ui: { ...state.ui, ...action.patch } }
     case 'setSettings':
       return { ...state, settings: { ...state.settings, ...action.patch } }
+    case 'securityTx': {
+      const result = applySecurityChange(state.security, action.operation, { ...(action.payload || {}), staff: state.staff }, action.actorId, action.at)
+      return result.ok ? { ...state, security: result.security } : state
+    }
     case 'meta':
       return { ...state, meta: { ...(state.meta || {}), ...action.patch } }
     case 'toggleSel': {
@@ -415,7 +431,12 @@ export function reducer(state, action) {
         if ((a[key] || []).includes(action.id)) appts[a.id] = { ...a, [key]: a[key].filter((id) => id !== action.id) }
       }
       const ui = { ...state.ui, [action.list === 'staff' ? 'staffSel' : 'clientSel']: state.ui[action.list === 'staff' ? 'staffSel' : 'clientSel'].filter((id) => id !== action.id) }
-      return { ...state, [action.list]: rest, teams, appts, ui }
+      let security = state.security
+      if (action.list === 'staff' && state.security?.accounts?.some((account) => account.staffId === action.id)) {
+        const revoked = applySecurityChange(state.security, 'staff.remove', { staffId: action.id, staff: state.staff }, state.security.currentUserId, Date.now())
+        if (revoked.ok) security = revoked.security
+      }
+      return { ...state, [action.list]: rest, teams, appts, ui, security }
     }
     case 'payer': {
       const list = state.payers || []
@@ -513,6 +534,7 @@ export const useStore = () => useContext(Ctx)
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, initial)
   const [saveError, setSaveError] = useState(false)
+  const toast = useToast()
   const saveT = useRef(null)
   useEffect(() => {
     clearTimeout(saveT.current)
@@ -528,8 +550,31 @@ export function StoreProvider({ children }) {
     return () => clearTimeout(saveT.current)
   }, [state])
 
-  const actions = useMemo(() => createActions(state, dispatch), [state])
-  const value = useMemo(() => ({ ...state, dispatch, actions }), [state, actions])
+  const guardedDispatch = useMemo(() => (action) => {
+    const decision = authorizeAction(state, action)
+    if (!decision.ok) {
+      toast({ message: decision.msg, kind: 'warn' })
+      return decision
+    }
+    let safeAction = action
+    if (action.type === 'setSettings' && Array.isArray(action.patch?.providers) && !currentAccount(state)?.officeIds?.includes('*')) {
+      const updatedIds = new Set(action.patch.providers.map((provider) => provider.id))
+      const hiddenProviders = (state.settings?.providers || []).filter((provider) => !canAccessRecord(state, 'provider', provider) && !updatedIds.has(provider.id))
+      safeAction = { ...action, patch: { ...action.patch, providers: [...hiddenProviders, ...action.patch.providers] } }
+    }
+    dispatch(safeAction)
+    return { ok: true }
+  }, [state, toast])
+  const visibleState = useMemo(() => scopeWorkspaceToAccount(state), [state])
+  const actions = useMemo(() => createActions(visibleState, guardedDispatch, state), [visibleState, guardedDispatch, state])
+  const access = useMemo(() => ({
+    currentAccount: currentAccount(state),
+    currentRole: currentRole(state),
+    canAccessAllOffices: !!currentAccount(state)?.officeIds?.includes('*'),
+    accessLevel: (area) => accessLevel(state, area),
+    canAccess: (area, minimum = 'view') => canAccess(state, area, minimum),
+  }), [state])
+  const value = useMemo(() => ({ ...visibleState, ...access, dispatch: guardedDispatch, actions }), [visibleState, access, guardedDispatch, actions])
   return <Ctx.Provider value={value}>
     {children}
     {saveError && <div className="storage-warning" role="alert" data-testid="storage-warning">
@@ -539,9 +584,22 @@ export function StoreProvider({ children }) {
   </Ctx.Provider>
 }
 
-function createActions(state, dispatch) {
+function createActions(state, dispatch, rawState = state) {
+  const securityMutation = (operation, payload = {}) => {
+    const at = Date.now()
+    const actorId = currentAccount(rawState)?.id || null
+    const action = { type: 'securityTx', operation, payload, actorId, at }
+    const decision = authorizeAction(rawState, action)
+    if (!decision.ok) return decision
+    const result = applySecurityChange(rawState.security, operation, { ...payload, staff: rawState.staff }, actorId, at)
+    if (!result.ok) return result
+    const dispatched = dispatch(action)
+    return dispatched?.ok === false ? dispatched : result
+  }
   return {
     setUI: (patch) => dispatch({ type: 'setUI', patch }),
+    securityMutation,
+    switchDemoAccount: (id) => securityMutation('account.switch', { id }),
     setSettings: (patch) => dispatch({ type: 'setSettings', patch }),
     setMeta: (patch) => dispatch({ type: 'meta', patch }),
     replace: (payload) => dispatch({ type: 'replace', payload }),
@@ -684,10 +742,12 @@ function createActions(state, dispatch) {
     removePayrollProfile: (staffId) => dispatch({ type: 'payrollTx', scope: 'profile', op: 'remove', staffId }),
     /** Run lifecycle: create → approve → process (lock) → void. */
     createPayRun: (period, options = {}) => {
-      const gate = runGate(state, period, options)
-      const run = newRun(state, period, options)
-      dispatch({ type: 'payrollTx', scope: 'run', op: 'create', periodId: period.id, options })
-      return { ok: true, msg: `${run.no} created — ${run.included.length} employees · ${gate.blockers.length} blocker(s), ${gate.warnings.length} warning(s)`, id: run.id, gate }
+      const scopedOptions = { ...options, at: options.at || Date.now(), included: options.included || eligibleProfiles(state).map((profile) => profile.staffId) }
+      const gate = runGate(state, period, scopedOptions)
+      const run = newRun(rawState, period, scopedOptions)
+      const decision = dispatch({ type: 'payrollTx', scope: 'run', op: 'create', periodId: period.id, options: scopedOptions })
+      if (decision?.ok === false) return decision
+      return { ok: true, msg: `${run.no} created — ${scopedOptions.included.length} employees · ${gate.blockers.length} blocker(s), ${gate.warnings.length} warning(s)`, id: run.id, gate }
     },
     payrollRun: (runId, op, options = {}) => {
       const run = (state.payRuns || {})[runId]
@@ -699,10 +759,10 @@ function createActions(state, dispatch) {
       return { ok: true, msg: tx.msg }
     },
     /** Record a downloaded provider/bank artifact so the run has an audit trail. */
-    recordPayExport: (item) => {
-      const rec = { id: uid(), at: Date.now(), status: 'pending', ...item }
-      dispatch({ type: 'payrollTx', scope: 'export', item: rec })
-      return rec
+    recordPayExport: (item, permissionArea = 'payroll') => {
+      const rec = { id: uid(), at: Date.now(), status: 'pending', ...item, ...(permissionArea === 'payrollQbo' ? { permissionArea } : {}) }
+      const result = dispatch({ type: 'payrollTx', scope: 'export', item: rec, permissionArea })
+      return result?.ok === false ? result : rec
     },
     reviewPayExport: (id, status, note = '') => dispatch({
       type: 'record', coll: 'payExports',

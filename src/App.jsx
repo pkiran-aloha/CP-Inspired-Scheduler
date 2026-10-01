@@ -2,6 +2,7 @@ import SectionBoundary from './components/SectionBoundary'
 import React, { useEffect, useMemo, useState } from 'react'
 import { StoreProvider, useStore } from './state/store'
 import { ToastProvider, useToast } from './ui/Toast'
+import { Icon } from './ui/Icons'
 import TopBar from './components/TopBar'
 import NavRail from './components/NavRail'
 import Sidebar from './components/Sidebar'
@@ -42,11 +43,13 @@ import QuickBooksPayrollView from './components/payroll/QuickBooksPayrollView'
 import PayrollSetupView from './components/payroll/PayrollSetupView'
 import NeedsCover from './components/NeedsCover'
 import SettingsModal from './components/SettingsModal'
+import SecurityView from './components/SecurityView'
 import CommandPalette from './components/CommandPalette'
 import KeysHelp from './components/KeysHelp'
 import { slidePreset } from './lib/analytics'
 import { DAY_NAMES, addDays, addMonths, isoDate, parseISO, rangeLabel, startOfWeek, todayISO, weekNum } from './lib/date'
 import { uid } from './lib/model'
+import { areaForSection, firstAccessibleSection } from './lib/security'
 
 export function rangeDays(view, anchor, weekStart) {
   const a = parseISO(anchor)
@@ -82,7 +85,25 @@ function Shell() {
   const [kbHelp, setKbHelp] = useState(false)
 
   const section = ui.section || 'calendar'
+  const area = areaForSection(section)
+  const routeAllowed = !!area && state.canAccess(area, 'view')
+  const canScheduleEdit = state.canAccess('calendar', 'full')
+  const accessFingerprint = JSON.stringify(state.currentRole?.permissions || {})
+  const officeFingerprint = state.currentAccount?.officeIds?.join('|') || ''
   const days = useMemo(() => rangeDays(ui.view, ui.anchor, settings.weekStart), [ui.view, ui.anchor, settings.weekStart])
+
+  useEffect(() => {
+    // A role preview is a new local session context. Close any open PHI-bearing
+    // drawer/dialog before the replacement account's access is rendered.
+    setPicking(null)
+    setQuickAdd(null)
+    setModal(null)
+    setDetailId(null)
+    setPalette(false)
+    setKbHelp(false)
+    const nextSection = !routeAllowed ? firstAccessibleSection(state) : null
+    actions.setUI({ inbox: false, settings: false, ...(nextSection ? { section: nextSection } : {}) })
+  }, [state.currentAccount?.id, state.currentRole?.id, accessFingerprint, officeFingerprint, routeAllowed])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
@@ -136,7 +157,7 @@ function Shell() {
       if (e.key === '?') { e.preventDefault(); setKbHelp(true); return }
       if (/^[1-9]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'masters', 'payroll'][Number(k) - 1] })
       else if (k === 't') actions.setUI({ anchor: todayISO() })
-      else if ((k === 'n' || k === 'a') && section === 'calendar') setPicking({ date: todayISO(), start: 9 * 60, end: 10 * 60 })
+      else if ((k === 'n' || k === 'a') && section === 'calendar' && canScheduleEdit) setPicking({ date: todayISO(), start: 9 * 60, end: 10 * 60 })
       else if (['d', 'w', 'm', 'g', 'h'].includes(k)) actions.setUI({ section: 'calendar', view: { d: 'day', w: 'week', m: 'month', g: 'agenda', h: 'timeline' }[k] })
       else if (k === 'arrowleft' || k === 'arrowright') {
         const dir = k === 'arrowleft' ? -1 : 1
@@ -152,7 +173,7 @@ function Shell() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    }, [modal, picking, quickAdd, detailId, section, ui.view, ui.anchor, ui.anPreset, ui.repPreset, settings.weekStart, settings.analytics, actions, toast, palette, kbHelp])
+    }, [modal, picking, quickAdd, detailId, section, ui.view, ui.anchor, ui.anPreset, ui.repPreset, settings.weekStart, settings.analytics, actions, toast, palette, kbHelp, canScheduleEdit])
 
   const openCreate = (type, preset = {}) => {
     const firstStaff = preset.staffIds ?? (ui.staffSel.length === 1 ? ui.staffSel : ui.staffSel.slice(0, 3))
@@ -210,6 +231,8 @@ function Shell() {
       <NavRail />
       <div className="appbody">
         <SectionBoundary key={section}>
+        {!routeAllowed ? <div className="access-denied" role="alert"><div className="access-denied-icon">{Icon.shield({ size: 18 })}</div><h2>Access restricted</h2><p>Your current role does not have permission to view this module.</p><button className="btn btn-sm" type="button" onClick={() => actions.setUI({ section: 'security', securityTab: 'accounts' })}>Open demo access settings</button></div> : <>
+        {state.accessLevel(area) === 'view' && <div className="rbac-readonly-banner" role="note">View-only access: changes to this module are disabled for the current demo role.</div>}
         {section === 'calendar' && (
           <>
             <TopBar
@@ -217,7 +240,7 @@ function Shell() {
               onPalette={() => setPalette(true)}
               label={label}
               sub={sub}
-              onNew={() => setPicking({ date: ui.anchor, start: null, end: null })}
+              onNew={canScheduleEdit ? () => setPicking({ date: ui.anchor, start: null, end: null }) : undefined}
               onNav={(dir) => actions.setUI({ anchor: shift(ui.view, ui.anchor, dir, settings.weekStart) })}
             />
             <div className="main">
@@ -226,8 +249,8 @@ function Shell() {
                 {(ui.view === 'week' || ui.view === 'day') && (
                   <TimeGrid
                     days={days}
-                    onPickSlot={(slot) => setPicking(slot)}
-                    onQuickCreate={(slot) => setQuickAdd(slot)}
+                    onPickSlot={canScheduleEdit ? (slot) => setPicking(slot) : undefined}
+                    onQuickCreate={canScheduleEdit ? (slot) => setQuickAdd(slot) : undefined}
                     onOpenDetail={setDetailId}
                     selectedId={detailId}
                     setSelectedId={setDetailId}
@@ -236,15 +259,15 @@ function Shell() {
                 {ui.view === 'timeline' && (
                   <TimelineView
                     days={days}
-                    onPickSlot={(slot) => setPicking(slot)}
-                    onQuickCreate={(slot) => setQuickAdd(slot)}
+                    onPickSlot={canScheduleEdit ? (slot) => setPicking(slot) : undefined}
+                    onQuickCreate={canScheduleEdit ? (slot) => setQuickAdd(slot) : undefined}
                     onOpenDetail={setDetailId}
                     selectedId={detailId}
                     setSelectedId={setDetailId}
                   />
                 )}
-                {ui.view === 'month' && <MonthView days={days} onOpenDetail={setDetailId} onCreateAt={(date) => setPicking({ date, start: null, end: null })} />}
-                {ui.view === 'agenda' && <AgendaView days={days} onOpenDetail={setDetailId} onNew={() => setPicking({ date: ui.anchor, start: null, end: null })} />}
+                {ui.view === 'month' && <MonthView days={days} onOpenDetail={setDetailId} onCreateAt={canScheduleEdit ? (date) => setPicking({ date, start: null, end: null }) : undefined} />}
+                {ui.view === 'agenda' && <AgendaView days={days} onOpenDetail={setDetailId} onNew={canScheduleEdit ? () => setPicking({ date: ui.anchor, start: null, end: null }) : undefined} />}
               </div>
             </div>
           </>
@@ -276,10 +299,12 @@ function Shell() {
         {section === 'pay-idmap' && <PayrollIdMappingView />}
         {section === 'pay-qbo' && <QuickBooksPayrollView />}
         {section === 'pay-setup' && <PayrollSetupView />}
+        {section === 'security' && <SecurityView />}
+        </>}
         </SectionBoundary>
       </div>
 
-      {picking && (
+      {canScheduleEdit && picking && (
         <TypePicker
           slot={picking}
           onClose={() => setPicking(null)}
@@ -291,7 +316,7 @@ function Shell() {
           }}
         />
       )}
-      {modal && (
+      {canScheduleEdit && modal && (
         <AppointmentModal
           key={modal.appt.id}
           mode={modal.mode}
@@ -313,7 +338,7 @@ function Shell() {
           }}
         />
       )}
-      {quickAdd && (
+      {canScheduleEdit && quickAdd && (
         <QuickAdd
           slot={quickAdd}
           onClose={() => setQuickAdd(null)}
@@ -328,17 +353,17 @@ function Shell() {
           }}
         />
       )}
-      {ui.settings && <SettingsModal onClose={() => actions.setUI({ settings: false })} />}
+      {ui.settings && state.canAccess('settings', 'view') && <SettingsModal onClose={() => actions.setUI({ settings: false })} />}
       {palette && (
         <CommandPalette
           onClose={() => setPalette(false)}
-          onNew={() => setPicking({ date: ui.anchor && section === 'calendar' ? ui.anchor : todayISO(), start: 9 * 60, end: 10 * 60 })}
+          onNew={() => canScheduleEdit && setPicking({ date: ui.anchor && section === 'calendar' ? ui.anchor : todayISO(), start: 9 * 60, end: 10 * 60 })}
           onHelp={() => setKbHelp(true)}
         />
       )}
       {kbHelp && <KeysHelp onClose={() => setKbHelp(false)} />}
-      {ui.inbox && <NeedsCover days={days} onClose={() => actions.setUI({ inbox: false })} />}
-      {detailAppt && (section === 'calendar' || section === 'dashboard') && (
+      {ui.inbox && state.canAccess('calendar', 'view') && <NeedsCover days={days} onClose={() => actions.setUI({ inbox: false })} />}
+      {detailAppt && state.canAccess('calendar', 'view') && (section === 'calendar' || section === 'dashboard') && (
         <DetailCard
           appt={detailAppt}
           onClose={() => setDetailId(null)}

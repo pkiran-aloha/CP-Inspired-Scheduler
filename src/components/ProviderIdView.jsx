@@ -33,8 +33,10 @@ export default function ProviderIdView() {
 
   const save = () => {
     if (!form.name || !form.npi) { toast({ message: 'Name and NPI required', kind: 'warn' }); return }
-    if (open === 'new') actions.addProvider({ id: `prv_${Date.now()}`, ...form })
-    else actions.updateProvider(open, form)
+    const result = open === 'new'
+      ? actions.addProvider({ id: `prv_${Date.now()}`, ...form })
+      : actions.updateProvider(open, form)
+    if (result?.ok === false) return // guarded dispatch already explains why the write was denied
     toast({ message: open === 'new' ? 'Provider added' : 'Provider updated', kind: 'ok' })
     setOpen(null); setForm({ name: '', npi: '', taxonomy: '', license: '', role: 'BCBA', creds: '' })
   }
@@ -96,7 +98,11 @@ export default function ProviderIdView() {
                 <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: p.role === 'BCBA' ? '#eff6ff' : 'var(--panel-2)' }}>{p.role}</span></div>
                 <div className="py-cell" style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-xs" data-testid={`pi-edit-${p.id}`} onClick={() => { setForm({ name: p.name, npi: p.npi || '', taxonomy: p.taxonomy || '', license: p.license || '', role: p.role || 'BCBA', creds: p.creds || '' }); setOpen(p.id) }} style={{ borderRadius: 8 }}>Edit</button>
-                  <button className="btn btn-xs" data-testid={`pi-del-${p.id}`} onClick={() => { actions.deleteProvider(p.id); toast({ message: `${p.name} removed`, kind: 'ok' }) }} style={{ borderRadius: 8 }}>Delete</button>
+                  <button className="btn btn-xs" data-testid={`pi-del-${p.id}`} onClick={() => {
+                    const result = actions.deleteProvider(p.id)
+                    if (result?.ok === false) return // guarded dispatch already explains why the write was denied
+                    toast({ message: `${p.name} removed`, kind: 'ok' })
+                  }} style={{ borderRadius: 8 }}>Delete</button>
                 </div>
               </div>
             ))}
