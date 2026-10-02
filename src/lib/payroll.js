@@ -978,6 +978,11 @@ export function planRun(state, period, action, opts = {}) {
   if (!run) return { ok: false, msg: 'Pay run not found' }
   if (run.status === 'voided') return { ok: false, msg: 'This run is voided — create a new one' }
 
+  if (action === 'submit') {
+    if (run.status !== 'draft') return { ok: false, msg: 'Only a draft run can be sent for approval' }
+    return { ok: true, msg: `${run.no} sent for approval`, runs: { [run.id]: { ...run, status: 'pending_approval', submittedAt: at, submittedBy: who, audit: [...(run.audit || []), nowAudit(opts, 'sent for approval')] } } }
+  }
+
   if (action === 'approve') {
     if (!['draft', 'pending_approval'].includes(run.status)) return { ok: false, msg: `A ${RUN_STATUS_LABEL[run.status]} run cannot be approved` }
     if (payroll.approvals.requireApproval && run.preparedBy && run.preparedBy === who && payroll.approvals.separateApprover) {

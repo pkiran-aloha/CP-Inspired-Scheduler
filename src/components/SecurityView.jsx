@@ -160,7 +160,7 @@ function RoleTab({ state, editable }) {
   )
 }
 
-function AccountEditor({ account, isNew, staffOptions, roles, officeOptions = SECURITY_OFFICES, canEdit, onSave, onCancel }) {
+function AccountEditor({ account, isNew, staffOptions, roles, officeOptions = [], canEdit, onSave, onCancel }) {
   const [staffId, setStaffId] = useState(account?.staffId || '')
   const [roleId, setRoleId] = useState(account?.roleId || '')
   const [offices, setOffices] = useState(account?.officeIds?.filter((id) => id !== '*') || [])
