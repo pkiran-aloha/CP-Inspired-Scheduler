@@ -156,9 +156,12 @@ describe('Process Payroll wizard', () => {
     await waitFor(() => expect(screen.getByTestId('pay-run-kpis')).toBeTruthy())
     fireEvent.click(screen.getByTestId('pay-review-next'))
     const approver = await screen.findByTestId('pay-approver')
-    // the preparer defaults to the signed-in demo account (the admin, who is not on staff)
-    expect(approver.value).toBe('Payroll admin')
-    fireEvent.change(approver, { target: { value: 'Payroll admin' } })
+    // the preparer is the signed-in demo account (the admin, who is not on staff);
+    // the approver picker then defaults to someone else
+    await waitFor(() => expect(Object.values(stored().payRuns || {})[0]?.preparedBy).toBe('Payroll admin'))
+    const preparer = 'Payroll admin'
+    expect(approver.value).not.toBe(preparer)
+    fireEvent.change(approver, { target: { value: preparer } })
     expect(await screen.findByTestId('pay-sod-warning')).toBeTruthy()
     fireEvent.click(screen.getByTestId('pay-approve'))
     await waitFor(() => expect(Object.values(stored().payRuns || {})[0]?.status).toBe('draft'))
