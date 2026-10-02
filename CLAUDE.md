@@ -49,8 +49,12 @@ Pushes to `main` run tests + build and deploy to GitHub Pages (`.github/workflow
 
 ## Workflow
 
-- Branch from `main`. PRs merge into `main`.
-- Run `npm test` before every commit. Run `npm run build` before a PR.
+- **Plain `git` only.** Do not use `gh` or the GitHub web UI for anything git can do.
+- Branch from `main` (`fix/…`, `feat/…`, `chore/…`, `ci/…`), commit, `git push -u origin <branch>`.
+- To land a branch: `git switch main && git pull --ff-only && git merge --no-ff <branch> && git push origin main`. The push to `main` runs tests + build before the Pages deploy, so a red test blocks the release.
+- Pull requests into `main` also run tests + build (no deploy), if someone opens one.
+- Run `npm test` before every commit when npm is available. Run `npm run build` before landing on `main`.
+- On Windows, write multi-line commit messages from Git Bash (`git commit -F - <<'EOF' … EOF`). PowerShell 5.1 splits arguments on embedded quotes.
 - Update the README "Current development context" section when a feature round lands.
 
 ## Skills for this project
