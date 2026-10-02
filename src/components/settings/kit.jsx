@@ -79,11 +79,11 @@ export function Toggle({ on, onChange, disabled, testid, label }) {
   )
 }
 
-export function Seg({ value, onChange, options, testid, ariaLabel }) {
+export function Seg({ value, onChange, options, testid, ariaLabel, disabled }) {
   return (
     <div className="viewseg" role="group" aria-label={ariaLabel} data-testid={testid}>
       {options.map((o) => (
-        <button key={o.value} className={value === o.value ? 'on' : ''} disabled={o.disabled} onClick={() => onChange(o.value)}>{o.label}</button>
+        <button key={o.value} className={value === o.value ? 'on' : ''} disabled={disabled || o.disabled} onClick={() => onChange(o.value)}>{o.label}</button>
       ))}
     </div>
   )

@@ -3,6 +3,22 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, fireEvent as fire } from '@testing-library/react'
 import App from '../App'
 import { blankState, reducer } from '../state/store'
+import { Seg } from '../components/settings/kit'
+
+describe('settings kit Seg', () => {
+  it('ignores clicks when disabled, so read-only users cannot change a segmented setting', () => {
+    const picks = []
+    const opts = [{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]
+    const { getByText, rerender, unmount } = render(<Seg value="a" options={opts} onChange={(v) => picks.push(v)} disabled />)
+    expect(getByText('B').disabled).toBe(true)
+    fireEvent.click(getByText('B'))
+    expect(picks).toEqual([])
+    rerender(<Seg value="a" options={opts} onChange={(v) => picks.push(v)} />)
+    fireEvent.click(getByText('B'))
+    expect(picks).toEqual(['b'])
+    unmount()
+  })
+})
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }

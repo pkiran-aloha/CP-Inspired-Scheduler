@@ -300,7 +300,8 @@ function ClinicalEditor({ req }) {
 export function IntakeDetail({ id, onClose, onToast }) {
   const state = useStore()
   const { actions, staff = [], payers = [], clients = [] } = state
-  const toast = onToast || useToast()
+  const ctxToast = useToast()
+  const toast = onToast || ctxToast
   const req = state.intakeRequests?.[id]
   const [tab, setTab] = useState('overview')
   const [logOpen, setLogOpen] = useState(false)
