@@ -4,7 +4,7 @@ import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import {
-  money, hrs, PayKpis, PeriodPicker, GateList, StaffCell, StatusPill,
+  actorName, money, hrs, PayKpis, PeriodPicker, GateList, StaffCell, StatusPill,
   PayStepper, PhasePanel, PhaseRecap, PaySubNav, PAY_PHASES, runProgress,
 } from './PayrollCommon'
 import ReviewRegisterModal from './ReviewRegisterModal'
@@ -34,7 +34,7 @@ export default function ProcessPayrollView() {
   const payroll = settings.payroll
   const [step, setStep] = useState(0)
   const [periodId, setPeriodId] = useState(() => periodFor(payroll, todayISO())?.id || null)
-  const [who, setWho] = useState('Prateek Kiran')
+  const [who, setWho] = useState(() => actorName(state))
   const [reviewIssue, setReviewIssue] = useState(null) // Review Register drill-down
 
   const periods = useMemo(() => periodFromId(payroll, periodId, { back: 24, forward: 12 }), [payroll, periodId])

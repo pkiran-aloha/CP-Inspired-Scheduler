@@ -59,6 +59,9 @@ function StageRail({ req, onMove, onClose }) {
   )
 }
 
+// who acted: the signed-in demo account's staff member, else the account name
+const actorOf = (state) => state.currentAccount?.staffId || state.currentAccount?.name || null
+
 function ContactForm({ req, onDone }) {
   const state = useStore()
   const { actions } = state
@@ -66,7 +69,7 @@ function ContactForm({ req, onDone }) {
   const [f, setF] = useState({ channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: '', nextStepAt: '' })
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }))
   const save = () => {
-    const r = actions.logContact(req.id, { ...f, by: 's12' })
+    const r = actions.logContact(req.id, { ...f, by: actorOf(state) })
     if (r.ok) { toast({ message: r.advanced ? 'Contact logged — request moved to Contacted' : 'Contact attempt logged', kind: 'ok' }); onDone?.() }
     else toast({ message: r.msg || 'Could not log', kind: 'warn' })
   }
@@ -157,17 +160,18 @@ function BenefitsEditor({ req }) {
 }
 
 function DocsEditor({ req }) {
-  const { actions } = useStore()
+  const state = useStore()
+  const { actions } = state
   const toast = useToast()
   const required = requiredDocs(req)
   const prog = docProgress(req)
   const setDoc = (id, status) => {
-    const next = { ...req.docs, [id]: { status, at: Date.now(), by: 's12' } }
+    const next = { ...req.docs, [id]: { status, at: Date.now(), by: actorOf(state) } }
     actions.patchIntake(req.id, { docs: next }, `Document ${INTAKE_DOCS.find((d) => d.id === id)?.label} → ${DOC_STATUS[status].label}`)
   }
   const toggleConsent = (id) => {
     const has = consentSigned(req, id)
-    const next = has ? (req.consents || []).filter((c) => c.id !== id) : [...(req.consents || []), { id, at: Date.now(), by: 's12', method: 'e-sign' }]
+    const next = has ? (req.consents || []).filter((c) => c.id !== id) : [...(req.consents || []), { id, at: Date.now(), by: actorOf(state), method: 'e-sign' }]
     actions.patchIntake(req.id, { consents: next }, `Consent ${CONSENT_KINDS.find((c) => c.id === id)?.label} ${has ? 'removed' : 'captured'}`)
     if (!has) toast({ message: 'Consent captured (e-sign placeholder — no external signature service is connected)', kind: 'ok' })
   }
@@ -337,12 +341,12 @@ export function IntakeDetail({ id, onClose, onToast }) {
   const doBook = () => {
     const [sh, sm] = book.start.split(':').map(Number)
     const [eh, em] = book.end.split(':').map(Number)
-    const r = actions.scheduleIntakeAssessment(id, { date: book.date, start: sh * 60 + sm, end: eh * 60 + em, clinicianId: book.clinicianId || null, by: 's12' })
+    const r = actions.scheduleIntakeAssessment(id, { date: book.date, start: sh * 60 + sm, end: eh * 60 + em, clinicianId: book.clinicianId || null, by: actorOf(state) })
     toast({ message: r.msg, kind: r.ok ? 'ok' : 'warn' })
     if (r.ok) setBookOpen(false)
   }
   const doConvert = () => {
-    const r = actions.convertIntake(id, { by: 's12', program: req.program || req.serviceLine })
+    const r = actions.convertIntake(id, { by: actorOf(state), program: req.program || req.serviceLine })
     if (!r.ok) { toast({ message: r.msg, kind: 'warn' }); return }
     toast({ message: r.msg, kind: 'ok' })
     setConvertOpen(false)

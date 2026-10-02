@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { PaySubNav, money, hrs, PayKpis, StaffCell, StatusPill } from './PayrollCommon'
+import { PaySubNav, actorName, money, hrs, PayKpis, StaffCell, StatusPill } from './PayrollCommon'
 import { RUN_STATUS_LABEL, periodFromId, stubFor, annualSummary } from '../../lib/payroll'
 import { registerCsv, registerSpec, qboCsv, glJournalRows, achFile, stubHtml, payrollCsv, deductionRows } from '../../lib/payrollExport'
 import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
@@ -25,7 +25,7 @@ export default function PayRunsView() {
   const [statusF, setStatusF] = useState('all')
   const [yearF, setYearF] = useState('all')
   const [q, setQ] = useState('')
-  const [who, setWho] = useState('Prateek Kiran')
+  const [who, setWho] = useState(() => actorName(state))
 
   const runs = useMemo(() => Object.values(payRuns || {}).sort((a, b) => (b.periodStart < a.periodStart ? -1 : 1)), [payRuns])
   const years = useMemo(() => [...new Set(runs.map((r) => (r.periodStart || '').slice(0, 4)))].sort(), [runs])

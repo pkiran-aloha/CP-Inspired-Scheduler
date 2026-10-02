@@ -97,6 +97,9 @@ describe('Client Intake form', () => {
     fireEvent.change(screen.getByTestId('iq-guardian'), { target: { value: 'Priya Whitfield' } })
     fireEvent.change(screen.getByTestId('iq-guardian-phone'), { target: { value: '(408) 555-0143' } })
     fireEvent.click(screen.getByTestId('iq-gender-F'))
+    // the default demo admin is not a staff member, so the owner starts empty and must be picked
+    fireEvent.click(screen.getByTestId('iq-owner'))
+    fireEvent.click(await screen.findByTestId('opt-iq-owner-s12'))
     fireEvent.click(screen.getByTestId('iq-form-save'))
     expect(await screen.findByTestId('iq-saved-banner')).toBeTruthy()
     await waitFor(() => {

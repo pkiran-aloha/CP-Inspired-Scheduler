@@ -11,6 +11,8 @@ export const money = (cents, { cents: showCents = true } = {}) => {
   return `$${v.toLocaleString('en-US', { minimumFractionDigits: showCents ? 2 : 0, maximumFractionDigits: showCents ? 2 : 0 })}`
 }
 export const moneyR = (cents) => money(cents)
+/** Default "acting as" name: the signed-in demo account's staff member, else the generic admin. */
+export const actorName = (state) => (state.staff || []).find((s) => s.id === state.currentAccount?.staffId)?.name || 'Payroll admin'
 export const hrs = (h) => `${(Number(h) || 0).toFixed(2)} h`
 export const pct = (n) => `${(Number(n) || 0).toFixed(1)}%`
 
