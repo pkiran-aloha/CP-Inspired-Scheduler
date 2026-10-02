@@ -251,7 +251,7 @@ export default function PayRunsView() {
                 <option value="Payroll admin">Payroll admin</option>
               </select>
               {open.status === 'draft' && <button className="btn btn-sm btn-primary" data-testid="pay-run-approve" onClick={() => act('approve')}>Approve</button>}
-              {open.status === 'draft' && open.included.length !== undefined && <button className="btn btn-sm" data-testid="pay-run-submit-approval" onClick={() => act('approve')}>Send for approval</button>}
+              {open.status === 'draft' && open.included.length !== undefined && <button className="btn btn-sm" data-testid="pay-run-submit-approval" onClick={() => act('submit')}>Send for approval</button>}
               {open.status === 'approved' && <button className="btn btn-sm btn-primary" data-testid="pay-run-process" onClick={() => act('process')}>Process &amp; lock</button>}
               {open.status === 'pending_approval' && <button className="btn btn-sm btn-primary" data-testid="pay-run-approve-pending" onClick={() => act('approve')}>Approve</button>}
               {!['processed', 'voided'].includes(open.status) && <button className="btn btn-sm" data-testid="pay-run-reopen" onClick={() => act('reopen')}>Reopen as draft</button>}

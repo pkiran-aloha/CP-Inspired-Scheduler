@@ -285,6 +285,20 @@ describe('pay run lifecycle & controls', () => {
     expect(second.runs[run.id].status).toBe('approved')
   })
 
+  it('sends a draft for approval without approving it', () => {
+    const s = fixture()
+    const p = period(s)
+    const run = newRun(s, p, { who: 'Preparer' })
+    const state = { ...s, payRuns: { [run.id]: run } }
+    const sent = planRun(state, p, 'submit', { runId: run.id, who: 'Preparer' })
+    expect(sent.ok).toBe(true)
+    expect(sent.runs[run.id].status).toBe('pending_approval')
+    expect(sent.runs[run.id].approvedBy).toBeUndefined()
+    const pending = { ...state, payRuns: sent.runs }
+    expect(planRun(pending, p, 'submit', { runId: run.id }).ok).toBe(false)
+    expect(planRun(pending, p, 'approve', { runId: run.id, who: 'Owner' }).runs[run.id].status).toBe('approved')
+  })
+
   it('re-prices, locks and freezes the register at processing, and marks timesheets processed', () => {
     const s = fixture()
     const p = period(s)

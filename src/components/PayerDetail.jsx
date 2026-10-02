@@ -128,7 +128,7 @@ function ProfileTab({ p, patch }) {
   }
   const delDef = (t) => {
     const n = usedBy(t.id)
-    if (n_used) { toast({ message: `“${t.label}” is picked by ${n_used} payer${n_used === 1 ? '' : 's'} — unlink it there first`, kind: 'error' }); return }
+    if (n) { toast({ message: `“${t.label}” is picked by ${n} payer${n === 1 ? '' : 's'} — unlink it there first`, kind: 'error' }); return }
     actions.removeCfDef(t.id)
     toast({ message: `Template “${t.label}” removed from the master`, kind: 'info' })
   }
