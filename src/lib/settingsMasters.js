@@ -797,8 +797,9 @@ export function planSettingsOp(state, op, payload = {}) {
       const rows = apptStatusList(settings)
       if (rows.length <= 1) return fail('Keep at least one appointment status.')
       if (!rows.some((s) => s.key !== row.key && s.active !== false)) return fail('Keep at least one active appointment status.')
+      if (payload.reassignTo && (payload.reassignTo === row.key || !rows.some((s) => s.key === payload.reassignTo))) return fail('Pick another existing status to move the appointments to.')
       const cascades = payload.reassignTo
-        ? { appts: Object.fromEntries(Object.entries(state.appts || {}).filter(([, a]) => a.status === row.key).map(([id]) => [id, { status: payload.reassignTo }])) }
+        ? { appts: { patches: Object.entries(state.appts || {}).filter(([, a]) => a.status === row.key).map(([id]) => ({ id, patch: { status: payload.reassignTo } })) } }
         : null
       return done(`“${row.label}” removed${used ? ` — ${used} appointment${used === 1 ? '' : 's'} moved to ${payload.reassignTo}` : ''}`, {
         patch: { apptStatuses: rows.filter((s) => s.key !== row.key).map((s, i) => ({ ...s, order: i })) }, cascades,

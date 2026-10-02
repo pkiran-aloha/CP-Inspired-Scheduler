@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { blankState } from '../state/store'
+import { blankState, reducer } from '../state/store'
 import {
   SETTINGS_MODULES, SYSTEM_SETTINGS_SECTIONS, settingsModule, settingsOffices, officeNames, locationOptions,
   apptStatusList, statusMapFor, statusOrderFor, statusFor, statusLabels, statusColorOf, isCancelStatus,
@@ -125,6 +125,17 @@ describe('planSettingsOp guards', () => {
     const moved = planSettingsOp(s, 'status.remove', { key: 'completed', reassignTo: 'active' })
     expect(moved.ok).toBe(true)
     expect(moved.cascades.appts).toBeTruthy()
+    expect(planSettingsOp(s, 'status.remove', { key: 'completed', reassignTo: 'no-such-status' }).ok).toBe(false)
+    expect(planSettingsOp(s, 'status.remove', { key: 'completed', reassignTo: 'completed' }).ok).toBe(false)
+
+    // the reducer must actually re-point the appointments, in one Undo step
+    const ids = Object.keys(s.appts).filter((id) => s.appts[id].status === 'completed')
+    expect(ids.length).toBeGreaterThan(0)
+    const after = reducer(s, { type: 'settingsTx', op: 'status.remove', payload: { key: 'completed', reassignTo: 'active' } })
+    expect(apptStatusList(after.settings).some((r) => r.key === 'completed')).toBe(false)
+    for (const id of ids) expect(after.appts[id].status).toBe('active')
+    const undone = reducer(after, { type: 'undo' })
+    for (const id of ids) expect(undone.appts[id].status).toBe('completed')
 
     const oneLeft = fresh()
     oneLeft.settings.apptStatuses = oneLeft.settings.apptStatuses.filter((r) => r.key === 'completed').map((r) => ({ ...r, system: false }))
