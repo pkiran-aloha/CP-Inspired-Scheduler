@@ -38,6 +38,14 @@ Pushes to `main` run tests + build and deploy to GitHub Pages (`.github/workflow
 - Integrations are honest: nothing transmits (no EDI, clearinghouse, SMS, payment). UI copy must not claim otherwise.
 - Cover both the UI action and the persisted state in tests for any new workflow.
 - Tests must be date-independent (no assumption that a given weekday has appointments).
+- Write pattern: a pure `plan*` in `src/lib/` validates, then one `*Tx` reducer case re-plans against live state before applying. Domain actions live in `createActions` in the store and return `{ok, msg}`.
+- Every dispatch passes `authorizeAction` (role + office scope, `src/lib/security.js`). A new action type needs an area mapping there or it is refused.
+
+## Conventions
+
+- Tests select by `data-testid` with module prefixes (`py-`, `pd-`, `pay-`, `iq-`, `dw-`, `nav-sub-`). There is no shared test helper module; seed via `blankState()`/`initial()` + `localStorage.setItem('aloha-aba.v3', ...)`, and pin fixture dates.
+- CSS uses `:root` tokens (`--accent`, `--panel`, `--line`, ...) redefined under `[data-theme='dark']`, and short class prefixes per module (`tg-` time grid, `bil-` billing, `pay-` payroll, `iq-` intake, `set-` settings). The file grew by appended chunks that override earlier ones, some with `!important`; check for later overrides before editing a rule.
+- `npm run share` uses POSIX env syntax; on Windows run it from Git Bash.
 
 ## Workflow
 
