@@ -40,7 +40,8 @@ export default function IntakeFormView() {
   const editingId = ui?.intakeEdit || null
   const existing = editingId ? state.intakeRequests?.[editingId] : null
 
-  const [form, setForm] = useState(() => (existing ? { ...blankIntake(), ...existing } : blankIntake({ office: LOCATIONS[0], ownerId: 's12', referralDate: todayISO() })))
+  const myStaffId = state.currentAccount?.staffId || null
+  const [form, setForm] = useState(() => (existing ? { ...blankIntake(), ...existing } : blankIntake({ office: LOCATIONS[0], ownerId: myStaffId, referralDate: todayISO() })))
   const [errs, setErrs] = useState({})
   const [phase, setPhase] = useState('start')
   const [savedId, setSavedId] = useState(editingId || null)
@@ -59,7 +60,7 @@ export default function IntakeFormView() {
   })
 
   const reset = () => {
-    setForm(blankIntake({ office: LOCATIONS[0], ownerId: 's12', referralDate: todayISO() }))
+    setForm(blankIntake({ office: LOCATIONS[0], ownerId: myStaffId, referralDate: todayISO() }))
     setErrs({})
     setSavedId(null)
     actions.setUI({ intakeEdit: null })

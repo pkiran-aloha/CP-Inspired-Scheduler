@@ -3,7 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
-import { PaySubNav, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
+import { PaySubNav, actorName, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
 import { earningIndex, earningCodesFor, sheetFor, timesheet, periodsFor, periodFor, earningsFor } from '../../lib/payroll'
 import { timesheetHtml } from '../../lib/payrollExport'
 import { download } from '../../lib/ics'
@@ -38,7 +38,7 @@ export default function TimesheetSubmissionView() {
   const [sel, setSel] = useState([])
   const [page, setPage] = useState(1)
   const [detail, setDetail] = useState(null)
-  const [who, setWho] = useState('Prateek Kiran')
+  const [who, setWho] = useState(() => actorName(state))
   const [adj, setAdj] = useState({ code: 'ADMIN', date: '', hours: 1, note: '' })
 
   // Deep link from the Review Register modal ("Fix this issue"): pre-filter the
