@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { useStore } from '../../state/store'
 import { Icon } from '../../ui/Icons'
 import { PersonAvatar } from '../../ui/avatars'
-import { stageDef, slaState, isStalled, fullName, ageLabel, gateItems, URGENCY } from '../../lib/intake'
+import { stageDef, slaState, isStalled, lastTouchAt, fullName, ageLabel, gateItems, URGENCY } from '../../lib/intake'
 import { fmtDayLabel, todayISO } from '../../lib/date'
 
 // ---- formatting -----------------------------------------------------------------
@@ -10,13 +10,16 @@ export const fmtDate = (iso) => (iso ? fmtDayLabel(iso, 'short') : '—')
 export const fmtDateLong = (iso) => (iso ? fmtDayLabel(iso, 'long') : '—')
 export const money = (n) => (n === '' || n == null || !Number.isFinite(Number(n)) ? '—' : `$${Number(n).toLocaleString()}`)
 export const pctText = (n) => (n == null ? '—' : `${n}%`)
+/** Relative age ("3d ago", "6w ago") — always relative, so a "date · since" pair never repeats the date. */
 export const sinceText = (ms) => {
   if (!ms) return '—'
   const d = Math.max(0, Math.round((Date.now() - ms) / 86400000))
   if (d === 0) return 'today'
   if (d === 1) return 'yesterday'
   if (d < 30) return `${d}d ago`
-  return fmtDate(new Date(ms).toISOString().slice(0, 10))
+  if (d < 90) return `${Math.round(d / 7)}w ago`
+  if (d < 365) return `${Math.round(d / 30)}mo ago`
+  return `${Math.round((d / 365) * 10) / 10}y ago`
 }
 
 // ---- atoms ----------------------------------------------------------------------
@@ -48,7 +51,7 @@ export function SlaChip({ req, testid }) {
   const tone = s.key === 'overdue' ? 'bad' : stalled ? 'warn' : s.key === 'due' ? 'warn' : 'ok'
   return (
     <span className={`iq-pill ${tone}`} data-testid={testid || `iq-sla-${req.id}`} title={`Stage budget ${s.budget}d · in stage ${s.days}d`}>
-      {Icon.clock({ size: 10 })} {stalled && s.key !== 'overdue' ? `No touch ${Math.round((Date.now() - (req.updatedAt || req.createdAt)) / 86400000)}d` : s.label}
+      {Icon.clock({ size: 10 })} {stalled && s.key !== 'overdue' ? `No touch ${Math.round((Date.now() - lastTouchAt(req)) / 86400000)}d` : s.label}
     </span>
   )
 }
@@ -122,16 +125,20 @@ export function Toggle({ on, onClick, label, testid }) {
   )
 }
 
-/** Right-hand record drawer. Escape closes it; the page behind stays mounted. */
+/**
+ * Right-hand record drawer. Escape (or a click on the dimmed page) calls `onClose`;
+ * the page behind stays mounted. Callers that stack modals on top pass a layered
+ * dismiss so Escape peels one layer at a time instead of tearing everything down.
+ */
 export function Drawer({ onClose, children, width = 720, testid = 'iq-drawer', label }) {
   useEffect(() => {
-    const h = (e) => { if (e.key === 'Escape') onClose() }
+    const h = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) onClose() }
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
   return (
     <div className="overlay iq-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <aside className="iq-drawer" style={{ width }} role="dialog" aria-label={label || 'Intake request'} data-testid={testid}>{children}</aside>
+      <aside className="iq-drawer" style={{ width }} role="dialog" aria-modal="true" aria-label={label || 'Intake request'} data-testid={testid}>{children}</aside>
     </div>
   )
 }

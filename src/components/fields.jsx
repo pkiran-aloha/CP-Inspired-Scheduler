@@ -1,24 +1,48 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { PersonAvatar } from '../ui/avatars'
 import { Icon } from '../ui/Icons'
 
-export function Popover({ anchorRect, onClose, children, width = 280 }) {
+/**
+ * Floating option list. Rendered through a portal on <body>: a `position: fixed`
+ * menu inside a sticky/blurred header (`.secbar` has `backdrop-filter`) or a
+ * `transform`ed card would otherwise take THAT box as its containing block and
+ * land hundreds of pixels away from its trigger, clipped by the page's overflow.
+ * Opens below the trigger, flips above it when there is no room, and closes on
+ * Escape or any mousedown outside the menu (its own trigger toggles it instead).
+ */
+export function Popover({ anchorRect, anchorRef, onClose, children, width = 280 }) {
   const ref = useRef(null)
+  const [top, setTop] = useState(() => (anchorRect ? anchorRect.bottom + 6 : 0))
   useEffect(() => {
     const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target) && !e.target.closest?.('[data-pop-anchor]')) onClose()
+      if (!ref.current || ref.current.contains(e.target)) return
+      if (anchorRef?.current?.contains?.(e.target)) return // the trigger toggles itself
+      if (e.target.closest?.('[data-pop-anchor]')) return
+      onClose()
     }
+    const k = (e) => { if (e.key === 'Escape') { e.stopPropagation(); onClose() } }
     document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [onClose])
+    document.addEventListener('keydown', k, true)
+    return () => { document.removeEventListener('mousedown', h); document.removeEventListener('keydown', k, true) }
+  }, [onClose, anchorRef])
+  const aTop = anchorRect?.top ?? 0, aBottom = anchorRect?.bottom ?? 0
+  useLayoutEffect(() => {
+    if (!ref.current) return
+    const h = ref.current.offsetHeight, vh = window.innerHeight
+    const below = aBottom + 6
+    let t = below
+    if (h && below + h > vh - 8) t = aTop - 6 - h >= 8 ? aTop - 6 - h : Math.max(8, vh - 8 - h)
+    setTop(t)
+  })
   if (!anchorRect) return null
-  const top = Math.min(anchorRect.bottom + 6, window.innerHeight - 350)
-  const left = Math.min(anchorRect.left, window.innerWidth - width - 12)
-  return (
-    <div className="pop" ref={ref} style={{ top, left, width }}>
+  const left = Math.max(8, Math.min(anchorRect.left, window.innerWidth - width - 12))
+  const node = (
+    <div className="pop" ref={ref} style={{ top, left, width }} role="listbox">
       {children}
     </div>
   )
+  return typeof document !== 'undefined' ? createPortal(node, document.body) : node
 }
 
 /**
@@ -41,22 +65,25 @@ export function Dropdown({ value, onChange, options = [], placeholder = 'Select�
   }
 
   return (
-    <div className="rel" ref={anchor}>
+    <div className="rel dd" ref={anchor} style={style}>
       <button
         type="button"
         data-testid={testid}
-        className={`${buttonClassName} select ${disabled ? '' : ''}`}
+        // `.select` paints its own chevron as a background image — the inline icon below is the only one we want
+        className={`${buttonClassName} dd-btn`}
         disabled={disabled}
-        onClick={() => !disabled && (setOpen((o) => !o), setQ(current ? '' : ''))}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => !disabled && (setOpen((o) => !o), setQ(''))}
         style={{ textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, cursor: disabled ? 'default' : 'pointer' }}
       >
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: current || value ? 'inherit' : 'var(--muted)', fontWeight: current || value ? 600 : 500 }}>
           {current ? current.label : value || placeholder}
         </span>
-        {Icon.chevDown({ size: 12 })}
+        <span className="dd-chev" aria-hidden="true">{Icon.chevDown({ size: 12 })}</span>
       </button>
       {open && (
-        <Popover anchorRect={anchor.current.getBoundingClientRect()} onClose={() => setOpen(false)} width={Math.max(240, anchor.current.offsetWidth)}>
+        <Popover anchorRect={anchor.current.getBoundingClientRect()} anchorRef={anchor} onClose={() => setOpen(false)} width={Math.max(240, anchor.current.offsetWidth)}>
           {searchable && (
             <div className="pop-search">
               <input className="input" autoFocus placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && filtered[0]) commit(filtered[0].value) }} />
@@ -100,7 +127,7 @@ export function MultiSelect({ values = [], onChange, options = [], placeholder =
     <div className="rel ms" ref={anchor}>
       <div
         data-testid={testid}
-        className="input select ms-btn"
+        className="input ms-btn"
         role="button"
         tabIndex={0}
         aria-haspopup="listbox"
@@ -124,7 +151,7 @@ export function MultiSelect({ values = [], onChange, options = [], placeholder =
         </span>
       </div>
       {open && (
-        <Popover anchorRect={anchor.current.getBoundingClientRect()} onClose={() => setOpen(false)} width={Math.max(240, anchor.current.offsetWidth)}>
+        <Popover anchorRect={anchor.current.getBoundingClientRect()} anchorRef={anchor} onClose={() => setOpen(false)} width={Math.max(240, anchor.current.offsetWidth)}>
           <div className="ms-head">
             <b>{chosen.length ? `${chosen.length} selected` : 'Select all that apply'}</b>
             {chosen.length > 0 && <button type="button" data-testid={`ms-clear-${testid || 'ms'}`} onClick={() => onChange([])}>Clear all</button>}
@@ -190,7 +217,7 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
         )}
       </div>
       {open && (
-        <Popover anchorRect={rect} onClose={() => setOpen(false)} width={300}>
+        <Popover anchorRect={rect} anchorRef={anchor} onClose={() => setOpen(false)} width={300}>
           <div className="pop-search">
             <input className="input" autoFocus placeholder="Search people…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
@@ -322,7 +349,7 @@ export function InlineSelect({ value = '', options = [], onCommit, testid, rende
         {Icon.chevDown({ size: 10 })}
       </button>
       {open && (
-        <Popover anchorRect={rect} onClose={() => setOpen(false)} width={Math.max(200, anchor.current.offsetWidth + 40)}>
+        <Popover anchorRect={rect} anchorRef={anchor} onClose={() => setOpen(false)} width={Math.max(200, anchor.current.offsetWidth + 40)}>
           {options.map((o) => (
             <button
               key={o.value}

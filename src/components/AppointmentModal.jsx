@@ -809,7 +809,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                             <div className="dsz">{d.size ? `${Math.max(1, Math.round(d.size / 1024))} KB` : 'file'}</div>
                           </span>
                           <div style={{ width: 170 }}>
-                            <Dropdown buttonClassName="input btn-sm" style={{ padding: '5px 10px' }} value={d.tag} onChange={(v) => set({ documents: f.documents.map((x) => (x.id === d.id ? { ...x, tag: v } : x)) })} options={PAY_TAGS} />
+                            <Dropdown buttonClassName="input btn-sm" value={d.tag} onChange={(v) => set({ documents: f.documents.map((x) => (x.id === d.id ? { ...x, tag: v } : x)) })} options={PAY_TAGS} />
                           </div>
                           <button className="iconbtn" onClick={() => set({ documents: f.documents.filter((x) => x.id !== d.id) })} aria-label="Remove document">
                             {Icon.trash({ size: 14 })}

@@ -2,7 +2,7 @@ import { normalizeVerificationForms, seedVerificationForms } from '../lib/verifi
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
-import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion } from '../lib/intake'
+import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion, LOST_REASONS } from '../lib/intake'
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
@@ -1127,12 +1127,13 @@ function createActions(state, dispatch, rawState = state) {
       const now = Date.now()
       const at = { id: uid(), at: now, ...contact }
       const next = { ...cur, contacts: [...(cur.contacts || []), at], updatedAt: now, events: [...(cur.events || []), { at: now, by: at.by || null, ev: `Contact logged — ${at.outcome} (${at.channel})` }] }
-      // A logged contact is what moves a request out of `new`; the gate is the
-      // logged outcome itself, so this stays honest for the SLA clock too.
-      if (cur.stage === 'new' && at.outcome) next.stage = 'contacted'
-      if (next.stage !== cur.stage) next.stageSince = now
+      // A logged contact is what moves a request out of `new` — but only through
+      // the same gate the pipeline rail enforces (an owner must be assigned too),
+      // so the auto-advance can never do what a manual move is refused.
+      const advance = cur.stage === 'new' && at.outcome && nextStages(cur.stage).includes('contacted') && gateBlockers(next, 'contacted').length === 0
+      if (advance) { next.stage = 'contacted'; next.stageSince = now; next.events = [...next.events, { at: now, by: at.by || null, ev: `Moved to ${stageDef('contacted').label}` }] }
       dispatch({ type: 'intakeTx', upserts: [next] })
-      return { ok: true, advanced: next.stage !== cur.stage }
+      return { ok: true, advanced: Boolean(advance) }
     },
     /** Pipeline move with gate enforcement. */
     moveIntake: (id, target, payload = {}) => {
@@ -1140,16 +1141,24 @@ function createActions(state, dispatch, rawState = state) {
       if (!cur) return { ok: false, msg: 'Request not found' }
       if (!nextStages(cur.stage).includes(target)) return { ok: false, msg: `Cannot move ${stageDef(cur.stage).label} → ${stageDef(target).label}` }
       const now = Date.now()
-      const patch = { ...payload, updatedAt: now, stage: target, stageSince: now }
+      const { by = null, ...fields } = payload
+      const patch = { ...fields, updatedAt: now, stage: target, stageSince: now }
       if (target === 'closed' && !patch.lost) return { ok: false, msg: 'A not-admitted reason is required to close a request' }
-      if (target === 'closed') patch.lost = { ...patch.lost, at: now, by: payload.by || null }
+      if (target === 'closed') patch.lost = { ...patch.lost, at: now, by }
       if (target === 'converted') return { ok: false, msg: 'Use the conversion step to create the client chart' }
+      if (target === 'waitlist') patch.waitlist = { ...(cur.waitlist || {}), ...(fields.waitlist || {}), since: fields.waitlist?.since || cur.waitlist?.since || now }
+      if (target === 'scheduled' && !(fields.apptId || cur.apptId)) return { ok: false, msg: 'Book the assessment visit on the calendar to move to Scheduled' }
+      const reopened = cur.stage === 'closed' && target === 'new'
+      if (reopened) patch.lost = null // a reopened request is live again — the old disposition stays in the audit trail
       const merged = { ...cur, ...patch }
       const blockers = gateBlockers(merged, target)
       if (blockers.length) return { ok: false, msg: `${blockers.length} requirement${blockers.length > 1 ? 's' : ''} outstanding: ${blockers.map((b) => b.label).join('; ')}`, blockers }
-      merged.events = [...(cur.events || []), { at: now, ev: `Moved to ${stageDef(target).label}` }]
+      const ev = reopened
+        ? `Reopened — back to ${stageDef(target).label}${cur.lost?.reason ? ` (was closed: ${LOST_REASONS.find((x) => x.id === cur.lost.reason)?.label || cur.lost.reason})` : ''}`
+        : `Moved to ${stageDef(target).label}`
+      merged.events = [...(cur.events || []), { at: now, by, ev }]
       dispatch({ type: 'intakeTx', upserts: [merged] })
-      return { ok: true, msg: `Moved to ${stageDef(target).label}` }
+      return { ok: true, msg: reopened ? 'Reopened — back in the pipeline as a new referral' : `Moved to ${stageDef(target).label}` }
     },
     deleteIntake: (id) => dispatch({ type: 'intakeTx', deletes: [id] }),
     /**
@@ -1200,7 +1209,15 @@ function createActions(state, dispatch, rawState = state) {
     /** Book the assessment visit straight from the pipeline (calendar-linked). */
     scheduleIntakeAssessment: (id, { date, start, end, clinicianId, location, by }) => {
       const cur = state.intakeRequests?.[id]
-      if (!cur || !date || start == null || end == null) return { ok: false, msg: 'Assessment needs a date and time' }
+      if (!cur) return { ok: false, msg: 'Request not found' }
+      if (!date || start == null || end == null || Number.isNaN(start) || Number.isNaN(end)) return { ok: false, msg: 'Assessment needs a date and time' }
+      if (end <= start) return { ok: false, msg: 'The assessment must end after it starts' }
+      if (!clinicianId) return { ok: false, msg: 'Pick the assessing clinician — the visit needs an owner on the calendar' }
+      if (!(state.staff || []).some((s) => s.id === clinicianId)) return { ok: false, msg: 'That clinician is not on the staff roster' }
+      // the booking IS the move to Scheduled, so it obeys the same stage graph as the rail
+      const rebook = cur.stage === 'scheduled' && !(cur.apptId && state.appts?.[cur.apptId])
+      if (!nextStages(cur.stage).includes('scheduled') && !rebook) return { ok: false, msg: `Cannot book from ${stageDef(cur.stage).label} — the request must be in Clinical review or on the Waitlist` }
+      if (cur.apptId && state.appts?.[cur.apptId]) return { ok: false, msg: 'An assessment visit is already on the calendar — change it from the calendar' }
       const apptId = uid()
       const appt = {
         id: apptId, type: 'evaluation', title: `Intake assessment · ${[cur.firstName, cur.lastName].filter(Boolean).join(' ')}`,
@@ -1209,7 +1226,11 @@ function createActions(state, dispatch, rawState = state) {
         intakeId: cur.id, createdAt: Date.now(), updatedAt: Date.now(), custom: {}, documents: [], verification: null,
       }
       const now = Date.now()
-      const next = { ...cur, apptId, apptDate: date, clinicianId: clinicianId || cur.clinicianId, updatedAt: now, stage: 'scheduled', stageSince: now, events: [...(cur.events || []), { at: now, by: by || null, ev: `Assessment booked for ${date}` }] }
+      const next = {
+        ...cur, apptId, apptDate: date, clinicianId, bcbaAssignedId: cur.bcbaAssignedId || clinicianId, updatedAt: now,
+        stage: 'scheduled', stageSince: rebook ? cur.stageSince : now,
+        events: [...(cur.events || []), { at: now, by: by || null, ev: `Assessment booked for ${date}${rebook ? '' : ` — moved to ${stageDef('scheduled').label}`}` }],
+      }
       dispatch({ type: 'intakeTx', upserts: [next], apptUpserts: [appt] })
       return { ok: true, apptId, msg: `Assessment booked ${date} — it is on the calendar now` }
     },

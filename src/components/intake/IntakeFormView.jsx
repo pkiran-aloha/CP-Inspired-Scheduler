@@ -46,9 +46,20 @@ export default function IntakeFormView() {
   const [phase, setPhase] = useState('start')
   const [savedId, setSavedId] = useState(editingId || null)
 
-  // Re-hydrate when the drawer sends the user to a different record.
+  const reset = () => {
+    setForm(blankIntake({ office: LOCATIONS[0], ownerId: myStaffId, referralDate: todayISO() }))
+    setErrs({})
+    setSavedId(null)
+    setPhase('start')
+    if (ui?.intakeEdit) actions.setUI({ intakeEdit: null })
+  }
+
+  // Re-hydrate when the drawer sends the user to a different record — and go back
+  // to a blank form when edit mode is left (nav "Client Intake" clears `intakeEdit`),
+  // so a stale record can never be overwritten by what looks like a new intake.
   useEffect(() => {
-    if (existing) setForm({ ...blankIntake(), ...existing })
+    if (existing) { setForm({ ...blankIntake(), ...existing }); setSavedId(existing.id); setErrs({}); setPhase('start') }
+    else if (!editingId && savedId) reset()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId])
 
@@ -58,13 +69,6 @@ export default function IntakeFormView() {
     const phones = f.phones.map((p, idx) => (idx === i ? { ...p, [k]: v } : p))
     return { ...f, phones }
   })
-
-  const reset = () => {
-    setForm(blankIntake({ office: LOCATIONS[0], ownerId: myStaffId, referralDate: todayISO() }))
-    setErrs({})
-    setSavedId(null)
-    actions.setUI({ intakeEdit: null })
-  }
 
   /** Validation runs on the fields a downstream module actually consumes. */
   const validate = () => {
