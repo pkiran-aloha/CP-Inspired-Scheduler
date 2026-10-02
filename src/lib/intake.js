@@ -222,6 +222,12 @@ export const AUTH_DECISIONS = {
   not_required: { label: 'Not required by this plan', tone: '' },
 }
 export const WAITLIST_REASONS = ['No technician capacity', 'No BCBA capacity', 'No assessment slot', 'Authorisation pending', 'Family requested a later start', 'Service-area / travel limit', 'Other']
+/** Waitlist priority — 1 is seen first. Kept numeric so the waitlist can be sorted. */
+export const WAITLIST_PRIORITIES = [
+  { value: 1, label: '1 · High', hint: 'urgent / emergency, regression risk, aging out of a benefit' },
+  { value: 2, label: '2 · Medium', hint: 'standard — fill the next matching opening' },
+  { value: 3, label: '3 · Low', hint: 'family asked for a later start or is exploring options' },
+]
 
 // --- service lines / programs ---------------------------------------------------
 
@@ -672,6 +678,9 @@ export function planConversion(state, id, opts = {}) {
   if (!req) return { ok: false, msg: 'Intake request not found' }
   if (isWon(req.stage) && req.clientId) return { ok: false, msg: 'This request is already converted' }
   const blockers = gateBlockers(req, 'converted')
+  // conversion is the step after authorisation — the same stage graph the pipeline rail enforces
+  const stageOk = nextStages(req.stage).includes('converted')
+  if (!stageOk) return { ok: false, msg: `Cannot convert from ${stageDef(req.stage).label} — the request has to reach ${stageDef('auth').label} first`, blockers }
   if (blockers.length) return { ok: false, msg: `Cannot convert yet — ${blockers.length} requirement${blockers.length > 1 ? 's' : ''} outstanding`, blockers }
 
   const at = opts.at ?? Date.now()

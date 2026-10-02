@@ -115,23 +115,38 @@ export default function IntakeRequestsView() {
 
   const openBlank = () => actions.setUI({ section: 'intake-new', intakeEdit: null })
   const attention = kpis.atRisk.length
+  const activeFilters = [q.trim() !== '', status !== 'open', owner !== 'all', source !== 'all', urgency !== 'all'].filter(Boolean).length
+  const clearFilters = () => { setQ(''); setStatus('open'); setOwner('all'); setSource('all'); setUrgency('all') }
 
   return (
     <div className="sectionpage">
-      <SectionBar icon="user" title="Intake Requests" sub={`${kpis.open} open · ${kpis.newThisWeek} new this week · ${kpis.won} converted · conversion ${pctText(kpis.conversionRate)}`}>
-        <input className="input" style={{ width: 210, height: 30 }} placeholder="Search name, phone, member ID…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="iq-search" />
-        <Dropdown value={status} onChange={setStatus} options={STATUS_OPTS} testid="iq-status" style={{ minWidth: 178 }} />
-        <Dropdown value={owner} onChange={setOwner} options={ownerOpts} testid="iq-owner" searchable style={{ minWidth: 130 }} />
-        <Dropdown value={source} onChange={setSource} options={sourceOpts} testid="iq-source" searchable style={{ minWidth: 140 }} />
-        <Dropdown value={urgency} onChange={setUrgency} options={urgencyOpts} testid="iq-urgency" style={{ minWidth: 120 }} />
+      {/* The header carries only what never wraps: title, layout toggle, primary action.
+          Filters live in the sticky toolbar below so the bar stays one row at every width. */}
+      <SectionBar icon="user" title="Intake Requests" sub={`${kpis.open} open · ${kpis.newThisWeek} new this week · ${pctText(kpis.conversionRate)} converted`}>
+        <span className="iq-head-n" data-testid="iq-head-count">{rows.length} shown</span>
         <div className="viewseg" role="group" aria-label="Layout">
-          <button className={mode === 'board' ? 'on' : ''} data-testid="iq-mode-board" title="Pipeline board" onClick={() => setMode('board')}>{Icon.rows({ size: 13 })}</button>
-          <button className={mode === 'list' ? 'on' : ''} data-testid="iq-mode-list" title="Worklist" onClick={() => setMode('list')}>{Icon.table({ size: 13 })}</button>
+          <button className={mode === 'board' ? 'on' : ''} data-testid="iq-mode-board" title="Pipeline board" aria-pressed={mode === 'board'} onClick={() => setMode('board')}>{Icon.rows({ size: 13 })}</button>
+          <button className={mode === 'list' ? 'on' : ''} data-testid="iq-mode-list" title="Worklist" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>{Icon.table({ size: 13 })}</button>
         </div>
-        <button className="btn btn-sm btn-primary" data-testid="iq-new" onClick={openBlank}>{Icon.plus({ size: 13 })} Intake client</button>
+        <button className="btn btn-sm btn-primary" data-testid="iq-new" onClick={openBlank}>{Icon.plus({ size: 13 })} New intake</button>
       </SectionBar>
 
       <div className="sec-body">
+        <div className="iq-toolbar" data-testid="iq-toolbar" role="search">
+          <label className="iq-tb-search">
+            <i>{Icon.search({ size: 13 })}</i>
+            <input className="input" placeholder="Search name, phone, member ID…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="iq-search" aria-label="Search intake requests" />
+          </label>
+          <Dropdown value={status} onChange={setStatus} options={STATUS_OPTS} testid="iq-status" style={{ minWidth: 182 }} />
+          <Dropdown value={owner} onChange={setOwner} options={ownerOpts} testid="iq-owner" searchable style={{ minWidth: 140 }} />
+          <Dropdown value={source} onChange={setSource} options={sourceOpts} testid="iq-source" searchable style={{ minWidth: 160 }} />
+          <Dropdown value={urgency} onChange={setUrgency} options={urgencyOpts} testid="iq-urgency" style={{ minWidth: 130 }} />
+          <span className="iq-tb-end">
+            <span className="iq-tb-n" data-testid="iq-filter-count">{activeFilters ? `${activeFilters} filter${activeFilters > 1 ? 's' : ''} on` : 'Open requests'}</span>
+            <button type="button" className="iq-tb-clear" data-testid="iq-filters-clear" disabled={!activeFilters} onClick={clearFilters}>Reset</button>
+          </span>
+        </div>
+
         <KpiStrip items={[
           { id: 'open', icon: 'user', value: kpis.open, label: 'In pipeline', sub: `${kpis.waitingFamilies} on the waitlist` },
           { id: 'new', icon: 'zap', value: kpis.newThisWeek, label: 'New this week', sub: 'referrals received' },

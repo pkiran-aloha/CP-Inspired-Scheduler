@@ -21,7 +21,7 @@ export const SECTIONS = [
     { id: 'client-new', to: 'clients', label: 'Add New', patch: { cliNew: true } },
     { group: 'Intake Manager' },
     { id: 'intake', to: 'intake', label: 'General Intake Requests' },
-    { id: 'intake-new', to: 'intake-new', label: 'Client Intake' },
+    { id: 'intake-new', to: 'intake-new', label: 'Client Intake', patch: { intakeEdit: null } }, // always a blank form — never a stale edit
     { id: 'referrals', to: 'referrals', label: 'Referral Sources' },
   ] },
   { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }, { id: 'cfdefs', label: 'Custom Fields' }] },

@@ -186,6 +186,19 @@ describe('conversion — one plan, fully referential', () => {
     expect(plan.apptPatch).toEqual({ id: apptId, patch: { clientIds: ['new-client'], intakeId: req.id, status: 'confirmed' } })
   })
 
+  it('only converts from the authorisation step — the same graph the rail enforces', () => {
+    const state = blankState()
+    const req = gatedRequest({ stage: 'assessment' }) // every gate met, wrong step
+    state.intakeRequests = { [req.id]: req }
+    const plan = planConversion(state, req.id, { clientId: 'c' })
+    expect(plan.ok).toBe(false)
+    expect(plan.msg).toMatch(/Authorization/)
+    expect(plan.blockers).toEqual([]) // nothing else is missing — it is purely the stage
+    expect(planConversion(state, req.id, { clientId: 'c' }).ok).toBe(false)
+    state.intakeRequests = { [req.id]: { ...req, stage: 'auth' } }
+    expect(planConversion(state, req.id, { clientId: 'c' }).ok).toBe(true)
+  })
+
   it('derives weekly authorised hours from the approved window', () => {
     const state = blankState()
     const start = Date.now()
