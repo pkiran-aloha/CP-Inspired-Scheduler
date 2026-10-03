@@ -3,6 +3,7 @@
 // the reports desk (claim registers) and the store's undoable transitions.
 import { BILL_CODES, TYPES, computeBilling } from './model'
 import { isoDate, parseISO } from './date'
+import { providerIdIssues, providerIdRule } from './providerIds' // call-time only (providerIds reads validNpi from here)
 
 const r2 = (n) => Math.round(n * 100) / 100
 
@@ -168,6 +169,7 @@ export function claimGate(state, claim) {
   const strictAuth = state.settings.billing?.strictAuth === true
   const supCheck = state.settings.billing?.supervisionCheck !== false
   const today = isoDate(new Date())
+  const idPayer = claim.mode === 'selfpay' ? null : (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
   const bad = []
   for (const l of claim.lines) {
     const a = state.appts[l.apptId]
@@ -192,6 +194,14 @@ export function claimGate(state, claim) {
       const hasRBT = staff.some((s)=>/RBT/.test(s.role||''))
       const hasBCBA = staff.some((s)=>/BCBA/.test(s.role||''))
       if (hasRBT && !hasBCBA) bad.push({ line: l, why: `Supervision required — RBT-only session on ${l.dos} without BCBA` })
+    }
+    // provider identifiers: once a payer chooses NPI / Medicaid ID / both, every
+    // rendering staff member must carry what it asks for
+    if (idPayer && providerIdRule(idPayer).explicit) {
+      for (const sid of a.staffIds || []) {
+        const issue = providerIdIssues(state, idPayer, sid)[0]
+        if (issue) bad.push({ line: l, why: `${issue} — DOS ${l.dos}` })
+      }
     }
   }
   return { ok: !bad.length, bad }

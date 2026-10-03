@@ -8,6 +8,7 @@ import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
 import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
 import { BILL_CODES, uid } from '../lib/model'
+import { PROVIDER_ID_RULES, providerIdRule, providerIdIssues } from '../lib/providerIds'
 
 /**
  * Payer deep record — opened by clicking a payer row. Three tabs mirroring how
@@ -25,6 +26,7 @@ const RULE_SECTIONS = [
   { id: 'qual', label: 'Qualification Modifiers', icon: 'badge' },
   { id: 'pos', label: 'Place of Service Modifiers', icon: 'pin' },
   { id: 'mue', label: 'MUEs', icon: 'alert' },
+  { id: 'ids', label: 'Provider IDs', icon: 'user' },
 ]
 const UNITS_OPTS = ['5 Minutes', '10 Minutes', '15 Minutes', '30 Minutes', '45 Minutes', '60 Minutes']
 const MUE_LIMITS = ['No Limits', '96', '60', '45', '30', '24', '16', '8']
@@ -558,7 +560,31 @@ function RuleBody({ p, section, patch, saved }) {
   const [qm, setQm] = useState(() => rules.qualMods.map((r) => ({ ...r })))
   const [pos, setPos] = useState(() => ({ rows: rules.posMods.map((r) => ({ ...r })), hideTeleOther: rules.hideTeleOther, hideTeleHome: rules.hideTeleHome }))
   const [mue, setMue] = useState(() => ({ daily: rules.mue.daily || '', per: { ...(rules.mue.per || {}) }, weekly: { ...(rules.mue.weekly || {}) } }))
+  const [idRule, setIdRule] = useState(() => providerIdRule(p).id)
   const svcOpts = useMemo(() => [...svcList(state).map((s) => ({ value: s.id, label: s.label, sub: s.code })), ...(state.payers || []).flatMap((x) => localSvcs(x)).map((s) => ({ value: s.id, label: `${s.label}`, sub: 'payer service' }))], [state.svcs, state.payers])
+
+  if (section === 'ids') {
+    const missing = (state.staff || []).map((s) => providerIdIssues(state, { ...p, rules: { ...rules, providerId: idRule } }, s.id)[0]).filter(Boolean)
+    return (
+      <div className="pr-sec" data-testid="pr-ids">
+        <SecHead t="Provider IDs" s="Which identifier this payer expects for the rendering provider. Claims, the appointment validation and the CMS-1500 follow it." />
+        <div className="pr-seg" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }} role="radiogroup" aria-label="Provider identifier rule">
+          {PROVIDER_ID_RULES.map((r) => (
+            <button key={r.id} role="radio" aria-checked={idRule === r.id} className={`pd-opt${idRule === r.id ? ' on' : ''}`} data-testid={`ids-${r.id}`} onClick={() => setIdRule(r.id)}>
+              <b>{r.label}</b><span>{r.hint}</span>
+            </button>
+          ))}
+        </div>
+        <div className={`pr-banner${missing.length ? '' : ' ok'}`} data-testid="ids-readiness" style={{ marginTop: 10 }}>
+          {Icon[missing.length ? 'alert' : 'checkCircle']({ size: 12 })}{' '}
+          {missing.length
+            ? <>{missing.length} staff member{missing.length === 1 ? '' : 's'} can't be billed to {p.name} under this rule yet — first: {missing[0]}. Add the identifiers in Billing → Provider IDs.</>
+            : <>Every staff member has the identifiers this rule needs.</>}
+        </div>
+        <SaveRow onCancel={saved} onSave={() => commit('providerId', idRule, `${p.name} now bills with ${PROVIDER_ID_RULES.find((r) => r.id === idRule).label}`)} />
+      </div>
+    )
+  }
 
   if (section === 'concurrent') {
     const upd = (i, k, v) => setConc((c) => ({ ...c, rules: c.rules.map((r, j) => (j === i ? { ...r, [k]: v } : r)) }))
