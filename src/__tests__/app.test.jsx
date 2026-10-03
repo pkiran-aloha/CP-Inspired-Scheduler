@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import App from '../App'
 import { startOfWeek, addDays, isoDate, parseISO, todayISO } from '../lib/date'
+import { blankState } from '../state/store'
 
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
@@ -148,6 +149,22 @@ describe('scheduler shell', () => {
     expect(screen.getByRole('button', { name: /Edit/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Skip occurrence/ })).toBeTruthy()
     expect(screen.getByText(/occurrences/)).toBeTruthy()
+  })
+
+  it('asks why before skipping an occurrence, and stores the reason on the appointment', async () => {
+    const weatherCancels = (appts) => Object.values(appts).filter((a) => a.status === 'cancelled' && a.cancelReason === 'Weather').length
+    const before = weatherCancels(blankState().appts)
+    const { container } = render(<App />)
+    const chip = container.querySelector('.chip:not(.stack)')
+    fireEvent.pointerDown(chip, { button: 0 })
+    fireEvent.pointerUp(chip)
+    fireEvent.click(screen.getByTestId('dc-cancel'))
+    // nothing is cancelled until a reason is picked
+    expect(screen.getByTestId('cx-reasons')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('cx-reason-opt-cancel-reasons-5')) // Weather
+    await waitFor(() => expect(weatherCancels(apptsInStorage())).toBe(before + 1))
+    const saved = Object.values(apptsInStorage()).filter((a) => a.cancelReason === 'Weather' && a.edited)
+    expect(saved.some((a) => a.cancelReasonId === 'opt-cancel-reasons-5')).toBe(true)
   })
 })
 

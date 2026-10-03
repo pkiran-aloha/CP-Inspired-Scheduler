@@ -33,6 +33,7 @@ import {
 } from '../lib/abaHours'
 import { riskFor } from '../lib/risk'
 import { apptAutoTitle } from '../lib/apptName'
+import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
 import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
@@ -190,6 +191,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   if (statusCfg?.noteRequired && !String(f.notes || '').trim()) {
     errors.push(`Status “${statusCfg.label}” requires a note`)
   }
+  if (deadStatus(f.status) && !f.cancelReasonId) errors.push(`Pick why this session is “${statusCfg?.label || f.status}”`)
   if (f.status === 'completed' && statusCfg?.allowToComplete === false) {
     errors.push(`Status “${statusCfg.label}” cannot be completed`)
   }
@@ -256,6 +258,8 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     staffIds: f.staffIds,
     clientIds: f.clientIds,
     status: f.status,
+    // a reason only travels with a cancellation status; un-cancelling clears it
+    ...(deadStatus(f.status) ? { cancelReasonId: f.cancelReasonId, cancelReason: f.cancelReason } : reasonPatch(null)),
     location: f.type === 'drive' ? [f.origin, f.destination].filter(Boolean).join(' → ') || f.location || '' : f.location || '',
     ...(f.type === 'drive' ? { origin: f.origin || '', destination: f.destination || '' } : {}),
     ...(f.type === 'unavailable' ? { unavailTarget } : {}),
@@ -1046,6 +1050,18 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                     <span className="pi">{Icon.checkCircle({ size: 14 })}</span> Status
                   </h3>
                   <Dropdown testid="status-select" value={f.status} onChange={(v) => set({ status: v })} options={statusOrder.map((s) => ({ value: s, label: statusMap[s]?.label || s }))} />
+                  {deadStatus(f.status) && (
+                    <label className="fld" style={{ display: 'block', marginTop: 8 }}>
+                      <span className="muted" style={{ fontSize: 12 }}>Cancellation reason</span>
+                      <Dropdown
+                        testid="cancel-reason-select"
+                        value={f.cancelReasonId || ''}
+                        placeholder="Why was it cancelled?"
+                        onChange={(v) => set(reasonPatch(cancelReasonOptions(settings).find((o) => o.id === v)))}
+                        options={cancelReasonOptions(settings).map((o) => ({ value: o.id, label: o.label }))}
+                      />
+                    </label>
+                  )}
                   <button data-testid="save-appt" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => save(false)}>
                     {mode === 'edit' ? 'Save Changes' : 'Create Appointment'}
                   </button>

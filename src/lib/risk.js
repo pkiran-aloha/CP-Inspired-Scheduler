@@ -18,6 +18,7 @@
 import { parseISO, todayISO } from './date'
 import { computeBilling, TYPES } from './model'
 import { isCancelStatus } from './settingsMasters'
+import { isPracticeCancel } from './cancelReasons'
 
 export const RISK_DEFAULTS = {
   enabled: true,
@@ -95,9 +96,11 @@ export function riskModel(state, { today = todayISO() } = {}) {
     return out
   }
 
-  // per-client history, used both as a cohort and for the continuity check
+  // per-client history, used both as a cohort and for the continuity check. A session the
+  // practice cancelled (staff illness, scheduling error) says nothing about the family.
+  const clientDone = done.filter((a) => !isPracticeCancel(a))
   const byClient = {}
-  for (const a of done) {
+  for (const a of clientDone) {
     for (const cid of a.clientIds || []) {
       const g = (byClient[cid] = byClient[cid] || { n: 0, bad: 0, staff: new Set(), last: '' })
       g.n++
@@ -111,7 +114,7 @@ export function riskModel(state, { today = todayISO() } = {}) {
 
   // recent behaviour: has this client missed either of their last two resolved sessions?
   const recentByClient = {}
-  for (const a of done) {
+  for (const a of clientDone) {
     for (const cid of a.clientIds || []) {
       const g = (recentByClient[cid] = recentByClient[cid] || [])
       g.push(a)
