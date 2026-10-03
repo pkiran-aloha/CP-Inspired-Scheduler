@@ -227,7 +227,7 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
         )}
       </div>
       {open && (
-        <Popover anchorRect={rect} anchorRef={anchor} onClose={() => setOpen(false)} width={300}>
+        <Popover anchorRect={rect} anchorRef={anchor} onClose={() => setOpen(false)} width={verdicts ? 392 : 300}>
           <div className="pop-search">
             <input className="input" autoFocus placeholder="Search people…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>

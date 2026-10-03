@@ -3932,6 +3932,8 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   white-space: nowrap;
 }
 .pv > span { overflow: hidden; text-overflow: ellipsis; }
+.pop-item:has(.pv) .nm, .pop-item:has(.pv) .rl { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pop-item:has(.pv) .pv { max-width: 176px; }
 .pv em { font-style: normal; font-weight: 650; opacity: .75; }
 .pv.tone-ok { background: transparent; color: color-mix(in srgb, var(--tn-ink) 85%, var(--muted)); }
 .pop-item.tone-stop .nm, .pop-item.tone-warn .nm { color: var(--text-2); }
@@ -3947,6 +3949,11 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 @media (prefers-reduced-motion: reduce) {
   .bk-item { animation: none; }
   .bk-status { transition: none; }
+}
+
+/* the rail carries the Checks now, so it gets room to read them without a wall of wrapping */
+@media (min-width: 1181px) {
+  .modal.wizard .wiz-rail { width: 300px; }
 }
 
 /* Below 1180px the rail (which holds Save and the Checks) used to be hidden outright,
