@@ -1,4 +1,6 @@
-import React, { useMemo, useRef, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
+import { BookingChecks, ToneGlyph } from './BookingChecks'
+import { candidateVerdicts } from '../lib/bookingChecks'
 import { PersonAvatar } from '../ui/avatars'
 import { useStore } from '../state/store'
 import { useToast } from '../ui/Toast'
@@ -227,10 +229,93 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const authBlock = authChecks.find((c) => c.blocked) || null
   const authWorst = authChecks[0] || null
 
+  // ---------- know before you pick: a verdict for every person in each picker ----------
+  // Worked out by the pickers only while their list is open, against this exact slot.
+  const verdictDeps = [state, f.date, f.start, f.end, f.type, f.status, f.billingCode, f.service, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id, mode]
+  const staffVerdicts = useCallback(() => candidateVerdicts(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }, 'staff', { today: todayISO(), h24: settings.h24 }), verdictDeps)
+  const clientVerdicts = useCallback(() => candidateVerdicts(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }, 'clients', { today: todayISO(), h24: settings.h24 }), verdictDeps)
+  const checkedFor = f.date && dur > 0
+    ? `${parseISO(f.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} · ${fmtTime(f.start, settings.h24)}–${fmtTime(f.end, settings.h24)}`
+    : ''
+
   const riskVerdict = useMemo(() => {
     if (!showClinic || !f.clientIds.length || !f.date) return null
     return riskFor(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' })
   }, [state, f.clientIds, f.date, f.start, f.end, f.status, f.type, f.id, mode, showClinic])
+
+  // ---------- the rail's Checks panel: one calm list instead of stacked banners ----------
+  // Required fields read as a quiet to-do until a save is attempted, then as must-fix.
+  const toneOf = (sev) => (sev === 'stop' ? 'stop' : sev === 'warn' ? 'warn' : 'flag')
+  const checkGroups = []
+  const todo = errors.filter((e) => !e.startsWith('STOP · '))
+  if (todo.length) {
+    checkGroups.push({
+      key: 'todo', tone: showErrs ? 'stop' : 'todo', icon: 'edit', testid: 'appt-check-todo',
+      title: showErrs ? 'Fix to save' : 'Still to fill in', sub: `${todo.length} item${todo.length === 1 ? '' : 's'}`,
+      lines: todo.map((e) => ({ text: `${e.replace(/\.$/, '')}.` })),
+    })
+  }
+  if (conflicts.length) {
+    checkGroups.push({
+      key: 'clash', tone: 'warn', icon: 'clash', testid: 'appt-check-clash',
+      title: 'Time clash', sub: `${conflicts.length} overlap${conflicts.length === 1 ? '' : 's'} on the calendar`,
+      lines: conflicts.map((c) => ({ text: `${c.who} — “${c.other.title}” ${fmtTime(c.other.start, settings.h24)}–${fmtTime(c.other.end, settings.h24)}` })),
+      foot: 'You can still save; the booking is flagged on the calendar.',
+    })
+  }
+  if (authWorst && (authWorst.reasons.length > 0 || authWorst.notes.length > 0)) {
+    const others = authChecks.filter((c) => c.severity !== 'ok' && c !== authWorst).map((c) => c.client.name)
+    const unitRow = authWorst.units?.ledger?.codes.find((g) => g.code === authWorst.units.code)
+    checkGroups.push({
+      key: 'auth', tone: authWorst.severity === 'ok' ? 'flag' : toneOf(authWorst.severity), icon: 'shield', testid: 'appt-auth-guard',
+      title: authWorst.headline, sub: authWorst.client.name,
+      lines: authWorst.reasons.map((r) => ({ text: r })),
+      notes: [...(others.length ? [`Also flagged: ${others.join(', ')}`] : []), ...authWorst.notes],
+      extra: (
+        <>
+          {authWorst.stats && (
+            <div className="am-authmeter">
+              <span className="am-authmeter-track">
+                <i className={`am-authmeter-fill tone-${AUTH_BANDS[authWorst.stats.band]?.tone || 'warn'}`} style={{ width: `${Math.max(2, Math.min(100, authWorst.stats.pct))}%` }} />
+              </span>
+              <span className="am-authmeter-nums">
+                {authWorst.stats.committedHours}h committed · {authWorst.stats.remainingHours < 0 ? `${Math.abs(authWorst.stats.remainingHours)}h over` : `${authWorst.stats.remainingHours}h left`} of {authWorst.stats.window.authorizedHours}h
+                {authWorst.stats.window.daysToExpiry != null ? ` · ${authWorst.stats.window.daysToExpiry < 0 ? 'window ended' : `${authWorst.stats.window.daysToExpiry}d to expiry`}` : ''}
+              </span>
+            </div>
+          )}
+          {authWorst.units && (
+            <p className="bk-note" data-testid="appt-auth-units">
+              This session: {authWorst.units.units} unit{authWorst.units.units === 1 ? '' : 's'} of {authWorst.units.code} ({authWorst.units.unitMins}-min units, {authWorst.units.rounding} rounding).
+              {unitRow?.authorized ? ` ${unitRow.committed} of ${unitRow.authorized} authorized units committed.` : ''}
+            </p>
+          )}
+        </>
+      ),
+      foot: authGuardCfgNow.mode === 'stop' && authWorst.severity === 'stop'
+        ? 'Refused while Settings keeps the authorization guard in Stop mode.'
+        : `You can still save — the practice's guard is set to ${authGuardCfgNow.mode}.`,
+    })
+  }
+  if (riskVerdict && riskVerdict.band !== 'low' && riskVerdict.band !== 'done') {
+    checkGroups.push({
+      key: 'risk', tone: riskVerdict.band === 'high' ? 'warn' : 'flag', icon: 'pulse', testid: 'appt-risk',
+      title: `Cancellation risk ${riskVerdict.score}/100`, sub: riskVerdict.action,
+      lines: riskVerdict.factors.slice(0, 3).map((x) => ({ text: x.detail })),
+      foot: `Modelled locally from this workspace's own history (practice rate ${Math.round(riskVerdict.model.base * 100)}%) — a prompt to confirm, never a reminder sent for you.`,
+    })
+  }
+  if (valReport.items.length) {
+    const top = valReport.stops.length ? 'stop' : valReport.warns.length ? 'warn' : 'flag'
+    checkGroups.push({
+      key: 'rules', tone: top, icon: 'clipboard', testid: 'appt-validation-banner',
+      title: 'Practice rules', sub: top === 'stop' ? 'A stop rule blocks this booking' : top === 'warn' ? 'Warnings from Settings → Validations' : 'Flags from Settings → Validations',
+      lines: valReport.items.map((item) => ({ tone: toneOf(item.severity), text: `${item.label}: ${item.message}` })),
+    })
+  }
+  const checksHint = !f.staffIds.length || !f.clientIds.length
+    ? 'Nothing stands in the way yet. Open the staff or client list to see who fits this slot before you pick.'
+    : 'No clashes, authorization or practice-rule issues for this slot.'
 
   // ---------- billing ----------
   const code = BILL_CODES.find((c) => c.id === f.billingCode) || BILL_CODES[0]
@@ -478,11 +563,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           </div>
                         )}
                         {(!isUnavail || unavailTarget === 'staff') && (
-                          <PeoplePicker label="Staff Name" required={needsStaff} people={staff} selected={f.staffIds} onChange={(v) => set({ staffIds: v })} />
+                          <PeoplePicker label="Staff Name" required={needsStaff} people={staff} selected={f.staffIds} onChange={(v) => set({ staffIds: v })} verdicts={staffVerdicts} checkedFor={checkedFor} />
                         )}
                         {isUnavail
-                          ? unavailTarget === 'clients' && <PeoplePicker label="Client Name" required={needsClient} people={clients} selected={f.clientIds} onChange={(v) => set({ clientIds: v })} />
-                          : showClientPicker && <PeoplePicker label="Client Name" required={needsClient} people={clients} selected={f.clientIds} onChange={(v) => set({ clientIds: v })} />}
+                          ? unavailTarget === 'clients' && <PeoplePicker label="Client Name" required={needsClient} people={clients} selected={f.clientIds} onChange={(v) => set({ clientIds: v })} verdicts={clientVerdicts} checkedFor={checkedFor} />
+                          : showClientPicker && <PeoplePicker label="Client Name" required={needsClient} people={clients} selected={f.clientIds} onChange={(v) => set({ clientIds: v })} verdicts={clientVerdicts} checkedFor={checkedFor} />}
                       </div>
                       {showE('staff') && <div className="err" style={{ marginTop: 6 }}>Add at least one staff member</div>}
                       {showE('client') && <div className="err" style={{ marginTop: 6 }}>Add a client</div>}
@@ -494,7 +579,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                               <PersonAvatar p={sg.staff} size={20} />
                               <b>{sg.staff.name.split(' ')[0]}</b>
                               <i>{sg.reasons[0]}</i>
-                              {sg.warnings?.length > 0 && <i className="sug-warn">⚠ {sg.warnings[0]}</i>}
+                              {sg.warnings?.length > 0 && <i className="sug-warn"><ToneGlyph tone="warn" size={11} label={sg.warnings[0]} /> {sg.warnings[0]}</i>}
                             </button>
                           ))}
                         </div>
@@ -615,99 +700,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       )}
                     </div>
 
-                    {conflicts.length > 0 && (
-                      <div className="warnbox danger">
-                        <span>{Icon.alert({ size: 16 })}</span>
-                        <div>
-                          <b>Scheduling conflict</b>
-                          {conflicts.slice(0, 3).map((c) => (
-                            <div key={c.other.id} style={{ marginTop: 3 }}>
-                              Overlaps “{c.other.title}” ({fmtTime(c.other.start, settings.h24)}–{fmtTime(c.other.end, settings.h24)}) — {c.who}
-                            </div>
-                          ))}
-                          <span className="muted">You can still save; the booking gets flagged on the calendar.</span>
-                        </div>
-                      </div>
-                    )}
-                    {authWorst && (authWorst.reasons.length > 0 || authWorst.notes.length > 0) && (
-                      <div className={`warnbox ${authWorst.severity === 'stop' || authWorst.severity === 'warn' ? 'danger' : 'warn'} am-authbox`} data-testid="appt-auth-guard">
-                        <span>{Icon.shield({ size: 16 })}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <b>
-                            {authWorst.headline} — {authWorst.client.name}
-                          </b>
-                          {authWorst.reasons.map((r, i) => (
-                            <div key={i} style={{ marginTop: 3 }}>{r}</div>
-                          ))}
-                          {authChecks.filter((c) => c.severity !== 'ok').length > 1 && (
-                            <div style={{ marginTop: 3 }} className="muted">
-                              Also flagged: {authChecks.filter((c) => c.severity !== 'ok' && c !== authWorst).map((c) => c.client.name).join(', ')}
-                            </div>
-                          )}
-                          {authWorst.notes.map((r, i) => (
-                            <div key={`n${i}`} className="muted" style={{ marginTop: 3 }}>{r}</div>
-                          ))}
-                          {authWorst.stats && (
-                            <div className="am-authmeter">
-                              <span className="am-authmeter-track">
-                                <i
-                                  className={`am-authmeter-fill tone-${AUTH_BANDS[authWorst.stats.band]?.tone || 'warn'}`}
-                                  style={{ width: `${Math.max(2, Math.min(100, authWorst.stats.pct))}%` }}
-                                />
-                              </span>
-                              <span className="am-authmeter-nums">
-                                {authWorst.stats.committedHours}h committed · {authWorst.stats.remainingHours < 0 ? `${Math.abs(authWorst.stats.remainingHours)}h over` : `${authWorst.stats.remainingHours}h left`} of{' '}
-                                {authWorst.stats.window.authorizedHours}h
-                                {authWorst.stats.window.daysToExpiry != null ? ` · ${authWorst.stats.window.daysToExpiry < 0 ? 'window ended' : `${authWorst.stats.window.daysToExpiry}d to expiry`}` : ''}
-                              </span>
-                            </div>
-                          )}
-                          {authWorst.units && (
-                            <div className="muted" data-testid="appt-auth-units" style={{ marginTop: 3 }}>
-                              This session: {authWorst.units.units} unit{authWorst.units.units === 1 ? '' : 's'} of {authWorst.units.code} ({authWorst.units.unitMins}-min units, {authWorst.units.rounding} rounding).
-                              {(() => {
-                                const row = authWorst.units.ledger?.codes.find((g) => g.code === authWorst.units.code)
-                                return row?.authorized ? ` ${row.committed} of ${row.authorized} authorized units committed.` : ''
-                              })()}
-                            </div>
-                          )}
-                          {authGuardCfgNow.mode === 'stop' && authWorst.severity === 'stop'
-                            ? <span className="muted">This booking is refused while Settings keeps the authorization guard in Stop mode.</span>
-                            : <span className="muted">You can still save — the practice's guard is set to {authGuardCfgNow.mode}.</span>}
-                        </div>
-                      </div>
-                    )}
-                    {riskVerdict && riskVerdict.band !== 'low' && riskVerdict.band !== 'done' && (
-                      <div className={`warnbox ${riskVerdict.band === 'high' ? 'danger' : 'warn'} am-riskbox`} data-testid="appt-risk">
-                        <span>{Icon.alert({ size: 16 })}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <b>
-                            Cancellation risk {riskVerdict.score}/100 · {riskVerdict.action}
-                          </b>
-                          {riskVerdict.factors.slice(0, 3).map((x) => (
-                            <div key={x.id} style={{ marginTop: 3 }}>
-                              {x.detail}
-                            </div>
-                          ))}
-                          <span className="muted">
-                            Modelled locally from this workspace's own history (practice rate {Math.round(riskVerdict.model.base * 100)}%) — a prompt to confirm, never a reminder sent for you.
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                    {(valReport.stops.length > 0 || valReport.warns.length > 0 || valReport.flags.length > 0) && (
-                      <div className={`warnbox ${valReport.stops.length > 0 ? 'danger' : 'warn'}`} data-testid="appt-validation-banner">
-                        <span>{Icon.alert({ size: 16 })}</span>
-                        <div>
-                          <b>Appointment Validations ({valReport.stops.length ? 'Blocked by Stop Rule' : valReport.warns.length ? 'Warning' : 'Flagged'})</b>
-                          {valReport.items.slice(0, 4).map((item, idx) => (
-                            <div key={`${item.id}-${idx}`} style={{ marginTop: 3 }}>
-                              <b>[{item.severity.toUpperCase()}] {item.label}:</b> {item.message}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                    {/* clashes, authorization, risk and practice rules live in the rail's Checks panel */}
 
                     <div className="panel">
                       {showClinic && (
@@ -1084,13 +1077,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                     </button>
                   )}
                 </div>
-                {errors.length > 0 && showErrs && (
-                  <div className="warnbox danger" style={{ flexDirection: 'column', gap: 4 }}>
-                    {errors.map((e) => (
-                      <span key={e}>• {e}</span>
-                    ))}
-                  </div>
-                )}
+                <BookingChecks groups={checkGroups} hint={checksHint} />
                 <div className="panel" style={{ fontSize: 12, display: 'grid', gap: 6 }}>
                   <span style={{ fontWeight: 700 }}>Summary</span>
                   <span className="muted">{title} · {fmtDur(dur)}</span>
@@ -1099,7 +1086,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                     {f.repeat !== 'none' ? ` · ×${seriesDatesFor(f.date, f.repeat, f.repeatCount).length}` : ''}
                   </span>
                   {isBillable && <span style={{ color: 'var(--ok)', fontWeight: 700 }}>Billable ${charge.toFixed(2)}</span>}
-                  {signed && <span style={{ color: 'var(--ok)', fontWeight: 700 }}>✓ Signed by {f.verification.signature.staffName}</span>}
+                  {signed && <span style={{ color: 'var(--ok)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{Icon.check({ size: 12, strokeWidth: 2.4 })} Signed by {f.verification.signature.staffName}</span>}
                   {conflicts.length > 0 && (
                     <span style={{ color: 'var(--danger)', fontWeight: 700 }}>
                       {conflicts.length} conflict{conflicts.length > 1 ? 's' : ''}

@@ -53,6 +53,12 @@ export const Icon = {
   sun: (p) => wrap(<><circle cx="12" cy="12" r="4.2" /><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5 5l1.6 1.6M17.4 17.4L19 19M19 5l-1.6 1.6M6.6 17.4L5 19" /></>, p),
   filter: (p) => wrap(<path d="M3.5 5.5h17l-6.8 7.4v6l-3.4-2v-4L3.5 5.5z" />, p),
   info: (p) => wrap(<><circle cx="12" cy="12" r="9" /><path d="M12 11v5.5" /><circle cx="12" cy="7.8" r="0.4" fill="currentColor" /></>, p),
+  // severity + check family (booking checks): stop sign, caution, marker flag, calendar clash, pulse
+  stop: (p) => wrap(<><path d="M8.2 2.8h7.6l5.4 5.4v7.6l-5.4 5.4H8.2l-5.4-5.4V8.2z" /><path d="M8.5 12h7" /></>, p),
+  caution: (p) => wrap(<><path d="M10.3 4.2L2.6 17.6A2 2 0 004.3 20.6h15.4a2 2 0 001.7-3L13.7 4.2a2 2 0 00-3.4 0z" /><path d="M12 9.5v4" /><circle cx="12" cy="17" r="0.5" fill="currentColor" /></>, p),
+  flag: (p) => wrap(<><path d="M5 21V4" /><path d="M5 4.5c2.6-1.6 5.1-1.6 7.5 0s4.9 1.6 6.5 0v8.5c-1.6 1.6-4.1 1.6-6.5 0s-4.9-1.6-7.5 0" /></>, p),
+  clash: (p) => wrap(<><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M8 3v4M16 3v4M3 10h18" /><path d="M9.5 13.5l5 5M14.5 13.5l-5 5" /></>, p),
+  pulse: (p) => wrap(<path d="M2.5 12h4l2.5-6.5 4.5 13 2.6-6.5h5.4" />, p),
   dots: (p) => wrap(<><circle cx="5" cy="12" r="1.4" fill="currentColor" /><circle cx="12" cy="12" r="1.4" fill="currentColor" /><circle cx="19" cy="12" r="1.4" fill="currentColor" /></>, p),
   download: (p) => wrap(<><path d="M12 4v11M7.5 10.5L12 15l4.5-4.5" /><path d="M4.5 19.5h15" /></>, p),
   repeat: (p) => wrap(<><path d="M17 2.5L21 6.5l-4 4" /><path d="M3 11.5V10a4 4 0 014-4h14M7 21.5l-4-4 4-4" /><path d="M21 12.5V14a4 4 0 01-4 4H3" /></>, p),
