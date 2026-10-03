@@ -119,9 +119,11 @@ export function normalizeAuthUnits(state) {
       const clean = cleanPool(c.authUnits)
       return JSON.stringify(clean) === JSON.stringify(c.authUnits) ? c : (changed++, { ...c, authUnits: clean })
     }
-    changed++
+    // nothing to convert (no weekly hours or no window): leave the record exactly as it was
     const pool = poolFromWeeklyHours(state, c)
-    return pool ? { ...c, authUnits: pool, authUnitsConverted: true } : { ...c, authUnits: {} }
+    if (!pool) return c
+    changed++
+    return { ...c, authUnits: pool, authUnitsConverted: true }
   })
   if (!changed) return state
   return { ...state, clients, meta: { ...(state.meta || {}), authUnitsMigrated: clients.filter((c) => c.authUnitsConverted).length } }
