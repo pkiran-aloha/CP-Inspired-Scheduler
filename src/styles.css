@@ -3852,3 +3852,109 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .am-abano { color: #b42318; }
 [data-theme='dark'] .am-abaok { color: #6ee7b7; }
 [data-theme='dark'] .am-abano { color: #fca5a5; }
+
+/* ================= Booking checks: know before you pick =================
+   One severity language for the booking dialog: the rail's Checks panel, the
+   verdict chips inside the people pickers and the tone on selected pills.
+   Tones only set custom properties, so they compose with any surface:
+   --tn (the hue) and --tn-ink (that hue darkened/lightened for readable text). */
+.tone-stop { --tn: var(--danger); --tn-ink: #b42318; }
+.tone-warn { --tn: var(--warn); --tn-ink: #a15c07; }
+.tone-flag { --tn: var(--accent); --tn-ink: #4338ca; }
+.tone-todo { --tn: var(--muted); --tn-ink: var(--text-2); }
+.tone-ok { --tn: var(--ok); --tn-ink: #047857; }
+[data-theme='dark'] .tone-stop { --tn-ink: #fca5a5; }
+[data-theme='dark'] .tone-warn { --tn-ink: #fcd34d; }
+[data-theme='dark'] .tone-flag { --tn-ink: #a5b4fc; }
+[data-theme='dark'] .tone-ok { --tn-ink: #6ee7b7; }
+
+.bk-glyph { display: inline-grid; place-items: center; color: var(--tn-ink); flex: none; }
+
+/* the panel */
+.bk-panel { padding: 13px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+.bk-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.bk-top h3 { margin: 0; font-size: 13px; letter-spacing: -0.01em; }
+.bk-status {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px 3px 7px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; color: var(--tn-ink);
+  background: color-mix(in srgb, var(--tn) 13%, var(--panel));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tn) 26%, transparent);
+  transition: background-color .25s ease, color .25s ease, box-shadow .25s ease;
+}
+.bk-tally { display: flex; flex-wrap: wrap; gap: 5px; }
+.bk-count {
+  display: inline-flex; align-items: center; gap: 4px; font-size: 10.6px; font-weight: 650; color: var(--tn-ink);
+  padding: 1px 7px 1px 5px; border-radius: 6px; background: color-mix(in srgb, var(--tn) 9%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.bk-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.bk-item {
+  border-radius: var(--r-md); padding: 9px 10px 10px;
+  background: color-mix(in srgb, var(--tn) 5%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--tn) 20%, var(--line));
+  font-size: 11.6px; line-height: 1.45; color: var(--text-2);
+  animation: bk-in .32s cubic-bezier(.16, 1, .3, 1) both; animation-delay: calc(var(--i, 0) * 40ms);
+}
+.bk-item.tone-todo { background: var(--panel-2); border-color: var(--line); border-style: dashed; }
+@keyframes bk-in { from { opacity: 0; transform: translateY(5px); } }
+.bk-head { display: flex; align-items: flex-start; gap: 9px; }
+.bk-ic {
+  width: 28px; height: 28px; border-radius: 9px; flex: none; display: grid; place-items: center;
+  color: var(--tn-ink); background: color-mix(in srgb, var(--tn) 14%, var(--panel));
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--tn) 18%, transparent);
+}
+.bk-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding-top: 1px; }
+.bk-titles b { font-size: 12.3px; font-weight: 700; color: var(--text); letter-spacing: -0.005em; text-wrap: balance; }
+.bk-titles span { font-size: 10.8px; color: var(--muted); }
+.bk-head > .bk-glyph { margin-top: 2px; }
+.bk-lines { list-style: none; margin: 8px 0 0; padding: 0 0 0 37px; display: flex; flex-direction: column; gap: 5px; }
+.bk-lines li { display: flex; gap: 6px; align-items: baseline; overflow-wrap: anywhere; }
+.bk-lines li[hidden] { display: none; }
+.bk-lines li .bk-glyph { transform: translateY(2px); }
+.bk-more {
+  margin: 6px 0 0 37px; padding: 0; border: 0; background: none; font: inherit; font-size: 10.8px; font-weight: 700;
+  color: var(--tn-ink); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px;
+}
+.bk-more:focus-visible { outline: 2px solid var(--tn); outline-offset: 2px; border-radius: 3px; }
+.bk-note, .bk-foot { margin: 6px 0 0 37px; font-size: 10.8px; color: var(--muted); }
+.bk-foot { padding-top: 6px; border-top: 1px solid color-mix(in srgb, var(--tn) 14%, var(--line)); }
+.bk-item .am-authmeter { margin: 8px 0 0 37px; color: var(--tn-ink); }
+.bk-clear { margin: 0; font-size: 11.6px; line-height: 1.5; color: var(--text-2); }
+
+/* verdicts inside the people pickers */
+.pv-head {
+  display: flex; align-items: center; gap: 6px; margin: 2px 4px 6px; padding: 5px 8px; border-radius: 8px;
+  font-size: 10.6px; font-weight: 650; color: var(--text-2); background: var(--panel-2);
+}
+.pv {
+  display: inline-flex; align-items: center; gap: 4px; flex: none; max-width: 132px; padding: 2px 7px 2px 5px; border-radius: 999px;
+  font-size: 10.4px; font-weight: 700; color: var(--tn-ink); background: color-mix(in srgb, var(--tn) 12%, transparent);
+  white-space: nowrap;
+}
+.pv > span { overflow: hidden; text-overflow: ellipsis; }
+.pv em { font-style: normal; font-weight: 650; opacity: .75; }
+.pv.tone-ok { background: transparent; color: color-mix(in srgb, var(--tn-ink) 85%, var(--muted)); }
+.pop-item.tone-stop .nm, .pop-item.tone-warn .nm { color: var(--text-2); }
+.pop-item.tone-stop .av, .pop-item.tone-warn .av { filter: saturate(.55); }
+
+/* a selected person who does not fit carries the tone on their pill */
+.pill.tone-stop, .pill.tone-warn, .pill.tone-flag {
+  border-color: color-mix(in srgb, var(--tn) 45%, var(--line-2));
+  background: color-mix(in srgb, var(--tn) 8%, var(--panel));
+}
+.sug .sug-warn { display: inline-flex; align-items: center; gap: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-item { animation: none; }
+  .bk-status { transition: none; }
+}
+
+/* Below 1180px the rail (which holds Save and the Checks) used to be hidden outright,
+   leaving no way to save. It now stacks above the form as a responsive row of panels. */
+@media (max-width: 1180px) {
+  .wiz-cols, .modal.wizard .wiz-cols { flex-direction: column; }
+  .wiz-rail, .modal.wizard .wiz-rail {
+    display: grid; width: auto; order: -1; align-items: start;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  }
+}

@@ -1,7 +1,8 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { PersonAvatar } from '../ui/avatars'
 import { Icon } from '../ui/Icons'
+import { ToneGlyph, VerdictChip } from './BookingChecks'
 
 /**
  * Floating option list. Rendered through a portal on <body>: a `position: fixed`
@@ -171,11 +172,18 @@ export function MultiSelect({ values = [], onChange, options = [], placeholder =
   )
 }
 
-export function PeoplePicker({ label, required, people, selected, onChange, placeholder = 'Add', multi = true }) {
+/**
+ * `verdicts` (optional): () => ({ [personId]: { tone, label, detail } }). Worked out only
+ * while the list is open (or someone is selected), so a picker shows who fits the slot
+ * before anyone is chosen. `checkedFor`: the slot the verdicts describe, shown above the list.
+ */
+export function PeoplePicker({ label, required, people, selected, onChange, placeholder = 'Add', multi = true, verdicts, checkedFor }) {
   const [open, setOpen] = useState(false)
   const [q, setQ] = useState('')
   const [rect, setRect] = useState(null)
   const anchor = useRef(null)
+  const live = open || selected.length > 0
+  const vmap = useMemo(() => (verdicts && live ? verdicts() || {} : {}), [verdicts, live])
   const list = people.filter((p) => !q || (p.name + ' ' + (p.role || p.program || '')).toLowerCase().includes(q.toLowerCase()))
   const byId = Object.fromEntries(people.map((p) => [p.id, p]))
 
@@ -194,10 +202,12 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
         {selected.map((id) => {
           const p = byId[id]
           if (!p) return null
+          const v = vmap[id]
           return (
-            <span key={id} className="pill">
+            <span key={id} className={`pill${v && v.tone !== 'ok' ? ` tone-${v.tone}` : ''}`} title={v && v.tone !== 'ok' ? v.detail : undefined}>
               <PersonAvatar p={p} size={18} />
               {p.name}
+              {v && v.tone !== 'ok' && <ToneGlyph tone={v.tone} size={12} label={v.label} />}
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -221,16 +231,26 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
           <div className="pop-search">
             <input className="input" autoFocus placeholder="Search people…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
-          {list.map((p) => (
-            <button key={p.id} data-testid="people-item" className={`pop-item ${selected.includes(p.id) ? 'on' : ''}`} onClick={() => toggle(p.id)}>
-              <PersonAvatar p={p} size={24} />
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span className="nm">{p.name}</span>
-                <div className="rl">{p.role || p.program}</div>
-              </span>
-              <span className="ck">{Icon.check({ size: 14, strokeWidth: 2.6 })}</span>
-            </button>
-          ))}
+          {checkedFor && Object.keys(vmap).length > 0 && (
+            <div className="pv-head" data-testid="pick-checked-for">
+              {Icon.cal({ size: 12 })}
+              <span>Checked for {checkedFor}</span>
+            </div>
+          )}
+          {list.map((p) => {
+            const v = vmap[p.id]
+            return (
+              <button key={p.id} data-testid="people-item" className={`pop-item ${selected.includes(p.id) ? 'on' : ''}${v ? ` tone-${v.tone}` : ''}`} onClick={() => toggle(p.id)}>
+                <PersonAvatar p={p} size={24} />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span className="nm">{p.name}</span>
+                  <div className="rl">{p.role || p.program}</div>
+                </span>
+                <VerdictChip v={v} />
+                <span className="ck">{Icon.check({ size: 14, strokeWidth: 2.6 })}</span>
+              </button>
+            )
+          })}
           {!list.length && <div className="rl" style={{ padding: 10, textAlign: 'center' }}>No matches</div>}
         </Popover>
       )}
