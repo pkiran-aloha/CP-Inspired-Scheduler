@@ -3,6 +3,7 @@ import { PersonAvatar } from '../ui/avatars'
 import { useStore, visibleApptsFor } from '../state/store'
 import { DAY_SHORT, fmtDur, fmtRange, MONTHS, parseISO, todayISO } from '../lib/date'
 import { computeBilling, TYPES } from '../lib/model'
+import { ABA_HOURS_EXPLAIN, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 import { statusFor } from '../lib/settingsMasters'
 import { Icon } from '../ui/Icons'
 
@@ -47,7 +48,7 @@ export default function AgendaView({ days, onOpenDetail, onNew }) {
                       <span className="ag-time">{fmtRange(a.start, a.end, settings.h24)}</span>
                       <span style={{ flex: 1, minWidth: 0 }}>
                         <span className="ag-title">
-                          {a.title} {a.abaHr && <span className="pill" style={{ padding: '0 6px', fontSize: 9.5 }}>⚡ ABA hr</span>}
+                          {a.title} {abaHoursCfg(settings).showOnCalendar !== false && countsAsAbaHours(a) && <span className="pill" data-testid="ag-aba-pill" title={ABA_HOURS_EXPLAIN} style={{ padding: '0 6px', fontSize: 9.5 }}>⚡ ABA hr</span>}
                         </span>
                         <div className="ag-sub">
                           {[a.clientIds?.map((c) => state.clients.find((x) => x.id === c)?.name).filter(Boolean).join(', '), a.location, `${fmtDur(a.end - a.start)}`].filter(Boolean).join(' · ')}

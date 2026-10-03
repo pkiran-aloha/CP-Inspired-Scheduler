@@ -3,38 +3,50 @@ import { addDays, daysInMonth, isoDate, parseISO } from './date'
 
 export const SNAP = 15 // minutes — grid granularity
 
+// `service: true` marks a *service* appointment — time delivered against a client's
+// authorized service plan (sessions, assessments, supervision, and the travel that is
+// part of delivering them). Everything else is a **non-service** appointment: staff
+// time that is not client service delivery. Non-service appointments are the only ones
+// that may be marked as behavior-analytic (⚡ ABA) hours — see `lib/abaHours.js`.
 export const TYPES = {
   service: {
     key: 'service', label: 'Service', color: '#6366f1', soft: '#eef0ff', ink: '#4338ca',
     desc: '1:1 therapy, assessment or group session with a client', icon: 'spark',
-    billable: true, hasVerification: true, hasDocs: true,
+    billable: true, hasVerification: true, hasDocs: true, service: true,
   },
   drive: {
     key: 'drive', label: 'Drive Time', color: '#10b981', soft: '#e9faf2', ink: '#047857',
     desc: 'Travel to / from a home, school or community session', icon: 'car',
-    billable: true, hasVerification: false, hasDocs: true,
+    billable: true, hasVerification: false, hasDocs: true, service: true,
   },
   break: {
     key: 'break', label: 'Break Time', color: '#ec4899', soft: '#fdeef6', ink: '#be185d',
     desc: 'Rest / reset between sessions — never double-books a client', icon: 'cup',
-    billable: false, hasVerification: false, hasDocs: false,
+    billable: false, hasVerification: false, hasDocs: false, service: false,
   },
   unavailable: {
     key: 'unavailable', label: 'Unavailable', color: '#64748b', soft: '#eef1f6', ink: '#334155',
     desc: 'Blocked out — meetings, PTO, clinic closed', icon: 'ban',
-    billable: false, hasVerification: false, hasDocs: false,
+    billable: false, hasVerification: false, hasDocs: false, service: false,
   },
   evaluation: {
     key: 'evaluation', label: 'Evaluation', color: '#8b5cf6', soft: '#f3effe', ink: '#6d28d9',
     desc: 'Intake, VB-MAPP / ABLLS-R reassessment, IEP observation', icon: 'clipboard',
-    billable: true, hasVerification: true, hasDocs: true,
+    billable: true, hasVerification: true, hasDocs: true, service: true,
   },
   supervision: {
     key: 'supervision', label: 'Supervision', color: '#f59e0b', soft: '#fef4e2', ink: '#b45309',
     desc: 'BCBA supervision of RBTs / technicians', icon: 'eye',
-    billable: true, hasVerification: false, hasDocs: true,
+    billable: true, hasVerification: false, hasDocs: true, service: true,
   },
 }
+
+/** Appointment types that are client service delivery (billable service time or its travel). */
+export const SERVICE_TYPES = Object.values(TYPES).filter((t) => t.service).map((t) => t.key)
+/** Is this appointment a *service* appointment? Unknown/custom types count as non-service. */
+export const isServiceAppt = (a) => Boolean(TYPES[a?.type]?.service)
+/** Is this a *non-service* appointment (the only kind that may carry ⚡ ABA hours)? */
+export const isNonServiceAppt = (a) => Boolean(a?.type) && !isServiceAppt(a)
 
 export const STATUSES = {
   active: { key: 'active', label: 'Active', dot: '#6366f1' },

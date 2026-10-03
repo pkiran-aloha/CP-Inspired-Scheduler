@@ -221,6 +221,11 @@ export default function TimesheetSubmissionView() {
                 <div><span>Straight-time value</span><b>{money(detailTs.totals.straightCents)}</b></div>
                 <div><span>Lines</span><b>{detailTs.totals.lines}</b></div>
                 <div><span>Adjustments</span><b>{(detailTs.sheet.adjustments || []).length}</b></div>
+                {/* ⚡ behavior-analytic time on the same sheet — certification currency,
+                    not a different pay rate */}
+                <div data-testid="pay-ts-aba" title="Non-service blocks marked as behavior-analytic (⚡ ABA) time — tracked for RBT / BCAT, graduate-student and state-certification hours">
+                  <span>⚡ ABA hours</span><b>{hrs(detailTs.totals.abaHours)}</b>
+                </div>
               </div>
 
               <h4 className="pay-h4">Earned lines (from the calendar)</h4>
@@ -233,7 +238,7 @@ export default function TimesheetSubmissionView() {
                     <span className="num">{hrs(l.hours)}</span>
                     <span className="num">{l.rate ? `$${Number(l.rate).toFixed(2)}` : '—'}</span>
                     <span className="num">{money(l.amount != null ? l.amount : Math.round(l.hours * l.rate * 100))}</span>
-                    <span className="muted">{l.source === 'adjustment' ? `manual — ${l.note || 'adjustment'}` : (l.note || l.meta?.evv || 'schedule')}</span>
+                    <span className="muted">{l.meta?.abaHr ? `⚡ ABA${l.meta?.abaActivity ? ` · ${l.meta.abaActivity}` : ''}` : l.source === 'adjustment' ? `manual — ${l.note || 'adjustment'}` : (l.note || l.meta?.evv || 'schedule')}</span>
                   </div>
                 ))}
                 {!detailTs.lines.length && <div className="pay-line empty">No payable time in this period.</div>}

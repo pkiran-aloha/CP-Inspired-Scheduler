@@ -29,7 +29,7 @@ function seed({ guardMode = 'warn' } = {}) {
   const staffId = s.staff[0].id
   const appts = Object.fromEntries(Object.entries(s.appts).filter(([, a]) => !(a.clientIds || []).includes(target.id)))
   const mk = (id, date, extra = {}) => ({
-    id, date, type: 'service', status: 'completed', abaHr: true, title: 'ABA session',
+    id, date, type: 'service', status: 'completed', title: 'ABA session',
     clientIds: [target.id], staffIds: [staffId], start: 540, end: 660,
     billing: { code: '97153', unitMins: 30, units: 4, rate: 18, mileage: false }, ...extra,
   })
@@ -142,12 +142,10 @@ describe('the authorization guard inside the booking dialog', () => {
       fireEvent.click((await screen.findAllByTestId('people-item'))[0])
       fireEvent.mouseDown(document.body)
     }
-    // a fresh session is not marked as ABA hours until the scheduler says so
-    fireEvent.click(await screen.findByTestId('am-count-aba'))
     return screen.findByTestId('appt-auth-guard')
   }
 
-  it('tells the scheduler a clinical session is not counted against the authorization yet', async () => {
+  it('judges a clinical session against the authorization the moment a client is picked', async () => {
     seed()
     R(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
@@ -159,8 +157,10 @@ describe('the authorization guard inside the booking dialog', () => {
     fireEvent.click((await screen.findAllByTestId('people-item'))[0])
     fireEvent.mouseDown(document.body)
     const box = await screen.findByTestId('appt-auth-guard')
-    expect(box.textContent).toMatch(/Not drawn against the authorization/)
-    expect(box.textContent).toMatch(/Tick ⚡ ABA Hr/)
+    expect(box.textContent).toMatch(/after the authorization ends/)
+    // the ⚡ ABA Hours flag is staff behavior-analytic time and is not part of this verdict
+    expect(box.textContent).not.toMatch(/ABA Hr/)
+    expect(screen.queryByTestId('am-count-aba')).toBe(null)
   })
 
   it('shows the burn-down once the session is counted', async () => {

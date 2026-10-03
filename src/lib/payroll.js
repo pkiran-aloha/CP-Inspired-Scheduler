@@ -20,6 +20,7 @@
 // Amounts are carried in integer cents to keep ledgers from drifting.
 
 import { addDays, isoDate, parseISO, todayISO } from './date'
+import { countsAsAbaHours } from './abaHours'
 
 // ---------------------------------------------------------------------------
 // Earning codes
@@ -386,7 +387,14 @@ export function scheduleLines(state, staffId, period) {
       id: `l-${a.id}`, apptId: a.id, date: a.date, code, minutes, hours: +(minutes / 60).toFixed(4),
       rate: rateFor(profile, code, payroll), kind: c?.kind || 'worked', source: 'schedule',
       note: delta ? `rounded ${delta > 0 ? '+' : ''}${delta} min` : '',
-      meta: { scheduledMinutes: liveMins, evv: evvStatus(a), type: a.type, clientIds: a.clientIds || [], billable: a.type === 'service' || a.type === 'evaluation' },
+      // ⚡ ABA Hours ride along on the line so a timesheet can show behavior-analytic
+      // (non-service) time next to what it pays — the hours are certification currency,
+      // not a pay category, so they never change the earning code.
+      meta: {
+        scheduledMinutes: liveMins, evv: evvStatus(a), type: a.type, clientIds: a.clientIds || [],
+        billable: a.type === 'service' || a.type === 'evaluation',
+        abaHr: countsAsAbaHours(a), abaActivity: countsAsAbaHours(a) ? a.abaActivity || '' : '',
+      },
     })
   }
   return lines.sort((x, y) => (x.date === y.date ? 0 : x.date < y.date ? -1 : 1))
@@ -467,10 +475,13 @@ export function lineTotals(lines = [], payroll = null) {
     byCode[l.code].hours = +(byCode[l.code].minutes / 60).toFixed(4)
     byCode[l.code].cents += v
   }
+  // behavior-analytic (⚡ ABA) hours inside these lines — tracked, never paid differently
+  const abaMinutes = lines.reduce((t, l) => t + (l.meta?.abaHr ? l.minutes || 0 : 0), 0)
   return {
     lines: lines.length,
     minutes,
     hours: +(minutes / 60).toFixed(4),
+    abaHours: +(abaMinutes / 60).toFixed(4),
     straightCents: straight,
     byCode: Object.values(byCode).sort((a, b) => b.cents - a.cents),
   }

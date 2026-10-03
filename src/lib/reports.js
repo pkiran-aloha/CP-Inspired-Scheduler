@@ -1,7 +1,8 @@
 // ---- Report engine: pure builders over the PMS ledger (appointments, rosters, billing) ----
 // Every report returns { columns, rows, summary, note } so the UI, CSV export and tests share one shape.
 
-import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType } from './model'
+import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType, isServiceAppt } from './model'
+import { abaStaffRows, abaTotals, abaActivityById, countsAsAbaHours } from './abaHours'
 import { rangeMetrics } from './analytics'
 import { agingOf, dueOf, isPrimaryReceivable } from './claims'
 import { scanNeedsCover, needsCoverFor } from './smart'
@@ -599,6 +600,42 @@ const REPORTS_RAW = [
     },
   },
 
+  {
+    id: 'abahours', cat: 'people', name: 'Behavior-Analytic Hours (⚡ ABA Time)', icon: 'zap',
+    blurb: 'Non-service time marked as behavior-analytic, per person and activity — the ledger behind RBT / BCAT, graduate-student and state-certification tracking.',
+    build(state, ctx) {
+      const { rows } = abaStaffRows(state, { days: ctx.days, ...(ctx.scope?.staff ? { staffId: ctx.scope.staff } : {}) })
+      const out = rows
+        .filter((r) => !ctx.scope?.staff || ctx.scope.staff === r.staffId)
+        .map((r) => ({
+          staff: r.name, role: r.role, track: r.trackLabel, hours: r.hours, perWeek: r.perWeek,
+          sessions: r.sessions, activities: r.activities.map((a) => `${a.label} (${a.hours}h)`).join('; ') || '—',
+          uncategorized: r.uncategorized, excluded: r.excluded,
+          target: r.target || '—', pct: r.pct == null ? '—' : `${r.pct}%`,
+          status: r.excluded > 0 ? 'Fix flagged blocks' : r.target > 0 ? (r.atTarget ? 'Target met' : 'In progress') : 'Logged',
+          _link: { kind: 'staff', id: r.staffId },
+        }))
+      const tot = abaTotals(state, { days: ctx.days })
+      return {
+        columns: [
+          { k: 'staff', label: 'Team member' }, { k: 'role', label: 'Role' }, { k: 'track', label: 'Track' },
+          { k: 'hours', label: 'ABA hours', t: 'hrs', ...moneyCell }, { k: 'perWeek', label: 'Per week', t: 'hrs', ...moneyCell },
+          { k: 'sessions', label: 'Blocks', t: 'num', ...moneyCell }, { k: 'activities', label: 'Behavior-analytic activities' },
+          { k: 'uncategorized', label: 'No activity', t: 'hrs', ...moneyCell }, { k: 'excluded', label: 'Not counted', t: 'hrs', ...moneyCell },
+          { k: 'target', label: 'Target h', ...moneyCell }, { k: 'pct', label: 'Progress', ...moneyCell }, { k: 'status', label: 'Status' },
+        ],
+        rows: out,
+        summary: [
+          { label: 'Behavior-analytic hours', value: `${tot.hours} h` },
+          { label: 'Blocks tracked', value: tot.sessions },
+          { label: 'People with ABA time', value: tot.staff },
+          { label: 'Needing an activity', value: tot.uncategorized ? `${tot.uncategorized} h` : 'None' },
+        ],
+        note: 'Only non-service appointments may be marked ⚡ ABA Hours; service time counts against the client’s authorization instead. Targets are the practice’s own numbers (Settings → System Settings → ABA Hours), not a board rule.',
+      }
+    },
+  },
+
   // ---------- Data quality ----------
   {
     id: 'quality', cat: 'quality', name: 'Data Quality & Validations', icon: 'checkCircle',
@@ -713,6 +750,15 @@ export function validationIssues(state, days, scope) {
     if ((a.type === 'service' || a.type === 'evaluation') && !(a.clientIds || []).length) push('error', 'Scheduling', 'Clinical session has no client attached', namesOf(a.staffIds, staff) || '—', 'Add the client', { kind: 'appt', id: a.id, date: a.date }, a.date)
     if (a.type === 'drive' && a.billing?.mileage && !(a.billing.distance > 0)) push('warn', 'Billing', 'Mileage claim without distance', who, 'Enter miles driven', { kind: 'appt', id: a.id, date: a.date }, a.date)
     if (a.type === 'service' && a.status === 'completed' && !a.notes) push('notice', 'Documentation', 'No session note captured', who, 'Add a note before payer audit', { kind: 'appt', id: a.id, date: a.date }, a.date)
+    // ⚡ ABA Hours ledger: the flag belongs to non-service behavior-analytic time only
+    if (a.abaHr === true) {
+      const whoStaff = namesOf(a.staffIds, staff) || '—'
+      const act = abaActivityById(a.abaActivity)
+      if (isServiceAppt(a)) push('error', 'ABA Hours', `⚡ ABA Hours on a service appointment (${TYPES[a.type]?.label || a.type}) — service time draws on the client's authorization instead`, whoStaff, 'Untick ⚡ ABA Hr or rebook as a non-service block', { kind: 'appt', id: a.id, date: a.date }, a.date)
+      else if (act && !act.qualifies) push('error', 'ABA Hours', `“${act.label}” is not behavior-analytic time — it cannot count toward certification hours`, whoStaff, 'Pick a qualifying activity or untick ⚡ ABA Hr', { kind: 'appt', id: a.id, date: a.date }, a.date)
+      else if (!act) push('warn', 'ABA Hours', '⚡ ABA Hours marked without an activity', whoStaff, 'Open the block and choose the behavior-analytic activity', { kind: 'appt', id: a.id, date: a.date }, a.date)
+      if (countsAsAbaHours(a) && !(a.staffIds || []).length) push('warn', 'ABA Hours', '⚡ ABA Hours with no staff assigned — nobody is credited', whoStaff, 'Add the staff member who did the work', { kind: 'appt', id: a.id, date: a.date }, a.date)
+    }
   }
 
   // double-book detection (same day only, cheap pass).

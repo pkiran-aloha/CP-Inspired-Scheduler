@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore, visibleApptsFor, layoutLanes, slotBlocks, groupOverlaps } from '../state/store'
 import { DAY_SHORT, fmtDur, fmtTime, parseISO, snap, todayISO } from '../lib/date'
 import { SNAP, TYPES, findConflicts } from '../lib/model'
+import { ABA_HOURS_EXPLAIN, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 import { isCancelStatus } from '../lib/settingsMasters'
 import { Icon, TypeGlyph } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
@@ -229,6 +230,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
   }
 
   const h24 = settings.h24
+  const showAba = abaHoursCfg(settings).showOnCalendar !== false
   const today = todayISO()
   const colMin = days.length === 1 ? 320 : 152
   const colTemplate = `var(--gutter) repeat(${days.length}, minmax(${colMin}px, 1fr))`
@@ -293,14 +295,14 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
                   {groups.map((g) => {
                     if (g.items.length === 1) {
                       const a = { ...g.items[0], lane: 0, cols: 1 }
-                      return <Chip key={a.id} a={a} h24={h24} conflict={conflicts.has(a.id)} selected={selectedId === a.id} staffById={staffById} clientsById={clientsById} onDown={onChipDown} dayIdx={dayIdx} drag={drag} days={days} />
+                      return <Chip key={a.id} a={a} h24={h24} conflict={conflicts.has(a.id)} selected={selectedId === a.id} staffById={staffById} clientsById={clientsById} onDown={onChipDown} dayIdx={dayIdx} drag={drag} days={days} showAba={showAba} />
                     }
                     if (expanded.has(g.gid)) {
                       const laned = layoutLanes(g.items)
                       return (
                         <React.Fragment key={g.gid}>
                           {laned.map((a) => (
-                            <Chip key={a.id} a={a} h24={h24} conflict={conflicts.has(a.id)} selected={selectedId === a.id} staffById={staffById} clientsById={clientsById} onDown={onChipDown} dayIdx={dayIdx} drag={drag} days={days} />
+                            <Chip key={a.id} a={a} h24={h24} conflict={conflicts.has(a.id)} selected={selectedId === a.id} staffById={staffById} clientsById={clientsById} onDown={onChipDown} dayIdx={dayIdx} drag={drag} days={days} showAba={showAba} />
                           ))}
                           <button
                             className="tg-merge"
@@ -329,7 +331,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
                           const bgid = `${g.gid}#${b.start}`
                           if (b.items.length === 1) {
                             const a = { ...b.items[0], lane: 0, cols: 1 }
-                            return <Chip key={bgid} a={a} box={b} pph={pph} h24={h24} conflict={conflicts.has(a.id)} selected={selectedId === a.id} staffById={staffById} clientsById={clientsById} onDown={onChipDown} dayIdx={dayIdx} drag={drag} days={days} />
+                            return <Chip key={bgid} a={a} box={b} pph={pph} h24={h24} conflict={conflicts.has(a.id)} selected={selectedId === a.id} staffById={staffById} clientsById={clientsById} onDown={onChipDown} dayIdx={dayIdx} drag={drag} days={days} showAba={showAba} />
                           }
                           return <StackCard key={bgid} pph={pph} g={{ gid: bgid, items: b.items, start: b.start, end: b.end }} h24={h24} conflict={b.items.some((x) => conflicts.has(x.id))} staffById={staffById} clientsById={clientsById} onOpen={(rect) => setStack({ gid: bgid, rect })} />
                         })}
@@ -451,7 +453,7 @@ function StackCard({ g, h24, conflict, onOpen, pph = 56 }) {
   )
 }
 
-function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayIdx, drag, days, box, pph = 56 }) {
+function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayIdx, drag, days, box, pph = 56, showAba = true }) {
   const t = TYPES[a.type] || TYPES.service
   const isDrag = drag && drag.mode !== 'create' && drag.id === a.id
   const live = isDrag ? drag.live : null
@@ -508,9 +510,9 @@ function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayI
             {clientsTxt ? <> · <b>{clientsTxt}</b></> : null}
             {staffTxt ? <span style={{ marginLeft: 'auto', opacity: 0.75 }}>{staffTxt}</span> : null}
           </div>
-          {a.abaHr && !tiny ? (
+          {showAba && countsAsAbaHours(a) && !tiny ? (
             <div className="s" style={{ marginTop: 1 }}>
-              <span className="pill" style={{ padding: '0 5px', fontSize: 9, background: 'transparent' }}>⚡ ABA hr</span>
+              <span className="pill" data-testid="tg-aba-pill" title={ABA_HOURS_EXPLAIN} style={{ padding: '0 5px', fontSize: 9, background: 'transparent' }}>⚡ ABA hr</span>
             </div>
           ) : null}
         </>

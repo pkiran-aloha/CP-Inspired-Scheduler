@@ -48,11 +48,35 @@ describe('complete, versioned local workspace backup', () => {
     expect(data).toEqual(workspaceData(source))
 
     const restored = reducer(base, { type: 'replace', payload: data })
-    for (const key of Object.keys(data)) expect(restored[key]).toEqual(data[key])
+    for (const key of Object.keys(data)) {
+      if (key === 'meta') {
+        // a restore re-runs the one-time migrations, so meta carries their stamps
+        expect(restored.meta).toEqual({ ...data.meta, abaHoursFixed: true, abaHoursStripped: 0 })
+        continue
+      }
+      expect(restored[key]).toEqual(data[key])
+    }
     expect(restored.ui).toEqual(base.ui) // do not import an old date/selection
     expect(restored.history).toHaveLength(1)
     const undone = reducer(restored, { type: 'undo' })
     for (const key of Object.keys(data)) expect(undone[key]).toEqual(base[key])
+  })
+
+  it('re-runs the ⚡ ABA Hours migration on restore, so a legacy flag cannot come back on a session', () => {
+    const base = blankState()
+    const legacy = {
+      ...completeBackup(base),
+      appts: {
+        'backup-a': { ...tinyAppointment, abaHr: true }, // saved when the flag meant "bill the authorization"
+        'backup-b': { ...tinyAppointment, id: 'backup-b', type: 'unavailable', clientIds: [], abaHr: true, abaActivity: 'coursework' },
+      },
+    }
+    const { data } = readWorkspaceBackup(createWorkspaceBackup(legacy), blankState())
+    const restored = reducer(base, { type: 'replace', payload: data })
+    expect(restored.appts['backup-a'].abaHr).toBe(false)
+    expect(restored.appts['backup-b'].abaHr).toBe(true)
+    expect(restored.appts['backup-b'].abaActivity).toBe('coursework')
+    expect(restored.meta.abaHoursStripped).toBe(1)
   })
 
   it('imports actual old-format exports without mixing old claims with new payments or artifacts', () => {

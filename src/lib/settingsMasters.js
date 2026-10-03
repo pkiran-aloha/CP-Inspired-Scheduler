@@ -14,7 +14,8 @@
  * reverses the whole change.
  */
 import { EARNING_CODES, EARNING_BY_ID, defaultPayrollSettings, earningCodesFor, earningIndex, earningLabel, OFFICES as PAYROLL_OFFICES } from './payroll'
-import { STATUSES, STATUS_ORDER, BILL_CODES, uid } from './model'
+import { STATUSES, STATUS_ORDER, BILL_CODES, TYPES, isServiceAppt, uid } from './model'
+import { abaActivityById, abaHoursCfg } from './abaHours'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -264,6 +265,16 @@ export const DEFAULT_APPOINTMENT_VALIDATIONS = {
     cancelledNoShow: 'flag',
     regionalCenter: 'none',
   },
+  // ⚡ ABA Hours = behavior-analytic time on non-service appointments (RBT / BCAT,
+  // graduate-student and state-certification tracking). It never touches authorizations,
+  // so a tick on a *service* appointment is a data error, not a billing decision.
+  aba: {
+    serviceAppt: 'stop', // ticked on a service appointment — the flag belongs to non-service time
+    activity: 'stop', // ticked against a non-qualifying activity (cleaning, general admin)
+    missingActivity: 'warn', // ticked with no activity chosen yet
+    noStaff: 'warn', // ticked with nobody on the block — the hours cannot be attributed
+    clientAttached: 'flag', // ticked while a client is attached (client time is not staff ABA time)
+  },
 }
 
 export const DEFAULT_CLEARINGHOUSES = [
@@ -465,12 +476,14 @@ export const subscriptionCfg = (settings) => ({ ...DEFAULT_SUBSCRIPTION, ...(set
 export const notificationsCfg = (settings) => ({ ...DEFAULT_NOTIFICATIONS, ...(settings?.notifications || {}) })
 export const clearinghousesCfg = (settings) => (arr(settings?.clearinghouses).length ? settings.clearinghouses : DEFAULT_CLEARINGHOUSES)
 export const evvCfg = (settings) => ({ ...DEFAULT_EVV_CONFIG, ...(settings?.evvConfig || {}) })
+export const VALIDATION_GROUPS = ['staff', 'client', 'payer', 'aba']
 export function appointmentValidationsCfg(settings) {
   const raw = settings?.appointmentValidations || {}
   return {
     staff: { ...DEFAULT_APPOINTMENT_VALIDATIONS.staff, ...(raw.staff || {}) },
     client: { ...DEFAULT_APPOINTMENT_VALIDATIONS.client, ...(raw.client || {}) },
     payer: { ...DEFAULT_APPOINTMENT_VALIDATIONS.payer, ...(raw.payer || {}) },
+    aba: { ...DEFAULT_APPOINTMENT_VALIDATIONS.aba, ...(raw.aba || {}) },
   }
 }
 export function systemConfigFor(settings) {
@@ -604,6 +617,36 @@ export function evaluateAppointmentValidations(state, draft = {}) {
     }
     if (payer && /regional/i.test(payer.name || '') && !draft.service) {
       push('payer', 'regionalCenter', 'Regional Center Service Sub-Code', `Regional Center bookings require an authorized service code.`)
+    }
+  }
+
+  // 6) ⚡ ABA Hours — behavior-analytic time on non-service appointments.
+  // The flag is about *staff* credential hours (RBT / BCAT, graduate students, state
+  // certification), never about the client's authorization, so every rule here guards the
+  // tracking ledger: who it is credited to, whether the activity is behavior-analytic at
+  // all, and whether it was placed on an appointment type that may carry it.
+  if (draft.abaHr === true) {
+    const abaCfg = abaHoursCfg(settings)
+    const act = abaActivityById(draft.abaActivity)
+    if (isServiceAppt(draft)) {
+      push('aba', 'serviceAppt', 'ABA Hours on a Service Appointment',
+        `ABA Hours applies to non-service appointments only — “${TYPES[draft.type]?.label || draft.type}” is service delivery, which draws on the client's authorization instead. Untick ⚡ ABA Hr or rebook this as a non-service block.`)
+    }
+    if (act && !act.qualifies) {
+      push('aba', 'activity', 'ABA Hours Activity Not Behavior-Analytic',
+        `“${act.label}” is not behavior-analytic time${act.hint ? ` — ${act.hint.toLowerCase()}` : ''}. Pick one of the qualifying activities (group training, intervention design/review, data analysis, coursework) or untick ⚡ ABA Hr.`)
+    }
+    if (!act && abaCfg.requireActivity) {
+      push('aba', 'missingActivity', 'ABA Hours Activity Missing',
+        'Choose the behavior-analytic activity these hours belong to (group training, intervention design/review, data analysis, coursework) so the tracking ledger can be audited.')
+    }
+    if (!staffIds.length) {
+      push('aba', 'noStaff', 'ABA Hours Without Staff',
+        'No staff member is on this block, so the behavior-analytic hours cannot be credited to anyone.')
+    }
+    if (clientIds.length) {
+      push('aba', 'clientAttached', 'ABA Hours With a Client Attached',
+        `A client is attached to this block (${clientIds.map((c) => clientById[c]?.name || c).join(', ')}). Behavior-analytic time is staff time spent outside client sessions.`)
     }
   }
 
@@ -1169,13 +1212,13 @@ export function planSettingsOp(state, op, payload = {}) {
       if (payload.patch && typeof payload.patch === 'object') {
         const next = { ...cur }
         for (const [grp, rules] of Object.entries(payload.patch)) {
-          if (!['staff', 'client', 'payer'].includes(grp)) return fail('Unknown validation group.')
+          if (!VALIDATION_GROUPS.includes(grp)) return fail('Unknown validation group.')
           next[grp] = { ...(cur[grp] || {}), ...(rules || {}) }
         }
         return done('Appointment validation rules updated', { patch: { appointmentValidations: next } })
       }
       const { group, key, severity } = payload
-      if (!['staff', 'client', 'payer'].includes(group)) return fail('Unknown validation group.')
+      if (!VALIDATION_GROUPS.includes(group)) return fail('Unknown validation group.')
       if (!VALIDATION_SEVERITIES.some((s) => s.id === severity)) return fail('Pick None, Flag, Warn or Stop.')
       const next = {
         ...cur,
