@@ -9,6 +9,7 @@ import { WIDGETS, DEFAULT_DASH, DASH_METRICS, DASH_DIMS, apptsFiltered, sumMetri
 import { parseISO, todayISO, fmtTime } from '../lib/date'
 import { intakeKpis, fullName as intakeFullName, stageDef as intakeStageDef } from '../lib/intake'
 import { download } from '../lib/ics'
+import { billingKpis } from '../lib/billingKpis'
 import { apptAutoTitle } from '../lib/apptName'
 
 /* ---------- chart primitives (crisp HTML + undistorted SVG only) ---------- */
@@ -144,7 +145,7 @@ function KpiRow({ kpis, onPick }) {
         const good = k.badRising ? !rising : rising
         const cls = !k.delta ? 'flat' : k.invert ? (rising ? 'bad' : 'good') : good ? 'good' : 'bad'
         return (
-          <button key={k.k} type="button" className={`dw-kpi ${cls}${onPick ? ' pk' : ''}`} data-testid={`dw-kpi-${k.k}`} title={`${k.label} vs previous equal window${onPick ? ' · click to see the appointments behind it' : ''}`} onClick={() => onPick?.(k.k)}>
+          <button key={k.k} type="button" className={`dw-kpi ${cls}${onPick ? ' pk' : ''}`} data-testid={`dw-kpi-${k.k}`} title={k.help ? `${k.label}: ${k.help}` : `${k.label} vs previous equal window${onPick ? ' · click to see the appointments behind it' : ''}`} onClick={() => onPick?.(k.k)}>
             <b>{fmtNum(k.value, k.fmt === 'money', k.fmt === 'pct')}</b>
             <span>{k.label}</span>
             {k.delta != null && <i>{k.delta > 0 ? '▲' : k.delta < 0 ? '▼' : '•'} {Math.abs(k.delta)}%</i>}
@@ -257,6 +258,10 @@ function WidgetBody({ w, ctx }) {
         </div>
       </div>
     )
+  }
+  if (w.type === 'billing') {
+    const kp = billingKpis(state, days, priorDays(days), { today: todayISO() })
+    return <div data-testid="dw-billing"><KpiRow kpis={kp} onPick={null} /></div>
   }
   // kpis
   const prior = priorDays(days)
@@ -500,6 +505,10 @@ export default function DashboardView({ onOpenDetail = null }) {
     } else if (w.type === 'ledger') {
       head = ['date', 'time', 'appointment', 'type', 'status', 'clients', 'staff', 'units', 'charge']
       rows = (explicitRows || widgetRows(w)).map((a) => [a.date, `${fmtTime(a.start, settings.h24)}–${fmtTime(a.end, settings.h24)}`, a.title || apptAutoTitle({ ...a, clients: clientById, staff: staffById, settings }), a.type, a.status, (a.clientIds || []).map((id) => clientById[id]?.name).filter(Boolean).join('; '), (a.staffIds || []).map((id) => staffById[id]?.name).filter(Boolean).join('; '), a.billing?.units ?? '', a.billing?.units && a.billing?.rate ? (a.billing.units * a.billing.rate).toFixed(2) : ''])
+    } else if (w.type === 'billing') {
+      const kp = billingKpis(state, dd, priorDays(dd), { today: todayISO() })
+      head = ['metric', 'current', 'vs prior %', 'formula']
+      rows = kp.map((x) => [x.label, x.value, x.delta == null ? '' : `${x.delta > 0 ? '+' : ''}${x.delta}%`, x.help])
     } else {
       const kp = pulseKpis(state.appts, dd, priorDays(dd), filter, clientById)
       head = ['metric', 'current', 'vs prior %']
