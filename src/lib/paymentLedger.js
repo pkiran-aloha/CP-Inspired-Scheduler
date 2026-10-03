@@ -256,3 +256,61 @@ export function planVoidClaimPayment(state, paymentId, { at = Date.now(), revers
   return { ok: true, claimUpserts, payments: { [reversalId]: reversal }, reversal,
     msg: `Payment ${pay.ref} voided — reversal posted${parent ? ' on both COB ledgers' : ''}` }
 }
+
+// ---------- recoupments: the payer takes money back on a claim it already paid ----------
+// A recoupment is not a void (the original remittance stays on file, it was real) and
+// not a write-off: it reduces what the payer has paid, so the claim's balance reopens
+// for rebilling, appeal or a patient decision. Recorded as its own negative ledger line
+// with the payer's reference, so it can be matched against the ERA/PLB or refund letter.
+export const RECOUP_REASONS = [
+  { id: 'overpayment', label: 'Overpayment / paid in error' },
+  { id: 'duplicate', label: 'Duplicate payment' },
+  { id: 'eligibility', label: 'Retro eligibility / termed coverage' },
+  { id: 'cob', label: 'Coordination of benefits — other payer primary' },
+  { id: 'audit', label: 'Audit / medical-record review' },
+  { id: 'auth', label: 'No or invalid authorization' },
+  { id: 'other', label: 'Other (see note)' },
+]
+export const RECOUP_METHODS = [
+  { id: 'offset', label: 'Offset from a later remittance (ERA / PLB WO)' },
+  { id: 'refund', label: 'Refund check sent to the payer' },
+]
+
+export function planRecoupment(state, id, payload = {}, { at = Date.now(), paymentId } = {}) {
+  const claim = state.claims?.[id]
+  if (!claim) return fail('Claim not found')
+  if (claim.mode === 'selfpay') return fail('Self-pay invoices have no payer to recoup — reverse the receipt instead')
+  if (claim.method === 'secondary') return fail('Secondary recoupments are not supported here — record them on the secondary payer’s remittance outside Aloha')
+  if (claim.status === 'void') return fail('A void claim has nothing to recoup')
+  if (claimIsLinked(state, claim)) return fail('Resolve or cancel the linked secondary filing before recording a recoupment on the primary')
+  const amount = cents(payload.amount)
+  if (amount === null || amount <= 0) return fail('Enter the recouped amount in dollars and cents')
+  if (amount > cents(claim.paid || 0)) return fail(`The payer only paid $${r2(claim.paid || 0).toFixed(2)} on this claim — a recoupment cannot exceed it`)
+  const ref = String(payload.ref || '').trim()
+  if (ref.length < 3) return fail('Add the payer’s reference (letter, ERA trace or PLB number) so the take-back can be matched')
+  if (activeRef(state, id, ref)) return fail(`Reference ${ref} is already on this claim’s ledger`)
+  const date = String(payload.date || '')
+  if (!validDate(date)) return fail('Enter the date the payer recouped the money')
+  if (date > new Date(at).toISOString().slice(0, 10)) return fail('The recoupment date cannot be in the future')
+  if (!RECOUP_REASONS.some((r) => r.id === payload.reason)) return fail('Pick why the payer recouped')
+  if (!RECOUP_METHODS.some((m) => m.id === payload.method)) return fail('Pick how the money went back to the payer')
+  if (!paymentId || state.payments?.[paymentId]) return fail('Recoupment identifier is missing or already in use')
+  const reasonLabel = RECOUP_REASONS.find((r) => r.id === payload.reason).label
+  const dollars = r2(amount / 100)
+  const updated = {
+    ...claim,
+    paid: r2((cents(claim.paid || 0) - amount) / 100),
+    recouped: r2((cents(claim.recouped || 0) + amount) / 100),
+    history: [...(claim.history || []), { at, ev: `Recouped by ${claim.payer} — $${dollars.toFixed(2)} (${reasonLabel}, ref ${ref}); balance reopened` }],
+  }
+  const balance = dueOf(updated)
+  updated.status = balance <= 0 ? 'paid' : (updated.paid || updated.secondaryPaid || updated.patientPaid || updated.adj) ? 'partially_paid' : updated.submittedAt ? 'submitted' : 'draft'
+  updated.closedAt = balance <= 0 ? claim.closedAt || at : null
+  const entry = {
+    id: paymentId, kind: 'recoupment', claimId: id, clientId: claim.clientId, payer: claim.payer,
+    amount: r2(-dollars), ref, date, reason: payload.reason, method: payload.method,
+    note: String(payload.note || '').trim().slice(0, 500), reconciled: false, createdAt: at,
+  }
+  return { ok: true, claimUpserts: [updated], payments: { [paymentId]: entry }, invoices: invoicePatch(state, updated, at), entry,
+    msg: `Recoupment of $${dollars.toFixed(2)} recorded on ${claim.no} — $${r2(balance).toFixed(2)} is open again for rebilling or appeal` }
+}

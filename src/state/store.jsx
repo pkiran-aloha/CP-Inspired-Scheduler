@@ -15,7 +15,7 @@ import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/workspaceBackup'
 import { previewEra, planEraImport, planParkedEraPost } from '../lib/eraPosting'
 import { planSecondaryFiling, planSecondarySkip, planSecondaryCancel, normalizeCobLedger } from '../lib/secondaryLedger'
-import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt, planPatientReceipt } from '../lib/paymentLedger'
+import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt, planPatientReceipt, planRecoupment } from '../lib/paymentLedger'
 import { accessLevel, applySecurityChange, authorizeAction, canAccess, canAccessRecord, currentAccount, currentRole, defaultSecurity, normalizeSecurity, scopeWorkspaceToAccount } from '../lib/security'
 import { useToast } from '../ui/Toast'
 
@@ -220,6 +220,11 @@ export function reducer(state, action) {
     }
     case 'claimVoidPaymentTx': {
       const tx = planVoidClaimPayment(state, action.id, action.options)
+      return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments,
+        ...(Object.keys(tx.invoices || {}).length ? { invoices: tx.invoices } : {}) }) : state
+    }
+    case 'claimRecoupTx': {
+      const tx = planRecoupment(state, action.id, action.payload, action.options)
       return tx.ok ? reducer(state, { type: 'claimsTx', claimUpserts: tx.claimUpserts, payments: tx.payments,
         ...(Object.keys(tx.invoices || {}).length ? { invoices: tx.invoices } : {}) }) : state
     }
@@ -861,6 +866,14 @@ function createActions(state, dispatch, rawState = state) {
       const plan = planClaimPayment(state, id, payload, options)
       if (!plan.ok) return { ok: false, msg: plan.msg }
       dispatch({ type: 'claimPaymentTx', id, payload, options })
+      return { ok: true, msg: plan.msg, id: options.paymentId }
+    },
+    /** Payer take-back on a paid primary claim: reopens the balance, one Undo. */
+    recordRecoupment: (claimId, payload) => {
+      const options = { at: Date.now(), paymentId: uid() }
+      const plan = planRecoupment(state, claimId, payload, options)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'claimRecoupTx', id: claimId, payload, options })
       return { ok: true, msg: plan.msg, id: options.paymentId }
     },
     voidPayment: (id) => {
