@@ -2,6 +2,7 @@
 import { addDays, isoDate, pad, parseISO, todayISO } from './date'
 import { uid, autoBilling, VERIFY_CHECKS, SERVICES, BILL_CODES } from './model'
 import { SMART_DEFAULTS } from './smart'
+import { AUTH_GUARD_DEFAULTS } from './authBudget'
 import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq, npiOf } from './claims'
 import { defaultPayrollSettings, seedPayProfiles, periodsFor, sheetKey, periodFor } from './payroll'
 
@@ -195,6 +196,9 @@ export const defaultSettings = () => ({
   mileageRate: 0.7,
   workday: [8, 18],
   smart: SMART_DEFAULTS,
+  // authorization guard for the calendar: flag/warn/stop a booking that spends
+  // past the hours on file. See src/lib/authBudget.js.
+  authGuard: AUTH_GUARD_DEFAULTS,
   org: { name: 'Aloha ABA Center', taxId: '94-3172055', npi: '1720418395', address: '1140 Sunset Crest Way, San Jose, CA 95124', phone: '(408) 555-0134' },
   providers: seedProviders(STAFF, { npi: '1720418395', name: 'Aloha ABA Center' }),
   billing: { invoicePrefix: 'INV', claimPrefix: 'CLM', dueDays: 30, requireVerification: true, lateCancelHours: 24, autoUnits: true, defaultBilling: 'pr-org', defaultFacility: 'pr-org', strictAuth: false, supervisionCheck: false, invoiceSeq: 1, defaultFilingDays: 90 },

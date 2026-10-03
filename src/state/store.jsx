@@ -627,6 +627,7 @@ export function reducer(state, action) {
       const settings = {
         ...d, ...p.settings,
         smart: p.settings.smart || d.smart,
+        authGuard: { ...d.authGuard, ...(p.settings.authGuard || {}) },
         org: { ...d.org, ...(p.settings.org || {}) },
         billing: { ...d.billing, ...(p.settings.billing || {}) },
         payroll: { ...d.payroll, ...(p.settings.payroll || {}), taxes: { ...d.payroll.taxes, ...(p.settings.payroll?.taxes || {}) }, approvals: { ...d.payroll.approvals, ...(p.settings.payroll?.approvals || {}) }, cancelPolicy: { ...d.payroll.cancelPolicy, ...(p.settings.payroll?.cancelPolicy || {}) } },

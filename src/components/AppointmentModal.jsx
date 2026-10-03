@@ -24,6 +24,8 @@ import {
   planSeriesRebuild,
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
+import { AUTH_BANDS, authGuardCfg, authCheckFor } from '../lib/authBudget'
+import { riskFor } from '../lib/risk'
 import { apptAutoTitle } from '../lib/apptName'
 import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
@@ -192,6 +194,29 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     return findConflicts(appts, virtual, staffById, clientsById, deadStatus)
   }, [appts, f.date, f.start, f.end, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id, dur])
 
+  // ---------- authorization guard + modelled risk (draft, not yet saved) ----------
+  // The guard is evaluated against live state for every client on the booking, worst
+  // first — a group session issues an authorization verdict for each family. `stop` is
+  // the only outcome that refuses the save; warn/flag are recorded and shown.
+  const authGuardCfgNow = authGuardCfg(settings)
+  const authChecks = useMemo(() => {
+    if (!showClinic || !f.clientIds.length) return []
+    return f.clientIds
+      .map((cid) => {
+        const client = clientsById[cid]
+        return client ? { client, ...authCheckFor(state, client, { ...f, id: mode === 'edit' ? f.id : '__draft__' }) } : null
+      })
+      .filter(Boolean)
+      .sort((a, b) => ['ok', 'flag', 'warn', 'stop'].indexOf(b.severity) - ['ok', 'flag', 'warn', 'stop'].indexOf(a.severity))
+  }, [state, f.clientIds, f.date, f.start, f.end, f.type, f.abaHr, f.status, f.id, mode, showClinic, settings])
+  const authBlock = authChecks.find((c) => c.blocked) || null
+  const authWorst = authChecks[0] || null
+
+  const riskVerdict = useMemo(() => {
+    if (!showClinic || !f.clientIds.length || !f.date) return null
+    return riskFor(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' })
+  }, [state, f.clientIds, f.date, f.start, f.end, f.status, f.type, f.abaHr, f.id, mode, showClinic])
+
   // ---------- billing ----------
   const code = BILL_CODES.find((c) => c.id === f.billingCode) || BILL_CODES[0]
   const derivedUnits = f.type === 'drive' ? 0 : Math.max(0, Math.round((dur / code.unitMins) * 4) / 4)
@@ -249,6 +274,14 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     if (errors.length) {
       setTab('info')
       toast({ message: `Fix ${errors.length} item${errors.length > 1 ? 's' : ''} on Appointment Info`, kind: 'warn' })
+      return
+    }
+    if (authBlock) {
+      setTab('info')
+      toast({
+        message: `${authBlock.client.name} is past the authorization on file — ${authBlock.reasons[0] || ''} Change the guard in Settings → System → Authorization to save anyway.`,
+        kind: 'warn',
+      })
       return
     }
     if (sigReq && f.status === 'completed' && !signed) {
@@ -527,6 +560,80 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                             </div>
                           ))}
                           <span className="muted">You can still save; the booking gets flagged on the calendar.</span>
+                        </div>
+                      </div>
+                    )}
+                    {authWorst && authWorst.skipped && (
+                      <div className="warnbox warn am-authbox" data-testid="appt-auth-guard">
+                        <span>{Icon.shield({ size: 16 })}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <b>{authWorst.headline} — {authWorst.client.name}</b>
+                          {authWorst.reasons.map((r, i) => (
+                            <div key={i} style={{ marginTop: 3 }}>{r}</div>
+                          ))}
+                          {authWorst.notes.map((r, i) => (
+                            <div key={`n${i}`} className="muted" style={{ marginTop: 3 }}>{r}</div>
+                          ))}
+                        </div>
+                        <button className="btn btn-sm" data-testid="am-count-aba" onClick={() => set({ abaHr: true })}>
+                          {Icon.zap({ size: 12 })} Count it
+                        </button>
+                      </div>
+                    )}
+                    {authWorst && !authWorst.skipped && (authWorst.reasons.length > 0 || authWorst.notes.length > 0) && (
+                      <div className={`warnbox ${authWorst.severity === 'stop' || authWorst.severity === 'warn' ? 'danger' : 'warn'} am-authbox`} data-testid="appt-auth-guard">
+                        <span>{Icon.shield({ size: 16 })}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <b>
+                            {authWorst.headline} — {authWorst.client.name}
+                          </b>
+                          {authWorst.reasons.map((r, i) => (
+                            <div key={i} style={{ marginTop: 3 }}>{r}</div>
+                          ))}
+                          {authChecks.filter((c) => c.severity !== 'ok').length > 1 && (
+                            <div style={{ marginTop: 3 }} className="muted">
+                              Also flagged: {authChecks.filter((c) => c.severity !== 'ok' && c !== authWorst).map((c) => c.client.name).join(', ')}
+                            </div>
+                          )}
+                          {authWorst.notes.map((r, i) => (
+                            <div key={`n${i}`} className="muted" style={{ marginTop: 3 }}>{r}</div>
+                          ))}
+                          {authWorst.stats && (
+                            <div className="am-authmeter">
+                              <span className="am-authmeter-track">
+                                <i
+                                  className={`am-authmeter-fill tone-${AUTH_BANDS[authWorst.stats.band]?.tone || 'warn'}`}
+                                  style={{ width: `${Math.max(2, Math.min(100, authWorst.stats.pct))}%` }}
+                                />
+                              </span>
+                              <span className="am-authmeter-nums">
+                                {authWorst.stats.committedHours}h committed · {authWorst.stats.remainingHours < 0 ? `${Math.abs(authWorst.stats.remainingHours)}h over` : `${authWorst.stats.remainingHours}h left`} of{' '}
+                                {authWorst.stats.window.authorizedHours}h
+                                {authWorst.stats.window.daysToExpiry != null ? ` · ${authWorst.stats.window.daysToExpiry < 0 ? 'window ended' : `${authWorst.stats.window.daysToExpiry}d to expiry`}` : ''}
+                              </span>
+                            </div>
+                          )}
+                          {authGuardCfgNow.mode === 'stop' && authWorst.severity === 'stop'
+                            ? <span className="muted">This booking is refused while Settings keeps the authorization guard in Stop mode.</span>
+                            : <span className="muted">You can still save — the practice's guard is set to {authGuardCfgNow.mode}.</span>}
+                        </div>
+                      </div>
+                    )}
+                    {riskVerdict && riskVerdict.band !== 'low' && riskVerdict.band !== 'done' && (
+                      <div className={`warnbox ${riskVerdict.band === 'high' ? 'danger' : 'warn'} am-riskbox`} data-testid="appt-risk">
+                        <span>{Icon.alert({ size: 16 })}</span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <b>
+                            Cancellation risk {riskVerdict.score}/100 · {riskVerdict.action}
+                          </b>
+                          {riskVerdict.factors.slice(0, 3).map((x) => (
+                            <div key={x.id} style={{ marginTop: 3 }}>
+                              {x.detail}
+                            </div>
+                          ))}
+                          <span className="muted">
+                            Modelled locally from this workspace's own history (practice rate {Math.round(riskVerdict.model.base * 100)}%) — a prompt to confirm, never a reminder sent for you.
+                          </span>
                         </div>
                       </div>
                     )}
