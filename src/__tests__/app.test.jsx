@@ -452,6 +452,8 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
     fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     fireEvent.click(within(detail).getByRole('button', { name: /^Cancel$/ }))
+    // cancelling asks why first; a sick technician is the classic backfill case
+    fireEvent.click(within(detail).getByTestId('cx-reason-opt-cancel-reasons-4'))
     return detail
   }
 
