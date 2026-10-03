@@ -10,6 +10,7 @@ import { intakeKpis, isWon, isLost, stageDef, fullName, ageLabel, referralLabel,
 import { addDays, isoDate, parseISO, todayISO } from './date'
 import { isCancelStatus } from './settingsMasters'
 import { cancelReasonRows, cancelSide } from './cancelReasons'
+import { unitLedger } from './authUnits'
 
 export const REPORT_CATS = [
   { id: 'operations', label: 'Operations & Capacity' },
@@ -275,6 +276,67 @@ const REPORTS_RAW = [
           { label: 'Under-scheduled', value: rows.filter((r) => r.pace === 'Under-scheduled' || r.pace === 'No sessions in range').length },
           { label: 'Auths expiring ≤30d', value: rows.filter((r) => r.daysLeft !== '' && r.daysLeft <= 30).length },
         ],
+      }
+    },
+  },
+  {
+    id: 'authUtil', cat: 'clinical', name: 'Authorization Utilization', icon: 'shield',
+    blurb: 'Every authorization by code across its own window: authorized, used, scheduled and remaining units, utilization against where the window should be, and when to start the renewal.',
+    build(state, ctx) {
+      const today = todayISO()
+      const team = ctx.scope?.team ? (state.teams || []).find((t) => t.id === ctx.scope.team) : null
+      const rows = []
+      for (const c of state.clients || []) {
+        if (ctx.scope?.client && ctx.scope.client !== c.id) continue
+        if (team && !(team.clientIds || []).includes(c.id)) continue
+        const L = unitLedger(state, c, { today })
+        if (!L.codes.length) continue
+        const span = c.authStart && c.authEnd ? Math.max(1, daysBetween(c.authStart, c.authEnd)) : null
+        const elapsed = span ? Math.min(span, Math.max(0, daysBetween(c.authStart, today))) : null
+        const expectedPct = span ? Math.round((elapsed / span) * 100) : null
+        const daysLeft = c.authEnd ? daysBetween(today, c.authEnd) : null
+        for (const g of L.codes) {
+          const usedPct = g.authorized ? Math.round((g.delivered / g.authorized) * 100) : null
+          const projectedPct = g.authorized ? Math.round((g.committed / g.authorized) * 100) : null
+          const status = !g.authorized ? 'Not on authorization'
+            : daysLeft != null && daysLeft < 0 ? 'Expired'
+            : projectedPct > 100 ? 'Over-committed'
+            : expectedPct != null && expectedPct >= 20 && usedPct < expectedPct * 0.8 ? 'Under-utilized'
+            : 'On track'
+          const renew = g.authorized && daysLeft != null && daysLeft >= 0 && (daysLeft <= 30 || projectedPct >= 75) ? 'Start renewal' : ''
+          rows.push({
+            client: c.name, authNo: c.authNo || '—', payer: c.insurer || '—', code: g.code,
+            window: c.authStart && c.authEnd ? `${fmtD(c.authStart)} – ${fmtD(c.authEnd)}` : '—',
+            authorized: g.authorized, used: g.delivered, scheduled: g.scheduled, remaining: g.authorized - g.committed,
+            usedPct: usedPct ?? '', expectedPct: expectedPct ?? '', projectedPct: projectedPct ?? '',
+            status, renew, daysLeft: daysLeft ?? '', converted: c.authUnitsConverted ? 'Verify' : '',
+            _link: { kind: 'client', id: c.id },
+          })
+        }
+      }
+      const rank = { 'Not on authorization': 0, 'Over-committed': 1, Expired: 2, 'Under-utilized': 3, 'On track': 4 }
+      rows.sort((a, b) => rank[a.status] - rank[b.status] || (a.daysLeft === '' ? 1e9 : a.daysLeft) - (b.daysLeft === '' ? 1e9 : b.daysLeft))
+      const live = rows.filter((r) => r.authorized && r.status !== 'Expired')
+      const sum = (k) => live.reduce((t, r) => t + (Number(r[k]) || 0), 0)
+      return {
+        columns: [
+          { k: 'client', label: 'Client' }, { k: 'payer', label: 'Payer' }, { k: 'authNo', label: 'Auth #' }, { k: 'code', label: 'Code' },
+          { k: 'window', label: 'Window' }, { k: 'authorized', label: 'Authorized', t: 'num', ...moneyCell },
+          { k: 'used', label: 'Used', t: 'num', ...moneyCell }, { k: 'scheduled', label: 'Scheduled', t: 'num', ...moneyCell },
+          { k: 'remaining', label: 'Remaining', t: 'num', ...moneyCell }, { k: 'usedPct', label: 'Used %', t: 'pct', ...moneyCell },
+          { k: 'expectedPct', label: 'Expected %', t: 'pct', ...moneyCell }, { k: 'projectedPct', label: 'Projected %', t: 'pct', ...moneyCell },
+          { k: 'status', label: 'Status' }, { k: 'renew', label: 'Renewal' }, { k: 'daysLeft', label: 'Days left', t: 'num', ...moneyCell },
+          { k: 'converted', label: 'Units' },
+        ],
+        rows,
+        summary: [
+          { label: 'Utilization (live auths)', value: `${sum('authorized') ? Math.round((sum('used') / sum('authorized')) * 100) : 0}%` },
+          { label: 'Over-committed', value: rows.filter((r) => r.status === 'Over-committed').length },
+          { label: 'Under-utilized', value: rows.filter((r) => r.status === 'Under-utilized').length },
+          { label: 'Renewals to start', value: new Set(rows.filter((r) => r.renew).map((r) => r.client)).size },
+          { label: 'Codes not authorized', value: rows.filter((r) => r.status === 'Not on authorization').length },
+        ],
+        note: 'Measured across each authorization’s own window, not the report range. Units follow each payer’s unit size and rounding. Used = delivered before today; Projected = used + scheduled. Expected % is how far through the window today is; a code using less than 80% of that is under-utilized, which weakens the renewal request. Renewal starts at 30 days left or 75% committed. "Verify" marks units converted from weekly hours that nobody has checked against the payer letter yet.',
       }
     },
   },
