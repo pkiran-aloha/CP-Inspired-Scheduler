@@ -7,7 +7,8 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { pivotRows, rangeMetrics, resolveRange } from '../lib/analytics'
 import { addDays, fmtDayLabel, fmtTime, isoDate, parseISO, todayISO } from '../lib/date'
-import { uid } from '../lib/model'
+import { uid, BILL_CODES } from '../lib/model'
+import { cleanPool } from '../lib/authUnits'
 import { memberIdOf } from '../lib/claims'
 
 const AV_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
@@ -98,6 +99,7 @@ function ClientModal({ client, dup, onClose }) {
     }
     return { ...src, secondary: src.secondary || null, avatar: src.avatar || avatarKeyFor(src) }
   })
+  const [unitRows, setUnitRows] = useState(() => Object.entries(src?.authUnits || {}).map(([code, units]) => ({ code, units })))
   const dupName = !editing && form.name.trim().length > 1 && state.clients.some((x) => x.name.trim().toLowerCase() === form.name.trim().toLowerCase())
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
   const setSec = (k, v) => setForm((f) => ({ ...f, secondary: { ...(f.secondary||{ payerId:'', memberId:'', authNo:'', relation:'secondary', since:'', until:'', note:'' }), [k]: v } }))
@@ -111,15 +113,20 @@ function ClientModal({ client, dup, onClose }) {
   if (!form.name.trim()) errs.name = 'Name is required'
   if (!(form.authWeekly >= 1 && form.authWeekly <= 80)) errs.authWeekly = 'Authorized hours must be 1–80 per week'
   if (form.authEnd && form.authStart && form.authEnd <= form.authStart) errs.authEnd = 'End must be after start'
+  const unitCodes = unitRows.map((r) => r.code)
+  if (new Set(unitCodes).size !== unitCodes.length) errs.authUnits = 'Each code can appear once — combine the units into one row'
+  else if (unitRows.some((r) => !(Number(r.units) > 0))) errs.authUnits = 'Every code needs a unit count above zero (remove the row instead)'
   const save = () => {
     if (Object.keys(errs).length) return
+    // the unit pool is the payer letter; saving the client confirms a converted pool
+    const saving = { ...form, authUnits: cleanPool(Object.fromEntries(unitRows.map((r) => [r.code, r.units]))), authUnitsConverted: false }
     if (editing) {
       const sec = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
-      actions.updateRoster('clients', { ...form, secondary: sec && sec.payerId ? sec : null })
+      actions.updateRoster('clients', { ...saving, secondary: sec && sec.payerId ? sec : null })
       toast({ message: `${form.name} updated — analytics & reports pick it up instantly`, kind: 'ok' })
     } else {
       const secAdd = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
-      actions.addRoster('clients', { id: uid(), initials: form.name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), color: AV_COLORS[state.clients.length % AV_COLORS.length], geo: [37.34, -121.97], ...form, secondary: secAdd && secAdd.payerId ? secAdd : null })
+      actions.addRoster('clients', { id: uid(), initials: form.name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), color: AV_COLORS[state.clients.length % AV_COLORS.length], geo: [37.34, -121.97], ...saving, secondary: secAdd && secAdd.payerId ? secAdd : null })
       toast({ message: dup ? `Duplicated — ${form.name} added to the caseload` : `${form.name} added to the caseload`, kind: 'ok' })
     }
     onClose()
@@ -170,6 +177,26 @@ function ClientModal({ client, dup, onClose }) {
               <F k="authWeekly" label="Authorized hrs / week" icon="clock" type="number" />
               <F k="authStart" label="Auth start" icon="cal" type="date" />
               <F k="authEnd" label="Auth end" icon="cal" type="date" />
+            </div>
+            <div className="cm-units" data-testid="cm-units" style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Authorized units by code <span className="muted" style={{ fontWeight: 400 }}>— as on the payer’s letter, for the window above</span></div>
+              {form.authUnitsConverted && (
+                <div className="warnbox warn" data-testid="cm-units-converted" style={{ marginBottom: 6 }}>
+                  Converted from {form.authWeekly} h/week. Check these units against the authorization letter; saving the client confirms them.
+                </div>
+              )}
+              {unitRows.map((r, i) => (
+                <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                  <select className="input" style={{ width: 120 }} value={r.code} data-testid={`cm-unit-code-${i}`} onChange={(e) => setUnitRows((rows) => rows.map((x, j) => (j === i ? { ...x, code: e.target.value } : x)))}>
+                    {BILL_CODES.map((b) => <option key={b.id} value={b.id}>{b.id}</option>)}
+                  </select>
+                  <input className="input" style={{ width: 100 }} type="number" min="0" value={r.units} data-testid={`cm-unit-units-${i}`} onChange={(e) => setUnitRows((rows) => rows.map((x, j) => (j === i ? { ...x, units: e.target.value } : x)))} />
+                  <span className="muted" style={{ fontSize: 12 }}>units</span>
+                  <button type="button" className="btn btn-sm btn-ghost" aria-label={`Remove ${r.code}`} data-testid={`cm-unit-del-${i}`} onClick={() => setUnitRows((rows) => rows.filter((_, j) => j !== i))}>{Icon.x({ size: 12 })}</button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-sm" data-testid="cm-unit-add" onClick={() => setUnitRows((rows) => [...rows, { code: BILL_CODES.find((b) => !rows.some((x) => x.code === b.id))?.id || '97153', units: '' }])}>{Icon.plus({ size: 12 })} Add code</button>
+              {errs.authUnits && <div className="field-err" data-testid="cm-units-err" style={{ color: 'var(--danger)', fontSize: 12, marginTop: 4 }}>{errs.authUnits}</div>}
             </div>
           </section>
           <section className="pm-sect" data-testid="cm-sec-secondary">

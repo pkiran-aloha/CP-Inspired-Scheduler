@@ -159,7 +159,7 @@ const DEFAULT_RULES = {
   ],
   hideTeleOther: false,
   hideTeleHome: false,
-  mue: { daily: '', per: {} },
+  mue: { daily: '', per: {}, weekly: {} }, // weekly: per-code maximum units per week (checked at booking)
 }
 
 export const CF_TYPES = [
@@ -246,7 +246,7 @@ export function ensurePayer(p) {
       appt: { ...DEFAULT_RULES.appt, ...(r.appt || {}) },
       qualMods: Array.isArray(r.qualMods) && r.qualMods.length ? r.qualMods : DEFAULT_QM,
       posMods: Array.isArray(r.posMods) ? r.posMods : DEFAULT_RULES.posMods,
-      mue: { ...DEFAULT_RULES.mue, ...(r.mue || {}), per: { ...(r.mue?.per || {}) } },
+      mue: { ...DEFAULT_RULES.mue, ...(r.mue || {}), per: { ...(r.mue?.per || {}) }, weekly: { ...(r.mue?.weekly || {}) } },
     },
   }
 }

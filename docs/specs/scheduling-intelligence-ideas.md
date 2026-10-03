@@ -82,9 +82,9 @@ Grouped by theme. **Effort** is sized against *this* codebase (S ≈ under a day
 | # | Idea | Evidence | Effort | Status |
 |---|---|---|---|---|
 | A1 | **Book-time authorization guard.** Graded off/flag/warn/stop. Shows committed → remaining before and after this booking, the weekly pace against the authorized week, days to expiry and a projected exhaustion date. | [3][4][5] | M | **Shipped** |
-| A2 | **Unit-level authorization ledger.** Model the authorization as a pool of 15-minute units per CPT code with per-code sub-caps, consumed as sessions are delivered — closer to how payers actually audit than a weekly-hours approximation. | [5][3] | L | Not built |
+| A2 | **Unit-level authorization ledger.** Model the authorization as a pool of 15-minute units per CPT code with per-code sub-caps, consumed as sessions are delivered — closer to how payers actually audit than a weekly-hours approximation. | [5][3] | L | Shipped (`authUnits.js`) |
 | A3 | **Renewal watchlist and packet builder.** Turn "30 days / 75%" into a worklist that opens a renewal packet (window, hours delivered, latest progress note, expiring codes) as a local export. | [3][4] | M | Partly: alerts + projected exhaustion ship; no packet |
-| A4 | **Payer rule packs.** Per-payer weekly caps, daily unit caps, credential modifiers required and concurrent-care rules, applied as scheduling guards the way payer policy tables already drive billing. | [1][2][6] | M | Not built |
+| A4 | **Payer rule packs.** Per-payer weekly caps, daily unit caps, credential modifiers required and concurrent-care rules, applied as scheduling guards the way payer policy tables already drive billing. | [1][2][6] | M | Shipped: MUE daily + weekly caps, credential check (`authUnits.js`) |
 
 ### B. Capacity and density
 

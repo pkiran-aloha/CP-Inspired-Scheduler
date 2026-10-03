@@ -22,6 +22,8 @@ Pushes to `main` run tests + build and deploy to GitHub Pages (`.github/workflow
 - `src/state/store.jsx`: seeded workspace, migrations, the reducer, Undo, localStorage persistence. Large file; search it, don't read it whole.
 - `src/lib/`: pure domain engines (claims, era/eraPosting, payroll, intake, settingsMasters, workspaceBackup, reports, smart scheduling). No React here. Scheduler intelligence:
   - `authBudget.js`: authorization burn and the booking guard (weekly hours × window; Warn/Stop modes in `settings.authGuard`).
+  - `authUnits.js`: per-code unit pools (`client.authUnits`), payer unit rules (svcOv unit size + rounding, AMA default) and payer rule packs (MUE daily, `mue.weekly`, credentials). `mergeAuthChecks` folds it into the hours result; kept separate because `seed.js` imports `authBudget.js` (cycle via `master.js`).
+  - `cancelReasons.js`: cancellation reasons from the `cancel-reasons` Custom List, client vs practice side.
   - `risk.js`: explainable cancellation/no-show score fitted on the workspace's own ledger; never sends anything.
   - `insights.js`: coverage, auth and risk boards for the Scheduler Insights panel.
   - `abaHours.js`: ⚡ ABA Hours on non-service appointments only; every read goes through `countsAsAbaHours`.

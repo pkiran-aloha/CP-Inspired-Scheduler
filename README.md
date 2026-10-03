@@ -19,7 +19,19 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 
-### Cancellation reasons & root cause (this round)
+### Authorization unit ledger & payer rule packs (this round)
+
+Ideas A2 + A4 from `docs/specs/scheduling-intelligence-ideas.md`. The booking guard used to know only "X hours a week from start to end"; payers audit *units per CPT code*.
+
+- **Per-code unit pools.** A client's authorization now carries `authUnits` (`{ "97153": 960, "97155": 96, … }`) for the window, edited in Clients → Edit → *Authorized units by code*. `src/lib/authUnits.js` owns the ledger.
+- **The payer's own unit rule.** A session's minutes become units by the payer's per-service override (unit size + rounding) → the payer's own service → the service master → the code default, with **AMA** (the 8-minute rule) as the default rounding. Nearest, Round Up, Round Down and Truncate are honoured where a payer sets them.
+- **Payer rule packs at booking.** Masters → Payer → Billing Rules → **MUEs** (per-code and all-code daily maximums, already configured, previously unused) plus a new per-code **weekly limit** are checked when a session is booked, and so is the credential rule billing already uses (who may render a code, plus any credentials the payer lists on the service).
+- **One guard, two views.** The booking dialog merges the hours check (`authBudget.js`) with the unit/payer check and shows the session's units ("4 units of 97153, 30-min units, AMA rounding · 61 of 72 authorized units committed"). Over-pool is *Stop* severity, capped to a warning in the shipped Warn mode; nothing hard-blocks unless the practice chooses Stop.
+- **Migration.** Saved workspaces convert each client's weekly hours × window weeks into units, split across the codes the client is actually booked under (all to 97153 when nothing is booked), marked *converted — verify against the payer letter* until someone saves the client. Fresh workspaces seed realistic per-code pools with varied headroom.
+- **Honest limits.** The credential rows keyed by education level (Doctoral / Master's / …) can't drive a check: staff records carry no education level. This workspace's billing codes use 30-minute units (`BILL_CODES.unitMins`); real 97153 units are 15 minutes. Correct that per payer in the service override, or in the service master. An intake conversion does not yet copy its approved units into the new client's pool.
+- Tests: `src/__tests__/authUnits.test.jsx` (rounding rules, override precedence, ledger, warn/stop/merge, MUE + weekly caps, credentials, migration, seed, the client form).
+
+### Cancellation reasons & root cause (previous round)
 
 Idea C3 from `docs/specs/scheduling-intelligence-ideas.md`. The **Cancellation reasons** Custom List already shipped, but nothing used it. It now does:
 
