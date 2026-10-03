@@ -19,7 +19,11 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 
-### Authorization unit ledger & payer rule packs (this round)
+### Hackathon wave 1 — billing (this round)
+
+**Provider IDs: NPI, Medicaid ID or both.** Masters → Payer → Billing Rules → **Provider IDs** lets billing staff choose which identifier a payer expects for the rendering provider, with a readiness line naming who can't be billed under the rule yet. `src/lib/providerIds.js` drives three places: the appointment validation *Missing NPI / Medicaid ID* (which now reads the provider records in Billing → Provider IDs instead of an NPI field staff rows never had, ending the false flag on every clinician), the claim gate (only once a payer chooses a rule, so existing claims are unaffected), and the CMS-1500 (NPI in 23b/33a; Medicaid ID with qualifier 1D in 23b/33b; both). Tests: `providerIds.test.js`.
+
+### Authorization unit ledger & payer rule packs (previous round)
 
 Ideas A2 + A4 from `docs/specs/scheduling-intelligence-ideas.md`. The booking guard used to know only "X hours a week from start to end"; payers audit *units per CPT code*.
 

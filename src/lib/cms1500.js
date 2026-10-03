@@ -10,6 +10,7 @@
 // same derivations.
 import { jsPDF } from 'jspdf'
 import { payerPolicy, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
+import { providerIdRule, providerIdsFor } from './providerIds'
 
 export const LINES_PER_PAGE = 6 // the paper grid carries six service rows
 
@@ -45,6 +46,16 @@ export function cms1500Data(state, claim) {
   const renderStaff = staff[first.staffIds?.[0]]
   const dx = dxFor(client)
   const member = memberIdOf({ id: client.id, insurer: claim.payer })
+  // the payer's provider-ID rule decides NPI, Medicaid ID (qualifier 1D) or both
+  const idPayer = (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
+  const idRule = providerIdRule(idPayer).id
+  const idsOf = (sid) => {
+    const x = providerIdsFor(state, idPayer, sid)
+    return { npi: x.npi || npiOf(sid || 's12'), medicaid: x.medicaid }
+  }
+  const rIds = idsOf(first.staffIds?.[0])
+  const showNpi = idRule !== 'medicaid'
+  const showMcd = idRule !== 'npi'
   const today = usDateTs(Date.now())
   const posKind = (name) => {
     const p = String(name || '').toLowerCase()
@@ -84,7 +95,7 @@ export function cms1500Data(state, claim) {
       b('22', 0, 'Resubmission code', [claim.version > 1 ? '7' : '—']),
       b('23', 0, 'Prior authorization number', [authNoOf(client)]),
       b('23a', 0, 'Service dates', [`${usDate(claim.dosFrom)} – ${usDate(claim.dosTo)}`]),
-      b('23b', 0, 'Rendering NPI', [npiOf(first.staffIds?.[0] || 's12')]),
+      b('23b', 0, showNpi ? 'Rendering NPI' : 'Rendering Medicaid ID (1D)', [showNpi ? rIds.npi : `1D ${rIds.medicaid || '—'}`]),
       b('23c', 0, 'Total charge', [`$ ${money2(claim.charges)}`]),
       b('25', 0, 'Federal tax ID', [org.taxId || '—']),
       b('26', 0, "Patient's account number", [`PULSE-${(client.id || 'c').toUpperCase()}`]),
@@ -95,8 +106,10 @@ export function cms1500Data(state, claim) {
       b('31', 0, 'Signature on file', [`X ${today}`]),
       b('32', 0, 'Service facility — name, address, NPI', [`${org.name || 'Practice'} · ${org.address || ''}`, `NPI ${org.npi || npiOf('s12')}`], 3),
       b('33', 0, 'Billing provider — name, address, phone', [org.name || 'Practice', `${org.address || ''} · ph ${org.phone || '—'}`, `NPI ${org.npi || npiOf('s12')}`], 2),
-      b('33a', 0, 'Rendering provider', [renderStaff?.name || '—', `NPI ${npiOf(first.staffIds?.[0] || 's12')}`]),
+      b('33a', 0, 'Rendering provider', [renderStaff?.name || '—', ...(showNpi ? [`NPI ${rIds.npi}`] : []), ...(showMcd ? [`1D ${rIds.medicaid || '—'}`] : [])]),
+      b('33b', 0, 'Other ID (qualifier 1D · Medicaid)', [showMcd ? `1D ${rIds.medicaid || '—'}` : '—']),
     ],
+    providerIdRule: idRule,
     typeOfService: posKind(claim.payer),
     claimNo: claim.no,
     mode: claim.mode,
@@ -106,12 +119,12 @@ export function cms1500Data(state, claim) {
     amountPaid: claim.status === 'paid' ? money2(claim.paid) : '',
     adjustments: claim.adj ? money2(claim.adj) : '',
     due: money2(dueOf(claim)),
-    renderNpi: npiOf(first.staffIds?.[0] || 's12'),
-    pages: chunkLines(claim, dx, state),
+    renderNpi: showNpi ? rIds.npi : '',
+    pages: chunkLines(claim, dx, state, (sid) => { const x = idsOf(sid); return showNpi ? x.npi : `1D ${x.medicaid || '—'}` }),
     note: `${claim.no} · ${claim.mode === 'selfpay' ? 'family invoice (courtesy copy)' : 'insurer claim'} · generated ${new Date().toISOString().slice(0, 10)} — printable companion; e-file via ANSI 837P`,
   }
 }
-function chunkLines(claim, dx, state) {
+function chunkLines(claim, dx, state, lineId = (sid) => npiOf(sid || 's12')) {
   const rows = claim.lines.map((l, i) => {
     const appt = state?.appts?.[l.apptId] || {}
     return {
@@ -119,7 +132,7 @@ function chunkLines(claim, dx, state) {
       from: usDate(l.dos), through: usDate(l.dos),
       pos: posFor(appt),
       cpt: l.code || '', mod: l.mod || '',
-      npi: npiOf(l.staffIds?.[0] || appt.staffIds?.[0] || 's12'),
+      npi: lineId(l.staffIds?.[0] || appt.staffIds?.[0] || 's12'),
       ptr: String((i % Math.max(1, dx.length)) + 1), // cycle through dx codes as 24E pointers
       units: String(l.units ?? ''),
       dayUnits: l.kind === 'mileage' ? 'MI' : '',

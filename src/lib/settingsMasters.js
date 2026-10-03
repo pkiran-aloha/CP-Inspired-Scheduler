@@ -16,6 +16,7 @@
 import { EARNING_CODES, EARNING_BY_ID, defaultPayrollSettings, earningCodesFor, earningIndex, earningLabel, OFFICES as PAYROLL_OFFICES } from './payroll'
 import { STATUSES, STATUS_ORDER, BILL_CODES, TYPES, isServiceAppt, uid } from './model'
 import { abaActivityById, abaHoursCfg } from './abaHours'
+import { providerIdIssues } from './providerIds'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -543,12 +544,17 @@ export function evaluateAppointmentValidations(state, draft = {}) {
     }
   }
 
-  // 2) Staff Missing NPI & Pay Rate
+  // 2) Staff Missing NPI / Medicaid ID (per the payer's provider-ID rule) & Pay Rate.
+  // Identifiers live on provider records (Billing → Provider IDs); a staff row only
+  // overrides when its own `npi` was explicitly blanked.
+  const idPayer = clientIds.length ? arr(state?.payers).find((p) => p.name === clientById[clientIds[0]]?.insurer || p.id === clientById[clientIds[0]]?.payerId) || null : null
+  const hasProviders = arr(state?.settings?.providers).length > 0
   for (const sid of staffIds) {
     const st = staffById[sid]
     if (!st) continue
-    if (isClinic && (!st.npi || st.npi === '')) {
-      push('staff', 'missingNpi', 'Missing NPI / Medicaid ID', `${st.name} has a blank NPI on file.`)
+    if (isClinic) {
+      const issue = st.npi === '' ? `${st.name} has a blank NPI on file.` : hasProviders ? providerIdIssues(state, idPayer, sid)[0] : null
+      if (issue) push('staff', 'missingNpi', 'Missing NPI / Medicaid ID', issue.endsWith('.') ? issue : `${issue}.`)
     }
     const prof = arr(state?.payProfiles).find((p) => p.staffId === sid)
     const rate = Number(prof?.baseRate ?? st.payrollRate ?? st.hourlyCents ?? 0)
