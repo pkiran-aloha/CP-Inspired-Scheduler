@@ -574,7 +574,8 @@ describe('billing, verification & signature', () => {
     fireEvent.change(screen.getByTestId('sig-type'), { target: { value: 'Prateek Kiran' } })
     fireEvent.click(screen.getByTestId('sig-sign'))
     await screen.findAllByText(/Signed by Prateek Kiran/)
-    expect(screen.getByText(/BCBA #5-12-0034/)).toBeTruthy() // certification captured
+    // certification captured on the signature (the rail's Checks may also quote it in a rule)
+    expect(screen.getAllByText(/BCBA #5-12-0034/).some((el) => !el.closest('[data-testid="booking-checks"]'))).toBe(true)
     expect(screen.getByText(/geocode not shared|±\d+m/)).toBeTruthy() // timestamp/geo handling
     // and persist through save
     fireEvent.click(screen.getByText('Appointment Info'))
