@@ -7,6 +7,7 @@ import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek,
 import { needsCoverFor, backfillFor } from '../lib/smart'
 import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
 import { isCancelStatus, statusFor, systemConfigFor } from '../lib/settingsMasters'
+import { ABA_HOURS_EXPLAIN, abaActivityLabel, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 
 export default function DetailCard({ appt, onClose, onEdit }) {
   const state = useStore()
@@ -94,6 +95,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
       service: pattern.service,
       notes: pattern.notes,
       abaHr: pattern.abaHr,
+      abaActivity: pattern.abaActivity,
       billing: pattern.billing,
       status: pattern.status,
       edited: false,
@@ -130,7 +132,14 @@ export default function DetailCard({ appt, onClose, onEdit }) {
               <i style={{ background: statusFor(settings, appt.status).color }} />
               {statusFor(settings, appt.status).label}
             </span>
-            {appt.abaHr && <span className="sbadge" title="Counts toward authorized ABA hours">⚡ ABA hr</span>}
+            {abaHoursCfg(settings).showOnCalendar !== false && countsAsAbaHours(appt) && (
+              <span className="sbadge" data-testid="dc-aba-badge" title={ABA_HOURS_EXPLAIN}>
+                ⚡ ABA hr{abaActivityLabel(appt) ? ` · ${abaActivityLabel(appt)}` : ''}
+              </span>
+            )}
+            {appt.abaHr === true && !countsAsAbaHours(appt) && (
+              <span className="sbadge" data-testid="dc-aba-badge-stale" title="Marked as ABA hours but this block cannot count as behavior-analytic time">⚡ ABA hr not counted</span>
+            )}
             {appt.edited && appt.seriesId && <span className="sbadge" title="This occurrence was changed independently from the series">✎ exception</span>}
             {appt.backfilled && <span className="sbadge backfilled" data-testid="backfilled-badge" title="Reassigned from a cancelled booking via smart backfill">↩ backfilled</span>}
             <span className="f1" />

@@ -432,7 +432,6 @@ export function buildSeed(todayISO) {
           location: c.home === 'Main Center' && rnd() < 0.15 ? 'Clinic Room 2' : c.home,
           service: s.svc,
           notes,
-          abaHr: dur >= 90 && rnd() < 0.85,
           recurrence: 'weekly',
           seriesId,
           edited: isException || undefined,
@@ -485,7 +484,7 @@ export function buildSeed(todayISO) {
         push({
           type: 'service', date: cdi, start: cs, end: cs + 60, title: SVC_LABEL.caregiver,
           staffIds: ['s2'], clientIds: [c.id], status: date < todayISO ? 'completed' : 'confirmed', location: 'Telehealth (video)', service: 'caregiver',
-          notes: 'Parents practiced DRT at home; reviewed token board setup.', billing: autoBilling({}, 60), abaHr: true, recurrence: 'biweekly',
+          notes: 'Parents practiced DRT at home; reviewed token board setup.', billing: autoBilling({}, 60), recurrence: 'biweekly',
           seriesId: `sr-${c.id}-cg`, custom: {}, documents: [],
           verification: null,
         })
@@ -505,6 +504,40 @@ export function buildSeed(todayISO) {
         notes: 'Agenda: caseload moves, auth expirations, safety drill.', recurrence: 'weekly', seriesId: 'sr-meeting', custom: {},
       })
     }
+    // ⚡ ABA Hours: non-service staff time that is *behavior-analytic*, tracked for
+    // RBT / BCAT, graduate-student and state-certification requirements. Group training
+    // on behavior-analytic principles, held outside of client sessions.
+    const trainees = ['s3', 's4', 's7', 's10', 's5']
+    const td = addDays(weekStart, 1)
+    const tdi = isoDate(td)
+    const ts = place(trainees, tdi, G(7) + 30, 90, 19 * 60)
+    if (ts != null) {
+      occ(trainees, tdi, ts, ts + 90)
+      push({
+        type: 'unavailable', date: tdi, start: ts, end: ts + 90,
+        title: 'ABA group training — reinforcement & protocol fidelity',
+        staffIds: trainees, clientIds: [], status: td < todayISO ? 'completed' : 'active', location: 'Clinic Room 1',
+        notes: 'Led by the clinical supervisor: DRA procedures, fidelity checklist review, role-play.',
+        recurrence: 'weekly', seriesId: 'sr-aba-training', custom: {},
+        abaHr: true, abaActivity: 'group-training',
+      })
+    }
+    // graduate student: designing / reviewing interventions during non-billable time
+    const gd = addDays(weekStart, 2)
+    const gdi = isoDate(gd)
+    const gs = place(['s5'], gdi, G(3), 90, 19 * 60)
+    if (gs != null) {
+      occ(['s5'], gdi, gs, gs + 90)
+      push({
+        type: 'unavailable', date: gdi, start: gs, end: gs + 90,
+        title: 'Intervention design & review (graduate student)',
+        staffIds: ['s5'], clientIds: [], status: gd < todayISO ? 'completed' : 'active', location: 'Main Center',
+        notes: 'Drafting and revising skill-acquisition programs under supervision; graphing weekly data.',
+        recurrence: 'weekly', seriesId: 'sr-aba-design', custom: {},
+        abaHr: true, abaActivity: 'intervention-design',
+      })
+    }
+
     // supervision slots: BCBA ↔ RBT, weekly series
     for (const [sup, rbt] of [['s1', 's3'], ['s8', 's4'], ['s9', 's10'], ['s2', 's7']]) {
       if (rnd() < 0.25) continue
@@ -539,11 +572,14 @@ export function buildSeed(todayISO) {
         .filter(([s0, e0]) => fits([st.id], di, s0, e0))[0]
       if (!shapes) continue
       occ([st.id], di, shapes[0], shapes[1])
+      // ABA coursework counts as behavior-analytic time; PTO and personal errands do not.
+      const abaAct = /CEU|workshop|staff training/i.test(ptoTitle) ? 'coursework' : ''
       push({
         type: 'unavailable', date: di, start: shapes[0], end: shapes[1],
         title: ptoTitle, staffIds: [st.id], clientIds: [], status: 'active',
         notes: 'Approved by scheduler — covered by float staff.', recurrence: 'none',
         custom: {},
+        abaHr: Boolean(abaAct), abaActivity: abaAct || undefined,
       })
     }
   }
@@ -561,7 +597,7 @@ export function buildSeed(todayISO) {
       type: 'evaluation', date: di, start: eStart, end: eStart + dur, title: pick(rnd, ['VB-MAPP Assessment', 'ABLLS-R Re-assessment', 'Functional Assessment (FBA)', 'Intake Observation']),
       staffIds: [eStaff], clientIds: [c.id], status: di < todayISO ? 'completed' : di === todayISO ? 'confirmed' : 'active',
       location: 'Assessment Lab', service: 'reassess', notes: di < todayISO ? 'Report drafted; narrative scoring pending.' : 'Materials printed; reinforcer prefprefs pre-session.',
-      abaHr: false, recurrence: 'none',
+      recurrence: 'none',
       billing: { ...autoBilling({ billing: { code: '97152' } }, dur), rate: 74 },
       custom: {},
       documents: di < todayISO ? [{ id: uid(), name: `Assessment Summary ${di}.pdf`, size: 480_000, tag: 'Assessment report' }, { id: uid(), name: 'Scoring Workbook.xlsx', size: 120_000, tag: 'Data export' }] : [],

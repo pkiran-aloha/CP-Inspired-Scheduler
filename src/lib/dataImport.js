@@ -13,6 +13,8 @@
 import { uid } from './model'
 import { STATUSES } from './model'
 import { apptStatusList, officeNames, settingsOffices } from './settingsMasters'
+import { ABA_ACTIVITIES } from './abaHours'
+import { isServiceAppt } from './model'
 import { parseISO, isoDate } from './date'
 
 export const IMPORT_CATEGORIES = [
@@ -161,6 +163,8 @@ export const IMPORT_TYPES = [
       { key: 'status', label: 'Status', sample: 'active', help: 'Status key or label from Settings → Appointment Status' },
       { key: 'title', label: 'Title (optional)', sample: '' },
       { key: 'notes', label: 'Notes', sample: '' },
+      { key: 'abaHours', label: 'ABA hours (behavior-analytic)', sample: 'group-training',
+        help: 'Non-service appointments only. An activity id (group-training, intervention-design, data-analysis, assessment-writing, technician-training, coursework) or yes. Cleaning the clinic and general admin never count.' },
     ],
   },
 ]
@@ -404,6 +408,25 @@ export function validateImport(state, typeId, matrix, mapping) {
       } else rec.statusKey = 'active'
       rec.title = clean(raw.title, 120)
       rec.notes = clean(raw.notes, 400)
+      // ⚡ ABA Hours is a non-service flag, so an import has to say which behavior-analytic
+      // activity the block is — and refuse the ones that are not behavior-analytic at all.
+      rec.abaHr = false
+      rec.abaActivity = ''
+      const abaRaw = clean(raw.abaHours, 60).toLowerCase()
+      if (abaRaw && !['no', 'n', 'false', '0'].includes(abaRaw)) {
+        if (isServiceAppt({ type: rec.type })) {
+          errs.push(`ABA hours applies to non-service appointments only — “${rec.type}” is service delivery`)
+        } else {
+          const hit = ABA_ACTIVITIES.find((a) => a.id === abaRaw || a.label.toLowerCase() === abaRaw)
+          rec.abaHr = true
+          if (hit) {
+            rec.abaActivity = hit.id
+            if (!hit.qualifies) errs.push(`“${hit.label}” is not behavior-analytic time and cannot count toward certification hours`)
+          } else if (!['yes', 'y', 'true', '1'].includes(abaRaw)) {
+            errs.push(`ABA activity “${abaRaw}” is not known — use ${ABA_ACTIVITIES.filter((a) => a.qualifies).map((a) => a.id).join(', ')} or yes`)
+          }
+        }
+      }
       const key = `${rec.clientId}|${rec.date}|${rec.start}`
       if (rec.clientId && rec.date && rec.start != null) {
         if (seen.has(key)) errs.push('Duplicate row: same client, date and start time')
@@ -489,6 +512,7 @@ export function planImport(state, typeId, matrix, mapping, { mode = 'skip', at =
         id: rec.existingId || `a-${uid()}`, date: rec.date, start: rec.start, end: rec.end,
         clientIds: [rec.clientId], staffIds: rec.staffIds, type: rec.type, status: rec.statusKey,
         location: rec.location || '', title: rec.title || '', notes: rec.notes, source: 'data-import',
+        abaHr: rec.abaHr, ...(rec.abaActivity ? { abaActivity: rec.abaActivity } : {}),
         billing: { status: null }, documents: [], custom: {}, pcfs: {},
       }
       if (rec.existingId) { patches.push({ id: rec.existingId, patch: row }); updated++ } else creates.push(row)

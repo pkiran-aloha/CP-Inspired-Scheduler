@@ -22,9 +22,15 @@ import {
   seriesDatesFor,
   planScopedPatch,
   planSeriesRebuild,
+  isServiceAppt,
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { AUTH_BANDS, authGuardCfg, authCheckFor } from '../lib/authBudget'
+import {
+  ABA_HOURS_EXPLAIN, ABA_HOURS_EXAMPLES, ABA_HOURS_NON_EXAMPLES,
+  ABA_QUALIFYING_ACTIVITIES, ABA_NON_QUALIFYING_ACTIVITIES,
+  abaActivityById, abaHoursCfg, abaTrackFor,
+} from '../lib/abaHours'
 import { riskFor } from '../lib/risk'
 import { apptAutoTitle } from '../lib/apptName'
 import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor } from '../lib/settingsMasters'
@@ -168,9 +174,12 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   }
   const statusCfg = statusFor(settings, f.status)
   const sysCfg = systemConfigFor(settings)
+  // ⚡ ABA Hours — behavior-analytic staff time (non-service appointments only)
+  const abaCfg = abaHoursCfg(settings)
+  const abaAct = abaActivityById(f.abaActivity)
   const valReport = useMemo(
     () => evaluateAppointmentValidations(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }),
-    [state, f.type, f.date, f.start, f.end, f.service, f.status, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id],
+    [state, f.type, f.date, f.start, f.end, f.service, f.status, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id, f.abaHr, f.abaActivity],
   )
   const errors = []
   if (!f.date) errors.push('Pick a date')
@@ -208,14 +217,14 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       })
       .filter(Boolean)
       .sort((a, b) => ['ok', 'flag', 'warn', 'stop'].indexOf(b.severity) - ['ok', 'flag', 'warn', 'stop'].indexOf(a.severity))
-  }, [state, f.clientIds, f.date, f.start, f.end, f.type, f.abaHr, f.status, f.id, mode, showClinic, settings])
+  }, [state, f.clientIds, f.date, f.start, f.end, f.type, f.status, f.id, mode, showClinic, settings])
   const authBlock = authChecks.find((c) => c.blocked) || null
   const authWorst = authChecks[0] || null
 
   const riskVerdict = useMemo(() => {
     if (!showClinic || !f.clientIds.length || !f.date) return null
     return riskFor(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' })
-  }, [state, f.clientIds, f.date, f.start, f.end, f.status, f.type, f.abaHr, f.id, mode, showClinic])
+  }, [state, f.clientIds, f.date, f.start, f.end, f.status, f.type, f.id, mode, showClinic])
 
   // ---------- billing ----------
   const code = BILL_CODES.find((c) => c.id === f.billingCode) || BILL_CODES[0]
@@ -253,7 +262,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     service: f.service || '',
     pcfs: Object.keys(f.pcfs || {}).length ? f.pcfs : null,
     notes: f.notes || '',
-    abaHr: f.abaHr,
+    // ⚡ ABA Hr is a non-service flag: a service appointment never carries it (or an
+    // activity), so switching type cannot smuggle behavior-analytic hours onto a session.
+    abaHr: isServiceAppt(f) ? false : Boolean(f.abaHr),
+    abaActivity: isServiceAppt(f) || !f.abaHr ? undefined : f.abaActivity || undefined,
     recurrence: f.repeat,
     custom: f.custom || {},
     documents: f.documents || [],
@@ -539,14 +551,60 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                         ) : (
                           <span />
                         )}
-                        {showClinic ? (
-                          <label data-testid="aba-hr" className={`checkbox ${f.abaHr ? 'on' : ''}`} style={{ marginBottom: 1 }} onClick={() => set({ abaHr: !f.abaHr })} title="Counts toward the client's authorized ABA hours">
+                        {isServiceAppt(f) ? (
+                          <span />
+                        ) : (
+                          <label
+                            data-testid="aba-hr"
+                            className={`checkbox ${f.abaHr ? 'on' : ''}`}
+                            style={{ marginBottom: 1 }}
+                            onClick={() => set({ abaHr: !f.abaHr, ...(f.abaHr ? { abaActivity: '' } : {}) })}
+                            title={ABA_HOURS_EXPLAIN}
+                          >
                             ⚡ ABA Hr
                           </label>
-                        ) : (
-                          <span />
                         )}
                       </div>
+                      {f.abaHr && !isServiceAppt(f) && (
+                        <div className="am-ababox" data-testid="aba-hours-panel">
+                          <div className="am-abahead">
+                            <span>{Icon.zap({ size: 13 })}</span>
+                            <div>
+                              <b>ABA Hours — behavior-analytic time</b>
+                              <span className="muted">{ABA_HOURS_EXPLAIN} It is not billed and does not touch any client authorization.</span>
+                            </div>
+                          </div>
+                          <div className="field" style={{ marginTop: 8 }}>
+                            <label>
+                              Behavior-analytic activity <em>{abaCfg.requireActivity ? '*' : ''}</em>
+                            </label>
+                            <Dropdown
+                              testid="aba-activity"
+                              value={f.abaActivity || ''}
+                              onChange={(v) => set({ abaActivity: v })}
+                              options={[
+                                { value: '', label: '— choose the activity —' },
+                                ...ABA_QUALIFYING_ACTIVITIES.map((a) => ({ value: a.id, label: a.label, sub: a.hint })),
+                                ...ABA_NON_QUALIFYING_ACTIVITIES.map((a) => ({ value: a.id, label: `✗ ${a.label}`, sub: a.hint })),
+                              ]}
+                            />
+                            <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
+                              {abaAct ? abaAct.hint : 'Counts: group training in behavior-analytic principles outside client sessions; graduate students designing or reviewing interventions in non-billable time. Never counts: cleaning the clinic, general admin such as stimulus preparation.'}
+                            </div>
+                          </div>
+                          <div className="am-abaexamples">
+                            <span className="am-abaok">Counts</span>
+                            <ul>{ABA_HOURS_EXAMPLES.map((x) => <li key={x}>{x}</li>)}</ul>
+                            <span className="am-abano">Never counts</span>
+                            <ul>{ABA_HOURS_NON_EXAMPLES.map((x) => <li key={x}>{x}</li>)}</ul>
+                          </div>
+                          <div className="muted" data-testid="aba-hours-credit" style={{ marginTop: 6, fontSize: 11.5 }}>
+                            {f.staffIds.length
+                              ? `Credited to ${f.staffIds.map((id) => `${staffById[id]?.name || id} (${abaTrackFor(staffById[id]).label})`).join(', ')} — ${fmtDur(dur)} each.`
+                              : 'Add a staff member so these hours can be credited to someone.'}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {conflicts.length > 0 && (
@@ -563,24 +621,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                         </div>
                       </div>
                     )}
-                    {authWorst && authWorst.skipped && (
-                      <div className="warnbox warn am-authbox" data-testid="appt-auth-guard">
-                        <span>{Icon.shield({ size: 16 })}</span>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <b>{authWorst.headline} — {authWorst.client.name}</b>
-                          {authWorst.reasons.map((r, i) => (
-                            <div key={i} style={{ marginTop: 3 }}>{r}</div>
-                          ))}
-                          {authWorst.notes.map((r, i) => (
-                            <div key={`n${i}`} className="muted" style={{ marginTop: 3 }}>{r}</div>
-                          ))}
-                        </div>
-                        <button className="btn btn-sm" data-testid="am-count-aba" onClick={() => set({ abaHr: true })}>
-                          {Icon.zap({ size: 12 })} Count it
-                        </button>
-                      </div>
-                    )}
-                    {authWorst && !authWorst.skipped && (authWorst.reasons.length > 0 || authWorst.notes.length > 0) && (
+                    {authWorst && (authWorst.reasons.length > 0 || authWorst.notes.length > 0) && (
                       <div className={`warnbox ${authWorst.severity === 'stop' || authWorst.severity === 'warn' ? 'danger' : 'warn'} am-authbox`} data-testid="appt-auth-guard">
                         <span>{Icon.shield({ size: 16 })}</span>
                         <div style={{ flex: 1, minWidth: 0 }}>

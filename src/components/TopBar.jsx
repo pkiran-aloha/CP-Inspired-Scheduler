@@ -120,7 +120,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
       </div>
 
       <div className="rel">
-        <button className={`iconbtn ${menu === 'filter' || filtersOn ? 'active' : ''}`} onClick={() => setMenu(menu === 'filter' ? null : 'filter')} title="Filters" aria-haspopup="true">
+        <button data-testid="topbar-filters" className={`iconbtn ${menu === 'filter' || filtersOn ? 'active' : ''}`} onClick={() => setMenu(menu === 'filter' ? null : 'filter')} title="Filters" aria-haspopup="true">
           {Icon.filter({ size: 15 })}
         </button>
         {menu === 'filter' && (
@@ -136,9 +136,14 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
               </label>
             ))}
             <div className="menu-sep" />
-            <label className={`menu-check ${f.abaOnly ? 'on' : ''}`} onClick={() => actions.setFilters({ abaOnly: !f.abaOnly })}>
+            <label
+              className={`menu-check ${f.abaOnly ? 'on' : ''}`}
+              data-testid="filter-aba-only"
+              title="Only non-service blocks marked as behavior-analytic (⚡ ABA) time"
+              onClick={() => actions.setFilters({ abaOnly: !f.abaOnly })}
+            >
               <span className="cb">{f.abaOnly && Icon.check({ size: 10, strokeWidth: 3 })}</span>
-              ABA hours only (billable)
+              ⚡ ABA hours (behavior-analytic time)
             </label>
             {filtersOn && (
               <>

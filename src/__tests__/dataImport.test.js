@@ -114,6 +114,31 @@ describe('row validation', () => {
     expect(res.records[0].statusKey).toBe('completed') // resolved from the label
   })
 
+  it('accepts ⚡ ABA hours only on non-service rows, and only for behavior-analytic activities', () => {
+    const s = fresh()
+    const day = '2026-04-06'
+    const map = { 0: 'date', 1: 'start', 2: 'end', 3: 'client', 4: 'staff', 5: 'type', 6: 'abaHours' }
+    const matrix = [
+      [day, '9:00', '10:30', aClient(s), aStaff(s), 'unavailable', 'group-training'],
+      [day, '11:00', '12:00', aClient(s), aStaff(s), 'break', 'coursework'],
+      [day, '13:00', '14:00', aClient(s), aStaff(s), 'unavailable', 'facility'],
+      [day, '15:00', '16:00', aClient(s), aStaff(s), 'service', 'group-training'],
+      [day, '17:00', '18:00', aClient(s), aStaff(s), 'unavailable', 'sweeping the floor'],
+    ]
+    const res = validateImport(s, 'appointments', matrix, map)
+    const all = res.issues.map((i) => i.errors.join(' ')).join(' | ')
+    expect(all).toMatch(/not behavior-analytic time/)                 // cleaning the clinic
+    expect(all).toMatch(/non-service appointments only/)              // ticked on a service row
+    expect(all).toMatch(/is not known/)                               // unknown activity name
+    expect(res.records[0]).toMatchObject({ abaHr: true, abaActivity: 'group-training' })
+    expect(res.records[1]).toMatchObject({ abaHr: true, abaActivity: 'coursework' })
+    expect(res.records[3].abaHr).toBe(false)
+
+    const plan = planImport(s, 'appointments', matrix.slice(0, 2), map)
+    expect(plan.creates[0]).toMatchObject({ type: 'unavailable', abaHr: true, abaActivity: 'group-training' })
+    expect(plan.creates[1]).toMatchObject({ type: 'break', abaHr: true, abaActivity: 'coursework' })
+  })
+
   it('detects duplicates inside the file and against the live roster', () => {
     const s = fresh()
     const existingClient = s.clients[0]

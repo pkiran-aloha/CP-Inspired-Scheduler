@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import {
-  AUTH_GUARD_DEFAULTS, authBoard, authBurn, authCheckFor, authGuardCfg, authWeekOf,
+  AUTH_GUARD_DEFAULTS, authBoard, authBurn, authCheckFor, authGuardCfg, authHoursOf, authWeekOf,
   clientAuthWindow, consumesAuth,
 } from '../lib/authBudget'
 
 const TODAY = '2026-06-15'
 const client = (extra = {}) => ({ id: 'c1', name: 'Client One', authWeekly: 10, authStart: '2026-05-01', authEnd: '2026-08-01', ...extra })
-const appt = (id, extra = {}) => ({ id, type: 'service', status: 'completed', abaHr: true, clientIds: ['c1'], staffIds: ['s1'], start: 540, end: 660, date: '2026-06-01', ...extra })
+const appt = (id, extra = {}) => ({ id, type: 'service', status: 'completed', clientIds: ['c1'], staffIds: ['s1'], start: 540, end: 660, date: '2026-06-01', ...extra })
 const state = (appts = {}, clients = [client()], settings = { weekStart: 0, workday: [8, 18] }) => ({ appts: Object.fromEntries(appts.map((a) => [a.id, a])), clients, settings, staff: [{ id: 's1', name: 'Sam Staff' }] })
 
 describe('authorization window', () => {
@@ -28,13 +28,17 @@ describe('authorization window', () => {
 })
 
 describe('what draws on the authorization', () => {
-  it('counts clinical sessions, not travel, breaks or explicit non-ABA time', () => {
+  it('counts clinical sessions, not travel or breaks', () => {
     expect(consumesAuth(appt('a', { type: 'service' }))).toBe(true)
     expect(consumesAuth(appt('b', { type: 'evaluation' }))).toBe(true)
     expect(consumesAuth(appt('c', { type: 'drive' }))).toBe(false)
     expect(consumesAuth(appt('d', { type: 'break' }))).toBe(false)
-    expect(consumesAuth(appt('e', { abaHr: false }))).toBe(false)
     expect(consumesAuth(appt('f', { status: 'cancelled' }))).toBe(false)
+  })
+  it('ignores the ⚡ ABA Hours flag entirely — that flag tracks staff behavior-analytic time', () => {
+    expect(consumesAuth(appt('g', { abaHr: false }))).toBe(true)
+    expect(consumesAuth(appt('h', { abaHr: true }))).toBe(true)
+    expect(authHoursOf(appt('i', { abaHr: false }))).toBe(2)
   })
 })
 
@@ -77,7 +81,7 @@ describe('burn-down', () => {
 })
 
 describe('the guard', () => {
-  const draft = (extra = {}) => ({ date: '2026-06-18', start: 540, end: 660, type: 'service', abaHr: true, status: 'active', id: '__draft__', ...extra })
+  const draft = (extra = {}) => ({ date: '2026-06-18', start: 540, end: 660, type: 'service', status: 'active', id: '__draft__', ...extra })
 
   it('stays quiet when the session fits inside the authorization', () => {
     const r = authCheckFor(state([appt('a', { date: '2026-06-08' })]), client(), draft(), { today: TODAY })
@@ -152,20 +156,14 @@ describe('the guard', () => {
     expect(authCheckFor(s, client(), draft({ type: 'drive', date: '2026-12-01' }), { today: TODAY }).severity).toBe('ok')
     expect(authCheckFor(s, client(), draft({ type: 'break', date: '2026-12-01' }), { today: TODAY }).severity).toBe('ok')
   })
-  it('names a clinical session that is not marked as ABA hours instead of silently ignoring it', () => {
-    const s = state([], [client()], { weekStart: 0, authGuard: { mode: 'stop' } })
-    const r = authCheckFor(s, client(), draft({ abaHr: false, date: '2026-08-05' }), { today: TODAY })
-    expect(r.skipped).toBe(true)
-    expect(r.blocked).toBe(false) // it draws nothing, so it cannot overrun anything
-    expect(r.severity).toBe('flag')
-    expect(r.reasons[0]).toMatch(/not marked as ABA hours/)
-    expect(r.reasons[0]).toMatch(/Tick ⚡ ABA Hr/)
-  })
-  it('stays silent about the ABA-hour flag when the client has no authorization on file', () => {
-    const s = state([])
-    const r = authCheckFor(s, { id: 'c9', name: 'No Window' }, draft({ abaHr: false }), { today: TODAY })
-    expect(r.skipped).toBe(false)
-    expect(r.reasons).toEqual([])
+  it('draws on the authorization whether or not the ⚡ ABA Hours flag is present', () => {
+    // the flag belongs to non-service behavior-analytic time; it must never be able to
+    // quietly take a clinical session out of the client's authorization burn-down
+    const off = authCheckFor(state([]), client(), draft({ abaHr: false, date: '2026-08-05' }), { today: TODAY })
+    const on = authCheckFor(state([]), client(), draft({ abaHr: true, date: '2026-08-05' }), { today: TODAY })
+    expect(on).toEqual(off)
+    expect(on.reasons.join(' ')).toMatch(/after the authorization ends/)
+    expect(on.skipped).toBeUndefined()
   })
   it('says so when the client has no authorization window at all', () => {
     const s = state([])

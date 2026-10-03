@@ -3,6 +3,7 @@ import { blankState } from '../../state/store'
 import { Icon } from '../../ui/Icons'
 import { smartCfg } from '../../lib/smart'
 import { AUTH_GUARD_DEFAULTS, AUTH_MODES, authGuardCfg } from '../../lib/authBudget'
+import { ABA_TRACKS, abaHoursCfg, abaTotals } from '../../lib/abaHours'
 import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
 import { NAME_STYLES, apptAutoTitle, titleAudit } from '../../lib/apptName'
@@ -51,6 +52,9 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     const res = actions.settingsOp('systemConfig.patch', { patch: { [sectionKey]: { ...(sysCfg[sectionKey] || {}), ...changes } } })
     toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
   }
+
+  const abaCfg = abaHoursCfg(settings)
+  const patchAba = (v) => patch({ abaHours: { ...abaCfg, ...v } })
 
   const valCfg = appointmentValidationsCfg(settings)
   const patchVal = (group, ruleKey, level) => {
@@ -384,6 +388,43 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
           </div>
         </Section>
 
+        <Section
+          title="ABA Hours (behavior-analytic time)"
+          sub="How non-service time marked ⚡ ABA Hours is tallied — it never touches client authorizations"
+          testId="set-sys-aba"
+        >
+          <Banner tone="info" testid="set-aba-banner">
+            ⚡ ABA Hours is offered on <b>non-service</b> appointments only. Ticking it includes the block as behavior-analytic time when tracking RBT / BCAT, graduate-student and state-certification hours — group trainings on behavior-analytic principles outside client sessions, or graduate students designing and reviewing interventions in non-billable time. Cleaning the clinic and general admin such as stimulus preparation never count. Service appointments draw on the client&rsquo;s authorization by type instead.
+          </Banner>
+          <div className="set-grid2">
+            <Row label="Require an activity" hint="The booking dialog asks which behavior-analytic activity the block is before ⚡ ABA Hours can be saved">
+              <Toggle on={abaCfg.requireActivity !== false} disabled={readOnly} testid="set-aba-require" onChange={(v) => patchAba({ requireActivity: v })} />
+            </Row>
+            <Row label="Show ⚡ badge on the calendar" hint="Badges behavior-analytic blocks on the time grid, agenda and detail card">
+              <Toggle on={abaCfg.showOnCalendar !== false} disabled={readOnly} testid="set-aba-badge" onChange={(v) => patchAba({ showOnCalendar: v })} />
+            </Row>
+          </div>
+          <div className="set-subcard" style={{ marginTop: 12 }}>
+            <b style={{ display: 'block', marginBottom: 4 }}>Target hours per credential track</b>
+            <span className="muted" style={{ display: 'block', marginBottom: 8, fontSize: 11.5 }}>
+              Your practice&rsquo;s numbers, not a board&rsquo;s rule — enter the requirement you track against (0 logs the hours without a target). Workspace to date: <b>⚡ {abaTotals(state).hours}h</b> across {abaTotals(state).staff} team members.
+            </span>
+            <div className="set-grid2">
+              {ABA_TRACKS.map((t) => (
+                <Row key={t.id} label={t.label} hint={t.basis}>
+                  <NumberField
+                    value={Number(abaCfg.targets?.[t.id]) || 0}
+                    min={0} max={5000} suffix="h"
+                    testid={`set-aba-target-${t.id}`}
+                    disabled={readOnly}
+                    onCommit={(v) => patchAba({ targets: { ...(abaCfg.targets || {}), [t.id]: Math.max(0, Number(v) || 0) } })}
+                  />
+                </Row>
+              ))}
+            </div>
+          </div>
+        </Section>
+
         <Section title="Smart scheduling" sub="How candidate staff are ranked for open sessions" testId="set-sys-smart">
           <div className="set-grid2">
             <Row label="Staff suggestions shown" hint="How many candidate staff the detail card offers for open sessions">
@@ -491,11 +532,21 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             <ValidationRuleRow group="client" ruleKey="duplicateOverlap" label="Duplicate Overlap" hint="Identical client, service, and time window already exists" />
           </div>
         </div>
-        <div className="set-subcard">
+        <div className="set-subcard" style={{ marginBottom: 12 }}>
           <b style={{ display: 'block', marginBottom: 8 }}>Payer Validations</b>
           <div className="set-grid2">
             <ValidationRuleRow group="payer" ruleKey="cancelledNoShow" label="Cancelled / No-Show Appointments" hint="Alerts when a cancelled/no-show status is marked billable" />
             <ValidationRuleRow group="payer" ruleKey="regionalCenter" label="Regional Center" hint="Verifies active authorization window for Regional Center / Medicaid payers" />
+          </div>
+        </div>
+        <div className="set-subcard" data-testid="set-val-aba">
+          <b style={{ display: 'block', marginBottom: 8 }}>ABA Hours (behavior-analytic time) Validations</b>
+          <div className="set-grid2">
+            <ValidationRuleRow group="aba" ruleKey="serviceAppt" label="ABA Hours on a Service Appointment" hint="⚡ ABA Hours belongs to non-service appointments — service time draws on the client's authorization" />
+            <ValidationRuleRow group="aba" ruleKey="activity" label="Activity Not Behavior-Analytic" hint="Blocks marked as cleaning the clinic or general admin (e.g. stimulus preparation) cannot count" />
+            <ValidationRuleRow group="aba" ruleKey="missingActivity" label="Missing Behavior-Analytic Activity" hint="⚡ ABA Hours is ticked without saying which activity the time belongs to" />
+            <ValidationRuleRow group="aba" ruleKey="noStaff" label="ABA Hours Without Staff" hint="Nobody is on the block, so the hours cannot be credited to a technician or student" />
+            <ValidationRuleRow group="aba" ruleKey="clientAttached" label="Client Attached to ABA Hours" hint="Behavior-analytic time is staff time spent outside client sessions" />
           </div>
         </div>
       </Section>

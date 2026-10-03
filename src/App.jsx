@@ -199,6 +199,7 @@ function Shell() {
         service: preset.service || (type === 'service' ? 'dtt' : ''),
         notes: '',
         abaHr: false,
+        abaActivity: '',
         repeat: 'none',
         repeatCount: 8,
         recurrence: 'none',

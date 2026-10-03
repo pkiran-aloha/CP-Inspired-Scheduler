@@ -7,6 +7,7 @@ import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeR
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
+import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -26,7 +27,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizePayerCf(state, uid)))))))))
+  const normalized = normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 
@@ -1246,7 +1247,7 @@ export function visibleApptsFor(state, dayIso) {
   return Object.values(appts)
     .filter((a) => a.date === dayIso)
     .filter((a) => ui.filters.statuses.includes(a.status))
-    .filter((a) => !ui.filters.abaOnly || a.abaHr)
+    .filter((a) => !ui.filters.abaOnly || countsAsAbaHours(a))
     .filter((a) => {
       if (!staffFilter.length) return true
       return (a.staffIds || []).some((s) => staffFilter.includes(s))

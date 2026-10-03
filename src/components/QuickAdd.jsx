@@ -64,7 +64,9 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
       location: client?.home || 'Main Center',
       service: service?.id || 'dtt',
       notes: '',
-      abaHr: dur >= 90,
+      // Quick-add only ever books a service session, and service time draws on the
+      // client's authorization by type — it never carries the ⚡ ABA Hours flag.
+      abaHr: false,
       recurrence: 'none',
       billing,
       custom: {},

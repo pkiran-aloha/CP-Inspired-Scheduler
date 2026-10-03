@@ -9,6 +9,7 @@ import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { fmtDayLabel, fmtTime, todayISO } from '../lib/date'
 import { overlapsType, uid } from '../lib/model'
+import { abaStaffRows } from '../lib/abaHours'
 
 const AV_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
 
@@ -162,6 +163,11 @@ export default function StaffView() {
 
   const range = useMemo(() => resolveRange('last4', ui.anchor, settings.weekStart), [ui.anchor, settings.weekStart])
   const days = range.days
+  // ⚡ behavior-analytic hours per person, over the same window the roster reports on
+  const abaByStaff = useMemo(
+    () => Object.fromEntries(abaStaffRows(state, { days, includeEmpty: true }).rows.map((r) => [r.staffId, r])),
+    [state, days],
+  )
   const rows = useMemo(() => {
     const today = todayISO()
     const list = staff
@@ -178,7 +184,7 @@ export default function StaffView() {
           .filter((a) => a.date >= today && (a.staffIds || []).includes(s.id) && a.status !== 'cancelled' && overlapsType(a))
           .sort((x, y) => (x.date === y.date ? x.start - y.start : x.date < y.date ? -1 : 1))[0]
         const onLeaveToday = Object.values(state.appts).some((a) => a.date === today && (a.staffIds || []).includes(s.id) && a.type === 'unavailable')
-        return { s, util: targetH ? Math.round((bookedH / targetH) * 100) : 0, booked: { sessions: clinical.length, revenue: Math.round(revenue) }, bookedH: Math.round(bookedH * 10) / 10, targetH: Math.round(targetH), caseload, pto, flags: staffFlags(state, s, days), next, onLeaveToday }
+        return { s, util: targetH ? Math.round((bookedH / targetH) * 100) : 0, booked: { sessions: clinical.length, revenue: Math.round(revenue) }, bookedH: Math.round(bookedH * 10) / 10, targetH: Math.round(targetH), caseload, pto, flags: staffFlags(state, s, days), next, onLeaveToday, aba: abaByStaff[s.id] || null }
       })
       .filter((r) => !q || (r.s.name + r.s.role + r.s.cert).toLowerCase().includes(q.toLowerCase()))
     const f = SORTS[sort]
@@ -308,7 +314,19 @@ export default function StaffView() {
                               <div className="mini-metric"><b>{r.caseload}</b><span>Clients</span></div>
                               <div className="mini-metric"><b>{r.pto}</b><span>Blocks</span></div>
                               <div className="mini-metric"><b>${(r.s.payrollRate || 0)}</b><span>$/hour</span></div>
+                              <div className="mini-metric" data-testid={`stf-aba-${r.s.id}`} title="Non-service time marked ⚡ ABA Hours — behavior-analytic time tracked for RBT / BCAT, graduate-student and state-certification requirements">
+                                <b>⚡ {r.aba?.hours ?? 0}h</b><span>ABA hours</span>
+                              </div>
                             </div>
+                            {r.aba && (r.aba.hours > 0 || r.aba.excluded > 0) && (
+                              <div style={{ marginTop: 8, fontSize: 11.3 }} className="muted" data-testid={`stf-aba-detail-${r.s.id}`}>
+                                <b style={{ color: 'var(--text-2)' }}>⚡ Behavior-analytic time</b> — {r.aba.trackLabel}
+                                {r.aba.target > 0 ? ` · ${r.aba.hours}h of ${r.aba.target}h target (${r.aba.pct}%)` : ' · logged, no target set'}
+                                {r.aba.activities.length ? <><br />{r.aba.activities.map((a) => `${a.label} — ${a.hours}h`).join(' · ')}</> : null}
+                                {r.aba.uncategorized > 0 ? <><br />{r.aba.uncategorized}h still needs an activity.</> : null}
+                                {r.aba.excluded > 0 ? <><br />{r.aba.excluded}h marked but not counted (service block or non-qualifying activity).</> : null}
+                              </div>
+                            )}
                             <div style={{ marginTop: 8, fontSize: 11.3 }} className="muted">FTE {r.s.fte} · {r.s.email}</div>
                           </div>
                           <div>
@@ -345,6 +363,7 @@ export default function StaffView() {
             { icon: 'mail', label: 'Email', value: prof.s.email || '—', href: prof.s.email ? `mailto:${prof.s.email}` : null, copy: prof.s.email ? 'email' : null },
             { icon: 'phone', label: 'Phone', value: prof.s.phone || '—', href: prof.s.phone ? `tel:${(prof.s.phone || '').replace(/\D/g, '')}` : null, copy: prof.s.phone ? 'phone' : null },
             { icon: 'badge', label: 'Credential', value: prof.s.cert || '—' },
+            { icon: 'zap', label: 'ABA hours (behavior-analytic)', value: `⚡ ${prof.aba?.hours ?? 0}h · ${prof.aba?.trackLabel || '—'}` },
             { icon: 'users', label: 'FTE', value: String(prof.s.fte ?? 1) },
             { icon: 'dollar', label: 'Pay rate', value: `$${prof.s.payrollRate}/h` },
             // the intake pipeline is work too: who owns it, and how much is waiting

@@ -42,10 +42,12 @@ const SEVERITY = ['ok', 'flag', 'warn', 'stop']
 const worse = (a, b) => (SEVERITY.indexOf(a) >= SEVERITY.indexOf(b) ? a : b)
 
 /** Sessions that draw on the client's authorized ABA time.
- *  Clinical types count; a session explicitly marked *outside* ABA hours (`abaHr === false`)
- *  does not; travel and breaks never do. Records predating the ⚡ field count (undefined ≠ false). */
+ *  Drawdown is a property of the appointment *type*: clinical sessions count, travel and
+ *  breaks never do. The ⚡ ABA Hours checkbox has nothing to do with it — that flag marks
+ *  *non-service* staff time as behavior-analytic (`lib/abaHours.js`), and a service
+ *  appointment cannot carry it. */
 export const consumesAuth = (a) =>
-  Boolean(a) && CLINICAL_TYPES.includes(a.type) && a.abaHr !== false && a.status !== 'cancelled'
+  Boolean(a) && CLINICAL_TYPES.includes(a.type) && a.status !== 'cancelled'
 
 /** Hours a single appointment draws from the authorization. */
 export const authHoursOf = (a) => (consumesAuth(a) ? Math.max(0, (a.end || 0) - (a.start || 0)) / 60 : 0)
@@ -199,34 +201,12 @@ export function authCheckFor(state, client, draft = {}, { today = todayISO() } =
     start: draft.start,
     end: draft.end,
     type: draft.type,
-    abaHr: draft.abaHr,
     status: draft.status || 'active',
     clientIds: [client?.id || draft.clientId],
   }
-  const idle = { severity: 'ok', blocked: false, headline: '', reasons: [], notes: [], stats: null, mode: cfg.mode, skipped: false }
+  const idle = { severity: 'ok', blocked: false, headline: '', reasons: [], notes: [], stats: null, mode: cfg.mode }
   if (cfg.mode === 'off' || !client || !draft.date) return idle
   if (!CLINICAL_TYPES.includes(probe.type)) return idle
-
-  // A clinical session explicitly marked as *outside* the client's ABA hours does not draw
-  // on the authorization — but a scheduler placing clinical time inside a live window
-  // should be told that, because untracked hours are the quiet half of an overrun. This is
-  // a one-click fix (tick ⚡ ABA Hr), never a refusal.
-  if (!consumesAuth(probe)) {
-    const burn = authBurn(state, client.id, { today, exclude: probe.id === '__draft__' ? [] : [probe.id], on: probe.date })
-    if (!burn.window.hasWindow) return idle
-    return {
-      severity: 'flag',
-      blocked: false,
-      skipped: true,
-      headline: 'Not drawn against the authorization',
-      reasons: [
-        `This session is not marked as ABA hours, so it will not count against ${client.name}'s authorization (${burn.window.authorizedHours} h on file, ending ${burn.window.end}). Tick ⚡ ABA Hr if the payer should be billed for it.`,
-      ],
-      notes: [`${burn.committedHours} h of the authorization is committed by sessions that are marked as ABA hours.`],
-      stats: burn,
-      mode: cfg.mode,
-    }
-  }
 
   const burn = authBurn(state, client.id, {
     today,

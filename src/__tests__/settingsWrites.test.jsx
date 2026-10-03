@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, fireEvent as fire } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within, fireEvent as fire } from '@testing-library/react'
 import App from '../App'
 import { blankState, reducer } from '../state/store'
 import { Seg } from '../components/settings/kit'
@@ -133,6 +133,26 @@ describe('settings modules actually write', () => {
     await waitFor(() => expect(stored().settings.notifications.timelyFiling).toBe(false))
     fireEvent.click(screen.getByTestId('set-sys-toasts'))
     await waitFor(() => expect(stored().settings.notifications.browserToasts).toBe(true))
+  })
+
+  it('persists the ⚡ ABA Hours targets and validation severities', async () => {
+    await openModule('system')
+    fireEvent.click(screen.getByTestId('set-sys-tab-appointment'))
+    await screen.findByTestId('set-sys-aba')
+    expect(screen.getByTestId('set-aba-banner').textContent).toMatch(/non-service/i)
+    commit('set-aba-target-technician', '60')
+    await waitFor(() => expect(stored().settings.abaHours.targets.technician).toBe(60))
+    fireEvent.click(screen.getByTestId('set-aba-require'))
+    await waitFor(() => expect(stored().settings.abaHours.requireActivity).toBe(false))
+
+    fireEvent.click(screen.getByTestId('set-sys-tab-validations'))
+    const seg = await screen.findByTestId('set-val-aba-serviceAppt')
+    fireEvent.click(within(seg).getByRole('button', { name: 'Warn' }))
+    await waitFor(() => expect(stored().settings.appointmentValidations.aba.serviceAppt).toBe('warn'))
+    // the rule hints name the practice's non-examples (rendered as the row tooltip)
+    const hints = [...screen.getByTestId('set-val-aba').querySelectorAll('.set-row')].map((r) => r.getAttribute('title')).join(' ')
+    expect(hints).toMatch(/cleaning the clinic/i)
+    expect(hints).toMatch(/stimulus preparation/i)
   })
 
   it('imports a pasted CSV, logs it, and shows the new client in the roster', async () => {
