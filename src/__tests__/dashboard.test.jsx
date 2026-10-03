@@ -63,11 +63,12 @@ describe('dash engine', () => {
 /* ---------- the page ---------- */
 
 describe('dashboard page', () => {
-  it('ships the standard five widgets, all rendering real graphics', async () => {
+  it('ships the standard six widgets (pulse, trend, mix, top, heat, billing), all rendering real graphics', async () => {
     const { container } = R(<App />)
     fireEvent.click(screen.getByTestId('nav-dashboard'))
     await screen.findByTestId('dash-widget-w-trend')
-    expect(container.querySelectorAll('.dsh-w').length).toBe(5)
+    expect(container.querySelectorAll('.dsh-w').length).toBe(6)
+    expect(screen.getByTestId('dash-widget-w-billing').querySelectorAll('.dw-kpi').length).toBe(8)
     expect(screen.getByTestId('dash-widget-w-trend').querySelector('svg .dw-spark-line')).toBeTruthy()
     expect(screen.getByTestId('dash-widget-w-mix').querySelectorAll('.dw-slice').length).toBeGreaterThan(0)
     expect(container.querySelectorAll('.dw-heat-cell').length).toBeGreaterThan(0)
@@ -82,11 +83,11 @@ describe('dashboard page', () => {
     fireEvent.click(screen.getByTestId('dash-add'))
     await screen.findByTestId('dash-gallery')
     fireEvent.click(screen.getByTestId('dash-add-heat'))
-    await waitFor(() => expect(container.querySelectorAll('.dsh-w').length).toBe(6))
-    await waitFor(() => expect(stored().dash.widgets.length).toBe(6))
+    await waitFor(() => expect(container.querySelectorAll('.dsh-w').length).toBe(7))
+    await waitFor(() => expect(stored().dash.widgets.length).toBe(7))
     // remove the mix donut
     fireEvent.click(screen.getByTestId('dw-rm-w-mix'))
-    await waitFor(() => expect(container.querySelectorAll('.dsh-w').length).toBe(5))
+    await waitFor(() => expect(container.querySelectorAll('.dsh-w').length).toBe(6))
     await waitFor(() => expect(stored().dash.widgets.find((w) => w.id === 'w-mix')).toBeFalsy())
     // reorder: push trend left of pulse
     fireEvent.click(screen.getByTestId('dw-mv-w-trend-l'))
@@ -208,7 +209,7 @@ describe('widget layout menu & sizing', () => {
   it('clone inserts an independent copy; height clamps; new-row toggles', () => {
     let st = base()
     st = reducer(st, { type: 'dash', mode: 'clone', id: 'w-trend' })
-    expect(st.dash.widgets.length).toBe(6)
+    expect(st.dash.widgets.length).toBe(7)
     const [a, b] = st.dash.widgets.filter((w) => w.type === 'trend')
     expect(b.id).not.toBe(a.id)
     expect(b.span).toBe(a.span)
@@ -239,7 +240,7 @@ describe('widget layout menu & sizing', () => {
     await waitFor(() => expect(stored().dash.widgets.find((w) => w.id === 'w-trend').nl).toBe(true))
     fireEvent.click(screen.getByTestId('dw-more-w-trend'))
     fireEvent.click(screen.getByTestId('dw-clone-w-trend'))
-    await waitFor(() => expect(stored().dash.widgets.length).toBe(6))
+    await waitFor(() => expect(stored().dash.widgets.length).toBe(7))
     expect(stored().dash.widgets[2].type).toBe('trend') // clone lands right after its source
     expect(stored().dash.widgets[2].span).toBe(6)
   })
@@ -254,14 +255,14 @@ describe('boards, per-widget range & CSV export', () => {
     const bid = st.dash.boards[0].id
     st = reducer(st, { type: 'dash', mode: 'cfg', id: 'w-trend', patch: { metric: 'revenue' } })
     st = reducer(st, { type: 'dash', mode: 'remove', id: 'w-mix' })
-    expect(st.dash.widgets.length).toBe(4)
-    st = reducer(st, { type: 'dash', mode: 'loadBoard', id: bid })
     expect(st.dash.widgets.length).toBe(5)
+    st = reducer(st, { type: 'dash', mode: 'loadBoard', id: bid })
+    expect(st.dash.widgets.length).toBe(6)
     expect(st.dash.widgets.find((w) => w.id === 'w-trend').cfg.metric).toBe('sessions') // snapshot wins
     st = reducer(st, { type: 'dash', mode: 'delBoard', id: bid })
     expect(st.dash.boards).toEqual([])
     st = reducer(st, { type: 'dash', mode: 'loadBoard', id: 'ghost' })
-    expect(st.dash.widgets.length).toBe(5)
+    expect(st.dash.widgets.length).toBe(6)
   })
   it('per-widget range override: menu select → pill → clear', async () => {
     R(<App />)
@@ -286,9 +287,9 @@ describe('boards, per-widget range & CSV export', () => {
     await waitFor(() => expect(stored().dash.boards[0].name).toBe('Huddle'))
     const bid = stored().dash.boards[0].id
     fireEvent.click(screen.getByTestId('dw-rm-w-bars'))
-    await waitFor(() => expect(stored().dash.widgets.length).toBe(4))
-    fireEvent.click(screen.getByTestId(`dash-board-${bid}`))
     await waitFor(() => expect(stored().dash.widgets.length).toBe(5))
+    fireEvent.click(screen.getByTestId(`dash-board-${bid}`))
+    await waitFor(() => expect(stored().dash.widgets.length).toBe(6))
     fireEvent.click(screen.getByTestId(`dash-board-del-${bid}`))
     expect(screen.getByTestId(`dash-board-del-${bid}`)).toBeTruthy() // armed, not deleted yet
     fireEvent.click(screen.getByTestId(`dash-board-del-${bid}`))

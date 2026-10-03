@@ -27,6 +27,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Authorization Utilization report.** Reports → Clinical → **Authorization Utilization** replaces guesswork about "how much of the auth have we used" with one row per client × code across the authorization's *own* window (not the report range): authorized, used, scheduled and remaining units (payer unit rules applied), Used % against Expected % (how far through the window today is), Projected % (used + scheduled), a status (Not on authorization · Over-committed · Expired · Under-utilized · On track), a *Start renewal* flag at 30 days left or 75% committed, days left, and *Verify* on units converted from weekly hours. The older hours-based *Authorization Burn-down* stays for weekly pacing. Tests: `authUtilization.test.js`.
 
+**Billing Health on the dashboard.** A new **Billing Health** widget (on the default board; add it from the gallery on a saved board) shows eight revenue-cycle KPIs computed from the claims and payments ledgers — clean claim rate, denial rate, net collection rate, cash posted, days in A/R, A/R over 90 days, charge lag and recoupments — each with its formula and target on hover, deltas against the previous equal window, and a CSV export that includes the formulas. `src/lib/billingKpis.js`; tests: dashboard suite.
+
 ### Authorization unit ledger & payer rule packs (previous round)
 
 Ideas A2 + A4 from `docs/specs/scheduling-intelligence-ideas.md`. The booking guard used to know only "X hours a week from start to end"; payers audit *units per CPT code*.

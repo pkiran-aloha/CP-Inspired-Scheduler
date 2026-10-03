@@ -196,6 +196,7 @@ export const WIDGETS = {
   ledger: { name: 'Appointment Ledger', icon: 'clipboard', blurb: 'The filtered appointments themselves — convention titles, crew, overlap flags, one click into the record', span: 3, defaultCfg: { rows: 12, order: 'asc' } },
   heat: { name: 'Week Heatmap', icon: 'table', blurb: 'Delivered minutes per weekday × hour — click a cell to jump', span: 3, defaultCfg: {} },
   intake: { name: 'Intake Pipeline', icon: 'user', blurb: 'Referral funnel, conversion rate and the requests waiting on a decision', span: 3, defaultCfg: {} },
+  billing: { name: 'Billing Health', icon: 'dollar', blurb: 'Clean-claim and denial rates, net collection, cash, days in A/R, A/R over 90, charge lag and recoupments — formulas on hover', span: 6, defaultCfg: {} },
 }
 
 export const DEFAULT_DASH = [
@@ -204,6 +205,7 @@ export const DEFAULT_DASH = [
   { id: 'w-mix', type: 'donut', cfg: { ...WIDGETS.donut.defaultCfg }, span: 2 },
   { id: 'w-bars', type: 'bars', cfg: { ...WIDGETS.bars.defaultCfg }, span: 3 },
   { id: 'w-heat', type: 'heat', cfg: {}, span: 3 },
+  { id: 'w-billing', type: 'billing', cfg: {}, span: 6 },
 ]
 
 export const FILTER_KEYS = { staff: 'Staff', client: 'Client', program: 'Program', payer: 'Payer', type: 'Type', status: 'Status' }
