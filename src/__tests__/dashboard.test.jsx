@@ -94,7 +94,7 @@ describe('dashboard page', () => {
     await waitFor(() => expect(stored().dash.widgets.map((w) => w.id).slice(0, 2)).toEqual(['w-trend', 'w-pulse']))
     // reset restores the standard board
     fireEvent.click(screen.getByTestId('dash-reset'))
-    await waitFor(() => expect(stored().dash.widgets.map((w) => w.id)).toEqual(['w-pulse', 'w-trend', 'w-mix', 'w-bars', 'w-heat']))
+    await waitFor(() => expect(stored().dash.widgets.map((w) => w.id)).toEqual(['w-pulse', 'w-trend', 'w-mix', 'w-bars', 'w-heat', 'w-billing']))
   })
 
   it('every control re-aggregates live and persists cfg', async () => {
@@ -151,7 +151,7 @@ describe('dashboard page', () => {
     const { container } = R(<App />)
     fireEvent.click(screen.getByTestId('nav-dashboard'))
     await screen.findByTestId('dash-widget-w-trend')
-    for (const id of ['w-pulse', 'w-trend', 'w-mix', 'w-bars', 'w-heat']) fireEvent.click(screen.getByTestId(`dw-rm-${id}`))
+    for (const id of ['w-pulse', 'w-trend', 'w-mix', 'w-bars', 'w-heat', 'w-billing']) fireEvent.click(screen.getByTestId(`dw-rm-${id}`))
     await screen.findByTestId('dash-empty')
     expect(container.querySelectorAll('.dsh-w').length).toBe(0)
     fireEvent.click(screen.getByTestId('dash-empty-add'))
@@ -177,8 +177,8 @@ describe('board layout reducer', () => {
     expect(st.dash.widgets.find((w) => w.id === 'w-mix').span).toBe(5)
     st = reducer(st, { type: 'dash', mode: 'resize', id: 'w-mix', span: 99 })
     expect(st.dash.widgets.find((w) => w.id === 'w-mix').span).toBe(6)
-    st = reducer(st, { type: 'dash', mode: 'order', id: 'w-pulse', index: 5 }) // after the last card
-    expect(st.dash.widgets.map((w) => w.id)).toEqual(['w-trend', 'w-mix', 'w-bars', 'w-heat', 'w-pulse'])
+    st = reducer(st, { type: 'dash', mode: 'order', id: 'w-pulse', index: 5 }) // after the heatmap, before billing
+    expect(st.dash.widgets.map((w) => w.id)).toEqual(['w-trend', 'w-mix', 'w-bars', 'w-heat', 'w-pulse', 'w-billing'])
     st = reducer(st, { type: 'dash', mode: 'order', id: 'w-pulse', index: 0 })
     expect(st.dash.widgets[0].id).toBe('w-pulse')
     expect(st.dash.widgets.find((w) => w.id === 'w-mix').span).toBe(6) // span survives reorder

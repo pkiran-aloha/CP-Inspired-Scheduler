@@ -187,7 +187,7 @@ describe('Downstream surfaces read the same intake ledger', () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-dashboard'))
     await screen.findByTestId('dash-widget-w-pulse')
-    for (const id of ['w-pulse', 'w-trend', 'w-mix', 'w-bars', 'w-heat']) fireEvent.click(screen.getByTestId(`dw-rm-${id}`))
+    for (const id of ['w-pulse', 'w-trend', 'w-mix', 'w-bars', 'w-heat', 'w-billing']) fireEvent.click(screen.getByTestId(`dw-rm-${id}`))
     fireEvent.click(await screen.findByTestId('dash-empty-add'))
     fireEvent.click(await screen.findByTestId('dash-add-intake'))
     const widget = await screen.findByTestId('dw-intake')
