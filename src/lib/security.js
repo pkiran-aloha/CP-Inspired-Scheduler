@@ -521,7 +521,7 @@ function actionAreas(state, action) {
     case 'upsertMany': case 'patch': case 'deleteMany': case 'relabel': return ['calendar']
     case 'claimsTx': case 'secondaryFilingTx': case 'secondarySkipTx': case 'secondaryCancelTx':
     case 'claimPaymentTx': case 'claimVoidPaymentTx': case 'patientReceiptTx': case 'unappliedPaymentTx':
-    case 'eraImportTx': case 'eraRetryTx': return ['billing']
+    case 'claimRecoupTx': case 'eraImportTx': case 'eraRetryTx': return ['billing']
     case 'payrollTx': return action.scope === 'export' && action.permissionArea === 'payrollQbo' ? ['payrollQbo'] : ['payroll']
     case 'intakeTx': {
       const areas = ['intake']
@@ -683,7 +683,7 @@ function actionWithinOfficeScope(state, action) {
         all(forms, 'form', 'verificationForms')
     }
     case 'secondaryFilingTx': case 'secondarySkipTx': case 'secondaryCancelTx':
-    case 'claimPaymentTx': case 'claimVoidPaymentTx': case 'patientReceiptTx': {
+    case 'claimPaymentTx': case 'claimVoidPaymentTx': case 'patientReceiptTx': case 'claimRecoupTx': {
       const claim = state.claims?.[action.id]
       return !!claim && canAccessRecord(state, 'claim', claim)
     }
