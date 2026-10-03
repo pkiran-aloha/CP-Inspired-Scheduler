@@ -4,7 +4,7 @@ import { useStore } from '../state/store'
 import { useToast } from '../ui/Toast'
 import { Icon, TypeGlyph } from '../ui/Icons'
 import { PeoplePicker, Dropdown, MultiSelect } from './fields'
-import { fmtDur, fmtTime, hmToMin, minToHM, startOfWeek, addDays, isoDate, parseISO } from '../lib/date'
+import { fmtDur, fmtTime, hmToMin, minToHM, startOfWeek, addDays, isoDate, parseISO, todayISO } from '../lib/date'
 import {
   BILL_CODES,
   MILEAGE_RATE,
@@ -26,6 +26,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { AUTH_BANDS, authGuardCfg, authCheckFor } from '../lib/authBudget'
+import { mergeAuthChecks, unitCheckFor } from '../lib/authUnits'
 import {
   ABA_HOURS_EXPLAIN, ABA_HOURS_EXAMPLES, ABA_HOURS_NON_EXAMPLES,
   ABA_QUALIFYING_ACTIVITIES, ABA_NON_QUALIFYING_ACTIVITIES,
@@ -215,11 +216,14 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     return f.clientIds
       .map((cid) => {
         const client = clientsById[cid]
-        return client ? { client, ...authCheckFor(state, client, { ...f, id: mode === 'edit' ? f.id : '__draft__' }) } : null
+        if (!client) return null
+        const draft = { ...f, id: mode === 'edit' ? f.id : '__draft__' }
+        // hours view (authBudget) + per-code units and the payer's rule pack (authUnits)
+        return { client, ...mergeAuthChecks(authCheckFor(state, client, draft), unitCheckFor(state, client, draft, { today: todayISO() }), settings) }
       })
       .filter(Boolean)
       .sort((a, b) => ['ok', 'flag', 'warn', 'stop'].indexOf(b.severity) - ['ok', 'flag', 'warn', 'stop'].indexOf(a.severity))
-  }, [state, f.clientIds, f.date, f.start, f.end, f.type, f.status, f.id, mode, showClinic, settings])
+  }, [state, f.clientIds, f.date, f.start, f.end, f.type, f.status, f.id, f.service, f.billingCode, JSON.stringify(f.staffIds), mode, showClinic, settings])
   const authBlock = authChecks.find((c) => c.blocked) || null
   const authWorst = authChecks[0] || null
 
@@ -656,6 +660,15 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                                 {authWorst.stats.window.authorizedHours}h
                                 {authWorst.stats.window.daysToExpiry != null ? ` · ${authWorst.stats.window.daysToExpiry < 0 ? 'window ended' : `${authWorst.stats.window.daysToExpiry}d to expiry`}` : ''}
                               </span>
+                            </div>
+                          )}
+                          {authWorst.units && (
+                            <div className="muted" data-testid="appt-auth-units" style={{ marginTop: 3 }}>
+                              This session: {authWorst.units.units} unit{authWorst.units.units === 1 ? '' : 's'} of {authWorst.units.code} ({authWorst.units.unitMins}-min units, {authWorst.units.rounding} rounding).
+                              {(() => {
+                                const row = authWorst.units.ledger?.codes.find((g) => g.code === authWorst.units.code)
+                                return row?.authorized ? ` ${row.committed} of ${row.authorized} authorized units committed.` : ''
+                              })()}
                             </div>
                           )}
                           {authGuardCfgNow.mode === 'stop' && authWorst.severity === 'stop'

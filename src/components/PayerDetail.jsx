@@ -557,7 +557,7 @@ function RuleBody({ p, section, patch, saved }) {
   const [appt, setAppt] = useState(() => ({ ...rules.appt }))
   const [qm, setQm] = useState(() => rules.qualMods.map((r) => ({ ...r })))
   const [pos, setPos] = useState(() => ({ rows: rules.posMods.map((r) => ({ ...r })), hideTeleOther: rules.hideTeleOther, hideTeleHome: rules.hideTeleHome }))
-  const [mue, setMue] = useState(() => ({ daily: rules.mue.daily || '', per: { ...(rules.mue.per || {}) } }))
+  const [mue, setMue] = useState(() => ({ daily: rules.mue.daily || '', per: { ...(rules.mue.per || {}) }, weekly: { ...(rules.mue.weekly || {}) } }))
   const svcOpts = useMemo(() => [...svcList(state).map((s) => ({ value: s.id, label: s.label, sub: s.code })), ...(state.payers || []).flatMap((x) => localSvcs(x)).map((s) => ({ value: s.id, label: `${s.label}`, sub: 'payer service' }))], [state.svcs, state.payers])
 
   if (section === 'concurrent') {
@@ -691,18 +691,19 @@ function RuleBody({ p, section, patch, saved }) {
   }, [state.svcs, state.payers])
   return (
     <div className="pr-sec" data-testid="pr-mue">
-      <SecHead t="MUEs" s="Medically Unlikely Edits — maximum units per code per day for this payer." />
+      <SecHead t="MUEs" s="Medically Unlikely Edits — maximum units per code per day (and, if the payer sets one, per week). The booking dialog warns when a client's sessions would exceed them." />
       <div className="pr-banner" data-testid="mue-banner">{Icon.alert({ size: 12 })} These MUEs are applied for all <b>Uncompleted</b> appointments for {p.name}.</div>
       <div className="pr-frow" data-testid="mue-daily-row">
         <span className="pr-flabel">Daily Limit (All Codes)</span>
         <Dropdown testid="mue-daily" value={mue.daily || ''} onChange={(v) => setMue({ ...mue, daily: v })} options={[{ value: '', label: '— none —' }, ...MUE_LIMITS.map((m) => ({ value: m, label: m }))]} />
       </div>
       <div className="pr-muetable">
-        <div className="pr-muehead"><span>Billing Code</span><span>Limit</span></div>
+        <div className="pr-muehead"><span>Billing Code</span><span>Daily limit</span><span>Weekly limit</span></div>
         {codes.map((c) => (
           <div className="pr-muerow" key={c} data-testid={`mue-row-${c}`}>
             <b>{c}</b>
             <Dropdown testid={`mue-${c}`} value={mue.per[c] || ''} onChange={(v) => setMue({ ...mue, per: { ...mue.per, [c]: v } })} options={[{ value: '', label: 'No Limits' }, ...MUE_LIMITS.filter((m) => m !== 'No Limits').map((m) => ({ value: m, label: `${m} units` }))]} />
+            <input className="input" type="number" min="0" placeholder="No limit" aria-label={`${c} weekly limit (units)`} data-testid={`mue-wk-${c}`} value={mue.weekly?.[c] || ''} onChange={(e) => setMue({ ...mue, weekly: { ...(mue.weekly || {}), [c]: e.target.value } })} />
           </div>
         ))}
       </div>
