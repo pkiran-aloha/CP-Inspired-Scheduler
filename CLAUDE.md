@@ -7,7 +7,7 @@ Product context (users, purpose, principles) lives in `PRODUCT.md`.
 ## Commands
 
 ```sh
-npm ci              # install (CI uses Node 20)
+npm ci              # install (CI uses Node 22 on ubuntu-24.04)
 npm run dev         # http://localhost:5173
 npm test            # vitest run, jsdom, src/**/*.test.{js,jsx}
 npx vitest run src/__tests__/intake.test.js   # single file
