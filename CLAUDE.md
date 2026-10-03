@@ -20,7 +20,12 @@ Pushes to `main` run tests + build and deploy to GitHub Pages (`.github/workflow
 ## Layout
 
 - `src/state/store.jsx`: seeded workspace, migrations, the reducer, Undo, localStorage persistence. Large file; search it, don't read it whole.
-- `src/lib/`: pure domain engines (claims, era/eraPosting, payroll, intake, settingsMasters, workspaceBackup, reports, smart scheduling). No React here.
+- `src/lib/`: pure domain engines (claims, era/eraPosting, payroll, intake, settingsMasters, workspaceBackup, reports, smart scheduling). No React here. Scheduler intelligence:
+  - `authBudget.js`: authorization burn and the booking guard (weekly hours × window; Warn/Stop modes in `settings.authGuard`).
+  - `risk.js`: explainable cancellation/no-show score fitted on the workspace's own ledger; never sends anything.
+  - `insights.js`: coverage, auth and risk boards for the Scheduler Insights panel.
+  - `abaHours.js`: ⚡ ABA Hours on non-service appointments only; every read goes through `countsAsAbaHours`.
+- `docs/specs/scheduling-intelligence-ideas.md`: research brief and idea catalogue for scheduling; §6 ranks the next round, §7 lists non-goals (no outreach, no "AI", no hard blocking by default).
 - `src/components/`: screens. Sub-folders for `intake/`, `payroll/`, `settings/`.
 - `src/ui/`: shared primitives (Icons, Toast, SignaturePad, avatars).
 - `src/styles.css`: the single stylesheet (~3.6k lines). No CSS modules or Tailwind.
