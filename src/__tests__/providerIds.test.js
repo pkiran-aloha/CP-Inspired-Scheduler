@@ -5,9 +5,13 @@ import { claimGate } from '../lib/claims'
 import { cms1500Data } from '../lib/cms1500'
 import { evaluateAppointmentValidations } from '../lib/settingsMasters'
 
+// One seeded workspace for the whole file: appointment ids are generated per seed, so a
+// claim from one blankState() would point at appointments that don't exist in another.
+const BASE = blankState()
+
 /** The workspace with one insurer claim, its payer set to `rule`, and every provider's Medicaid ID set to `mcd`. */
 function world(rule, mcd = '') {
-  const s = blankState()
+  const s = BASE
   const claim = Object.values(s.claims).find((c) => c.mode !== 'selfpay')
   const payers = s.payers.map((p) => (p.name === claim.payer && rule ? { ...p, rules: { ...(p.rules || {}), providerId: rule } } : p))
   const providers = s.settings.providers.map((x) => ({ ...x, payerIds: { ...(x.payerIds || {}), medicaid: mcd } }))
