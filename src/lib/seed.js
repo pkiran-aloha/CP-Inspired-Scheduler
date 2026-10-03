@@ -3,6 +3,7 @@ import { addDays, isoDate, pad, parseISO, todayISO } from './date'
 import { uid, autoBilling, VERIFY_CHECKS, SERVICES, BILL_CODES } from './model'
 import { SMART_DEFAULTS } from './smart'
 import { AUTH_GUARD_DEFAULTS } from './authBudget'
+import { seedCancelReason } from './cancelReasons'
 import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq, npiOf } from './claims'
 import { defaultPayrollSettings, seedPayProfiles, periodsFor, sheetKey, periodFor } from './payroll'
 
@@ -429,6 +430,7 @@ export function buildSeed(todayISO) {
           staffIds,
           clientIds: [c.id],
           status,
+          ...(status === 'cancelled' || status === 'no-show' ? seedCancelReason(status, c.id, di) : {}),
           location: c.home === 'Main Center' && rnd() < 0.15 ? 'Clinic Room 2' : c.home,
           service: s.svc,
           notes,

@@ -19,7 +19,18 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 
-### ⚡ ABA Hours — behavior-analytic time on non-service appointments (this round)
+### Cancellation reasons & root cause (this round)
+
+Idea C3 from `docs/specs/scheduling-intelligence-ideas.md`. The **Cancellation reasons** Custom List already shipped, but nothing used it. It now does:
+
+- **A cancellation asks why.** The detail card's *Cancel* / *Skip occurrence* opens the practice's reason list instead of cancelling on the spot; the appointment form shows a required *Cancellation reason* whenever the status counts as a cancellation (No Show, Cancelled, or any status with "counts as a cancellation" ticked). The appointment stores `cancelReasonId` and the label at the time (`cancelReason`); moving it back to a live status clears both. Undo restores the previous reason.
+- **Whose side it was on.** A reason that names staff, a clinician, scheduling or the practice (e.g. *Staff illness*) is practice side; everything else is the family's side. `src/lib/cancelReasons.js` owns that rule.
+- **Root cause, not a percentage.** Reports → Operations → **Cancellation Root Cause** groups cancelled and missed sessions by reason with hours lost, share, side, and the weekday and time band each reason clusters on, plus a "Not recorded" row for older cancellations.
+- **Sharper risk scores.** The risk model leaves practice-side cancellations out of a family's attendance history and missed-session streak; a technician's sick day no longer makes the family look unreliable.
+- **Seed and scope.** Seeded cancellations get deterministic reasons (Fridays skew to transport so the report has a pattern to show). Older saved cancellations keep no reason and show as "Not recorded". Nothing is sent to families.
+- Tests: `src/__tests__/cancelReasons.test.js` (side rule, roll-up, report, risk history, seed) and the detail-card flow in `app.test.jsx`.
+
+### ⚡ ABA Hours — behavior-analytic time on non-service appointments (previous round)
 
 Spec and build record: `docs/specs/aba-hours-spec.md`.
 

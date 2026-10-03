@@ -7,6 +7,7 @@ import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek,
 import { needsCoverFor, backfillFor } from '../lib/smart'
 import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
 import { isCancelStatus, statusFor, systemConfigFor } from '../lib/settingsMasters'
+import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
 import { ABA_HOURS_EXPLAIN, abaActivityLabel, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 
 export default function DetailCard({ appt, onClose, onEdit }) {
@@ -21,6 +22,11 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   const arStatus = clientDue>120 ? '120+' : clientDue>60 ? '60+' : clientDue>0 ? 'Current' : 'Clear'
   const toast = useToast()
   const [confirmDel, setConfirmDel] = useState(false)
+  const [pickReason, setPickReason] = useState(false)
+  const cancelWith = (opt) => {
+    setPickReason(false)
+    setStatus('cancelled', { ...(appt.seriesId ? { edited: true } : {}), ...reasonPatch(opt) })
+  }
   const t = TYPES[appt.type] || TYPES.service
   const staffById = Object.fromEntries(staff.map((s) => [s.id, s]))
   const clientById = Object.fromEntries(clients.map((c) => [c.id, c]))
@@ -57,7 +63,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     return { booked: Math.round(mins / 6) / 10, auth: cl.authWeekly }
   }
   const setStatus = (s, extra = {}) => {
-    const prev = { status: appt.status, edited: appt.edited }
+    const prev = { status: appt.status, edited: appt.edited, cancelReasonId: appt.cancelReasonId, cancelReason: appt.cancelReason }
     actions.update(appt.id, { status: s, ...extra })
     toast({ message: `Marked ${statusFor(settings, s).label}${extra.edited ? ' (exception on this occurrence)' : ''}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
   }
@@ -357,7 +363,19 @@ export default function DetailCard({ appt, onClose, onEdit }) {
           )}
         </div>
 
-        {canEdit ? (confirmDel ? (
+        {canEdit ? (pickReason ? (
+          <div className="dactions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }} data-testid="cx-reasons">
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Why is this {appt.seriesId ? 'occurrence' : 'session'} being cancelled?</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {cancelReasonOptions(settings).map((opt) => (
+                <button key={opt.id} className="btn btn-sm" data-testid={`cx-reason-${opt.id}`} onClick={() => cancelWith(opt)}>{opt.label}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex' }}>
+              <button className="btn btn-sm btn-ghost" onClick={() => setPickReason(false)}>Back</button>
+            </div>
+          </div>
+        ) : confirmDel ? (
           <div className="dactions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700 }}>Delete “{appt.title}”?</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -389,7 +407,8 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             {!isCancelStatus(settings, appt.status) && (
               <button
                 className="btn btn-sm"
-                onClick={() => (appt.seriesId ? setStatus('cancelled', { edited: true }) : setStatus('cancelled'))}
+                data-testid="dc-cancel"
+                onClick={() => setPickReason(true)}
                 title={appt.seriesId ? 'Skips this occurrence only — series continues' : 'Keep on calendar, greyed out'}
               >
                 {Icon.ban({ size: 13 })} {appt.seriesId ? 'Skip occurrence' : 'Cancel'}

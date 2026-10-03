@@ -8,6 +8,8 @@ import { agingOf, dueOf, isPrimaryReceivable } from './claims'
 import { scanNeedsCover, needsCoverFor } from './smart'
 import { intakeKpis, isWon, isLost, stageDef, fullName, ageLabel, referralLabel, nextAction, slaState, isTerminal, firstContactDays, referralToAssessmentDays, lastTouchAt, msDays, URGENCY } from './intake'
 import { addDays, isoDate, parseISO, todayISO } from './date'
+import { isCancelStatus } from './settingsMasters'
+import { cancelReasonRows, cancelSide } from './cancelReasons'
 
 export const REPORT_CATS = [
   { id: 'operations', label: 'Operations & Capacity' },
@@ -169,6 +171,30 @@ const REPORTS_RAW = [
           { label: 'Still open', value: open },
           { label: '$ at risk', value: `$${Math.round(rows.reduce((t, r) => t + r.atRisk, 0)).toLocaleString()}` },
         ],
+      }
+    },
+  },
+  {
+    id: 'cancelReasons', cat: 'operations', name: 'Cancellation Root Cause', icon: 'alert',
+    blurb: 'Why sessions were cancelled or missed: the recorded reason, whose side it was on, and the day and time it clusters on.',
+    build(state, ctx) {
+      const list = scoped(state, ctx.days, ctx.scope).filter((a) => (a.type === 'service' || a.type === 'evaluation') && isCancelStatus(state.settings, a.status))
+      const rows = cancelReasonRows(list)
+      const pct = (side) => (list.length ? Math.round((list.filter((a) => cancelSide(a.cancelReason) === side).length / list.length) * 100) : 0)
+      return {
+        columns: [
+          { k: 'reason', label: 'Reason' }, { k: 'side', label: 'On whose side' },
+          { k: 'sessions', label: 'Sessions', t: 'num', ...moneyCell }, { k: 'hours', label: 'Hours lost', t: 'hrs', ...moneyCell },
+          { k: 'share', label: 'Share %', t: 'pct', ...moneyCell }, { k: 'topDay', label: 'Clusters on' }, { k: 'topTime', label: 'Time of day' },
+        ],
+        rows,
+        summary: [
+          { label: 'Cancelled or missed', value: list.length },
+          { label: 'Client side', value: `${pct('client')}%` },
+          { label: 'Practice side', value: `${pct('practice')}%` },
+          { label: 'No reason recorded', value: list.filter((a) => !a.cancelReason).length },
+        ],
+        note: 'Reasons come from Settings → Custom Lists → Cancellation reasons. A reason naming staff, a clinician, scheduling or the practice counts as practice side; practice-side cancellations are left out of a family’s attendance history in the risk score. "Clusters on" needs at least two sessions on the same day or time band.',
       }
     },
   },
