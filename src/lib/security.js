@@ -571,8 +571,9 @@ function actionAreas(state, action) {
       if (keys.includes('billing') || keys.includes('providers')) areas.push('billing')
       if (keys.includes('payroll')) areas.push('payroll')
       if (keys.includes('smart')) areas.push('calendar')
+      if (keys.includes('authGuard') || keys.includes('risk')) areas.push('calendar')
       if (keys.includes('analytics')) areas.push('analytics')
-      if (keys.some((key) => !['theme', 'billing', 'providers', 'payroll', 'smart', 'analytics'].includes(key))) areas.push('settings')
+      if (keys.some((key) => !['theme', 'billing', 'providers', 'payroll', 'smart', 'analytics', 'authGuard', 'risk'].includes(key))) areas.push('settings')
       return [...new Set(areas)]
     }
     case 'setUI': {

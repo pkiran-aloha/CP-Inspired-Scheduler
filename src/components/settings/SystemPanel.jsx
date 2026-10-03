@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react'
 import { blankState } from '../../state/store'
 import { Icon } from '../../ui/Icons'
 import { smartCfg } from '../../lib/smart'
+import { AUTH_GUARD_DEFAULTS, AUTH_MODES, authGuardCfg } from '../../lib/authBudget'
 import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
 import { NAME_STYLES, apptAutoTitle, titleAudit } from '../../lib/apptName'
@@ -35,6 +36,9 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     actions.setSettings({ smart: next })
   }
   const patch = (p) => !readOnly && actions.setSettings(p)
+
+  const ag = authGuardCfg(settings)
+  const patchGuard = (v) => patch({ authGuard: { ...ag, ...v } })
 
   const notify = notificationsCfg(settings)
   const setNotify = (v) => {
@@ -416,6 +420,43 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             <Slider label="Program & cert fit" value={sm.weights.fit} onChange={(v) => patchSmart('weights', { fit: v })} hint="Role ↔ program match, billing-code certifications, last-to-cover" testid="set-smart-w-fit" />
             <Slider label="Workload balance" value={sm.weights.load} onChange={(v) => patchSmart('weights', { load: v })} hint="Spread sessions across the team" testid="set-smart-w-load" />
             <button className="btn btn-ghost btn-sm" style={{ marginTop: 4, alignSelf: 'flex-start' }} disabled={readOnly} data-testid="set-smart-reset" onClick={() => patchSmart('weights', { team: 60, history: 55, fit: 55, load: 45 })}>{Icon.undo({ size: 12 })} Reset weights</button>
+          </div>
+        </Section>
+
+        <Section title="Authorization guard" sub="What the calendar does when a booking spends past the hours on file" testId="set-sys-authguard">
+          <div className="set-grid2">
+            <Row label="Guard strength" hint="A booking that would spend past the authorization is flagged, warned about, or refused. Off disables the check on the calendar; claim staging still validates authorization independently.">
+              <div className="viewseg" data-testid="set-auth-mode">
+                {AUTH_MODES.map((m) => (
+                  <button key={m.id} className={ag.mode === m.id ? 'on' : ''} disabled={readOnly} title={m.hint} onClick={() => patchGuard({ mode: m.id })}>
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </Row>
+            <Row label="Warn at % of the authorization committed" hint="Industry guidance starts the renewal packet once roughly 75–85% of the authorized units are consumed">
+              <NumberField value={ag.warnAtPct} min={50} max={100} suffix="%" testid="set-auth-warn" disabled={readOnly} onCommit={(v) => patchGuard({ warnAtPct: v })} />
+            </Row>
+            <Row label="Stop at % committed (Stop mode only)" hint="Above this share of the window, a new booking is refused while the guard is in Stop mode">
+              <NumberField value={ag.blockAtPct} min={90} max={150} suffix="%" testid="set-auth-block" disabled={readOnly} onCommit={(v) => patchGuard({ blockAtPct: v })} />
+            </Row>
+            <Row label="Renewal alert, days before expiry" hint="Sessions after the expiry date are not payable as scheduled">
+              <NumberField value={ag.expiryWarnDays} min={7} max={120} suffix="d" testid="set-auth-expiry" disabled={readOnly} onCommit={(v) => patchGuard({ expiryWarnDays: v })} />
+            </Row>
+            <Row label="Urgent renewal alert" hint="Escalates the expiry notice to a warning inside the booking dialog">
+              <NumberField value={ag.expiryUrgentDays} min={1} max={60} suffix="d" testid="set-auth-urgent" disabled={readOnly} onCommit={(v) => patchGuard({ expiryUrgentDays: v })} />
+            </Row>
+            <Row label="Under-pace advisory threshold" hint="Booked hours per week below this share of the authorized week are reported as an opportunity — never as an error. Chronic under-delivery is used to justify a smaller renewal.">
+              <NumberField value={ag.underPacePct} min={0} max={100} suffix="%" testid="set-auth-pace" disabled={readOnly} onCommit={(v) => patchGuard({ underPacePct: v })} />
+            </Row>
+            <div />
+          </div>
+          <div className="set-note" data-testid="set-auth-note">
+            {Icon.shield({ size: 13 })} The guard reads the authorization already on file for the client (weekly hours × the window) and the sessions dated inside it. It never contacts a payer and never
+            changes a claim: claim staging keeps its own authorization checks.
+            <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} disabled={readOnly} data-testid="set-auth-reset" onClick={() => patchGuard(AUTH_GUARD_DEFAULTS)}>
+              {Icon.undo({ size: 12 })} Reset guard
+            </button>
           </div>
         </Section>
       </React.Fragment>

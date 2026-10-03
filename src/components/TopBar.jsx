@@ -158,6 +158,10 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         )}
       </div>
 
+      {canSchedule && <button className="iconbtn si-open-btn" data-testid="insights-open" onClick={() => actions.setUI({ insights: true })} title="Scheduler insights — capacity, authorizations and sessions at risk (I)">
+        {Icon.spark({ size: 15 })}
+      </button>}
+
       {canSchedule && <button className={`iconbtn cover-btn ${cover ? 'alert' : ''}`} data-testid="needs-cover" onClick={() => actions.setUI({ inbox: true })} title={cover ? `${cover} cancelled session${cover > 1 ? 's' : ''} can be backfilled` : 'Needs cover — all clear'}>
         {Icon.alert({ size: 15 })}
         {cover > 0 && <span className="cov-n" data-testid="cover-count">{cover}</span>}

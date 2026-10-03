@@ -1,0 +1,364 @@
+import React, { useMemo, useState } from 'react'
+import { useStore } from '../state/store'
+import { useToast } from '../ui/Toast'
+import { Icon } from '../ui/Icons'
+import { PersonAvatar } from '../ui/avatars'
+import { DAY_SHORT, addDays, fmtDayLabel, fmtRange, isoDate, parseISO, todayISO } from '../lib/date'
+import { insightBoard } from '../lib/insights'
+import { AUTH_BANDS } from '../lib/authBudget'
+import { RISK_BANDS } from '../lib/risk'
+
+/** Fill shading. 85–95% is the healthy band the operations literature converges on. */
+const fillTone = (p) => (p >= 95 ? 'hot' : p >= 85 ? 'full' : p >= 55 ? 'mid' : p > 0 ? 'idle' : 'none')
+
+function Meter({ pct, tone = 'accent', height = 6 }) {
+  return (
+    <span className={`si-meter si-meter-${tone}`} style={{ height }} role="presentation">
+      <i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+    </span>
+  )
+}
+
+function Tile({ kpi }) {
+  return (
+    <div className={`si-tile si-tone-${kpi.tone}`} data-testid={`si-kpi-${kpi.id}`}>
+      <span className="si-tile-label">{kpi.label}</span>
+      <b className="si-tile-value">{kpi.value}</b>
+      <span className="si-tile-sub">{kpi.sub}</span>
+    </div>
+  )
+}
+
+/**
+ * Scheduler Insights — the analytical surface behind the calendar.
+ *
+ * It answers the three questions a scheduler asks when the week is already full:
+ * where the capacity is, which authorizations are about to run out, and which sessions
+ * are most likely to fall through. Everything is computed from this workspace in the
+ * browser; nothing is transmitted, and every number links back to the records it came
+ * from. The panel is read-only apart from jumping to the calendar and confirming a
+ * session, both of which go through the store's normal undoable actions.
+ */
+export default function SchedulerInsights({ days, onClose }) {
+  const state = useStore()
+  const { actions, settings } = state
+  const toast = useToast()
+  const [tab, setTab] = useState('coverage')
+  const [scope, setScope] = useState('action') // auth tab: 'action' | 'all'
+  const key = days.join(',')
+  const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.settings, key])
+  const { coverage, auth, risk } = board
+
+  const goToDay = (date, staffId) => {
+    actions.setUI({
+      section: 'calendar',
+      insights: false,
+      ...(staffId ? { staffSel: [staffId], clientSel: [], teamSel: [] } : {}),
+      anchor: date,
+    })
+  }
+  const openAppt = (id) => actions.setUI({ insights: false, openAppt: id })
+  const safeToday = todayISO()
+
+  const confirm = (row) => {
+    const prev = { status: row.appt.status }
+    actions.update(row.appt.id, { status: 'confirmed' })
+    toast({
+      message: `Marked confirmed locally — no reminder was sent to the family`,
+      kind: 'ok',
+      action: { label: 'Undo', onClick: () => actions.update(row.appt.id, prev) },
+    })
+  }
+
+  const showGrid = days.length >= 5
+  const authRows = scope === 'action' ? auth.rows.filter((r) => ['lapsed', 'over', 'expiring', 'no-auth', 'watch'].includes(r.band)) : auth.rows
+
+  const tabs = [
+    { id: 'coverage', label: 'Coverage', icon: 'grid', badge: `${coverage.summary.openHours}h open` },
+    { id: 'auth', label: 'Authorizations', icon: 'shield', badge: auth.summary.needsAction ? `${auth.summary.needsAction} to action` : 'clear', alert: auth.summary.needsAction > 0 },
+    { id: 'risk', label: 'At risk', icon: 'alert', badge: risk.summary.flagged ? `${risk.summary.flagged} flagged` : 'clear', alert: risk.summary.high > 0 },
+  ]
+
+  return (
+    <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal si-modal" role="dialog" aria-modal="true" aria-label="Scheduler insights" data-testid="scheduler-insights">
+        <div className="modal-head">
+          <span className="si-head-ico">{Icon.spark({ size: 15 })}</span>
+          <h2>Scheduler insights</h2>
+          <span className="sbadge" data-testid="si-range">{days.length === 1 ? fmtDayLabel(days[0], 'full') : `${days.length} days · ${fmtDayLabel(days[0])} → ${fmtDayLabel(days[days.length - 1])}`}</span>
+          <span className="spacer f1" />
+          <button className="modal-x" onClick={onClose} aria-label="Close">
+            {Icon.x({ size: 14 })}
+          </button>
+        </div>
+
+        <div className="si-kpis">
+          {board.kpis.map((k) => (
+            <Tile key={k.id} kpi={k} />
+          ))}
+        </div>
+
+        <div className="si-tabs" role="tablist">
+          {tabs.map((t) => (
+            <button key={t.id} role="tab" aria-selected={tab === t.id} className={tab === t.id ? 'on' : ''} data-testid={`si-tab-${t.id}`} onClick={() => setTab(t.id)}>
+              {Icon[t.icon]({ size: 13 })} {t.label}
+              <span className={`si-tab-badge ${t.alert ? 'alert' : ''}`}>{t.badge}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="modal-body si-body">
+          {tab === 'coverage' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Where the capacity is</b>
+                  <span className="muted">
+                    {' '}
+                    — booked staff-hours against the working day ({coverage.hourLabel(coverage.hourStart)}–{coverage.hourLabel(coverage.hourStart + coverage.hourSpan)}), with blocked-out
+                    time removed from the denominator.
+                  </span>
+                </div>
+                <span className={`si-band si-tone-${coverage.summary.fillPct >= 95 ? 'warn' : coverage.summary.fillPct < 40 ? 'info' : 'ok'}`}>
+                  {coverage.summary.fillPct}% filled · healthy band 85–95%
+                </span>
+              </div>
+
+              {showGrid ? (
+                <div className="si-heat" data-testid="si-heat">
+                  <div className="si-heat-hours">
+                    <span />
+                    {Array.from({ length: coverage.hourSpan }, (_, i) => (
+                      <span key={i} className={i % 2 === 0 ? '' : 'faded'}>
+                        {i % 2 === 0 ? coverage.hourLabel(coverage.hourStart + i) : ''}
+                      </span>
+                    ))}
+                  </div>
+                  {coverage.grid.map((row, dow) => {
+                    const day = coverage.perDay.find((d) => d.dow === dow)
+                    return (
+                      <div className="si-heat-row" key={dow}>
+                        <span className="si-heat-dow">
+                          {DAY_SHORT[dow]}
+                          {day && <i>{day.fillPct}%</i>}
+                        </span>
+                        {row.map((cell, i) => (
+                          <span
+                            key={i}
+                            className={`si-cell si-fill-${fillTone(cell.fillPct)}`}
+                            title={`${DAY_SHORT[dow]} ${coverage.hourLabel(coverage.hourStart + i)} — ${cell.bookedHours}h booked of ${cell.availableHours}h available (${cell.fillPct}%), ${cell.sessions} session${cell.sessions === 1 ? '' : 's'}`}
+                          >
+                            {cell.fillPct > 0 ? cell.fillPct : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )
+                  })}
+                  <div className="si-legend">
+                    <span><i className="si-swatch si-fill-none" /> empty</span>
+                    <span><i className="si-swatch si-fill-idle" /> &lt;55%</span>
+                    <span><i className="si-swatch si-fill-mid" /> 55–85%</span>
+                    <span><i className="si-swatch si-fill-full" /> 85–95%</span>
+                    <span><i className="si-swatch si-fill-hot" /> &gt;95%</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="si-daystrip" data-testid="si-daystrip">
+                  {coverage.perDay.map((d) => (
+                    <div className="si-dayrow" key={d.date}>
+                      <button className="si-dayname" onClick={() => goToDay(d.date)} title="Jump the calendar to this day">
+                        {fmtDayLabel(d.date, 'full')}
+                      </button>
+                      <Meter pct={d.fillPct} tone={fillTone(d.fillPct)} height={9} />
+                      <span className="si-daynum">{d.fillPct}%</span>
+                      <span className="muted">{d.sessions} sessions · {d.bookedHours}h of {d.availableHours}h</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="si-head-row">
+                <b>Bookable windows</b>
+                <span className="muted">The clinician is free for the whole span — the fastest place to move or add a session.</span>
+              </div>
+              {!coverage.gaps.length && (
+                <div className="si-empty">
+                  {Icon.check({ size: 16 })} Every clinician's day is fully accounted for in this range.
+                </div>
+              )}
+              <div className="si-gaps">
+                {coverage.gaps.map((g) => (
+                  <button key={`${g.date}-${g.staffId}-${g.from}`} className="si-gap" data-testid={`si-gap-${g.date}-${g.staffId}`} onClick={() => goToDay(g.date, g.staffId)}>
+                    <b>{g.hours}h</b>
+                    <span className="si-gap-when">
+                      {fmtDayLabel(g.date)} · {fmtRange(g.from * 60, g.to * 60, settings.h24)}
+                    </span>
+                    <span className="si-gap-who">
+                      {g.staffName}
+                      {g.role ? <i className="muted"> · {g.role}</i> : null}
+                    </span>
+                    <span className="si-gap-go">{Icon.chevronR({ size: 12 })}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {tab === 'auth' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Authorization burn-down</b>
+                  <span className="muted"> — committed hours against the window on file, with the weekly pace the payer audits.</span>
+                </div>
+                <div className="viewseg">
+                  {[['action', 'Needs action'], ['all', `All ${auth.summary.tracked}`]].map(([id, label]) => (
+                    <button key={id} className={scope === id ? 'on' : ''} data-testid={`si-auth-scope-${id}`} onClick={() => setScope(id)}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {!authRows.length && <div className="si-empty">{Icon.checkCircle({ size: 16 })} No client is near their authorized hours or an expiry in this view.</div>}
+
+              <div className="si-auth-list">
+                {authRows.map((r) => {
+                  const band = AUTH_BANDS[r.band]
+                  return (
+                    <div className={`si-auth si-band-${r.band}`} key={r.clientId} data-testid={`si-auth-${r.clientId}`}>
+                      <div className="si-auth-who">
+                        <PersonAvatar p={r.client} size={26} />
+                        <span>
+                          <b>{r.name}</b>
+                          <i className="muted">{r.insurer} · {r.window.weeklyHours || 0} h/week authorized</i>
+                        </span>
+                      </div>
+                      <div className="si-auth-bar">
+                        <Meter pct={r.pct} tone={band.tone} height={8} />
+                        <div className="si-auth-nums">
+                          <span>
+                            <b>{r.committedHours}h</b> committed of <b>{r.window.authorizedHours}h</b> on file ({r.pct}%)
+                          </span>
+                          <span className={r.remainingHours < 0 ? 'si-neg' : 'muted'}>
+                            {r.remainingHours < 0 ? `${Math.abs(r.remainingHours)}h over` : `${r.remainingHours}h left`}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="si-auth-facts">
+                        <span className={`si-chip si-tone-${band.tone}`}>{band.label}</span>
+                        <span className="si-fact" title="Booked hours in the week that contains today, against the authorized weekly hours">
+                          {r.week.hours}h this week / {r.week.cap}h
+                        </span>
+                        {r.window.daysToExpiry != null && (
+                          <span className={`si-fact ${r.window.daysToExpiry <= 30 ? 'si-warn' : ''}`}>
+                            {r.window.daysToExpiry < 0 ? `lapsed ${Math.abs(r.window.daysToExpiry)}d ago` : `${r.window.daysToExpiry}d to expiry`}
+                          </span>
+                        )}
+                        {r.pace.projectedEmpty && <span className="si-fact" title="Extrapolated from the recent delivered pace and the hours already booked">runs out ≈{r.pace.projectedEmpty}</span>}
+                        <span className="spacer f1" />
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => {
+                            actions.setUI({ section: 'calendar', insights: false, view: 'week', clientSel: [r.clientId], staffSel: [], teamSel: [] })
+                          }}
+                        >
+                          {Icon.cal({ size: 12 })} Show sessions
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </>
+          )}
+
+          {tab === 'risk' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Sessions most likely to fall through</b>
+                  <span className="muted">
+                    {' '}
+                    — {risk.summary.note} Practice rate: {Math.round(risk.summary.base * 100)}%. About <b>{risk.summary.expectedLostHours}h</b> and{' '}
+                    <b>${Math.round(risk.summary.chargeAtRisk).toLocaleString()}</b> of scheduled charge are exposed.
+                  </span>
+                </div>
+              </div>
+
+              {!risk.rows.length && (
+                <div className="si-empty">{Icon.checkCircle({ size: 16 })} Nothing in this range looks likely to be missed. The reminder policy alone is enough.</div>
+              )}
+
+              <div className="si-risk-list">
+                {risk.rows.map((r) => {
+                  const band = RISK_BANDS[r.band]
+                  const a = r.appt
+                  const client = state.clients.find((c) => (a.clientIds || []).includes(c.id))
+                  return (
+                    <div className={`si-risk si-tone-${band.tone}`} key={a.id} data-testid={`si-risk-${a.id}`}>
+                      <div className="si-risk-score" title={`${r.score}% modelled chance this session does not go ahead as booked`}>
+                        <b>{r.score}</b>
+                        <i>{band.label}</i>
+                      </div>
+                      <div className="si-risk-what">
+                        <div className="si-risk-top">
+                          {client && <PersonAvatar p={client} size={18} />}
+                          <b>{a.title || client?.name || 'Session'}</b>
+                          <span className="muted">
+                            {fmtDayLabel(a.date)} · {fmtRange(a.start, a.end, settings.h24)}
+                          </span>
+                        </div>
+                        <div className="si-risk-why">
+                          {r.factors.slice(0, 3).map((f) => (
+                            <span key={f.id} className={`si-factor si-src-${f.source}`} title={f.detail}>
+                              {f.lift > 0 ? '▲' : '▼'} {f.label}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="si-risk-why">
+                          {r.factors[0] && <span className="muted si-reason">{r.factors[0].detail}</span>}
+                        </div>
+                      </div>
+                      <div className="si-risk-act">
+                        <span className="si-action">{r.action}</span>
+                        <div className="si-risk-btns">
+                          {a.status !== 'confirmed' && a.date >= safeToday && (
+                            <button className="btn btn-primary btn-sm" data-testid={`si-confirm-${a.id}`} onClick={() => confirm(r)}>
+                              {Icon.check({ size: 12 })} Confirm
+                            </button>
+                          )}
+                          <button className="btn btn-ghost btn-sm" onClick={() => openAppt(a.id)}>
+                            Open
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="si-note">
+                {Icon.info({ size: 13 })}
+                <span>
+                  Scores are fitted in this browser on the workspace's own appointment history, plus a small set of documented rules the ledger cannot learn (booking lead time, an
+                  unconfirmed slot, a backfilled or rescheduled session, a first session with a technician). Factors marked <i className="si-factor si-src-model">history</i> come from your
+                  records; <i className="si-factor si-src-policy">policy</i> ones are the fixed rules. This is an operations prompt for a human phone call — no reminder is sent, and no
+                  clinical judgement is implied.
+                </span>
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="si-foot">
+          <span>
+            {Icon.info({ size: 12 })} Computed locally from {Object.keys(state.appts).length.toLocaleString()} appointments. Nothing leaves this browser and nothing is transmitted.
+          </span>
+          <span className="spacer f1" />
+          <span className="muted">Deltas always compare against the same-length prior window.</span>
+        </div>
+      </div>
+    </div>
+  )
+}

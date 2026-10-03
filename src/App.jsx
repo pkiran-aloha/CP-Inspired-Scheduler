@@ -42,6 +42,7 @@ import PayrollIdMappingView from './components/payroll/PayrollIdMappingView'
 import QuickBooksPayrollView from './components/payroll/QuickBooksPayrollView'
 import PayrollSetupView from './components/payroll/PayrollSetupView'
 import NeedsCover from './components/NeedsCover'
+import SchedulerInsights from './components/SchedulerInsights'
 import SettingsModal from './components/SettingsModal'
 import SecurityRedirect from './components/SecurityRedirect'
 import CommandPalette from './components/CommandPalette'
@@ -160,6 +161,7 @@ function Shell() {
       if (/^[1-9]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'masters', 'payroll'][Number(k) - 1] })
       else if (k === '0') actions.setUI({ section: 'settings' })
       else if (k === 't') actions.setUI({ anchor: todayISO() })
+      else if (k === 'i') actions.setUI({ insights: !ui.insights })
       else if ((k === 'n' || k === 'a') && section === 'calendar' && canScheduleEdit) setPicking({ date: todayISO(), start: 9 * 60, end: 10 * 60 })
       else if (['d', 'w', 'm', 'g', 'h'].includes(k)) actions.setUI({ section: 'calendar', view: { d: 'day', w: 'week', m: 'month', g: 'agenda', h: 'timeline' }[k] })
       else if (k === 'arrowleft' || k === 'arrowright') {
@@ -176,7 +178,7 @@ function Shell() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-    }, [modal, picking, quickAdd, detailId, section, ui.view, ui.anchor, ui.anPreset, ui.repPreset, settings.weekStart, settings.analytics, actions, toast, palette, kbHelp, canScheduleEdit])
+    }, [modal, picking, quickAdd, detailId, section, ui.view, ui.anchor, ui.insights, ui.anPreset, ui.repPreset, settings.weekStart, settings.analytics, actions, toast, palette, kbHelp, canScheduleEdit])
 
   const openCreate = (type, preset = {}) => {
     const firstStaff = preset.staffIds ?? (ui.staffSel.length === 1 ? ui.staffSel : ui.staffSel.slice(0, 3))
@@ -371,6 +373,7 @@ function Shell() {
       )}
       {kbHelp && <KeysHelp onClose={() => setKbHelp(false)} />}
       {ui.inbox && state.canAccess('calendar', 'view') && <NeedsCover days={days} onClose={() => actions.setUI({ inbox: false })} />}
+      {ui.insights && state.canAccess('calendar', 'view') && <SchedulerInsights days={days} onClose={() => actions.setUI({ insights: false })} />}
       {detailAppt && state.canAccess('calendar', 'view') && (section === 'calendar' || section === 'dashboard') && (
         <DetailCard
           appt={detailAppt}

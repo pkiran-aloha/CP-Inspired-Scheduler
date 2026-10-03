@@ -19,7 +19,17 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 
-### Settings sub-modules (this round)
+### Scheduler Insights — authorization, capacity and cancellation intelligence (this round)
+
+Research and build plan: `docs/specs/scheduling-intelligence-ideas.md` (ranked catalogue, evidence, effort sizing, non-goals). Three ideas from it are implemented here, and the README refuses to claim more than that.
+
+- **Book-time authorization guard** (`src/lib/authBudget.js`). The authorization on file becomes a dated budget: committed vs remaining hours, the booking week against the authorized week, days to expiry and a projected exhaustion date. `authCheckFor` returns one graded verdict — **off / flag / warn / stop** (Settings → System Settings → Authorization guard; shipped default **warn**) — where `reasons` escalate and `notes` (projection, under-paced delivery) never do. Only sessions dated *inside* the window draw on it, so consecutive authorizations cannot double-spend. A clinical session explicitly marked outside ABA hours is not silently skipped: the dialog says so and offers a one-click `⚡ Count it`. The window total is weekly hours × weeks on file — an estimate, labelled as one — and the guard never contacts a payer or touches a claim; claim staging keeps its own checks in `claims.js`.
+- **Cancellation & no-show risk** (`src/lib/risk.js`). A base event rate plus shrunk per-client and day/time cohorts fitted on this workspace's resolved appointments, and a small set of **policy** factors the ledger cannot learn (booking lead time, an unconfirmed slot, a backfilled or rescheduled session, a first session with a technician). Every factor carries `source: 'model'` or `'policy'` and the UI shows which is which; thin data says so instead of pretending. Lead time is policy, not fitted — there is no booked-at stamp to fit it on. `riskQueue` returns the worklist with expected lost hours and probability-weighted charge exposed. Not machine learning, not clinical judgement, and no reminder is ever sent: confirming is a local, undoable status change so the practice still knows who to call.
+- **The Scheduler Insights panel** (`src/lib/insights.js` + `components/SchedulerInsights.jsx`), opened from the calendar toolbar or with `I`, scoped to the visible range: four KPIs (fill against the labelled 85–95% band, open capacity, authorizations needing action, at-risk sessions); a **coverage** heat grid by weekday × hour with blocked time removed from the denominator, plus **named idle windows** ("Tess Tech · Tue 08:00–18:00, 10h") that click through to that day filtered to that clinician; an **authorizations** burn-down table; and the **at-risk** worklist with one-click Confirm/Open. The booking dialog renders the same guard and risk verdicts before you save.
+- **Permissions and persistence:** `setSettings` routes `authGuard`/`risk` to the **calendar** area (schedulers own this, not the settings desk), and a restored backup re-merges the guard defaults instead of dropping them.
+- Coverage: `authBudget.test.js` (23), `schedulingRisk.test.js` (18), `schedulerInsights.test.js` (12) and `schedulerInsights.test.jsx` (12 — the panel, the tabs, an undoable confirm, the "nothing is transmitted" copy, and the guard proven end-to-end: refused in Stop mode, allowed in Warn mode, flagged when a clinical session is not marked as ABA hours).
+
+### Settings sub-modules (previous round)
 
 Settings expands in the main navigation sidebar, with **13 modules and their nested sub-tabs**. The selected configuration panel renders once in the workspace, without a second module menu. Opening Settings also expands a collapsed sidebar so its navigation remains available. Modules appear in the reference order: Appointment Status · Custom Lists (General, Service Type) · Custom Fields · Data Import · Organization · Payroll (General, Earning Code, Overtime Rules) · Qualification · Services · Security (User Accounts, User Roles) · Clinical Integrations · Text Messaging Services · System Settings · Subscription Portal.
 
@@ -54,7 +64,7 @@ Settings expands in the main navigation sidebar, with **13 modules and their nes
 
 Existing saved COB pairs with a consistent secondary paid total and no primary `secondaryPaid` are backfilled once; conflicting amounts are flagged `cobReviewNeeded` and block new COB postings or reported-PR billing rather than being silently capped. Original claim and payment histories remain available for manual investigation. The 835 importer deliberately parks secondary CLPs and now parks any primary with an active secondary filing. There is **no** secondary 835 auto-allocation, compliant secondary 837/1500, full EDI or bank reconciliation. This is a fictional-data demo, not a production billing or compliance system.
 
-### Intake Manager — header, menus and stage transitions (this round)
+### Intake Manager — header, menus and stage transitions (previous round)
 
 **The intake header kept breaking and the pipeline refused moves it had itself offered.** Every item below was reproduced in a real headless browser at 1280/1366/1440/1920 px, fixed, and re-verified end to end (board → drawer → waitlist → booking → calendar → conversion → client roster, plus the form and the referral register):
 
@@ -106,6 +116,8 @@ No card charge, live patient billing, deposit reconciliation, cross-claim patien
 Keep pure billing/backup calculations in `src/lib/`, financial transitions in a **single** reducer action so one `U` can reverse them, and cover both the UI action and persistence in tests. Do not save Undo snapshots to localStorage: the seeded calendar already contains ~1,000 appointments. When adding a durable collection, add it to `WORKSPACE_FIELDS` in `src/lib/workspaceBackup.js`, validate it on import, and include it in a round-trip/Undo test. Export a backup before destructive migrations or before replacing local storage.
 
 Next useful areas to verify against the older spec are secondary document format fidelity, service-line ERA/PLB-to-deposit reconciliation, and an end-to-end external COB/deposit/refund reconciliation workflow. No real PHI or live EDI traffic should be used for those tests.
+
+For the scheduling line specifically, the intended next three are ranked in `docs/specs/scheduling-intelligence-ideas.md` §6: the unit-level authorization ledger with per-payer rule packs, travel feasibility and route sequencing, and structured cancellation reason codes.
 
 ## License
 
