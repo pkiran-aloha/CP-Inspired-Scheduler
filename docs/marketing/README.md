@@ -110,6 +110,7 @@ A/R Manager counts each dollar once. Insurance balances and the patient share th
 - Aging by client or by payer: current, 31–60, 61–90, 91–120 and 121+ days, with an over-90 KPI.
 - Patient share is capped at the open primary balance and held while a secondary filing is still pending.
 - **Record receipt** directly from a client's claim, and download a clearly marked draft patient-share statement.
+- **Client statements with a history.** Issue a numbered statement, download it as a PDF, and record how you delivered it. Its balance updates as the family pays. You deliver it; the app never mails or emails anything.
 - CSV export of the aging view.
 
 ### Payroll: pay the way an ABA practice actually works
@@ -210,7 +211,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Intake | `src/lib/intake.js`, `src/lib/intakeDocs.js` (packet and summary PDFs), `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
 | Billing, claims & CMS-1500 | `src/lib/claims.js` (`lineModifiers`, `mergeSameDayLines`, `posFor`), `src/lib/authUnits.js` (`unitRuleFor`), `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |
 | ERA posting, payments & recoupments | `src/lib/era.js`, `src/lib/eraPosting.js`, `src/lib/paymentLedger.js` (`planRecoupment`, patient receipts), `src/components/PaymentCenterView.jsx` |
-| A/R | `src/components/ArManagerView.jsx`, `src/lib/claims.js` (AR engine), `src/lib/billingDocs.js` (statements) |
+| A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/lib/claims.js` (AR engine), `src/lib/statements.js` (client statements), `src/lib/billingDocs.js` |
 | Payroll | `src/lib/payroll.js`, `src/lib/payrollExport.js`, `src/components/payroll/*`, `src/lib/settingsMasters.js` (earning codes, overtime floor) |
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/AnalyticsView.jsx` |
 | Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |

@@ -8,6 +8,8 @@ import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
 import { dueOf, isPrimaryReceivable, patientResponsibilityOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
+import { downloadDoc } from '../lib/exportKit'
+import { SEND_METHODS, statementBalance, statementStatus, statementPdf } from '../lib/statements'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -143,6 +145,7 @@ export default function GenerateInvoiceView() {
                       <PersonAvatar p={r.client} size={28} />
                       <b style={{ fontSize: 14 }}>{r.client?.name}</b>
                       <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700 }}>{money(r.due)} reported share · {money(r.total)} charges</span>
+                      {r.due > 0 && <button className="btn btn-xs btn-primary" data-testid={`gi-issue-${r.client?.id}`} onClick={() => { const res = actions.issueStatement(r.client.id); toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' }) }}>Issue statement</button>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {r.claims.slice(0, 10).map((c) => (
@@ -159,6 +162,62 @@ export default function GenerateInvoiceView() {
           </div>
         </div>
       </div>
+      <StatementHistory />
+    </div>
+  )
+}
+
+const STATUS_LABEL = { issued: 'Issued', sent: 'Sent', paid: 'Paid', void: 'Void' }
+
+/** Every statement issued, newest first: download, record how it was delivered, or void it. */
+function StatementHistory() {
+  const state = useStore()
+  const { actions, clients } = state
+  const toast = useToast()
+  const [via, setVia] = useState({})
+  const [voiding, setVoiding] = useState(null)
+  const [reason, setReason] = useState('')
+  const list = Object.values(state.statements || {}).sort((a, b) => b.at - a.at)
+  const say = (res) => toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  return (
+    <div className="panel" data-testid="gi-statements" style={{ margin: '0 16px 16px', borderRadius: 14, border: '1px solid var(--line)', overflow: 'hidden' }}>
+      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--panel-2)' }}>
+        <b style={{ fontSize: 14 }}>Statements</b>
+        <div className="muted" style={{ fontSize: 12 }}>Issued statements and their live balance. The app does not mail or email them: download the PDF, deliver it yourself, then mark how it went out.</div>
+      </div>
+      {!list.length ? (
+        <div className="muted" style={{ padding: 20, fontSize: 12 }} data-testid="gi-statements-empty">No statements yet. Select a client with a reported share above and press Issue statement.</div>
+      ) : list.map((st) => {
+        const status = statementStatus(state, st)
+        const client = clients.find((c) => c.id === st.clientId)
+        return (
+          <div key={st.id} data-testid={`gi-st-${st.id}`} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 20px', borderBottom: '1px solid var(--line)', fontSize: 12 }}>
+            <span className="ln-code">{st.no}</span>
+            <b>{client?.name || st.clientId}</b>
+            <span className="muted">{new Date(st.at).toISOString().slice(0, 10)}</span>
+            <span>{money(st.total)} issued · <b>{money(statementBalance(state, st))}</b> open</span>
+            <span className="tag" data-testid={`gi-st-status-${st.id}`}>{STATUS_LABEL[status]}{st.sentAt && status !== 'void' ? ` · ${SEND_METHODS.find((m) => m.id === st.sentVia)?.label || 'sent'}` : ''}</span>
+            <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button className="btn btn-xs" data-testid={`gi-st-pdf-${st.id}`} onClick={() => { downloadDoc(`${st.no}.pdf`, statementPdf(state, st).output('blob'), 'application/pdf'); toast({ message: `${st.no} downloaded as a PDF. Nothing was sent.`, kind: 'ok' }) }}>{Icon.download({ size: 11 })} PDF</button>
+              {status !== 'void' && !st.sentAt && (
+                <>
+                  <select className="input" style={{ height: 26, fontSize: 11 }} aria-label="How it was delivered" data-testid={`gi-st-via-${st.id}`} value={via[st.id] || ''} onChange={(e) => setVia({ ...via, [st.id]: e.target.value })}>
+                    <option value="">How was it delivered?</option>
+                    {SEND_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+                  </select>
+                  <button className="btn btn-xs" data-testid={`gi-st-sent-${st.id}`} onClick={() => say(actions.markStatementSent(st.id, via[st.id]))}>Mark sent</button>
+                </>
+              )}
+              {status !== 'void' && (voiding === st.id ? (
+                <>
+                  <input className="input" style={{ height: 26, fontSize: 11 }} placeholder="Reason" aria-label="Reason for voiding" data-testid={`gi-st-reason-${st.id}`} value={reason} onChange={(e) => setReason(e.target.value)} />
+                  <button className="btn btn-xs" data-testid={`gi-st-void-ok-${st.id}`} onClick={() => { const res = actions.voidStatement(st.id, reason); say(res); if (res.ok) { setVoiding(null); setReason('') } }}>Void</button>
+                </>
+              ) : <button className="btn btn-xs" data-testid={`gi-st-void-${st.id}`} onClick={() => { setVoiding(st.id); setReason('') }}>Void…</button>)}
+            </span>
+          </div>
+        )
+      })}
     </div>
   )
 }
