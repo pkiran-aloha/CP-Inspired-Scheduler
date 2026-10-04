@@ -22,6 +22,13 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 ### Hackathon wave 4 — records (in progress)
 
+**Cabinet.** Staff → **Cabinet** is a register of documents that expire: credentials, licenses, background checks, CPR, liability insurance, training, client consents and authorization letters, and contracts.
+- **What a record holds:** each document belongs to a staff member, a client or the practice, with issued and expiry dates, a reference and notes. Only these details are recorded; no file is stored.
+- **Alerts:** documents expired or due within 30 days raise a banner on the screen and a badge on the Staff rail item.
+- **Editing:** an edit keeps a history of expiry changes. Archiving (not deleting) stops the alerts.
+- **Undo and backups:** each change is one Undo. The register is a new durable collection, included in workspace backups.
+- **Code and tests:** `src/lib/cabinet.js` and `CabinetView.jsx`; tests are in `cabinet.test.jsx`.
+
 **Client statements.** Billing → Generate Invoice → **Issue statement** turns what a family owes into a numbered statement. The numbering is `STM-<yyyymm>-<nnn>`, with one line per claim, frozen on the day it is issued.
 
 The **Statements** list underneath gives each statement:

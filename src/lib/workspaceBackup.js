@@ -12,13 +12,15 @@ export const WORKSPACE_FIELDS = [
   'intakeRequests', 'referralSources',
   // client statements issued to families (billing)
   'statements',
+  // cabinet: register of expiring documents (metadata only)
+  'cabinet',
 ]
 
 export const BACKUP_FORMAT = 'aloha-aba-workspace'
 export const BACKUP_VERSION = 3
 const PRE_SECURITY_FIELDS = WORKSPACE_FIELDS.filter((key) => key !== 'security')
 
-const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'statements']
+const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'statements', 'cabinet']
 const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields', 'payProfiles', 'referralSources']
 const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
@@ -169,7 +171,7 @@ export function readWorkspaceBackup(text, defaults) {
       data = { ...workspaceData(defaults), ...data, security: normalizeSecurity(defaults.security, data.staff) }
     } else {
       // statements arrived after version 3 shipped: an older v3 file simply has none yet
-      data = { ...data, statements: data.statements ?? {} }
+      data = { ...data, statements: data.statements ?? {}, cabinet: data.cabinet ?? {} }
       validate(data, WORKSPACE_FIELDS)
     }
     data = { ...workspaceData(data), meta: { ...data.meta, pcfCleared: true, legacyCustomCleared: true } } // ignore history; never erase captured answers on restore
@@ -187,7 +189,7 @@ export function readWorkspaceBackup(text, defaults) {
       security: normalizeSecurity(defaults.security, file.staff),
       payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {},
       payProfiles: defaults.payProfiles || [], paySheets: {}, payRuns: {}, payExports: {},
-      intakeRequests: {}, referralSources: defaults.referralSources || [], statements: {},
+      intakeRequests: {}, referralSources: defaults.referralSources || [], statements: {}, cabinet: {},
       // Preserve any captured appointment fields rather than rerunning old cleanup
       // migrations on data restored from a backup.
       meta: { pcfCleared: true, legacyCustomCleared: true },

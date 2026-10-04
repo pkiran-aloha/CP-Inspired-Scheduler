@@ -2,7 +2,7 @@
 
 _Sources: src/lib/payroll.js, src/lib/payrollExport.js, src/components/payroll/PayrollCommon.jsx, src/components/payroll/PayrollCycleView.jsx, src/components/payroll/ProcessPayrollView.jsx, src/components/payroll/ReviewRegisterModal.jsx, src/components/payroll/PayRunsView.jsx, src/components/payroll/PayrollIdMappingView.jsx, src/components/payroll/PayrollSummaryView.jsx, src/components/payroll/PayrollSetupView.jsx, src/components/payroll/TimesheetSubmissionView.jsx, src/components/payroll/QuickBooksPayrollView.jsx, src/components/settings/PayrollPanel.jsx, src/lib/settingsMasters.js, src/state/store.jsx, src/lib/security.js_
 
-_Last synced with main at dcfce22 on 2026-10-04 (plus client statements)._
+_Last synced with main at c8e666b on 2026-10-04 (plus the Cabinet)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 

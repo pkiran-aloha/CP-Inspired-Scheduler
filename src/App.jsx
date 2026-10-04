@@ -23,6 +23,7 @@ import IntakeFormView from './components/intake/IntakeFormView'
 import ReferralSourcesView from './components/intake/ReferralSourcesView'
 import MastersView from './components/MastersView'
 import StaffView from './components/StaffView'
+import CabinetView from './components/CabinetView'
 import BillingView from './components/BillingView'
 import BilledFilesView from './components/BilledFilesView'
 import ArManagerView from './components/ArManagerView'
@@ -289,6 +290,7 @@ function Shell() {
         {section === 'referrals' && <ReferralSourcesView />}
         {section === 'masters' && <MastersView />}
         {section === 'staff' && <StaffView />}
+        {section === 'cabinet' && <CabinetView />}
         {section === 'billing' && <BillingView />}
         {section === 'bil-files' && <BilledFilesView />}
         {section === 'bil-secondary' && <SecondaryBillingView />}

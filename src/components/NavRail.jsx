@@ -5,6 +5,7 @@ import { useToast } from '../ui/Toast'
 import { scanNeedsCover } from '../lib/smart'
 import { intakeKpis } from '../lib/intake'
 import { stagedAppts } from '../lib/claims'
+import { cabinetAlerts } from '../lib/cabinet'
 import { RANGE_PRESETS } from '../lib/analytics'
 import { useMedia } from '../lib/useMedia'
 import { canAccessSection, resolveAccount } from '../lib/security'
@@ -25,7 +26,10 @@ export const SECTIONS = [
     { id: 'referrals', to: 'referrals', label: 'Referral Sources' },
   ] },
   { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }, { id: 'cfdefs', label: 'Custom Fields' }] },
-  { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload' },
+  { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload', subs: [
+    { id: 'staff-roster', to: 'staff', label: 'Staff Roster' },
+    { id: 'cabinet', to: 'cabinet', label: 'Cabinet' },
+  ] },
   { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
   { id: 'reports', label: 'Reports', icon: 'file', kbd: '6', desc: 'Exportable PMS reports & validations' },
@@ -94,8 +98,8 @@ export default function NavRail() {
     // Intake badges: anything past its stage SLA or with no logged touch is a
     // family waiting on us — surface it on the rail, not just inside the module.
     const iq = intakeKpis(state.intakeRequests || {})
-    return { calendar: cover, billing: staged + denied, billingHot: denied > 0, clients: iq.overdue.length + iq.stalled.filter((r) => !iq.overdue.includes(r)).length, clientsHot: iq.overdue.length > 0 }
-  }, [appts, state.claims, state.clients, state.intakeRequests])
+    return { staff: cabinetAlerts(state, todayISO()).length, calendar: cover, billing: staged + denied,billingHot: denied > 0, clients: iq.overdue.length + iq.stalled.filter((r) => !iq.overdue.includes(r)).length, clientsHot: iq.overdue.length > 0 }
+  }, [appts, state.claims, state.clients, state.intakeRequests, state.cabinet])
 
   return (
     <nav className={`navrail ${collapsed ? 'collapsed' : ''} no-print`} data-testid="navrail" aria-label="Sections">
