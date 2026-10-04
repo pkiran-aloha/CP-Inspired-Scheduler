@@ -562,7 +562,7 @@ const REPORTS_RAW = [
       const inWin = all.filter((c) => c.lines.some((l) => ctx.days.includes(l.dos)))
       const rows = inWin
         .map((c) => {
-          const age = agingOf(c)
+          const age = agingOf(c, undefined, state)
           const due = dueOf(c)
           return {
             no: c.no, client: clients[c.clientId]?.name || '—', payer: c.payer, kind: c.method === 'secondary' ? 'COB filing (not A/R)' : 'Primary receivable',

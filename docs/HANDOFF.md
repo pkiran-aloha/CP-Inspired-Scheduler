@@ -16,6 +16,15 @@ Last updated **2026-10-03** (end of session). Any agent resuming work: read this
 
 ## Shipped (newest first)
 
+Hackathon wave 2: configurable billing (#8). This wave is in progress. The plan and the audit are in `docs/specs/configurable-billing.md`, which lists 6 slices.
+- **Slice 1, Payment Terms** (Payer → Billing Rules → Payment Terms; `planPayerTerms`, `filingDaysOf` in `claims.js`). The payer record's `policy` now drives:
+  - claim aging
+  - the copay estimate
+  - the payment presets
+  - CMS-1500 box 7b
+
+  Filing days use one rule everywhere: payer, then practice default, then policy. Saving is validated and has one Undo.
+
 Hackathon wave 1 — billing (from the departments' hackathon list):
 - **Billing Health dashboard widget** (`billingKpis.js`): clean-claim %, denial %, net collection %, cash posted, days in A/R, A/R >90 %, charge lag, recoupments; formula + target on hover; on the default board (last); saved boards add it from the gallery.
 - **Authorization Utilization report** (`reports.js` → `authUtil`): per client × code across the auth window; used / expected / projected %, status, renewal flag (30 days or 75 %), "Verify" for converted units.
@@ -36,7 +45,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 | Wave | Items | Notes / open questions |
 |---|---|---|
-| **Configurable billing (#8)** | "We didn't have to submit hard-code requests for billing" | Maintainer's answer: *"the need should not arise — implement such customizability."* Inventory every billing behaviour still hard-coded (payer policy table `PAYER_POLICY` in `claims.js`, `BILL_CODES` in `model.js`, CMS-1500 box values, modifiers, unit sizes) and move each to a payer/service master setting with a UI. Start with a short audit + proposal. |
+| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slice 1 has shipped. Slices 2–6 are in `docs/specs/configurable-billing.md`. Slice 2 (billed units follow the payer unit rule) changes billed amounts, so get the maintainer's sign-off first. |
 | **Intake (#5)** | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | Maintainer picked all three. Downloadable intake packet + filled request as PDF (jsPDF is installed); trace the General Requests → Client Intake → Client List hand-offs end-to-end and fix confusing steps; run `impeccable` critique on the intake screens first. |
 | **Inbox, tasks, notifications (#1 + #2)** | Message center + task assignment + notifications | Local, in-workspace only (no delivery off-device, no client portal yet). |
 | **Records (#4, #10, #13)** | Client statements; Cabinet expirations; RBT PDU report | Statements: history, PDF, mark sent/paid (no email). Cabinet: documents register with expiry + alerts (metadata only). PDU: log entries per staff vs renewal requirement — confirm requirement per credential with the maintainer. |
@@ -53,7 +62,8 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 - Intake conversion doesn't copy approved authorization units into the new client's pool.
 - Integrations panel stores API keys in plain local settings (needs the backend).
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
-- Merged remote branches still on GitHub: `feat/auth-utilization`, `feat/billing-id-rule`, `feat/billing-kpis`, `feat/recoupments` — maintainer deletes them (`git push origin --delete …`).
+- Merged remote branches still on GitHub: `docs/agents-handoff` and later feature branches. The maintainer deletes them with `git push origin --delete …`.
+- Generic payer edits (the `payer` action, `patch` mode) take no Undo snapshot. Only Payment Terms does.
 
 ## Resume prompt (paste into a new session)
 

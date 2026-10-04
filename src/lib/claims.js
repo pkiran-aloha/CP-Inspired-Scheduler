@@ -16,7 +16,44 @@ export const PAYER_POLICY = {
   'Medicaid (CA)': { kind: 'medicaid', avgDays: 35, timely: 270, coins: 1, copay: 0 },
   'Self-pay': { kind: 'selfpay', avgDays: 14, timely: 365, coins: 1, copay: 0 },
 }
-export const payerPolicy = (payer) => PAYER_POLICY[payer] || { kind: 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 }
+const POLICY_DEFAULT = { kind: 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 }
+// With `state`, the payer master record's own `policy` (edited in Payer → Billing
+// Rules → Payment Terms) wins; the constant is only the seed / fallback.
+export const payerPolicy = (payer, state) => {
+  const rec = state ? (state.payers || []).find((p) => p.name === payer) : null
+  return { ...POLICY_DEFAULT, ...(PAYER_POLICY[payer] || {}), ...(rec?.policy || {}) }
+}
+// One answer for "how many days does this payer allow to file": payer record,
+// then the practice default (Settings → Billing defaults), then the policy.
+export function filingDaysOf(state, payer) {
+  const rec = (state?.payers || []).find((p) => p.name === payer)
+  return rec?.ext?.filingDeadlineDays ?? state?.settings?.billing?.defaultFilingDays ?? payerPolicy(payer, state).timely ?? 90
+}
+
+export const PAYER_KINDS = [
+  { id: 'commercial', label: 'Commercial' },
+  { id: 'medicaid', label: 'Medicaid' },
+  { id: 'government', label: 'Other government' },
+  { id: 'selfpay', label: 'Self-pay' },
+]
+const twoDp = (n) => Math.abs(Math.round(n * 100) - n * 100) < 1e-9
+// Payment Terms editor → validated patch for one payer record.
+export function planPayerTerms(state, payerId, input = {}) {
+  const p = (state.payers || []).find((x) => x.id === payerId)
+  if (!p) return { ok: false, msg: 'Payer no longer exists.' }
+  const num = (v) => (v === '' || v == null ? NaN : Number(v))
+  const avgDays = num(input.avgDays)
+  const coinsPct = num(input.coinsPct)
+  const copay = num(input.copay)
+  const filing = input.filingDays === '' || input.filingDays == null ? null : Number(input.filingDays)
+  if (!PAYER_KINDS.some((k) => k.id === input.kind)) return { ok: false, msg: 'Choose a payer kind.' }
+  if (!Number.isInteger(avgDays) || avgDays < 1 || avgDays > 365) return { ok: false, msg: 'Expected days to pay must be a whole number from 1 to 365.' }
+  if (!Number.isFinite(coinsPct) || coinsPct < 0 || coinsPct > 100 || !twoDp(coinsPct)) return { ok: false, msg: 'Estimated payer share must be 0–100% with at most 2 decimals.' }
+  if (!Number.isFinite(copay) || copay < 0 || copay > 10000 || !twoDp(copay)) return { ok: false, msg: 'Copay must be a dollar amount from 0 to 10,000 with at most 2 decimals.' }
+  if (filing != null && (!Number.isInteger(filing) || filing < 1 || filing > 999)) return { ok: false, msg: 'Filing deadline must be a whole number from 1 to 999 days, or blank for the practice default.' }
+  const policy = { ...payerPolicy(p.name, state), kind: input.kind, avgDays, coins: Math.round(coinsPct * 100) / 10000, copay }
+  return { ok: true, msg: `${p.name} payment terms saved`, payer: { id: p.id, policy, ext: { ...(p.ext || {}), filingDeadlineDays: filing } } }
+}
 
 export const CLAIM_STATUSES = {
   draft: { label: 'Draft', ink: 'var(--muted)', bg: 'var(--panel-3)' },
@@ -344,12 +381,12 @@ export function patientResponsibilityOf(state, primary) {
   return r2(Math.min(remaining, Math.max(0, (Number(reported) || 0) - (primary.patientPaid || 0))))
 }
 
-export const copayOf = (c, client) => (c.mode === 'insurance' ? Math.min(payerPolicy(c.payer).copay * c.lines.length, c.charges) : 0)
+export const copayOf = (c, client, state) => (c.mode === 'insurance' ? Math.min(payerPolicy(c.payer, state).copay * c.lines.length, c.charges) : 0)
 
-export function agingOf(c, today = isoDate(new Date())) {
+export function agingOf(c, today = isoDate(new Date()), state) {
   if (!c.submittedAt || c.status !== 'submitted') return null
   const days = Math.max(0, Math.round((parseISO(today) - new Date(c.submittedAt)) / 86400000))
-  const avg = payerPolicy(c.payer).avgDays
+  const avg = payerPolicy(c.payer, state).avgDays
   return { days, late: days > avg * 1.6, bucket: days <= 30 ? '0–30' : days <= 60 ? '31–60' : days <= 90 ? '61–90' : '90+' }
 }
 
@@ -366,7 +403,7 @@ export function claimStats(state, days) {
   const d2p = paid.filter((c) => c.submittedAt).map((c) => Math.max(0, Math.round((c.closedAt - c.submittedAt) / 86400000)))
   const buckets = { '0–30': 0, '31–60': 0, '61–90': 0, '90+': 0 }
   let lateCount = 0
-  for (const c of pending) { const a = agingOf(c); if (a) { buckets[a.bucket] += Math.round(Math.max(0, dueOf(c))); if (a.late) lateCount++ } }
+  for (const c of pending) { const a = agingOf(c, undefined, state);if (a) { buckets[a.bucket] += Math.round(Math.max(0, dueOf(c))); if (a.late) lateCount++ } }
   return {
     staged: { n: staged.length, $: Math.round(staged.reduce((t, a) => t + computeBilling(a), 0)) },
     drafts: { n: drafts.length, $: money(drafts, (c) => c.charges) },
@@ -522,7 +559,7 @@ export function claimsCsv(state, claims) {
 
 // quick "post payment" presets, computed per claim
 export function quickPosts(state, claim, client) {
-  const pol = payerPolicy(claim.payer)
+  const pol = payerPolicy(claim.payer, state)
   const open = Math.max(0, dueOf(claim))
   const cp = claim.mode === 'insurance' ? Math.min(pol.copay * claim.lines.length, open) : 0
   const coins = r2(open * pol.coins)
@@ -631,8 +668,7 @@ export function secondaryClaimPatch(state, primary, { id, at = Date.now(), seque
   const client = (state.clients || []).find((c) => c.id === primary.clientId)
   const secPayer = (state.payers || []).find((p) => p.id === client.secondary.payerId)
   const due = dueOf(primary)
-  const pol = payerPolicy(secPayer.name)
-  const filingDays = secPayer.ext?.filingDeadlineDays ?? state.settings?.billing?.defaultFilingDays ?? pol.timely ?? 90
+  const filingDays = filingDaysOf(state, secPayer.name)
   const maxDos = (primary.lines || []).reduce((m, l) => l.dos > m ? l.dos : m, primary.dosTo || '')
   const timelyDue = maxDos ? isoDate(new Date(parseISO(maxDos).getTime() + filingDays * 86400000)) : null
   const secondary = {
@@ -656,9 +692,8 @@ export function secondaryClaimPatch(state, primary, { id, at = Date.now(), seque
 
 // ---------- claim v2 backfill (idempotent defaults; used by migration + new assembly) ----------
 export function claimV2Defaults(c, state) {
-  const pol = payerPolicy(c.payer)
   const maxDos = c.lines.reduce((m, l) => (l.dos > m ? l.dos : m), c.dosTo || '')
-  const filing = state.payers?.find?.((p) => p.name === c.payer)?.ext?.filingDeadlineDays || pol.timely || 120
+  const filing = filingDaysOf(state, c.payer)
   const timelyDue = maxDos ? isoDate(new Date(parseISO(maxDos).getTime() + filing * 86400000)) : null
   return {
     method: c.method || (c.status === 'draft' ? null : c.mode === 'selfpay' ? 'selfpay' : 'ch'),

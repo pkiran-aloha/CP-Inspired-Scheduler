@@ -19,7 +19,20 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 
-### Hackathon wave 1 — billing (this round)
+### Hackathon wave 2 — configurable billing (in progress)
+
+The goal is that a payer contract change needs a setting, not a code change. The audit and the slice plan are in `docs/specs/configurable-billing.md`.
+
+**Payment Terms per payer.** Masters → Payer → Billing Rules → **Payment Terms** sets these for each payer:
+- payer kind
+- expected days to pay
+- estimated payer share (%)
+- estimated copay per line
+- filing deadline (blank uses the practice default)
+
+Claim aging (the *late* flag), the copay estimate, the payment presets, the timely-filing date and CMS-1500 box 7b now read the payer record. They used to read a constant keyed by payer name. There is now one filing-days rule everywhere: payer deadline, then the practice default, then the payer policy. Saving is validated (whole days, percentages and money with at most 2 decimals) and takes one Undo. `planPayerTerms` / `filingDaysOf` are in `src/lib/claims.js`. Tests: `payerTerms.test.jsx`.
+
+### Hackathon wave 1 — billing
 
 **Provider IDs: NPI, Medicaid ID or both.** Masters → Payer → Billing Rules → **Provider IDs** lets billing staff choose which identifier a payer expects for the rendering provider, with a readiness line naming who can't be billed under the rule yet. `src/lib/providerIds.js` drives three places: the appointment validation *Missing NPI / Medicaid ID* (which now reads the provider records in Billing → Provider IDs instead of an NPI field staff rows never had, ending the false flag on every clinician), the claim gate (only once a payer chooses a rule, so existing claims are unaffected), and the CMS-1500 (NPI in 23b/33a; Medicaid ID with qualifier 1D in 23b/33b; both). Tests: `providerIds.test.js`.
 

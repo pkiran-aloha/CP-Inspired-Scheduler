@@ -4,7 +4,7 @@ import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion, LOST_REASONS } from '../lib/intake'
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
-import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims } from '../lib/claims'
+import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims, planPayerTerms } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
@@ -579,6 +579,10 @@ export function reducer(state, action) {
       const list = state.payers || []
       if (action.mode === 'add') return { ...state, payers: [...list, action.item] }
       if (action.mode === 'patch') return { ...state, payers: list.map((p) => (p.id === action.item.id ? { ...p, ...action.item } : p)) }
+      if (action.mode === 'terms') {
+        const tx = planPayerTerms(state, action.id, action.input)
+        return tx.ok ? { ...state, payers: list.map((p) => (p.id === tx.payer.id ? { ...p, ...tx.payer } : p)), history: pushSnap(state, ['payers']) } : state
+      }
       return { ...state, payers: list.filter((p) => p.id !== action.id) }
     }
     case 'svc': {
@@ -805,6 +809,13 @@ function createActions(state, dispatch, rawState = state) {
     removeCfDef: (id) => dispatch({ type: 'cfdef', mode: 'remove', id }),
     updatePayer: (item) => dispatch({ type: 'payer', mode: 'patch', item }),
     removePayer: (id) => dispatch({ type: 'payer', mode: 'remove', id }),
+    /** Payer payment terms (kind, days to pay, payer share, copay, filing window): validated, one Undo. */
+    setPayerTerms: (id, input) => {
+      const plan = planPayerTerms(state, id, input)
+      if (!plan.ok) return { ok: false, msg: plan.msg }
+      dispatch({ type: 'payer', mode: 'terms', id, input })
+      return { ok: true, msg: plan.msg }
+    },
     // ---- billing pipeline: mark lines billed/paid with an undoable snapshot ----
     markBilling: (ids, status) => {
       const patch = ids.map((id) => ({ id, billing: { ...(state.appts[id]?.billing || {}), status, billedAt: Date.now() } }))
