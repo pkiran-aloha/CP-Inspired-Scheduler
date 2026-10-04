@@ -20,7 +20,13 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
-### Hackathon wave 4 — records (in progress)
+### Hackathon wave 4 — records
+
+**Credentials & PDUs.** Reports → Clinical → **Credentials & PDUs** lists every clinician against what renewal needs. It uses the BACB baseline plus the practice's own target:
+- **BCBA and BCaBA:** 32 and 20 CEUs per 2-year cycle.
+- **RBTs:** a yearly competency assessment, supervision % over the last 30 days (5% minimum), and the practice's annual RBT PDU target (default 12 h).
+
+Renewal dates come from credential documents in the Cabinet; without one, a rolling window is used. Entries (CEU, PDU, competency) are logged in Staff → Cabinet → *Training & CEU log*, which is also where the practice's RBT PDU target is set. The log is a new durable collection (`pdus`), included in backups, and each entry is one Undo. Code: `src/lib/credentials.js`; tests: `credentials.test.jsx`.
 
 **Cabinet.** Staff → **Cabinet** is a register of documents that expire: credentials, licenses, background checks, CPR, liability insurance, training, client consents and authorization letters, and contracts.
 - **What a record holds:** each document belongs to a staff member, a client or the practice, with issued and expiry dates, a reference and notes. Only these details are recorded; no file is stored.

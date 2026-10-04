@@ -1258,6 +1258,12 @@ export function planSettingsOp(state, op, payload = {}) {
       if (patch.portalUrl && !/^https:\/\//.test(patch.portalUrl)) return fail('The portal link must be an https:// address.')
       return done('Subscription record updated', { patch: { subscription: { ...cfg, ...patch } } })
     }
+    case 'credentials.patch': {
+      const raw = payload.patch?.rbtPduHours
+      const n = Number(raw)
+      if (raw === '' || raw == null || !Number.isFinite(n) || n < 0 || n > 100 || Math.round(n * 4) !== n * 4) return fail('The RBT PDU target must be 0–100 hours, in quarter hours.')
+      return done(`RBT annual PDU target set to ${n} h`, { patch: { credentials: { ...(settings.credentials || {}), rbtPduHours: n } } })
+    }
     case 'billing.reasons': {
       const plan = planReasonLists(payload)
       if (!plan.ok) return fail(plan.msg)
