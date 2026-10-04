@@ -16,13 +16,15 @@ export const WORKSPACE_FIELDS = [
   'cabinet',
   // CEU / PDU / competency log per clinician (credentials report)
   'pdus',
+  // inbox: tasks assigned to staff
+  'tasks',
 ]
 
 export const BACKUP_FORMAT = 'aloha-aba-workspace'
 export const BACKUP_VERSION = 3
 const PRE_SECURITY_FIELDS = WORKSPACE_FIELDS.filter((key) => key !== 'security')
 
-const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'statements', 'cabinet', 'pdus']
+const maps = ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'statements', 'cabinet', 'pdus', 'tasks']
 const lists = ['staff', 'clients', 'teams', 'payers', 'svcs', 'customFields', 'payProfiles', 'referralSources']
 const record = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 
@@ -173,7 +175,7 @@ export function readWorkspaceBackup(text, defaults) {
       data = { ...workspaceData(defaults), ...data, security: normalizeSecurity(defaults.security, data.staff) }
     } else {
       // statements arrived after version 3 shipped: an older v3 file simply has none yet
-      data = { ...data, statements: data.statements ?? {}, cabinet: data.cabinet ?? {}, pdus: data.pdus ?? {} }
+      data = { ...data, statements: data.statements ?? {}, cabinet: data.cabinet ?? {}, pdus: data.pdus ?? {}, tasks: data.tasks ?? {} }
       validate(data, WORKSPACE_FIELDS)
     }
     data = { ...workspaceData(data), meta: { ...data.meta, pcfCleared: true, legacyCustomCleared: true } } // ignore history; never erase captured answers on restore
@@ -191,7 +193,7 @@ export function readWorkspaceBackup(text, defaults) {
       security: normalizeSecurity(defaults.security, file.staff),
       payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {},
       payProfiles: defaults.payProfiles || [], paySheets: {}, payRuns: {}, payExports: {},
-      intakeRequests: {}, referralSources: defaults.referralSources || [], statements: {}, cabinet: {}, pdus: {},
+      intakeRequests: {}, referralSources: defaults.referralSources || [], statements: {}, cabinet: {}, pdus: {}, tasks: {},
       // Preserve any captured appointment fields rather than rerunning old cleanup
       // migrations on data restored from a backup.
       meta: { pcfCleared: true, legacyCustomCleared: true },
