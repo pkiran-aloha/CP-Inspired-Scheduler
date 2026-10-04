@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intake.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at 04c62e2 on 2026-10-04 (plus the intake conversion carry-forward)._
+_Last synced with main at 388d080 on 2026-10-04._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
