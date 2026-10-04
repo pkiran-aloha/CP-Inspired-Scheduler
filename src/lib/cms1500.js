@@ -49,13 +49,21 @@ export function cms1500Data(state, claim) {
   const showNpi = idRule !== 'medicaid'
   const showMcd = idRule !== 'npi'
   const today = usDateTs(Date.now())
+  // box 1 program: the payer record's CMS type; the name/kind guess only when none is set
+  const CMS_BOX1 = { Medicaid: 'MEDICAID', Medicare: 'MEDICARE', TRICARE: 'TRICARE', 'Group Health Plan': 'GROUP HEALTH PLAN', Commercial: 'GROUP HEALTH PLAN', 'Blue Cross/Blue Shield': 'GROUP HEALTH PLAN', 'Feeding Program': 'OTHER', Other: 'OTHER' }
   const posKind = (name) => {
+    if (claim.mode === 'selfpay') return 'OTHER'
+    if (CMS_BOX1[idPayer?.cmsType]) return CMS_BOX1[idPayer.cmsType]
     const p = String(name || '').toLowerCase()
     if (pol.kind === 'medicaid' || /medicaid/.test(p)) return 'MEDICAID'
     if (/self/.test(p)) return 'OTHER'
     if (/tricare|va\b/.test(p)) return 'TRICARE'
     return 'GROUP HEALTH PLAN'
   }
+  // box 32 follows the payer's Claims Settings rule. The service facility is the practice
+  // itself here, so the default ("leave blank if same as billing NPI") leaves it blank.
+  const box32Rule = String(idPayer?.rules?.claims?.box32 || 'Auto-populate')
+  const showBox32 = /^Always/.test(box32Rule)
   const b = (id, col, label, value, span = 1) => ({ id, col, span, label, value })
   return {
     boxes: [
@@ -68,10 +76,10 @@ export function cms1500Data(state, claim) {
       b('4', 0, "Insured's name (if other than patient)", [client.guardian ? `${lastFirst(client.guardian)} (guardian)` : 'SAME AS PATIENT']),
       b('4b', 0, 'Patient relationship to insured', [client.guardian ? '05' : '01']),
       b('5', 0, "Insured's address", [client.home || '—']),
-      b('6', 0, 'Other health benefits?', ['NO']),
+      b('6', 0, 'Other health benefits?', [client.secondary?.payerId ? 'YES' : 'NO']),
       b('9', 0, 'Referral · records', [dx.length > 1 ? `Records support ${dx.length} diagnoses` : 'Records not required']),
-      b('10', 0, 'Insurance plan ID', [String(pol.kind === 'medicaid' ? 41 : 40)]),
-      b('7a', 0, 'Group / FEIN number', [`GRP-${String(400 + (client.id ? client.id.charCodeAt(1) * 7 : 0)).slice(-4)}`]),
+      b('10', 0, 'Insurance plan ID', [idPayer?.ext?.plan || '—']),
+      b('7a', 0, 'Group / FEIN number', [idPayer?.ext?.group || '—']),
       b('7b', 0, 'Timely filing days', [String(filingDaysOf(state, claim.payer))]),
       b('10d', 0, 'Accept assignment', ['YES']),
       b('11', 0, 'Authorization number', [authNoOf(client)]),
@@ -96,8 +104,8 @@ export function cms1500Data(state, claim) {
       b('29', 0, 'Account subdivision', [`PULSE-${(client.id || 'c').toUpperCase()}`]),
       b('30', 0, 'Balance due', [`due $ ${money2(dueOf(claim))}`]),
       b('31', 0, 'Signature on file', [`X ${today}`]),
-      b('32', 0, 'Service facility — name, address, NPI', [`${org.name || 'Practice'} · ${org.address || ''}`, `NPI ${org.npi || npiOf('s12')}`], 3),
-      b('33', 0, 'Billing provider — name, address, phone', [org.name || 'Practice', `${org.address || ''} · ph ${org.phone || '—'}`, `NPI ${org.npi || npiOf('s12')}`], 2),
+      b('32', 0, 'Service facility — name, address, NPI', showBox32 ? [`${org.name || 'Practice'} · ${org.address || ''}`, `NPI ${org.npi || '—'}`] : ['—'], 3),
+      b('33', 0, 'Billing provider — name, address, phone', [org.name || 'Practice', `${org.address || ''} · ph ${org.phone || '—'}`, `NPI ${org.npi || '—'}`], 2),
       b('33a', 0, 'Rendering provider', [renderStaff?.name || '—', ...(showNpi ? [`NPI ${rIds.npi}`] : []), ...(showMcd ? [`1D ${rIds.medicaid || '—'}`] : [])]),
       b('33b', 0, 'Other ID (qualifier 1D · Medicaid)', [showMcd ? `1D ${rIds.medicaid || '—'}` : '—']),
     ],
@@ -334,7 +342,7 @@ function drawPage(doc, state, claim, d, lines, pageNo) {
       if (c.blank) spec.lines = [{ text: ' ', size: 1 }]
       cell(doc, x, y, w, H, spec)
       if (c.optsRow) {
-        opts(doc, x + 13, y + H * 0.52, [['MEDICARE\n(Medicare #)', d.typeOfService === 'MEDICAID'], ['MEDICAID\n(Medicaid #)', d.typeOfService === 'MEDICAID'], ['TRICARE\n(ID#/DoD#)', d.typeOfService === 'TRICARE'], ['CHAMPVA\n(Member ID#)', false], ['GROUP HEALTH PLAN\n(ID#)', d.typeOfService === 'GROUP HEALTH PLAN'], ['FECA', false], ['BLK LUNG', false], ['OTHER\n(ID#)', d.typeOfService === 'OTHER']])
+        opts(doc, x + 13, y + H * 0.52, [['MEDICARE\n(Medicare #)', d.typeOfService === 'MEDICARE'], ['MEDICAID\n(Medicaid #)', d.typeOfService === 'MEDICAID'], ['TRICARE\n(ID#/DoD#)', d.typeOfService === 'TRICARE'], ['CHAMPVA\n(Member ID#)', false], ['GROUP HEALTH PLAN\n(ID#)', d.typeOfService === 'GROUP HEALTH PLAN'], ['FECA', false], ['BLK LUNG', false], ['OTHER\n(ID#)', d.typeOfService === 'OTHER']])
       }
       if (c.dobSex) {
         opts(doc, x + w - 40, y + H * 0.62, [['M', val(d, '3')[1] === 'M'], ['F', val(d, '3')[1] === 'F']])

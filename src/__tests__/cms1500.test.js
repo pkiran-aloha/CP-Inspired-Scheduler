@@ -16,7 +16,8 @@ describe('cms1500 mapping', () => {
     expect(box(d, '33').value[0]).toBe(st.settings.org.name)
     expect(box(d, '25').value[0]).toBe(st.settings.org.taxId)
     expect(box(d, '1a').value[0]).toMatch(/^[A-Z]{2,3}\d{6,7}$/) // payer-prefixed member id
-    expect(box(d, '32').value[1]).toMatch(/NPI \d{10}/)
+    expect(box(d, '33').value[2]).toMatch(/NPI \d{10}/)
+    expect(box(d, '32').value).toEqual(['—']) // default rule: facility = billing provider, leave blank
     expect(box(d, '23').value[0]).toMatch(/^AUTH-/)
   })
 
@@ -67,6 +68,24 @@ describe('cms1500 mapping', () => {
     expect(posFor({ location: 'Jefferson Elementary' })).toBe('11') // school names aren't labeled 'school' — center fallback ok
     expect(posFor({ location: 'Jefferson Elementary School' })).toBe('03')
     expect(posFor({ location: 'Telehealth (video)' })).toBe('10')
+  })
+
+  it('program, plan, group, other coverage and box 32 come from the payer and client records', () => {
+    const payer = st.payers.find((p) => p.name === claim.payer)
+    const withPayer = (patch, clientPatch = {}) => ({
+      ...st,
+      payers: st.payers.map((p) => (p === payer ? { ...p, ...patch } : p)),
+      clients: st.clients.map((c) => (c.id === claim.clientId ? { ...c, ...clientPatch } : c)),
+    })
+    const m = cms1500Data(withPayer({ cmsType: 'Medicaid', ext: { ...payer.ext, plan: 'PLAN-9', group: 'G-77' }, rules: { ...(payer.rules || {}), claims: { box32: 'Always display Service Facility Name and Location' } } }, { secondary: { payerId: 'py-x' } }), claim)
+    expect(m.typeOfService).toBe('MEDICAID')
+    expect(box(m, '10').value[0]).toBe('PLAN-9')
+    expect(box(m, '7a').value[0]).toBe('G-77')
+    expect(box(m, '6').value[0]).toBe('YES')
+    expect(box(m, '32').value[1]).toMatch(/NPI \d{10}/)
+    const blank = cms1500Data(withPayer({ cmsType: 'Medicare', ext: { ...payer.ext, plan: '', group: '' } }, { secondary: null }), claim)
+    expect(blank.typeOfService).toBe('MEDICARE')
+    expect([box(blank, '10').value[0], box(blank, '7a').value[0], box(blank, '6').value[0]]).toEqual(['—', '—', 'NO'])
   })
 
   it('payer policy feeds timely filing days (Medicaid gets the longest runway)', () => {

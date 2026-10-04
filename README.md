@@ -54,6 +54,14 @@ Claims are never changed. Details and limits are in `docs/specs/configurable-bil
 
 Self-pay invoices carry none. Place of service now uses CMS codes (home 12, school 03, office 11, telehealth at home 10, community 99). The old list labelled 06 as home. `lineModifiers` / `posFor` are in `src/lib/claims.js`. Tests: `claimModifiers.test.jsx`.
 
+**CMS-1500 from the payer record.** These boxes now come from the records instead of being guessed or invented:
+- **Box 1 (program):** the payer's CMS type.
+- **Box 1c / 7a (group number) and box 10 (plan ID):** the payer's billing identifiers. When those are blank the form shows "—"; it used to invent a value.
+- **Box 6:** "YES" when the client has secondary coverage. Medicaid is the payer of last resort and must see other coverage.
+- **Box 32:** follows the payer's Claims Settings rule. The default leaves it blank, because the service facility is the billing provider.
+- **Practice NPI:** an invented NPI is never printed.
+- **Fixed:** the MEDICARE checkbox used to be ticked on Medicaid claims.
+
 ### Hackathon wave 1 — billing
 
 **Provider IDs: NPI, Medicaid ID or both.** Masters → Payer → Billing Rules → **Provider IDs** lets billing staff choose which identifier a payer expects for the rendering provider, with a readiness line naming who can't be billed under the rule yet. `src/lib/providerIds.js` drives three places: the appointment validation *Missing NPI / Medicaid ID* (which now reads the provider records in Billing → Provider IDs instead of an NPI field staff rows never had, ending the false flag on every clinician), the claim gate (only once a payer chooses a rule, so existing claims are unaffected), and the CMS-1500 (NPI in 23b/33a; Medicaid ID with qualifier 1D in 23b/33b; both). Tests: `providerIds.test.js`.
