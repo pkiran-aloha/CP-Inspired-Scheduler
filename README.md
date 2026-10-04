@@ -22,6 +22,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 ### Hackathon wave 3 — intake (in progress)
 
+**Intake PDFs.** Two downloads, both generated in the browser (nothing is sent). The builders are pure and live in `src/lib/intakeDocs.js`; tests are in `intakeDocs.test.jsx`.
+- **Intake packet** (Intake Requests toolbar): a blank packet for families. It has fill-in fields, a checklist of documents to bring, and a signature line for each consent.
+- **Summary PDF** (request drawer): everything recorded on the request, including every document and consent status.
+
 **Conversion carries the intake data into the client chart.**
 - **Approved units:** these come from the payer's authorization decision and go into the client's unit pool as 15-minute units, under 97153. They are marked to check against the payer letter, because the request does not say which codes they cover. They used to be divided as if they were hours.
 - **Weekly hours guard:** derived from those units.

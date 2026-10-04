@@ -5,6 +5,8 @@ import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import { Dropdown } from '../fields'
 import { IntakeDetail } from './IntakeDetail'
+import { downloadDoc } from '../../lib/exportKit'
+import { docToPdf, intakePacketDoc } from '../../lib/intakeDocs'
 import { IntakeAvatar, KpiStrip, StagePill, SlaChip, UrgencyChip, fmtDate, pctText, sinceText } from './IntakeCommon'
 import {
   INTAKE_STAGES, STAGE_BY_ID, OPEN_STAGES, isTerminal, isWon, isLost, stageDef,
@@ -128,6 +130,10 @@ export default function IntakeRequestsView() {
           <button className={mode === 'board' ? 'on' : ''} data-testid="iq-mode-board" title="Pipeline board" aria-pressed={mode === 'board'} onClick={() => setMode('board')}>{Icon.rows({ size: 13 })}</button>
           <button className={mode === 'list' ? 'on' : ''} data-testid="iq-mode-list" title="Worklist" aria-pressed={mode === 'list'} onClick={() => setMode('list')}>{Icon.table({ size: 13 })}</button>
         </div>
+        <button className="btn btn-sm" data-testid="iq-dl-packet" title="Blank intake packet for families to fill in, as a PDF" onClick={() => {
+          downloadDoc('intake-packet.pdf', docToPdf(intakePacketDoc(state)).output('blob'), 'application/pdf')
+          toast({ message: 'Blank intake packet downloaded as a PDF. Print it or attach it to your own email.', kind: 'ok' })
+        }}>{Icon.download({ size: 13 })} Intake packet</button>
         <button className="btn btn-sm btn-primary" data-testid="iq-new" onClick={openBlank}>{Icon.plus({ size: 13 })} New intake</button>
       </SectionBar>
 

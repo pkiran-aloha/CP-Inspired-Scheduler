@@ -4,6 +4,8 @@ import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
 import { Dropdown } from '../fields'
 import { isoDate } from '../../lib/date'
+import { downloadDoc } from '../../lib/exportKit'
+import { docToPdf, intakeSummaryDoc } from '../../lib/intakeDocs'
 import {
   INTAKE_STAGES, GATES, DOC_STATUS, INTAKE_DOCS, CONSENT_KINDS, VOB_FIELDS, VOB_STATUS,
   LOST_REASONS, WAITLIST_REASONS, WAITLIST_PRIORITIES, CONTACT_CHANNELS, CONTACT_OUTCOMES, ASSESSMENT_INSTRUMENTS, ASSESSMENT_OUTCOMES,
@@ -462,6 +464,10 @@ export function IntakeDetail({ id, onClose, onToast }) {
       <DrawerHead req={req} onClose={onClose}>
         <button className="btn btn-sm" data-testid="iq-log-contact" onClick={() => { setTab('contacts'); setLogOpen(true) }}>{Icon.phone({ size: 12 })} Log contact</button>
         <button className="btn btn-sm" data-testid="iq-edit-form" onClick={() => actions.setUI({ section: 'intake-new', intakeEdit: id })}>{Icon.edit({ size: 12 })} Edit form</button>
+        <button className="btn btn-sm" data-testid="iq-dl-summary" title="Download everything on this request as a PDF" onClick={() => {
+          downloadDoc(`${req.no || 'intake'}-summary.pdf`, docToPdf(intakeSummaryDoc(state, req)).output('blob'), 'application/pdf')
+          toast({ message: `${req.no} summary downloaded as a PDF. Generated in this browser; nothing was sent.`, kind: 'ok' })
+        }}>{Icon.download({ size: 12 })} Summary PDF</button>
       </DrawerHead>
 
       <div className="iq-dbody">

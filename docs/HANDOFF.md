@@ -24,8 +24,11 @@ Hackathon wave 3: Intake (#5). This wave is in progress.
   - **Claims:** `memberIdOf` / `authNoOf` print the chart's real values (secondary filings use the secondary's). They fall back to the demo placeholder only when blank.
   - **Client form:** gains Member ID and Authorization # fields.
 
-  Next slices:
-  - downloadable intake packet and filled-request PDFs
+- **Slice 2, intake PDFs** (`src/lib/intakeDocs.js`). Two downloads, generated locally:
+  - **Intake packet** (worklist toolbar): blank fields, a documents checklist and consent signature lines.
+  - **Summary PDF** (drawer header): the full record.
+
+  Next slice:
   - intake UX fixes: actionable gate items, naming, one Convert button, a lighter first-call form, landing on the new client's profile after conversion
 
 - **Help & Wiki screen** (`HelpView.jsx`, `src/lib/wiki.js`): rail footer button + Cmd/Ctrl+K; renders and searches the bundled `docs/wiki` (incl. the FAQ) for every role. `wiki.test.js` also guards the wiki's `_Sources:` and links in CI.
