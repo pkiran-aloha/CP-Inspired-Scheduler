@@ -162,7 +162,7 @@ export default function ReportsView() {
   const autoFill = (r) => {
     const a = state.appts[r._link?.id]
     if (!a) return
-    const unitMins = a.billing?.unitMins || 30
+    const unitMins = a.billing?.unitMins || 15
     const units = Math.round(((a.end - a.start) / unitMins) * 100) / 100
     const prev = { billing: a.billing }
     actions.update(a.id, { billing: { ...(a.billing || {}), units } })

@@ -423,7 +423,7 @@ function PayerSvcForm({ payer, form, onClose, onSave }) {
     status: form.mode === 'local' ? (form.svc.status || 'active') : 'active',
     charge: o.charge ?? (linked ? form.svc.rate : '') ?? '',
     contract: o.contract ?? '',
-    unitSize: o.unitSize || (linked ? `${form.svc.unitMins} Minutes` : '30 Minutes'),
+    unitSize: o.unitSize || (linked ? `${form.svc.unitMins} Minutes` : '15 Minutes'),
     rounding: o.rounding || (linked ? form.svc.rounding : 'AMA') || 'AMA',
     credentials: o.credentials || (linked ? form.svc.credentials : []) || [],
     dx1: o.dx1 || '', dx2: o.dx2 || '',

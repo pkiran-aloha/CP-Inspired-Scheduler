@@ -14,7 +14,7 @@
 // Pure: no React, no store. It never contacts a payer; every number traces to the
 // client record, the payer master or an appointment on the calendar.
 
-import { BILL_CODES } from './model'
+import { BILL_CODES, LEGACY_UNIT_DEFAULTS, unitsFor } from './model'
 import { ensurePayer, payerForAppt, svcById, svcList } from './master'
 import { credOf, credentialIssue } from './claims'
 import { isCancelStatus } from './settingsMasters'
@@ -37,17 +37,7 @@ export const ROUNDING_HELP = {
   Truncate: 'only complete units count',
 }
 
-/** Minutes → billable units under a rounding rule. */
-export function unitsFor(minutes, unitMins, rounding = 'AMA') {
-  const m = Math.max(0, Number(minutes) || 0)
-  const u = Number(unitMins) || 15
-  const full = Math.floor(m / u)
-  const rem = m - full * u
-  if (rounding === 'Round Up') return Math.ceil(m / u)
-  if (rounding === 'Round Down' || rounding === 'Truncate') return full
-  if (rounding === 'Nearest') return Math.round(m / u)
-  return full + (rem * 2 > u ? 1 : 0) // AMA
-}
+export { unitsFor } // lives in model.js so code-default billing (autoBilling) uses the same rule
 
 const codeUnitMins = (state, code) =>
   svcList(state).find((s) => s.code === code)?.unitMins || BILL_CODES.find((c) => c.id === code)?.unitMins || 15
@@ -127,6 +117,61 @@ export function normalizeAuthUnits(state) {
   })
   if (!changed) return state
   return { ...state, clients, meta: { ...(state.meta || {}), authUnitsMigrated: clients.filter((c) => c.authUnitsConverted).length } }
+}
+
+/**
+ * One-time move of a saved workspace from the old 30-minute code defaults to the
+ * Medicaid / CPT 15-minute norm. Only untouched defaults move: a service still on the
+ * old unit length for its code. Its rate (and any payer override charge that follows it)
+ * scales so the hourly charge is unchanged; authorization pools for those codes scale to
+ * the new unit; appointments not yet on a claim are re-counted with the midpoint rule.
+ * Claims are never touched. Runs once (meta.unitNorm15); after that it returns the same object.
+ * ponytail: a pool is scaled per code, not per payer, so a client whose payer sets its own
+ * unit size for that code keeps a pool in the wrong unit; fix by hand in Clients → Edit.
+ */
+export function normalizeUnitNorms(state) {
+  if (state.meta?.unitNorm15) return state
+  const r2 = (n) => Math.round(n * 100) / 100
+  const factor = {} // svc id → new/old unit length
+  const svcs = (state.svcs || []).map((s) => {
+    const old = LEGACY_UNIT_DEFAULTS[s.code]
+    const now = BILL_CODES.find((c) => c.id === s.code)
+    if (!old || !now || s.unitMins !== old.unitMins || now.unitMins === old.unitMins) return s
+    factor[s.id] = now.unitMins / old.unitMins
+    return { ...s, unitMins: now.unitMins, rate: s.rate === old.rate ? now.rate : r2(s.rate * factor[s.id]) }
+  })
+  // codes whose unit length moved: a converted service, or no service at all (the code default moved)
+  const codes = new Set(svcs.filter((s) => factor[s.id]).map((s) => s.code))
+  // (the latter only with evidence: a session of that code still billed in the old unit)
+  const oldUnitSeen = new Set(Object.values(state.appts || {}).filter((a) => a.billing && a.billing.unitMins === LEGACY_UNIT_DEFAULTS[a.billing.code]?.unitMins).map((a) => a.billing.code))
+  for (const code of oldUnitSeen) if (!svcs.some((s) => s.code === code)) codes.add(code)
+  const payers = (state.payers || []).map((p) => {
+    const ov = p.svcOv || {}
+    const ids = Object.keys(ov).filter((id) => factor[id] && !ov[id]?.unitSize)
+    if (!ids.length) return p
+    const scale = (v, f) => (v === '' || v == null || !Number.isFinite(Number(v)) ? v : r2(Number(v) * f))
+    return { ...p, svcOv: { ...ov, ...Object.fromEntries(ids.map((id) => [id, { ...ov[id], charge: scale(ov[id].charge, factor[id]), contract: scale(ov[id].contract, factor[id]) }])) } }
+  })
+  const clients = (state.clients || []).map((c) => {
+    const pool = c.authUnits || {}
+    if (!Object.keys(pool).some((code) => codes.has(code))) return c
+    const old = (code) => LEGACY_UNIT_DEFAULTS[code].unitMins / BILL_CODES.find((b) => b.id === code).unitMins
+    return { ...c, authUnits: Object.fromEntries(Object.entries(pool).map(([code, u]) => [code, codes.has(code) ? Math.round(u * old(code)) : u])) }
+  })
+  const next = { ...state, svcs, payers, clients }
+  const billed = new Set(Object.values(state.claims || {}).filter((c) => c.status !== 'void').flatMap((c) => (c.lines || []).map((l) => l.apptId)))
+  let appts = state.appts
+  for (const a of Object.values(state.appts || {})) {
+    const b = a.billing
+    const old = b && LEGACY_UNIT_DEFAULTS[b.code]
+    if (!old || billed.has(a.id) || b.unitMins !== old.unitMins || a.type === 'drive') continue
+    const rule = unitRuleFor(next, a)
+    if (rule.unitMins === b.unitMins) continue
+    const minutes = b.minutes || (a.end || 0) - (a.start || 0)
+    if (appts === state.appts) appts = { ...state.appts }
+    appts[a.id] = { ...a, billing: { ...b, unitMins: rule.unitMins, rounding: rule.rounding, minutes, units: unitsFor(minutes, rule.unitMins, rule.rounding), rate: r2((Number(b.rate) || 0) * (rule.unitMins / b.unitMins)) } }
+  }
+  return { ...next, appts, meta: { ...(state.meta || {}), unitNorm15: true } }
 }
 
 /**

@@ -32,6 +32,21 @@ The goal is that a payer contract change needs a setting, not a code change. The
 
 Claim aging (the *late* flag), the copay estimate, the payment presets, the timely-filing date and CMS-1500 box 7b now read the payer record. They used to read a constant keyed by payer name. There is now one filing-days rule everywhere: payer deadline, then the practice default, then the payer policy. Saving is validated (whole days, percentages and money with at most 2 decimals) and takes one Undo. `planPayerTerms` / `filingDaysOf` are in `src/lib/claims.js`. Tests: `payerTerms.test.jsx`.
 
+**Billed units follow Medicaid norms and the payer's own rule.** Medicaid is the largest payer, so its norms are now the default:
+- The ABA codes (97151–97158, 0362T, 0373T) and H2019 bill **per 15 minutes**. Rates in the code table are per 15-minute unit, so the charge per hour is unchanged.
+- Units are counted by the CPT midpoint rule: 8 minutes or more makes a unit.
+
+The booking dialog, Quick book and Billing's Auto-fix all count units with the same rule chain as the authorization ledger: payer override, then payer service, then service master, then code. Claims and authorization pools therefore always agree, and the Billing tab shows the rule it used.
+
+Medicaid adds up a day's minutes for one code and one client and rounds them once. When rounding each session separately bills a different total, Reports → Validations raises a **Billing** warning. Merging those lines on the claim is a later slice.
+
+Saved workspaces are migrated once:
+- services still on the old 30-minute defaults move to 15 minutes, with their rate and any payer override charge scaled to match
+- authorization pools for those codes scale to the new unit
+- appointments not yet on a claim are re-counted
+
+Claims are never changed. Details and limits are in `docs/specs/configurable-billing.md`.
+
 ### Hackathon wave 1 — billing
 
 **Provider IDs: NPI, Medicaid ID or both.** Masters → Payer → Billing Rules → **Provider IDs** lets billing staff choose which identifier a payer expects for the rendering provider, with a readiness line naming who can't be billed under the rule yet. `src/lib/providerIds.js` drives three places: the appointment validation *Missing NPI / Medicaid ID* (which now reads the provider records in Billing → Provider IDs instead of an NPI field staff rows never had, ending the false flag on every clinician), the claim gate (only once a payer chooses a rule, so existing claims are unaffected), and the CMS-1500 (NPI in 23b/33a; Medicaid ID with qualifier 1D in 23b/33b; both). Tests: `providerIds.test.js`.
@@ -51,7 +66,7 @@ Ideas A2 + A4 from `docs/specs/scheduling-intelligence-ideas.md`. The booking gu
 - **Payer rule packs at booking.** Masters → Payer → Billing Rules → **MUEs** (per-code and all-code daily maximums, already configured, previously unused) plus a new per-code **weekly limit** are checked when a session is booked, and so is the credential rule billing already uses (who may render a code, plus any credentials the payer lists on the service).
 - **One guard, two views.** The booking dialog merges the hours check (`authBudget.js`) with the unit/payer check and shows the session's units ("4 units of 97153, 30-min units, AMA rounding · 61 of 72 authorized units committed"). Over-pool is *Stop* severity, capped to a warning in the shipped Warn mode; nothing hard-blocks unless the practice chooses Stop.
 - **Migration.** Saved workspaces convert each client's weekly hours × window weeks into units, split across the codes the client is actually booked under (all to 97153 when nothing is booked), marked *converted — verify against the payer letter* until someone saves the client. Fresh workspaces seed realistic per-code pools with varied headroom.
-- **Honest limits.** The credential rows keyed by education level (Doctoral / Master's / …) can't drive a check: staff records carry no education level. This workspace's billing codes use 30-minute units (`BILL_CODES.unitMins`); real 97153 units are 15 minutes. Correct that per payer in the service override, or in the service master. An intake conversion does not yet copy its approved units into the new client's pool.
+- **Honest limits.** The credential rows keyed by education level (Doctoral / Master's / …) can't drive a check: staff records carry no education level. (Since wave 2 the codes use 15-minute units: see Hackathon wave 2.) An intake conversion does not yet copy its approved units into the new client's pool.
 - Tests: `src/__tests__/authUnits.test.jsx` (rounding rules, override precedence, ledger, warn/stop/merge, MUE + weekly caps, credentials, migration, seed, the client form).
 
 ### Cancellation reasons & root cause (previous round)

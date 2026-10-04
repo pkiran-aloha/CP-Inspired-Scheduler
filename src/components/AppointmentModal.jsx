@@ -28,7 +28,7 @@ import {
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
 import { AUTH_BANDS, authGuardCfg, authCheckFor } from '../lib/authBudget'
-import { mergeAuthChecks, unitCheckFor } from '../lib/authUnits'
+import { mergeAuthChecks, unitCheckFor, unitRuleFor, unitsFor } from '../lib/authUnits'
 import {
   ABA_HOURS_EXPLAIN, ABA_HOURS_EXAMPLES, ABA_HOURS_NON_EXAMPLES,
   ABA_QUALIFYING_ACTIVITIES, ABA_NON_QUALIFYING_ACTIVITIES,
@@ -319,7 +319,9 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
 
   // ---------- billing ----------
   const code = BILL_CODES.find((c) => c.id === f.billingCode) || BILL_CODES[0]
-  const derivedUnits = f.type === 'drive' ? 0 : Math.max(0, Math.round((dur / code.unitMins) * 4) / 4)
+  // payer override → payer service → service master → code (15-min, midpoint rule by default)
+  const unitRule = unitRuleFor(state, { ...f, billingCode: code.id })
+  const derivedUnits = f.type === 'drive' ? 0 : unitsFor(dur, unitRule.unitMins, unitRule.rounding)
   const units = f.units ?? derivedUnits
   const billRules = billPayer ? svcRule(billPayer) : null
   const svcOvr = billPayer && f.service ? (ensurePayer(billPayer).svcOv || {})[f.service] : null
@@ -363,7 +365,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     custom: f.custom || {},
     documents: f.documents || [],
     verification: f.verification,
-    billing: isBillable ? { code: code.id, unitMins: code.unitMins, minutes: dur, units, rate, mileage, distance, mileageRate: mileRate } : null,
+    billing: isBillable ? { code: code.id, unitMins: unitRule.unitMins, rounding: unitRule.rounding, minutes: dur, units, rate, mileage, distance, mileageRate: mileRate } : null,
   })
 
   const clashFor = (draft, ignoreIds) =>
@@ -1020,7 +1022,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                         <p className="muted" style={{ fontSize: 11, margin: '10px 0 2px' }}>
                           {f.type === 'drive'
                             ? `Drive time billed as mileage: ${distance || 0} mi × $${mileRate.toFixed(2)}/mi = $${(distance * mileRate).toFixed(2)}`
-                            : `${dur} min ÷ ${code.unitMins} min per unit = ${units} unit${units === 1 ? '' : 's'} × $${Number(rate).toFixed(2)}${mileage ? ` + $${(distance * mileRate).toFixed(2)} mileage` : ''}`}
+                            : `${dur} min in ${unitRule.unitMins}-min units (${unitRule.rounding} rounding) = ${units} unit${units === 1 ? '' : 's'} × $${Number(rate).toFixed(2)}${mileage ? ` + $${(distance * mileRate).toFixed(2)} mileage` : ''}`}
                         </p>
                       </div>
                       <div className="panel billpreview">
