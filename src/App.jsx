@@ -24,6 +24,7 @@ import ReferralSourcesView from './components/intake/ReferralSourcesView'
 import MastersView from './components/MastersView'
 import StaffView from './components/StaffView'
 import CabinetView from './components/CabinetView'
+import InboxView from './components/InboxView'
 import BillingView from './components/BillingView'
 import BilledFilesView from './components/BilledFilesView'
 import ArManagerView from './components/ArManagerView'
@@ -379,6 +380,7 @@ function Shell() {
       )}
       {kbHelp && <KeysHelp onClose={() => setKbHelp(false)} />}
       {ui.inbox && state.canAccess('calendar', 'view') && <NeedsCover days={days} onClose={() => actions.setUI({ inbox: false })} />}
+      {ui.inboxPanel && <InboxView onClose={() => actions.setUI({ inboxPanel: false })} />}
       {ui.insights && state.canAccess('calendar', 'view') && <SchedulerInsights days={days} onClose={() => actions.setUI({ insights: false })} />}
       {detailAppt && state.canAccess('calendar', 'view') && (section === 'calendar' || section === 'dashboard') && (
         <DetailCard

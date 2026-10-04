@@ -12,6 +12,7 @@ import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/au
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
 import { planCabinetDoc, planCabinetArchive } from '../lib/cabinet'
 import { planPduEntry } from '../lib/credentials'
+import { planTask, planTaskDone } from '../lib/tasks'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -62,6 +63,7 @@ export function blankState() {
     statements: {},
     cabinet: {},
     pdus: {},
+    tasks: {},
     verificationForms: seedVerificationForms(clientsWithIntake, PAYERS),
     eraImports: {},
     billedFiles: {},
@@ -143,6 +145,7 @@ export function initial() {
           statements: saved.statements || {},
           cabinet: saved.cabinet || {},
           pdus: saved.pdus || {},
+          tasks: saved.tasks || {},
           verificationForms: saved.verificationForms || {},
           eraImports: saved.eraImports || {},
           billedFiles: saved.billedFiles || {},
@@ -390,7 +393,7 @@ export function reducer(state, action) {
     case 'record': {
       // Money must go through a guarded claim/receipt transaction, never a
       // generic document write that leaves the claim aggregate out of sync.
-      if (!['invoices', 'statements', 'cabinet', 'pdus', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !action.item?.id) return state
+      if (!['invoices', 'statements', 'cabinet', 'pdus', 'tasks', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !action.item?.id) return state
       const cur = state[action.coll] || {}
       return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
     }
@@ -538,7 +541,7 @@ export function reducer(state, action) {
     case 'clearDemo': {
       // Clear the dependent financial ledgers too; leaving payments/files behind
       // creates orphaned claims. The whole operation must be a single Undo.
-      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, statements: {}, cabinet: {}, pdus: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests', 'statements', 'cabinet', 'pdus']) }
+      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests', 'statements', 'cabinet', 'pdus', 'tasks']) }
     }
     case 'relabel': {
       const next = { ...state.appts }
@@ -562,7 +565,7 @@ export function reducer(state, action) {
       // requests point at clients that still exist.
       const seedInt = seedIntake({ appts: withClaims, clients: state.clients, staff: state.staff, payers: state.payers })
       const clients = state.clients.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
-      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, cabinet: {}, pdus: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements', 'cabinet', 'pdus']) }
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements', 'cabinet', 'pdus', 'tasks']) }
     }
     case 'roster': {
       const list = state[action.list]
@@ -889,6 +892,19 @@ function createActions(state, dispatch, rawState = state) {
       return { ok: true, msg: plan.msg, id: options.paymentId }
     },
     /** Payer take-back on a paid primary claim: reopens the balance, one Undo. */
+    /** Inbox tasks: add / edit, mark done or reopen. One record write, one Undo. */
+    saveTask: (input) => {
+      const plan = planTask(state, input, { id: input.id || uid(), at: Date.now(), by: currentAccount(state)?.staffId || null })
+      if (!plan.ok) return plan
+      dispatch({ type: 'record', coll: 'tasks', item: plan.item })
+      return { ok: true, msg: plan.msg, id: plan.item.id }
+    },
+    setTaskDone: (id, done = true) => {
+      const plan = planTaskDone(state, id, done, { at: Date.now(), by: currentAccount(state)?.staffId || null })
+      if (!plan.ok) return plan
+      dispatch({ type: 'record', coll: 'tasks', item: plan.item })
+      return { ok: true, msg: plan.msg }
+    },
     /** CEU / PDU / competency entry for the credentials report. One record write, one Undo. */
     logPdu: (input) => {
       const plan = planPduEntry(state, input, { id: uid(), at: Date.now() })

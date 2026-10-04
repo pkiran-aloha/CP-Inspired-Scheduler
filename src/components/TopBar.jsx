@@ -7,7 +7,8 @@ import { STATUS_ORDER, STATUSES } from '../lib/model'
 import { apptStatusList, isCancelStatus } from '../lib/settingsMasters'
 import { buildICS, download } from '../lib/ics'
 import { scanNeedsCover } from '../lib/smart'
-import { DEMO_RESET_AREAS, resolveAccount } from '../lib/security'
+import { DEMO_RESET_AREAS, currentAccount, resolveAccount } from '../lib/security'
+import { notificationsFor } from '../lib/tasks'
 
 function useOutside(ref, cb, on) {
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
   const state = useStore()
   const { ui, settings, actions } = state
   const canSchedule = state.canAccess('calendar', 'view')
+  const inboxCount = notificationsFor(state, currentAccount(state)?.staffId || null, todayISO(), (area) => state.canAccess(area, 'view')).length
   const canScheduleEdit = state.canAccess('calendar', 'full')
   const canOpenSettings = state.canAccess('settings', 'view')
   const canManageSecurity = state.canAccess('security', 'view')
@@ -171,6 +173,11 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         {Icon.alert({ size: 15 })}
         {cover > 0 && <span className="cov-n" data-testid="cover-count">{cover}</span>}
       </button>}
+
+      <button className={`iconbtn cover-btn ${inboxCount ? 'alert' : ''}`} data-testid="inbox-open" onClick={() => actions.setUI({ inboxPanel: true })} title={`Inbox: ${inboxCount} notification${inboxCount === 1 ? '' : 's'} and your tasks`}>
+        {Icon.mail({ size: 15 })}
+        {inboxCount > 0 && <span className="cov-n" data-testid="inbox-count">{inboxCount}</span>}
+      </button>
 
       <button className="iconbtn pal-btn" onClick={onPalette} title="Search everything — clients, staff, reports, actions (⌘K)" data-testid="palette-open">
         <kbd>⌘K</kbd>

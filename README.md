@@ -20,6 +20,21 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Hackathon wave 5 — inbox (in progress)
+
+**Inbox: tasks and notifications.** The envelope in the top bar opens the Inbox. Its count badge is the number of notifications waiting for you. It has two tabs:
+- **Notifications** are read fresh from the workspace each time. They cover:
+  - your overdue or due-today tasks
+  - Cabinet documents expired or expiring
+  - authorizations lapsed or ending within 30 days
+  - intake requests past their stage deadline
+  - denied claims
+
+  Each one opens the place to act, and only if your role can see that area.
+- **Tasks** are assigned to any staff member, with a due date, a priority and an optional client. You can list your own or everyone's, and tick a task done.
+
+Everything stays in this workspace; nothing is emailed or texted. Tasks are a new durable collection (`tasks`), open to every role and office-scoped by client or assignee. Each change is one Undo. Code: `src/lib/tasks.js` and `InboxView.jsx`; tests: `inbox.test.jsx`.
+
 ### Hackathon wave 4 — records
 
 **Credentials & PDUs.** Reports → Clinical → **Credentials & PDUs** lists every clinician against what renewal needs. It uses the BACB baseline plus the practice's own target:
