@@ -20,7 +20,13 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
-### Hackathon wave 3 — intake (in progress)
+### Hackathon wave 3 — intake
+
+**Easier intake.**
+- **Fewer required fields:** a first call needs only the essentials (name, date of birth, office, a phone, the guardian's contact, an owner). Alias and address can wait.
+- **Fix buttons:** every unmet item in the request's **Next** box has a **Fix** button that opens the tab or form where it is recorded.
+- **Landing after conversion:** converting opens the new client's profile.
+- **Names:** the screens are called *Intake Requests* and *New Intake* everywhere.
 
 **Intake PDFs.** Two downloads, both generated in the browser (nothing is sent). The builders are pure and live in `src/lib/intakeDocs.js`; tests are in `intakeDocs.test.jsx`.
 - **Intake packet** (Intake Requests toolbar): a blank packet for families. It has fill-in fields, a checklist of documents to bring, and a signature line for each consent.

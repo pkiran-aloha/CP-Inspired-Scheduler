@@ -426,7 +426,8 @@ export function IntakeDetail({ id, onClose, onToast }) {
     if (!r.ok) { toast({ message: r.msg, kind: 'warn' }); return }
     toast({ message: r.msg, kind: 'ok' })
     setConvertOpen(false)
-    actions.setUI({ section: 'clients', cliQ: fullName(req) })
+    // land on the new chart: the roster filtered to the client, with the profile open
+    actions.setUI({ section: 'clients', cliQ: fullName(req), cliOpen: r.clientId })
   }
   const verifyGuardian = (on) => {
     const r = actions.patchIntake(id, on
@@ -516,7 +517,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
                 ) : null}
               </div>
             </div>
-            {!wlOpen && <GateList req={req} target={target} testid="iq-next-gates" />}
+            {!wlOpen && <GateList req={req} target={target} testid="iq-next-gates" onFix={(where) => (where === 'form' ? actions.setUI({ section: 'intake-new', intakeEdit: id }) : setTab(where))} />}
             {wlOpen && <WaitlistForm req={req} onDone={() => setWlOpen(false)} onCancel={() => setWlOpen(false)} />}
             {bookOpen && (
               <div className="iq-inline-form" data-testid="iq-book-form">

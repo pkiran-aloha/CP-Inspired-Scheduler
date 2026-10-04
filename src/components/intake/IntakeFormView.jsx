@@ -75,14 +75,11 @@ export default function IntakeFormView() {
     const e = {}
     if (!form.firstName.trim()) e.firstName = 'First name is required'
     if (!form.lastName.trim()) e.lastName = 'Last name is required'
-    if (!form.alias.trim()) e.alias = 'Alias / preferred name is required on the intake record'
+    // A first call rarely has the full address: only what the next step needs is required.
     if (!form.office) e.office = 'Select the office'
     if (!form.dob) e.dob = 'Date of birth is required — it drives age eligibility and claims'
     else if (form.dob > todayISO()) e.dob = 'Date of birth cannot be in the future'
-    if (!form.street.trim()) e.street = 'Street is required'
-    if (!form.city.trim()) e.city = 'City is required'
-    if (!form.state) e.state = 'State is required'
-    if (!/^\d{5}(-\d{4})?$/.test(form.zip.trim())) e.zip = 'ZIP code must be 5 digits (or ZIP+4)'
+    if (form.zip.trim() && !/^\d{5}(-\d{4})?$/.test(form.zip.trim())) e.zip = 'ZIP code must be 5 digits (or ZIP+4)'
     const phone = form.phones.find((p) => p.number.trim())
     if (!phone) e.phone = 'At least one phone number is required'
     else if (phone.number.replace(/\D/g, '').length < 10) e.phone = 'Phone number needs at least 10 digits'
@@ -131,7 +128,7 @@ export default function IntakeFormView() {
 
   return (
     <div className="sectionpage">
-      <SectionBar icon="user" title={existing ? `Client Intake · ${existing.no}` : 'Client Intake'} sub="Capture the referral once — every downstream module reads from this record">
+      <SectionBar icon="user" title={existing ? `Intake request · ${existing.no}` : 'New intake request'} sub="Capture the referral once — every downstream module reads from this record">
         <span className="iq-completeness" title="Fields that downstream modules depend on">{filled}% complete</span>
         <button className="btn btn-sm" data-testid="iq-form-cancel" onClick={() => { actions.setUI({ section: 'intake', intakeEdit: null }) }}>Cancel</button>
         <button className="btn btn-sm btn-primary" data-testid="iq-form-save" onClick={() => save()}>{Icon.check({ size: 12 })} Save</button>
@@ -158,7 +155,7 @@ export default function IntakeFormView() {
         <div className="iq-formcard">
           <header className="iq-formhead">
             <div>
-              <b>{existing ? `Edit intake client — ${existing.no}` : 'Add Intake Client'}</b>
+              <b>{existing ? `Edit intake request — ${existing.no}` : 'New intake request'}</b>
               <span>Demographics, referral attribution, screening and benefits — one pass, no duplicate entry later.</span>
             </div>
             <span className="iq-formbadge" aria-hidden="true">{Icon.user({ size: 18 })}</span>
@@ -175,7 +172,7 @@ export default function IntakeFormView() {
                     <input className="input" value={form.middleName} onChange={(e) => set('middleName', e.target.value)} data-testid="iq-middle" /></label>
                   <label className={`iq-fld ${errs.lastName ? 'bad' : ''}`}><span>Last Name <em className="iq-req">*</em></span>
                     <input className="input" value={form.lastName} onChange={(e) => set('lastName', e.target.value)} data-testid="iq-last" />{errs.lastName && <i className="iq-err">{errs.lastName}</i>}</label>
-                  <label className={`iq-fld ${errs.alias ? 'bad' : ''}`}><span>Alias <em className="iq-req">*</em></span>
+                  <label className={`iq-fld ${errs.alias ? 'bad' : ''}`}><span>Alias</span>
                     <input className="input" value={form.alias} placeholder="Name used on the calendar" onChange={(e) => set('alias', e.target.value)} data-testid="iq-alias" />{errs.alias && <i className="iq-err">{errs.alias}</i>}</label>
                   <label className={`iq-fld ${errs.office ? 'bad' : ''}`}><span>Office <em className="iq-req">*</em></span>
                     <Dropdown value={form.office} onChange={(v) => set('office', v)} options={LOCATIONS.map((l) => ({ value: l, label: l }))} testid="iq-office" />{errs.office && <i className="iq-err">{errs.office}</i>}</label>
@@ -200,14 +197,14 @@ export default function IntakeFormView() {
 
               <Sec n={2} title="Address" icon="house" testid="iq-sec-address">
                 <div className="iq-grid2">
-                  <label className={`iq-fld wide ${errs.street ? 'bad' : ''}`}><span>Street <em className="iq-req">*</em></span>
+                  <label className={`iq-fld wide ${errs.street ? 'bad' : ''}`}><span>Street</span>
                     <input className="input" value={form.street} onChange={(e) => set('street', e.target.value)} data-testid="iq-street" />{errs.street && <i className="iq-err">{errs.street}</i>}</label>
-                  <label className={`iq-fld ${errs.city ? 'bad' : ''}`}><span>City <em className="iq-req">*</em></span>
+                  <label className={`iq-fld ${errs.city ? 'bad' : ''}`}><span>City</span>
                     <input className="input" value={form.city} onChange={(e) => set('city', e.target.value)} data-testid="iq-city" />{errs.city && <i className="iq-err">{errs.city}</i>}</label>
                   <div className="iq-cityrow">
-                    <label className={`iq-fld ${errs.state ? 'bad' : ''}`}><span>State <em className="iq-req">*</em></span>
+                    <label className={`iq-fld ${errs.state ? 'bad' : ''}`}><span>State</span>
                       <Dropdown value={form.state} onChange={(v) => set('state', v)} options={US_STATES.map((s) => ({ value: s, label: s }))} testid="iq-state" /></label>
-                    <label className={`iq-fld ${errs.zip ? 'bad' : ''}`}><span>Zip Code <em className="iq-req">*</em></span>
+                    <label className={`iq-fld ${errs.zip ? 'bad' : ''}`}><span>Zip Code</span>
                       <input className="input" value={form.zip} onChange={(e) => set('zip', e.target.value)} data-testid="iq-zip" />{errs.zip && <i className="iq-err">{errs.zip}</i>}</label>
                   </div>
                   <label className="iq-fld wide"><span>Address Notes</span>

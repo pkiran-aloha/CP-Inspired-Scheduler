@@ -237,7 +237,7 @@ export default function IntakeRequestsView() {
               <span className="iq-empty-ic">{Icon.file({ size: 26 })}</span>
               <b>No Records Available</b>
               <span className="muted">Nothing matches this filter. Adjust the status filter, or start a new intake.</span>
-              <button className="btn btn-sm btn-primary" data-testid="iq-empty-add" onClick={openBlank}>{Icon.plus({ size: 12 })} Add Client</button>
+              <button className="btn btn-sm btn-primary" data-testid="iq-empty-add" onClick={openBlank}>{Icon.plus({ size: 12 })} New intake</button>
             </div>
           )
         )}
@@ -247,7 +247,7 @@ export default function IntakeRequestsView() {
             <span className="iq-empty-ic">{Icon.file({ size: 26 })}</span>
             <b>No Records Available</b>
             <span className="muted">No requests match the current filters.</span>
-            <button className="btn btn-sm btn-primary" data-testid="iq-empty-add-board" onClick={openBlank}>{Icon.plus({ size: 12 })} Add Client</button>
+            <button className="btn btn-sm btn-primary" data-testid="iq-empty-add-board" onClick={openBlank}>{Icon.plus({ size: 12 })} New intake</button>
           </div>
         )}
       </div>
