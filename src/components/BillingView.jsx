@@ -12,7 +12,7 @@ import { download } from '../lib/ics'
 import { addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import {
   stagedAppts, planClaims, claimGate, claimStats, claimCsv, claimsCsv, quickPosts,
-  CLAIM_STATUSES, DENIAL_REASONS, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, filingDaysOf,
+  CLAIM_STATUSES, denialReasonsOf, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, filingDaysOf,
   secondaryEligible,
 } from '../lib/claims'
 import { claimTo1500, claimsTo1500, cms1500Data } from '../lib/cms1500'
@@ -629,9 +629,11 @@ function PayModal({ claim, onClose }) {
 const r2 = (n) => Math.round(n * 100) / 100
 
 function DenyModal({ claim, onClose }) {
-  const { actions } = useStore()
+  const state = useStore()
+  const { actions } = state
   const toast = useToast()
-  const [code, setCode] = useState(DENIAL_REASONS[0].id)
+  const reasons = denialReasonsOf(state)
+  const [code, setCode] = useState(reasons[0].id)
   const [note, setNote] = useState('')
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -640,7 +642,7 @@ function DenyModal({ claim, onClose }) {
         <div style={{ padding: 20 }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>Denial reason</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-            {DENIAL_REASONS.map((r) => (
+            {reasons.map((r) => (
               <button key={r.id} data-testid={`deny-r-${r.id}`} onClick={() => setCode(r.id)} style={{ textAlign: 'left', padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${code === r.id ? '#ef4444' : 'var(--line)'}`, background: code === r.id ? '#fff5f5' : 'var(--panel)' }}><b style={{ fontSize: 13 }}>{r.label}</b><span style={{ display: 'block', fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{r.fix}</span></button>
             ))}
           </div>

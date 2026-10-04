@@ -71,7 +71,56 @@ export const DENIAL_REASONS = [
   { id: 'dup', label: 'Duplicate line — already paid on prior claim', fix: 'Drop the duplicated line(s), rebill remainder' },
   { id: 'timely', label: 'Timely filing limit exceeded', fix: 'Appeal with proof of service, or write off' },
 ]
-export const denialOf = (id) => DENIAL_REASONS.find((d) => d.id === id) || DENIAL_REASONS[0]
+// Remittance adjustment codes (CARC, with their group) and what to do about them. The
+// practice edits both lists in Settings → Billing defaults; these are the defaults.
+export const CARC_HINTS = [
+  { code: 'CO-4', label: 'Procedure code inconsistent with the modifier used', fix: 'Check the line modifiers (credential, place of service, payer service) against the payer rules, then correct and resubmit.' },
+  { code: 'CO-16', label: 'Missing or incomplete claim information', fix: 'Review required claim fields and resubmit with corrections.' },
+  { code: 'CO-18', label: 'Exact duplicate claim or service', fix: 'Check whether the service was already paid on another claim before resubmitting.' },
+  { code: 'CO-22', label: 'May be covered by another payer (coordination of benefits)', fix: "Confirm the client's primary and secondary coverage, then bill the primary payer first." },
+  { code: 'CO-27', label: 'Expenses incurred after coverage terminated', fix: 'Verify eligibility on the date of service; bill the active payer or the family.' },
+  { code: 'CO-29', label: 'Filing limit exceeded', fix: 'Check the timely filing limit and submission proof.' },
+  { code: 'CO-50', label: 'Medical necessity not established', fix: 'Review medical-necessity documentation and appeal instructions.' },
+  { code: 'CO-96', label: 'Non-covered charge', fix: 'Check the member benefit and code coverage before appealing.' },
+  { code: 'CO-151', label: 'Information does not support this many services or units', fix: 'Compare billed units with the authorization and MUE limits; correct units or appeal with session notes.' },
+  { code: 'CO-197', label: 'Precertification/authorization/notification absent', fix: 'Verify the authorization and dates of service, then correct or appeal.' },
+  { code: 'CO-252', label: 'An attachment or other documentation is required', fix: 'Send the requested documentation (session notes, treatment plan) and resubmit.' },
+]
+export const denialReasonsOf = (state) => {
+  const list = state?.settings?.billing?.denialReasons
+  return Array.isArray(list) && list.length ? list : DENIAL_REASONS
+}
+export const carcHintsOf = (state) => {
+  const list = state?.settings?.billing?.carcHints
+  return Array.isArray(list) ? list : CARC_HINTS
+}
+export const denialOf = (id, state) => { const list = denialReasonsOf(state); return list.find((d) => d.id === id) || list[0] }
+
+/** Validate the practice's denial reasons and CARC hints before they are saved. */
+export function planReasonLists({ denialReasons = [], carcHints = [] } = {}) {
+  const txt = (v, n) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n)
+  const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40)
+  const reasons = []
+  for (const r of denialReasons) {
+    const label = txt(r.label, 120)
+    if (label.length < 3) return { ok: false, msg: 'Every denial reason needs a label of at least 3 characters.' }
+    if (reasons.some((x) => x.label.toLowerCase() === label.toLowerCase())) return { ok: false, msg: `The denial reason “${label}” is listed twice.` }
+    let id = txt(r.id, 40) || slug(label) || 'reason'
+    while (reasons.some((x) => x.id === id)) id = `${id}-2`
+    reasons.push({ id, label, fix: txt(r.fix, 200) })
+  }
+  if (!reasons.length) return { ok: false, msg: 'Keep at least one denial reason.' }
+  const hints = []
+  for (const h of carcHints) {
+    const code = txt(h.code, 12).toUpperCase().replace(/\s+/g, '')
+    if (!/^(CO|PR|OA|PI|CR)-[A-Z0-9]{1,5}$/.test(code)) return { ok: false, msg: `“${code || 'blank'}” is not a group and reason code like CO-197.` }
+    if (hints.some((x) => x.code === code)) return { ok: false, msg: `${code} is listed twice.` }
+    const label = txt(h.label, 120)
+    if (label.length < 3) return { ok: false, msg: `${code} needs a description of at least 3 characters.` }
+    hints.push({ code, label, fix: txt(h.fix, 200) })
+  }
+  return { ok: true, msg: 'Denial reasons and remittance hints saved', denialReasons: reasons, carcHints: hints }
+}
 
 // ---------- deterministic pseudo-fields for members (kept out of the client schema) ----------
 function hashNum(s) {
@@ -331,9 +380,9 @@ export function payPatch(claim, { amount, checkNo, adj, note, paidAt = Date.now(
   const status = due <= 0 ? 'paid' : 'partially_paid'
   return { claim: { ...claim, status, paid: r2((claim.paid || 0) + amount), adj: nextAdj, remittance: rem, closedAt: due <= 0 ? at : claim.closedAt, history: [...claim.history, ev(`Payment posted — $${amount.toLocaleString()} via ${checkNo}${nextAdj ? ` (${nextAdj.toLocaleString()} adjustment)` : ''}${due > 0 ? ` · $${due} still open` : ''}`, at)] } }
 }
-export function denyPatch(claim, { code, note }) {
+export function denyPatch(claim, { code, note }, state) {
   const at = Date.now()
-  const d = denialOf(code)
+  const d = denialOf(code, state)
   return { claim: { ...claim, status: 'denied', denial: { code: d.id, reason: d.label, fix: d.fix, note: note || '', at }, history: [...claim.history, ev(`Denied — ${d.label}`, at)] } }
 }
 export function releasePatch(state, claim, kind, extraHist) {
