@@ -176,7 +176,7 @@ function SvModal({ svc, onClose }) {
     aka: svc?.aka || '',
     category: svc?.category || 'Treatment',
     code: svc?.code || '97151',
-    unitMins: svc?.unitMins ?? 30,
+    unitMins: svc?.unitMins ?? 15,
     rate: svc?.rate ?? 32,
     rounding: svc?.rounding || 'AMA',
     defaultEarningCode: svc?.defaultEarningCode || 'BILLABLE',
@@ -201,7 +201,7 @@ function SvModal({ svc, onClose }) {
       label,
       aka: (f.aka || label.slice(0, 6).toUpperCase()).trim(),
       rate: Number(f.rate) || 0,
-      unitMins: Number(f.unitMins) || 30,
+      unitMins: Number(f.unitMins) || 15,
     })
   }
   return (

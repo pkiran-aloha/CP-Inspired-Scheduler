@@ -7,6 +7,7 @@ import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { runReport } from '../lib/reports'
 import { BILL_CODES, computeBilling } from '../lib/model'
+import { unitRuleFor, unitsFor } from '../lib/authUnits'
 import { download } from '../lib/ics'
 import { addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import {
@@ -143,8 +144,9 @@ export default function BillingView({ initialTab }) {
     const a = appts[apptId]
     if (!a) return
     const code = BILL_CODES.find((c) => c.id === a.billing?.code) || BILL_CODES[0]
-    const units = Math.round(((a.end - a.start) / code.unitMins) * 4) / 4
-    actions.update(a.id, { billing: { ...(a.billing || {}), code: code.id, unitMins: code.unitMins, minutes: a.end - a.start, units, rate: a.billing?.rate || code.rate, mileage: a.billing?.mileage ?? a.type === 'drive' } })
+    const rule = unitRuleFor(state, { ...a, billingCode: code.id })
+    const units = unitsFor(a.end - a.start, rule.unitMins, rule.rounding)
+    actions.update(a.id, { billing: { ...(a.billing || {}), code: code.id, unitMins: rule.unitMins, rounding: rule.rounding, minutes: a.end - a.start, units, rate: a.billing?.rate || code.rate, mileage: a.billing?.mileage ?? a.type === 'drive' } })
     toast({ message: `Units auto-filled (${units} × ${code.id}) — re-run batch`, kind: 'ok' })
   }
 

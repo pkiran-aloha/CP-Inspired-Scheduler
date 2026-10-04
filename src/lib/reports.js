@@ -1,7 +1,7 @@
 // ---- Report engine: pure builders over the PMS ledger (appointments, rosters, billing) ----
 // Every report returns { columns, rows, summary, note } so the UI, CSV export and tests share one shape.
 
-import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType, isServiceAppt } from './model'
+import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType, isServiceAppt, unitsFor } from './model'
 import { abaStaffRows, abaTotals, abaActivityById, countsAsAbaHours } from './abaHours'
 import { rangeMetrics } from './analytics'
 import { agingOf, dueOf, isPrimaryReceivable } from './claims'
@@ -827,7 +827,7 @@ export function validationIssues(state, days, scope) {
     if (a.status === 'completed' && TYPES[a.type]?.billable) {
       if (!a.billing) push('error', 'Billing', `Completed ${TYPES[a.type].label.toLowerCase()} has no billing line`, who, 'Open the session → Billing tab → add units', { kind: 'appt', id: a.id, date: a.date }, a.date)
       else {
-        if (!(a.billing.units > 0)) push('error', 'Billing', `${TYPES[a.type].label} completed with 0 billable units`, who, `Auto-fill ${r2((a.end - a.start) / (a.billing.unitMins || 30))} units`, { kind: 'appt', id: a.id, date: a.date }, a.date)
+        if (!(a.billing.units > 0)) push('error', 'Billing', `${TYPES[a.type].label} completed with 0 billable units`, who, `Auto-fill ${r2((a.end - a.start) / (a.billing.unitMins || 15))} units`, { kind: 'appt', id: a.id, date: a.date }, a.date)
         if (!(a.billing.rate > 0) && !a.billing.mileage) push('error', 'Billing', `Unit rate is $0 — claim would pay nothing`, who, 'Set rate from code table', { kind: 'appt', id: a.id, date: a.date }, a.date)
       }
       if (TYPES[a.type].hasVerification && a.verification?.verifyStatus !== 'verified') {
@@ -847,6 +847,23 @@ export function validationIssues(state, days, scope) {
       else if (!act) push('warn', 'ABA Hours', '⚡ ABA Hours marked without an activity', whoStaff, 'Open the block and choose the behavior-analytic activity', { kind: 'appt', id: a.id, date: a.date }, a.date)
       if (countsAsAbaHours(a) && !(a.staffIds || []).length) push('warn', 'ABA Hours', '⚡ ABA Hours with no staff assigned — nobody is credited', whoStaff, 'Add the staff member who did the work', { kind: 'appt', id: a.id, date: a.date }, a.date)
     }
+  }
+  // Medicaid / CPT: time for one code, one client, one date of service is added up and
+  // rounded once. Flag a day whose per-session rounding bills a different number of units.
+  const sameDay = {}
+  for (const a of scopedList) {
+    const b = a.billing
+    if (a.status !== 'completed' || !TYPES[a.type]?.billable || !b?.code || b.mileage || !(b.unitMins > 0)) continue
+    for (const cid of a.clientIds || []) (sameDay[`${cid}|${b.code}|${a.date}`] ||= []).push(a)
+  }
+  for (const [key, group] of Object.entries(sameDay)) {
+    if (group.length < 2) continue
+    const [cid, code, date] = key.split('|')
+    const b = group[0].billing
+    const mins = group.reduce((t, a) => t + (a.billing.minutes || a.end - a.start), 0)
+    const billed = group.reduce((t, a) => t + (Number(a.billing.units) || 0), 0)
+    const once = unitsFor(mins, b.unitMins, b.rounding || 'AMA')
+    if (billed !== once) push('warn', 'Billing', `${group.length} sessions of ${code} on one day bill ${billed} units; counting the day's ${mins} minutes once gives ${once}`, clients[cid]?.name || '—', `Set the day's ${code} units to ${once} in total`, { kind: 'appt', id: group[0].id, date }, date)
   }
 
   // double-book detection (same day only, cheap pass).

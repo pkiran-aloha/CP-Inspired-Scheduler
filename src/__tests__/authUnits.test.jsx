@@ -21,7 +21,7 @@ const day = (n) => isoDate(addDays(parseISO(today), n))
  * One client on Aetna with a fresh 12-week window and a known unit pool, two delivered
  * 97153 sessions and nothing else on their calendar. Dates are relative to today.
  */
-function world({ pool = { '97153': 10, '97155': 4 }, mue, guard = 'warn' } = {}) {
+function world({ pool = { '97153': 20, '97155': 4 }, mue, guard = 'warn' } = {}) {
   const s = blankState()
   const c = { ...s.clients[0], insurer: 'Aetna', authWeekly: 10, authStart: day(-14), authEnd: day(70), authUnits: pool, authUnitsConverted: false }
   const mk = (id, date, extra = {}) => ({
@@ -57,19 +57,19 @@ describe('the unit ledger and booking checks', () => {
   it('burns each code’s own pool, delivered and scheduled', () => {
     const s = world()
     const L = unitLedger(s, s.clients[0], { today })
-    expect(L.codes.find((g) => g.code === '97153')).toMatchObject({ authorized: 10, delivered: 8, scheduled: 0, remaining: 2 })
+    expect(L.codes.find((g) => g.code === '97153')).toMatchObject({ authorized: 20, delivered: 16, scheduled: 0, remaining: 4 })
     expect(L.codes.find((g) => g.code === '97155')).toMatchObject({ authorized: 4, committed: 0 })
   })
 
   it('warns near the pool, stops past it (capped to a warning in the shipped Warn mode)', () => {
     const s = world()
     const c = s.clients[0]
-    const near = unitCheckFor(s, c, draft(c, { end: 630 })) // 30 min = 1 unit → 9 of 10
+    const near = unitCheckFor(s, c, draft(c, { end: 630 })) // 30 min = 2 units → 18 of 20
     expect(near.severity).toBe('warn')
     expect(near.reasons[0]).toMatch(/90% of the authorized units/)
-    const over = unitCheckFor(s, c, draft(c)) // 2 h = 4 units → 12 of 10
+    const over = unitCheckFor(s, c, draft(c)) // 2 h = 8 units → 24 of 20
     expect(over.severity).toBe('stop')
-    expect(over.reasons[0]).toMatch(/over by 2 units/)
+    expect(over.reasons[0]).toMatch(/over by 4 units/)
     const merged = mergeAuthChecks(authCheckFor(s, c, draft(c)), over, s.settings)
     expect(merged.severity).toBe('warn')
     expect(merged.blocked).toBe(false)
@@ -88,8 +88,8 @@ describe('the unit ledger and booking checks', () => {
     const s = world({ pool: { '97153': 500 }, mue: { daily: '3', per: { '97153': '2' }, weekly: { '97153': '3' } } })
     const c = s.clients[0]
     const r = unitCheckFor(s, c, draft(c))
-    expect(r.reasons.some((t) => /MUE: 4 units of 97153 .* maximum of 2 per day/.test(t))).toBe(true)
-    expect(r.reasons.some((t) => /MUE: 4 units across all codes .* daily maximum of 3/.test(t))).toBe(true)
+    expect(r.reasons.some((t) => /MUE: 8 units of 97153 .* maximum of 2 per day/.test(t))).toBe(true)
+    expect(r.reasons.some((t) => /MUE: 8 units across all codes .* daily maximum of 3/.test(t))).toBe(true)
     expect(r.reasons.some((t) => /weekly limit: \d+ units of 97153 .* maximum of 3/.test(t))).toBe(true)
   })
 
@@ -122,9 +122,9 @@ describe('migration and seed', () => {
     expect(withWindow.every((c) => c.authUnitsConverted && Object.keys(c.authUnits).length > 0)).toBe(true)
     expect(m.meta.authUnitsMigrated).toBe(withWindow.length)
     expect(normalizeAuthUnits(m)).toBe(m)
-    // nothing booked: the whole estimate goes to 97153 (30-minute units → 2 per hour)
+    // nothing booked: the whole estimate goes to 97153 (15-minute units → 4 per hour)
     const bare = { ...s, appts: {} }
-    expect(poolFromWeeklyHours(bare, { id: 'z', authWeekly: 10, authStart: '2026-01-04', authEnd: '2026-01-18' })).toEqual({ '97153': 40 })
+    expect(poolFromWeeklyHours(bare, { id: 'z', authWeekly: 10, authStart: '2026-01-04', authEnd: '2026-01-18' })).toEqual({ '97153': 80 })
     expect(cleanPool({ 97153: '12', 97155: 0, '': 3, bad: 'x' })).toEqual({ 97153: 12 })
   })
 

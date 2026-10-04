@@ -8,7 +8,7 @@ import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPa
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
-import { normalizeAuthUnits, seedAuthUnits } from '../lib/authUnits'
+import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -28,7 +28,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid)))))))))))
+  const normalized = normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid))))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 
@@ -70,7 +70,7 @@ export function blankState() {
     payExports: {},
     // Fresh workspaces already use opt-in custom fields. Only old saves without
     // these flags need the one-time cleanup migrations on their first load.
-    meta: { verificationFormsSeeded: true, billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true },
+    meta: { verificationFormsSeeded: true, billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true, unitNorm15: true },
     staff: STAFF,
     // per-code authorization unit pools (the payer letter), seeded from each client's weekly hours
     clients: clientsWithIntake.map((c, i) => seedAuthUnits({ svcs: SVCS, appts: apptsWithClaims, clients: clientsWithIntake, payers: PAYERS, settings }, c, i)),
@@ -801,7 +801,7 @@ function createActions(state, dispatch, rawState = state) {
     // ---- payer master ----
     addPayer: (item) => dispatch({ type: 'payer', mode: 'add', item: { id: uid(), ...item } }),
     // ---- masters: service type list ----
-    addSvc: (item) => dispatch({ type: 'svc', mode: 'add', item: { id: uid(), status: 'active', unitMins: 30, rate: 0, rounding: 'AMA', credentials: [], note: '', ...item } }),
+    addSvc: (item) => dispatch({ type: 'svc', mode: 'add', item: { id: uid(), status: 'active', unitMins: 15, rate: 0, rounding: 'AMA', credentials: [], note: '', ...item } }),
     updateSvc: (item) => dispatch({ type: 'svc', mode: 'patch', item }),
     removeSvc: (id) => dispatch({ type: 'svc', mode: 'remove', id }),
     addCfDef: (item) => dispatch({ type: 'cfdef', mode: 'add', item: { id: uid(), status: 'active', required: false, options: [], onLabel: 'Yes', offLabel: 'No', note: '', ...item } }),

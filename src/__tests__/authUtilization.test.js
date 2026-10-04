@@ -10,7 +10,7 @@ const BASE = blankState()
 /** One client with a 100-day window, 40 days in, a 97153 pool of 100 units and 30-min sessions. */
 function world({ pool = { 97153: 100 }, delivered = 10, scheduled = 0 } = {}) {
   const c = { ...BASE.clients[0], authStart: day(-40), authEnd: day(60), authNo: 'AUTH-77', authUnits: pool, authUnitsConverted: false }
-  const mk = (id, date) => ({ id, date, type: 'service', status: date < today ? 'completed' : 'active', clientIds: [c.id], staffIds: [], start: 540, end: 600, billing: { code: '97153', unitMins: 30, units: 2, rate: 18 } })
+  const mk = (id, date) => ({ id, date, type: 'service', status: date < today ? 'completed' : 'active', clientIds: [c.id], staffIds: [], start: 540, end: 570, billing: { code: '97153', unitMins: 15, units: 2, rate: 9 } })
   const appts = {}
   for (let i = 0; i < delivered; i++) appts[`d${i}`] = mk(`d${i}`, day(-30 + i))
   for (let i = 0; i < scheduled; i++) appts[`s${i}`] = mk(`s${i}`, day(1 + i))
@@ -20,7 +20,7 @@ const run = (s) => runReport(s, 'authUtil', { days: [today], scope: null })
 
 describe('Authorization Utilization report', () => {
   it('measures each code across the authorization window, not the report range', () => {
-    const out = run(world({ delivered: 10, scheduled: 5 })) // 2 units per 1h session
+    const out = run(world({ delivered: 10, scheduled: 5 })) // 2 fifteen-minute units per 30-min session
     const r = out.rows[0]
     expect(r).toMatchObject({ code: '97153', authNo: 'AUTH-77', authorized: 100, used: 20, scheduled: 10, remaining: 70, usedPct: 20, expectedPct: 40, projectedPct: 30 })
     expect(r.status).toBe('Under-utilized') // 20% used where 40% of the window has passed

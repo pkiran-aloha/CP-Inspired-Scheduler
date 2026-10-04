@@ -24,6 +24,11 @@ Hackathon wave 2: configurable billing (#8). This wave is in progress. The plan 
   - CMS-1500 box 7b
 
   Filing days use one rule everywhere: payer, then practice default, then policy. Saving is validated and has one Undo.
+- **Slice 2, Medicaid unit norms.** The maintainer chose Medicaid norms as the compliance baseline.
+  - The ABA codes and H2019 bill in 15-minute units with the midpoint rule. Rates are per 15-minute unit; the charge per hour is unchanged.
+  - Billed units use `unitRuleFor`, the same rule chain as the authorization ledger (payer override, then payer service, then service master, then code). `unitsFor` now lives in `model.js`.
+  - Reports → Validations warns when same-day sessions for one code and client round to a different total than the day counted once.
+  - One-time migration `normalizeUnitNorms` (`meta.unitNorm15`). It never changes claims.
 
 Hackathon wave 1 — billing (from the departments' hackathon list):
 - **Billing Health dashboard widget** (`billingKpis.js`): clean-claim %, denial %, net collection %, cash posted, days in A/R, A/R >90 %, charge lag, recoupments; formula + target on hover; on the default board (last); saved boards add it from the gallery.
@@ -45,7 +50,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 | Wave | Items | Notes / open questions |
 |---|---|---|
-| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slice 1 has shipped. Slices 2–6 are in `docs/specs/configurable-billing.md`. Slice 2 (billed units follow the payer unit rule) changes billed amounts, so get the maintainer's sign-off first. |
+| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slices 1 and 2 have shipped. Next is slice 3, modifiers on claim lines. Slices 4–6 are in `docs/specs/configurable-billing.md`. Medicaid norms are the compliance baseline for every slice. |
 | **Intake (#5)** | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | Maintainer picked all three. Downloadable intake packet + filled request as PDF (jsPDF is installed); trace the General Requests → Client Intake → Client List hand-offs end-to-end and fix confusing steps; run `impeccable` critique on the intake screens first. |
 | **Inbox, tasks, notifications (#1 + #2)** | Message center + task assignment + notifications | Local, in-workspace only (no delivery off-device, no client portal yet). |
 | **Records (#4, #10, #13)** | Client statements; Cabinet expirations; RBT PDU report | Statements: history, PDF, mark sent/paid (no email). Cabinet: documents register with expiry + alerts (metadata only). PDU: log entries per staff vs renewal requirement — confirm requirement per credential with the maintainer. |
@@ -56,7 +61,6 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 ## Known issues / backlog (not yet fixed)
 
 - `staffSatisfiesQualification` may flag BCBAs on BCBA-only codes ("Staff Qualification" chip on a BCBA for 97151) — investigate the qualification `covers` matching.
-- `BILL_CODES` use 30-minute units; real CPT 97153 etc. are 15-minute. Changing it changes billed amounts — needs a decision.
 - Payer "Qualification Modifiers" rows are keyed by education level, but staff have no education field — modifiers can't be derived per staff yet.
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Intake conversion doesn't copy approved authorization units into the new client's pool.

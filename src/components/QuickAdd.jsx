@@ -6,6 +6,7 @@ import { Dropdown } from './fields'
 import { fmtDur, fmtTime } from '../lib/date'
 import { TYPES, autoBilling, findConflicts, uid } from '../lib/model'
 import { payerForAppt, svcOptionsFor, rateFor } from '../lib/master'
+import { unitRuleFor, unitsFor } from '../lib/authUnits'
 
 /**
  * Drag-on-grid quick booking: ask WHO the client is and WHAT service, then book.
@@ -47,6 +48,8 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
     const code = service?.code || '97151'
     let billing = autoBilling({ type: 'service', billing: { code } }, dur)
     {
+      const rule = unitRuleFor(state, { service: serviceId, billingCode: code, clientIds: client ? [client.id] : [] })
+      billing = { ...billing, unitMins: rule.unitMins, rounding: rule.rounding, units: unitsFor(dur, rule.unitMins, rule.rounding) }
       const py = payerForAppt(state, client ? [client.id] : [])
       const rr = serviceId && py ? rateFor(state, py, serviceId, code) : null
       if (rr && Number.isFinite(rr.rate) && rr.rate > 0) billing = { ...billing, rate: rr.rate }

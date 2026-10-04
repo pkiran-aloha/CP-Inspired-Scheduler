@@ -299,12 +299,12 @@ describe('masters — payer deep record', () => {
     await openDetail('py-aetna')
     fireEvent.click(screen.getByTestId('pd-tab-services'))
     const card = await screen.findByTestId('pd-svc-dtt')
-    expect(card.textContent).toContain('$38.00') // seeded Aetna override
+    expect(card.textContent).toContain('$19.00') // seeded Aetna override (per 15-minute unit)
     expect(card.textContent).toContain('Effective 2025-01-01')
     fireEvent.click(screen.getByTestId('pd-ovr-dtt'))
     const charge = await screen.findByTestId('ovr-charge')
-    expect(charge.value).toBe('38')
-    expect(screen.getByTestId('ovr-contract').value).toBe('34')
+    expect(charge.value).toBe('19')
+    expect(screen.getByTestId('ovr-contract').value).toBe('17')
     fireEvent.change(charge, { target: { value: '40.5' } })
     fireEvent.click(screen.getByTestId('ovr-save'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcOv.dtt.charge).toBe(40.5))
@@ -448,7 +448,7 @@ describe('masters — platform relationships', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
-    // client: Justin Hsu (payer Aetna with the seeded dtt override $38)
+    // client: Justin Hsu (payer Aetna with the seeded dtt override $19)
     fireEvent.click(screen.getByTestId('pick-Client Name'))
     const item = (await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu'))
     fireEvent.click(item)
@@ -458,14 +458,14 @@ describe('masters — platform relationships', () => {
     fireEvent.mouseDown(document.body)
     await pickDropdown('service-select', 'dtt')
     const note = await screen.findByTestId('am-rate-ovr')
-    expect(note.textContent).toContain('$38.00')
+    expect(note.textContent).toContain('$19.00')
     expect(note.textContent).toContain('Aetna')
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
     fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.date === '2026-12-23' && a.service === 'dtt')
       expect(created).toBeTruthy()
-      expect(created.billing.rate).toBe(38)
+      expect(created.billing.rate).toBe(19)
     })
   })
 
@@ -632,8 +632,8 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.change(screen.getByTestId('sv-rate-social-input'), { target: { value: '20.5' } })
     fireEvent.keyDown(screen.getByTestId('sv-rate-social-input'), { key: 'Enter' })
     await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').rate).toBe(20.5))
-    await pickDropdown('sv-unit-social', '15')
-    await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').unitMins).toBe(15))
+    await pickDropdown('sv-unit-social', '30')
+    await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').unitMins).toBe(30))
     await pickDropdown('sv-code-social', '97151')
     await waitFor(() => expect(stored().svcs.find((x) => x.id === 'social').code).toBe('97151'))
   })
@@ -786,7 +786,7 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     const opts = svcOptionsFor(st, [aetnaClient.id])
     expect(opts.some((x) => x.id === 'dtt')).toBe(true)
     const rr = rateFor(st, payerForAppt(st, [aetnaClient.id]), 'dtt', '97151')
-    expect(rr.rate).toBe(38) // the seeded Aetna contract override wins over the $32 master rate
+    expect(rr.rate).toBe(19) // the seeded Aetna contract override wins over the $16 master rate
     expect(rr.source).toContain('Aetna')
     // payer-local service resolves through the same helpers
     const st2 = { ...st, payers: [{ ...payerForAppt(st, [aetnaClient.id]), svcs: [{ id: 'pl1', label: 'Zoo ABA', code: '97152', charge: 66, status: 'active' }] }] }
@@ -813,7 +813,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     fireEvent.click(screen.getByTestId('ovr-save'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcOv.net.charge).toBe(''))
     await waitFor(() => expect(document.querySelector('.ovr-form')).toBeNull())
-    expect((await screen.findByTestId('pd-svc-net')).textContent).toContain('$32.00') // inherits master rate
+    expect((await screen.findByTestId('pd-svc-net')).textContent).toContain('$16.00') // inherits master rate
   })
 
   it('Add Service button (toolbar, not only the FAB flow) creates the payer-only line', async () => {
@@ -833,7 +833,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     fireEvent.click(screen.getByTestId('ovr-save'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-aetna').svcs).toHaveLength(1))
     const rec = stored().payers.find((p) => p.id === 'py-aetna').svcs[0]
-    expect(rec).toMatchObject({ label: 'Zoo ABA', charge: 40, code: '97151', unitSize: '30 Minutes', status: 'active' })
+    expect(rec).toMatchObject({ label: 'Zoo ABA', charge: 40, code: '97151', unitSize: '15 Minutes', status: 'active' })
     const card = await screen.findByTestId(`pd-svc-${rec.id}`)
     expect(card.textContent).toContain('$40.00')
     expect(card.textContent).toContain('payer-only')

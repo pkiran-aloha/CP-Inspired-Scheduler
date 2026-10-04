@@ -129,7 +129,7 @@ export const CF_DEFS = [
 
 export const SVCS = SERVICES.map((s) => {
   const c = BILL_CODES.find((x) => x.id === s.code) || {}
-  return { ...s, status: 'active', unitMins: c.unitMins || 30, rate: c.rate || 0, rounding: 'AMA', credentials: s.id === 'sup' ? ['BCBA'] : s.id === 'social' || s.id === 'play' ? ['BCaBA', 'RBT'] : [], note: '' }
+  return { ...s, status: 'active', unitMins: c.unitMins || 15, rate: c.rate || 0, rounding: 'AMA', credentials: s.id === 'sup' ? ['BCBA'] : s.id === 'social' || s.id === 'play' ? ['BCaBA', 'RBT'] : [], note: '' }
 })
 
 // master seasoning: routing ids, clearing house and a few showcase payer rules
@@ -143,7 +143,7 @@ PAYERS[1].rules = {
   appt: { sigRequired: true },
   svcOv: {},
 }
-PAYERS[1].svcOv = { dtt: { charge: 38, contract: 34, modifier: 'U6', dx1: 'F84.0', dx2: 'F84.9', rounding: 'Nearest', effective: '2025-01-01', expiration: '2026-12-31', thirdParty: '4450' } }
+PAYERS[1].svcOv = { dtt: { charge: 19, contract: 17, modifier: 'U6', dx1: 'F84.0', dx2: 'F84.9', rounding: 'Nearest', effective: '2025-01-01', expiration: '2026-12-31', thirdParty: '4450' } }
 
 export const TEAMS = (() => {
   const teams = TEAM_DEFS.map((t) => ({ ...t, staffIds: [], clientIds: [] }))
@@ -399,7 +399,7 @@ export function buildSeed(todayISO) {
         occ(staffIds, di, start, start + dur)
         const billing = {
           ...autoBilling({ type: 'service', billing: { code: SVC_CODE[s.svc] } }, dur),
-          rate: SVC_CODE[s.svc] === '97152' ? (rnd() < 0.5 ? 74 : 70) : autoBilling({}, dur).rate || 32,
+          rate: SVC_CODE[s.svc] === '97152' ? (rnd() < 0.5 ? 37 : 35) : autoBilling({}, dur).rate || 16,
         }
         const notes = status === 'no-show' ? 'Attempted parent contact at scheduled start; documenting for auth.' : status === 'cancelled' ? 'Cancelled by caregiver — reschedule pending.' : past && rnd() < 0.75 ? pick(rnd, NOTE_POOL.service) : ''
         const vSigStaff = STAFF_BY_ID[staffIds[0]]
@@ -456,7 +456,7 @@ export function buildSeed(todayISO) {
               title: `${ttl} — ${c.name.split(' ')[0]}`, staffIds, clientIds: [c.id], status: 'active',
               location: 'En route', recurrence: 'weekly', seriesId: `${seriesId}-d${off < 0 ? 'a' : 'b'}`,
               notes: rnd() < 0.25 ? 'Traffic delay logged — drove straight from previous school site.' : '',
-              billing: { code: 'H2019', unitMins: 60, minutes: 20, units: 0, rate: 0, mileage: true, distance: dist, mileageRate: 0.7 },
+              billing: { code: 'H2019', unitMins: 15, minutes: 20, units: 0, rate: 0, mileage: true, distance: dist, mileageRate: 0.7 },
               custom: {},
             })
           }
@@ -600,7 +600,7 @@ export function buildSeed(todayISO) {
       staffIds: [eStaff], clientIds: [c.id], status: di < todayISO ? 'completed' : di === todayISO ? 'confirmed' : 'active',
       location: 'Assessment Lab', service: 'reassess', notes: di < todayISO ? 'Report drafted; narrative scoring pending.' : 'Materials printed; reinforcer prefprefs pre-session.',
       recurrence: 'none',
-      billing: { ...autoBilling({ billing: { code: '97152' } }, dur), rate: 74 },
+      billing: { ...autoBilling({ billing: { code: '97152' } }, dur), rate: 37 },
       custom: {},
       documents: di < todayISO ? [{ id: uid(), name: `Assessment Summary ${di}.pdf`, size: 480_000, tag: 'Assessment report' }, { id: uid(), name: 'Scoring Workbook.xlsx', size: 120_000, tag: 'Data export' }] : [],
       verification: di < todayISO ? { completedBy: 's6', checks: { data: true, safety: true, materials: true, caregiver: false }, verifyStatus: 'verified', note: 'Client tolerated full protocol.' } : null,

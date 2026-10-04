@@ -78,20 +78,42 @@ export const SERVICES = [
 // each code (cred), how it bills (billedThrough the supervising BCBA when the technician
 // renders), and the provider-level modifier that carries the credential (HO/HN/HP/HM).
 // Rates are practice config per appointment; the list is the coding reference.
+// Units follow the Medicaid / CPT norm: the ABA codes, 0362T/0373T and H2019 are
+// "each 15 minutes", counted by the midpoint rule (unitsFor 'AMA'). Rates are per
+// 15-minute unit. A payer's own unit size or rounding overrides this (authUnits.unitRuleFor).
 export const BILL_CODES = [
-  { id: '97151', label: '97151 · Behavior ID assessment', unitMins: 30, rate: 32, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
-  { id: '97152', label: '97152 · Supervised behavior treatment', unitMins: 30, rate: 74, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
-  { id: '97153', label: '97153 · Adaptive behavior treatment by protocol (1:1 tech)', unitMins: 30, rate: 18, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM' },
-  { id: '97154', label: '97154 · Group adaptive behavior treatment (2+ per tech)', unitMins: 30, rate: 16, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM' },
-  { id: '97155', label: '97155 · Protocol modification by BCBA', unitMins: 30, rate: 88, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
-  { id: '97156', label: '97156 · Family adaptive behavior guidance (BCBA-led)', unitMins: 30, rate: 70, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
-  { id: '97157', label: '97157 · Family group adaptive behavior guidance', unitMins: 30, rate: 18, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
-  { id: '97158', label: '97158 · Group protocol modification by BCBA', unitMins: 30, rate: 18, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
-  { id: '0362T', label: '0362T · Adaptive behavior treatment, technician (Category III · EOL 2027-01-01)', unitMins: 30, rate: 58, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM', eol: '2027-01-01' },
-  { id: '0373T', label: '0373T · Protocol modification by BCBA w/ 2+ technicians (Category III · EOL 2027-01-01)', unitMins: 30, rate: 92, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO', eol: '2027-01-01' },
+  { id: '97151', label: '97151 · Behavior ID assessment', unitMins: 15, rate: 16, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97152', label: '97152 · Supervised behavior treatment', unitMins: 15, rate: 37, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97153', label: '97153 · Adaptive behavior treatment by protocol (1:1 tech)', unitMins: 15, rate: 9, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM' },
+  { id: '97154', label: '97154 · Group adaptive behavior treatment (2+ per tech)', unitMins: 15, rate: 8, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM' },
+  { id: '97155', label: '97155 · Protocol modification by BCBA', unitMins: 15, rate: 44, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97156', label: '97156 · Family adaptive behavior guidance (BCBA-led)', unitMins: 15, rate: 35, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97157', label: '97157 · Family group adaptive behavior guidance', unitMins: 15, rate: 9, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '97158', label: '97158 · Group protocol modification by BCBA', unitMins: 15, rate: 9, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO' },
+  { id: '0362T', label: '0362T · Adaptive behavior treatment, technician (Category III · EOL 2027-01-01)', unitMins: 15, rate: 29, cred: ['RBT', 'BCaBA'], billedThrough: 'BCBA', mod: 'HM', eol: '2027-01-01' },
+  { id: '0373T', label: '0373T · Protocol modification by BCBA w/ 2+ technicians (Category III · EOL 2027-01-01)', unitMins: 15, rate: 46, cred: ['BCBA'], billedThrough: 'BCBA', mod: 'HO', eol: '2027-01-01' },
   { id: '253MT', label: '253MT · Modified treatment (clinic code)', unitMins: 30, rate: 10, cred: ['RBT', 'BCaBA', 'BCBA'], billedThrough: 'BCBA', mod: '' },
-  { id: 'H2019', label: 'H2019 · Health & rehab case mgmt', unitMins: 60, rate: 45, cred: ['BCBA', 'Psychologist'], billedThrough: 'BCBA', mod: '' },
+  { id: 'H2019', label: 'H2019 · Therapeutic behavioral services', unitMins: 15, rate: 11.25, cred: ['BCBA', 'Psychologist'], billedThrough: 'BCBA', mod: '' },
 ]
+// The pre-Medicaid-norm defaults (30-minute units; H2019 60), kept so the one-time
+// migration can recognise untouched defaults in saved workspaces.
+export const LEGACY_UNIT_DEFAULTS = {
+  97151: { unitMins: 30, rate: 32 }, 97152: { unitMins: 30, rate: 74 }, 97153: { unitMins: 30, rate: 18 }, 97154: { unitMins: 30, rate: 16 },
+  97155: { unitMins: 30, rate: 88 }, 97156: { unitMins: 30, rate: 70 }, 97157: { unitMins: 30, rate: 18 }, 97158: { unitMins: 30, rate: 18 },
+  '0362T': { unitMins: 30, rate: 58 }, '0373T': { unitMins: 30, rate: 92 }, H2019: { unitMins: 60, rate: 45 },
+}
+
+/** Minutes → billable units under a rounding rule. 'AMA' is the CPT midpoint rule (8+ minutes of a 15-minute unit). */
+export function unitsFor(minutes, unitMins, rounding = 'AMA') {
+  const m = Math.max(0, Number(minutes) || 0)
+  const u = Number(unitMins) || 15
+  const full = Math.floor(m / u)
+  const rem = m - full * u
+  if (rounding === 'Round Up') return Math.ceil(m / u)
+  if (rounding === 'Round Down' || rounding === 'Truncate') return full
+  if (rounding === 'Nearest') return Math.round(m / u)
+  return full + (rem * 2 > u ? 1 : 0) // AMA
+}
 // provider-level modifiers that carry the credential on ABA claims
 export const CRED_MODIFIERS = { BCBA: 'HO', BCaBA: 'HN', Psychologist: 'HP', RBT: 'HM', Other: '' }
 
@@ -132,7 +154,7 @@ export function computeBilling(a) {
 
 export function autoBilling(a, durMin) {
   const code = BILL_CODES.find((c) => c.id === a.billing?.code) || BILL_CODES[0]
-  const units = Math.round((durMin / code.unitMins) * 4) / 4
+  const units = unitsFor(durMin, code.unitMins)
   return {
     code: code.id,
     unitMins: code.unitMins,

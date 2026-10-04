@@ -250,7 +250,7 @@ describe('drag/click quick-add flow', () => {
     await waitFor(() => {
       const created = Object.values(apptsInStorage()).find((a) => a.clientIds?.includes('c1') && a.title === '1:1 Discrete Trial Training')
       expect(created).toBeTruthy()
-      expect(created.billing.units).toBe(2) // 60min default → 2 units
+      expect(created.billing.units).toBe(4) // 60min default → 4 fifteen-minute units
     })
   })
 
@@ -290,7 +290,8 @@ describe('create wizard', () => {
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBe(before + 1))
     const created = Object.values(apptsInStorage()).find((a) => a.title === 'Autism Home Support')
     expect(created.date).toBe('2026-12-23')
-    expect(created.billing.units).toBe(2)
+    expect(created.billing.units).toBe(4) // 60 min in 15-minute units
+    expect(created.billing.unitMins).toBe(15)
     expect(created.billing.code).toBe('97151')
   })
 

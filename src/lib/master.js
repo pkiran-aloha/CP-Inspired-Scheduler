@@ -269,7 +269,7 @@ export function svcList(state) {
     : SERVICES.map((s) => ({
         ...s,
         status: 'active',
-        unitMins: BILL_CODES.find((c) => c.id === s.code)?.unitMins || 30,
+        unitMins: BILL_CODES.find((c) => c.id === s.code)?.unitMins || 15,
         rate: BILL_CODES.find((c) => c.id === s.code)?.rate || 0,
         rounding: 'AMA',
       }))
@@ -299,7 +299,7 @@ export function svcById(state, id) {
 export function svcOptionsFor(state, clientIds) {
   const p = payerForAppt(state, clientIds)
   const mine = localSvcs(p).filter((s) => s.status !== 'inactive')
-  return [...activeSvcs(state), ...mine.map((s) => ({ ...s, code: s.code || '97151', unitMins: parseInt(s.unitSize, 10) || (BILL_CODES.find((c) => c.id === s.code) || {}).unitMins || 30, payerLocal: true, payerName: p.name }))]
+  return [...activeSvcs(state), ...mine.map((s) => ({ ...s, code: s.code || '97151', unitMins: parseInt(s.unitSize, 10) || (BILL_CODES.find((c) => c.id === s.code) || {}).unitMins || 15, payerLocal: true, payerName: p.name }))]
 }
 // charge rate for an appt service under a payer — only when the encounter actually bills
 // the contracted code: payer-local record → contract override → master rate → code table.
