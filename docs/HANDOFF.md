@@ -16,7 +16,7 @@ Last updated **2026-10-03** (end of session). Any agent resuming work: read this
 
 ## Shipped (newest first)
 
-Hackathon wave 2: configurable billing (#8). This wave is in progress. The plan and the audit are in `docs/specs/configurable-billing.md`, which lists 6 slices.
+Hackathon wave 2: configurable billing (#8). This wave is complete: all 6 slices are green on `main` (last one is `f814780`). The plan and the audit are in `docs/specs/configurable-billing.md`.
 - **Slice 1, Payment Terms** (Payer → Billing Rules → Payment Terms; `planPayerTerms`, `filingDaysOf` in `claims.js`). The payer record's `policy` now drives:
   - claim aging
   - the copay estimate
@@ -66,7 +66,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 | Wave | Items | Notes / open questions |
 |---|---|---|
-| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | All 6 slices have shipped. What is left is the "stored but unused" list at the end of the spec, plus box 17 and Supervising Provider, which wait on data the app doesn't record yet. See are in `docs/specs/configurable-billing.md`. Medicaid norms are the compliance baseline for every slice. |
+| ~~Configurable billing (#8)~~ (shipped 2026-10-04) | "We didn't have to submit hard-code requests for billing" | All 6 slices have shipped (see Shipped above and `docs/specs/configurable-billing.md`). Medicaid norms are the compliance baseline. Still open, small:<br>• the "stored but unused" list at the end of the spec<br>• box 17 (referring provider) and Supervising Provider: both need data that isn't recorded yet |
 | **Intake (#5)** | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | Maintainer picked all three. Downloadable intake packet + filled request as PDF (jsPDF is installed); trace the General Requests → Client Intake → Client List hand-offs end-to-end and fix confusing steps; run `impeccable` critique on the intake screens first. |
 | **Inbox, tasks, notifications (#1 + #2)** | Message center + task assignment + notifications | Local, in-workspace only (no delivery off-device, no client portal yet). |
 | **Records (#4, #10, #13)** | Client statements; Cabinet expirations; RBT PDU report | Statements: history, PDF, mark sent/paid (no email). Cabinet: documents register with expiry + alerts (metadata only). PDU: log entries per staff vs renewal requirement — confirm requirement per credential with the maintainer. |
