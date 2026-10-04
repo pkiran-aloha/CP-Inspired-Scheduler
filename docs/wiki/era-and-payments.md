@@ -1,7 +1,7 @@
 # ERA and payments
 
 _Sources: src/lib/era.js, src/lib/eraPosting.js, src/lib/paymentLedger.js, src/lib/secondaryLedger.js, src/lib/claims.js, src/lib/billingDocs.js, src/components/PaymentCenterView.jsx, src/components/SecondaryBillingView.jsx, src/state/store.jsx, src/__tests__/fixtures/835-full.txt_
-_Last synced with main at 4532aa0 on 2026-10-04._
+_Last synced with main at 2b51459 on 2026-10-04._
 
 This page covers how money gets onto claims in this browser: the Payment Center, 835 ERA import, manual remittances, voids, recoupments, patient receipts, and secondary (COB) filings. Claim lifecycle is in [billing-and-claims](billing-and-claims.md); aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -83,7 +83,7 @@ The balance on a secondary claim is not extra A/R; the footer says "filing balan
 ### Modules
 
 - [`era.js`](../../src/lib/era.js): `parse835` splits on `~` and `*` and requires the envelope (ISA, GS, ST 835, SE, GE, IEA), BPR, TRN and CLP. It reads payment amount and date, trace, payer name, per-claim CLP fields, claim-level CAS, allowed amount and dates. SVC only sets a flag. PLB only sets `meta.hasPLB`. It fingerprints the file with FNV-1a for duplicate detection. `matchEraLines` and `denialByCARC` are used by tests.
-- [`eraPosting.js`](../../src/lib/eraPosting.js): `previewEra` (decisions per line), `planEraImport`, `planParkedEraPost`, `eraDenialInfo`.
+- [`eraPosting.js`](../../src/lib/eraPosting.js): `previewEra` (decisions per line), `planEraImport`, `planParkedEraPost`, `eraDenialInfo` (turns a denial line's group and reason code into the stored reason and next step, looked up in the practice's remittance code hints via `carcHintsOf` in claims.js; unknown codes get a generic "Payer denial" reason).
 - [`paymentLedger.js`](../../src/lib/paymentLedger.js): `planClaimPayment`, `planPatientReceipt`, `planUnappliedReceipt`, `planVoidClaimPayment`, `planRecoupment`, `buildPatientReceiptAudit`, `RECOUP_REASONS`, `RECOUP_METHODS`. Money is held in integer cents internally and values with more than two decimals are refused.
 - [`secondaryLedger.js`](../../src/lib/secondaryLedger.js): `planSecondaryFiling`, `planSecondarySkip`, `planSecondaryCancel`, `normalizeCobLedger`, `SECONDARY_METHODS`.
 - [`claims.js`](../../src/lib/claims.js): `payPatch`, `dueOf`, `patientResponsibilityOf`, `patientLedgerMatches`, `quickPosts`, `secondaryEligible`, `secondaryClaimPatch`, `paymentsFromClaims`.
@@ -134,6 +134,6 @@ All of these reducer case names are listed in `actionAreas` in [`security.js`](.
 - No split receipts, and no later step to apply an unapplied receipt to a claim.
 - One ST transaction per 835 file.
 - ERA-posted payments cannot be voided on their own, and "Undo that import" is the in-memory Undo only (lost on reload, 25 steps, this tab).
-- An ERA denial does not post a CARC adjustment; it sets the claim to Denied with the code.
+- An ERA denial does not post a CARC adjustment; it sets the claim to Denied with the code. The reason and next step come from the remittance code hints in Settings, System, Billing Settings (defaults cover 11 common codes such as CO-16, CO-197 and CO-252).
 - No un-skip for a secondary filing except Undo.
 - No EDI transmission of any file in either direction.

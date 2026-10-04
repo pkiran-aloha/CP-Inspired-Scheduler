@@ -2,7 +2,7 @@
 
 _Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced with main at 4532aa0 on 2026-10-04._
+_Last synced with main at 2b51459 on 2026-10-04._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -31,6 +31,8 @@ If your account has view-only access to the Workspace settings area, every panel
 | Subscription Portal | A plan, seats and renewal record for this workspace |
 
 **System Settings tabs:** General Settings, Clearing House Integration, Billing Settings, Appointment Settings, Appointment Validations, Notification Settings, Clinical Integrations, EVV Integrations, Other Settings. The panel also holds display and money defaults, appointment naming with a live preview, **Smart scheduling** weights, the **Authorization guard**, ABA Hours targets, Analytics defaults, the versioned **Data and backup** export and restore, and **Demo data** reset (two-step arming). Clearing house and EVV settings only store configuration; no claim or visit is transmitted. Notification preferences only change what the local workspace highlights.
+
+**Denial reasons and remittance code hints** (System, Billing Settings): two editable lists. Denial reasons (label and next step) are offered when a claim is marked denied; remittance code hints (a group-reason code such as CO-197, its meaning and the next step) explain ERA denials. Edit the rows, then press **Save reasons and hints**. The save runs through `planReasonLists` (settings op `billing.reasons`): every reason needs a label of at least 3 characters, labels and codes cannot repeat, codes must look like CO-197 (groups CO, PR, OA, PI, CR), and at least one denial reason must remain.
 
 ### Guards you will meet
 

@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at 4532aa0 on 2026-10-04._
+_Last synced with main at 2b51459 on 2026-10-04._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -88,7 +88,7 @@ Completed sessions become claim-ready lines and are grouped into claims. Submiss
 - **Modifiers on every line, from the payer's settings.** Each insurance claim line carries up to four modifiers: the payer's service modifier, the rendering provider's credential modifier (HO, HN, HM, HP) and the payer's place-of-service modifier. The credential modifier can be switched off per payer.
 - **Same-day merge and claim splitting.** By default, same-day sessions for one client, code and rendering provider become one line with their minutes added up and rounded once, the Medicaid way. A payer can turn that off, or ask for separate claims by rendering provider or place of service.
 - **CMS-1500 (02/12) PDF:** a printable facsimile with the form's drop-out red captions and black data, generated from the same field mapping the claim uses. Program, group number, plan ID, other-coverage and service-facility boxes read the payer and client records, and a blank value prints as a dash rather than an invented one. It is a PDF you print; some boxes, such as the member and authorization numbers, are still placeholders in this prototype.
-- **Denials, rebills and appeals:** record a denial with its reason and suggested fix, void and rebill with disputed lines returned to staging, and start appeal letters from templates.
+- **Denials, rebills and appeals:** record a denial with a reason and next step from the practice's own list, void and rebill with disputed lines returned to staging, and start appeal letters from templates.
 - **Secondary (COB) queue:** prepares a claim-level COB draft from the primary's remaining balance and records an external filing locally. It does not generate or send a secondary claim.
 
 ### ERA posting, payments and recoupments: post what the remittance says, and nothing it doesn't
@@ -135,6 +135,7 @@ A configurable dashboard and a report library share one metrics engine, so the s
 Thirteen settings modules hold the practice's own rules. Masters are edited in one place and read everywhere, and changes that would break existing records are refused.
 
 - **Payer billing rules:** provider-ID rule, MUE daily limits, per-code weekly limits, unit size and rounding overrides per service, place-of-service modifiers, the credential-modifier switch, merge-same-day and separate-claim-by rules, and the CMS type, group and plan identifiers the CMS-1500 prints.
+- **Denial reasons and remittance code hints** are the practice's own lists: add a payer's denial reason or explain a new adjustment code in Settings, no code change needed.
 - **Payment Terms per payer:** payer kind, expected days to pay, estimated payer share, copay and filing deadline. Claim aging, copay estimates, payment presets and timely filing read them, and each save is validated and undoable.
 - **Guarded changes:** office names must be unique, an office still in use can't be deleted until its records are moved, a renamed office updates every record that uses it, and a status with appointments on it must be reassigned before removal.
 - **Appointment status, custom lists, custom fields, qualifications, services and earning codes**, each a single master.

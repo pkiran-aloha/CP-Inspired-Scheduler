@@ -1,7 +1,7 @@
 # Billing and claims
 
-_Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced with main at 4532aa0 on 2026-10-04._
+_Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
+_Last synced with main at 2b51459 on 2026-10-04._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -55,7 +55,7 @@ An eighth value, `appealed`, can appear after "File Appeal"; see "Not yet built"
 
 ### Denial, rebill, void, write-off
 
-- **Record denial.** Only a Submitted claim with no pending secondary change. Choose one of five reasons (not eligible or no auth, documentation requested, coding error, duplicate line, timely filing). The toast shows the suggested fix.
+- **Record denial.** Only a Submitted claim with no pending secondary change. Choose a reason from the practice's denial reason list, kept in Settings, System, Billing Settings (the defaults are not eligible or no auth, documentation requested, coding error, duplicate line, timely filing). Each reason carries a next step, which the toast shows and the claim keeps.
 - **Rebill.** Only a Denied primary claim with no secondary link. Tick disputed lines to send them back to staging, then Rebill. The original is voided and a new draft `<no>-R<n>` is created. At least one line must be kept; to drop everything, use Void.
 - **Void.** A Draft or Submitted primary claim with no secondary link. All lines go back to staging.
 - **Drop a line.** A Draft primary claim only. The last line removed dissolves the claim. A merged same-day line goes back whole: every session it covers returns to staging.
@@ -161,7 +161,6 @@ Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary d
 - Modifiers: Qualification Modifiers keyed by education level cannot be derived per staff, so only the service, credential and place-of-service modifiers are applied. Saved payer place-of-service rows keyed `06` (the old home code) need re-picking as `12`.
 - "Separate Claim By: Supervising Provider" has no effect because sessions record no supervisor. A merged line takes the first listed staff member of its sessions as the rendering provider.
 - The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for that code keeps a pool in the wrong unit; fix it in Clients, Edit.
-- Denial reasons are a fixed list of five; CARC-based reasons are slice 6 of the configurable-billing plan, still planned.
 - Appeals: `fileAppeal` sets the claim status to `appealed`, which is not in `CLAIM_STATUSES`, is not counted by the desk KPIs, and cannot receive a payment (posting needs Submitted or Partially paid). Mark Won sets Paid without posting money, so the balance can stay open in A/R. Appeal templates are text only.
 - No auto-void or auto-rebill, no claim-level attachments.
 - Stored payer fields that nothing reads yet are listed in the configurable-billing spec.

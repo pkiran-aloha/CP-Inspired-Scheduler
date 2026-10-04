@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced with main at 4532aa0 on 2026-10-04._
+_Last synced with main at 2b51459 on 2026-10-04._
 
 [Wiki home](README.md)
 
@@ -176,6 +176,10 @@ A dashboard widget with eight revenue-cycle tiles computed from this workspace's
 For a payer that turned off merge same day, rounding each session on its own can bill a different total than counting the day once. Turn merge same day back on in the payer's Claims Settings, or correct that day's units. Payers with the default setting are merged on the claim, so they do not trigger it. [More: Dashboard and reports](dashboard-and-reports.md)
 
 ## Settings
+
+### How do I add a denial reason or a remittance code?
+
+Open Settings, System, Billing Settings. Add or edit rows under Denial reasons (offered when you mark a claim denied) or Remittance code hints (what an ERA code such as CO-197 means and what to do), then press Save reasons and hints. Codes must look like CO-197, and at least one denial reason must remain. [More: Settings](settings.md)
 
 ### Where do I set a payer's billing rules?
 
