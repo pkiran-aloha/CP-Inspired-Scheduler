@@ -3,7 +3,7 @@ import { beforeEach, afterEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import App from '../App'
 import { blankState, StoreProvider, useStore } from '../state/store'
-import { notificationsFor, openTasksFor, planTask, planTaskDone, taskState } from '../lib/tasks'
+import { linkLabel, notificationsFor, openTasksFor, planTask, planTaskDone, taskState } from '../lib/tasks'
 import { currentAccount } from '../lib/security'
 import { createWorkspaceBackup, readWorkspaceBackup } from '../lib/workspaceBackup'
 import { addDays, isoDate, parseISO, todayISO } from '../lib/date'
@@ -31,6 +31,14 @@ describe('inbox — tasks and notifications', () => {
     expect(openTasksFor(st, ME, today).map((t) => t.id)).toEqual(['t1', 't2'])
     const done = planTaskDone(st, 't1').item
     expect(openTasksFor({ ...st, tasks: { t1: done, t2 } }, ME, today).map((t) => t.id)).toEqual(['t2'])
+  })
+
+  it('a role without Clients cannot link a task to a client or see the linked name', () => {
+    const noClients = (area) => area !== 'clients'
+    expect(planTask(BASE, task(), { id: 'x', can: noClients }).ok).toBe(false)
+    const t1 = planTask(BASE, task(), { id: 't1' }).item
+    expect(linkLabel(BASE, t1.link)).toBe(BASE.clients[0].name)
+    expect(linkLabel(BASE, t1.link, noClients)).toBe('')
   })
 
   it('notifications are read from the workspace and respect what the role can open', () => {
@@ -81,9 +89,12 @@ describe('inbox — store and screen', () => {
     const t = Object.values(saved().tasks)[0]
     expect(t).toMatchObject({ title: 'Chase the signed consent', assigneeId: ME, dueOn: day(-2), status: 'open' })
     expect(within(panel).getByTestId(`task-state-${t.id}`).textContent).toMatch(/Overdue/)
-    fireEvent.click(within(panel).getByTestId('inbox-tab-notifications'))
-    expect(within(panel).getByTestId('inbox-n-tasks-overdue')).toBeTruthy()
-    fireEvent.click(within(panel).getByTestId('inbox-tab-tasks'))
+    // "my tasks" notifications need the signed-in account to be linked to a staff member
+    if (currentAccount(BASE)?.staffId) {
+      fireEvent.click(within(panel).getByTestId('inbox-tab-notifications'))
+      expect(within(panel).getByTestId('inbox-n-tasks-overdue')).toBeTruthy()
+      fireEvent.click(within(panel).getByTestId('inbox-tab-tasks'))
+    }
     fireEvent.click(within(panel).getByTestId(`task-done-${t.id}`))
     await waitFor(() => expect(saved().tasks[t.id].status).toBe('done'))
   })

@@ -25,7 +25,9 @@ export default function InboxView({ onClose }) {
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
-  const feed = notificationsFor(state, me, today, (area) => state.canAccess(area, 'view'))
+  const can = (area) => state.canAccess(area, 'view')
+  const canClients = can('clients') // client names show only to roles that can open Clients
+  const feed = notificationsFor(state, me, today, can)
   const tasks = openTasksFor(state, scope === 'mine' ? me : null, today)
   const say = (res) => toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
   const save = () => {
@@ -76,7 +78,7 @@ export default function InboxView({ onClose }) {
                     <label className="iq-fld"><span>Assign to</span><select className="input" data-testid="task-f-assignee" value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}>{staff.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
                     <label className="iq-fld"><span>Due</span><input className="input" type="date" data-testid="task-f-due" value={form.dueOn} onChange={(e) => setForm({ ...form, dueOn: e.target.value })} /></label>
                     <label className="iq-fld"><span>Priority</span><select className="input" data-testid="task-f-priority" value={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.value })}>{TASK_PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
-                    <label className="iq-fld"><span>About client (optional)</span><select className="input" data-testid="task-f-client" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}><option value="">None</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+                    {canClients && <label className="iq-fld"><span>About client (optional)</span><select className="input" data-testid="task-f-client" value={form.clientId} onChange={(e) => setForm({ ...form, clientId: e.target.value })}><option value="">None</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
                   </div>
                   <label className="iq-fld"><span>Notes</span><input className="input" data-testid="task-f-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
                   <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
@@ -88,7 +90,7 @@ export default function InboxView({ onClose }) {
               {!tasks.length ? <div className="muted" data-testid="task-empty" style={{ fontSize: 12 }}>No open tasks.</div> : tasks.map((t) => {
                 const st = taskState(t, today)
                 const who = staff.find((s) => s.id === t.assigneeId)?.name || t.assigneeId
-                const about = linkLabel(state, t.link)
+                const about = linkLabel(state, t.link, can)
                 return (
                   <div key={t.id} data-testid={`task-row-${t.id}`} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderTop: '1px solid var(--line)', fontSize: 12 }}>
                     <input type="checkbox" aria-label={`Mark "${t.title}" done`} data-testid={`task-done-${t.id}`} checked={false} onChange={() => say(actions.setTaskDone(t.id, true))} />
