@@ -22,7 +22,10 @@ const findLink = (state, link) => {
   const coll = state[def.coll]
   return Array.isArray(coll) ? coll.find((x) => x.id === link.id) : coll?.[link.id]
 }
-export const linkLabel = (state, link) => {
+// The area a linked record lives in: a role that cannot open it sees no label and cannot link it.
+export const LINK_AREA = { client: 'clients', claim: 'billing', intake: 'intake' }
+export const linkLabel = (state, link, can = () => true) => {
+  if (link && !can(LINK_AREA[link.kind])) return ''
   const rec = link ? findLink(state, link) : null
   if (!rec) return ''
   if (link.kind === 'client') return rec.name
@@ -38,7 +41,7 @@ export function taskState(t, today) {
   return d < 0 ? 'overdue' : d === 0 ? 'today' : 'upcoming'
 }
 
-export function planTask(state, input = {}, { id, at = Date.now(), by = null } = {}) {
+export function planTask(state, input = {}, { id, at = Date.now(), by = null, can = () => true } = {}) {
   const cur = input.id ? state.tasks?.[input.id] : null
   if (input.id && !cur) return { ok: false, msg: 'Task not found.' }
   const title = String(input.title || '').replace(/\s+/g, ' ').trim().slice(0, 140)
@@ -48,6 +51,7 @@ export function planTask(state, input = {}, { id, at = Date.now(), by = null } =
   if (input.dueOn && !iso(input.dueOn)) return { ok: false, msg: 'Due date must be a date.' }
   if (!TASK_PRIORITIES.some((p) => p.id === (input.priority || 'normal'))) return { ok: false, msg: 'Choose a priority.' }
   const link = input.link?.kind && input.link?.id ? { kind: input.link.kind, id: input.link.id } : null
+  if (link && !can(LINK_AREA[link.kind])) return { ok: false, msg: 'Your role cannot link a task to that kind of record.' }
   if (link && !findLink(state, link)) return { ok: false, msg: 'The linked record no longer exists.' }
   const item = {
     ...(cur || { id, status: 'open', createdAt: at, createdBy: by, doneAt: null, history: [] }),

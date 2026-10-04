@@ -894,7 +894,7 @@ function createActions(state, dispatch, rawState = state) {
     /** Payer take-back on a paid primary claim: reopens the balance, one Undo. */
     /** Inbox tasks: add / edit, mark done or reopen. One record write, one Undo. */
     saveTask: (input) => {
-      const plan = planTask(state, input, { id: input.id || uid(), at: Date.now(), by: currentAccount(state)?.staffId || null })
+      const plan = planTask(state, input, { id: input.id || uid(), at: Date.now(), by: currentAccount(state)?.staffId || null, can: (area) => canAccess(state, area, 'view') })
       if (!plan.ok) return plan
       dispatch({ type: 'record', coll: 'tasks', item: plan.item })
       return { ok: true, msg: plan.msg, id: plan.item.id }
