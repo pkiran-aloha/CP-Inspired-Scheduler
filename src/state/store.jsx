@@ -1075,8 +1075,8 @@ function createActions(state, dispatch, rawState = state) {
     denyClaim: (id, payload) => {
       const c = state.claims[id]
       if (!c || c.status !== 'submitted' || (c.method !== 'secondary' && c.secondary)) return { ok: false, msg: 'Only a submitted claim without a pending primary COB change can be denied here' }
-      dispatch({ type: 'claimsTx', claimUpserts: [denyPatch(c, payload).claim] })
-      return { ok: true, msg: `${c.no} marked denied — ${denialOf(payload.code).fix}` }
+      dispatch({ type: 'claimsTx', claimUpserts: [denyPatch(c, payload, state).claim] })
+      return { ok: true, msg: `${c.no} marked denied — ${denialOf(payload.code, state).fix}` }
     },
     rebillClaim: (id, dropIds) => {
       const c = state.claims[id]

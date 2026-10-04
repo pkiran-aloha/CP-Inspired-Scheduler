@@ -66,6 +66,12 @@ Self-pay invoices carry none. Place of service now uses CMS codes (home 12, scho
 - **Merge Same Day** (on by default, the Medicaid norm) puts same-day sessions on one line. To merge, sessions must share the code, modifiers, rendering provider and rate. Their minutes are added up and rounded once, so two 37-minute sessions bill 5 units, not 2 + 2. The line says how many sessions it covers. Dropping, rebilling or voiding it returns every one of them to staging.
 - **Separate Claim By** splits a client's month into several claims, by rendering provider or by place of service.
 
+**Denial reasons and remittance hints are editable.** You edit two lists in Settings → System → Billing Settings:
+- **Denial reasons:** offered when a claim is marked denied, each with its next step.
+- **Remittance code hints:** what an ERA adjustment code such as CO-197 means and what to do about it. The defaults cover 11 common CARCs.
+
+Both lists are validated and saved in one step. Posted ERA denials and recorded denials read them. `planReasonLists` / `CARC_HINTS` are in `src/lib/claims.js`. Tests: `billingReasons.test.jsx`.
+
 Turning Merge Same Day off for a payer brings back one line per session. Reports → Validations then flags the days where that bills a different number of units. `mergeSameDayLines` / `lineApptIds` are in `src/lib/claims.js`.
 
 ### Hackathon wave 1 — billing

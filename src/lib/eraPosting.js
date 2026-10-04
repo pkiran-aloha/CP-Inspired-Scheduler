@@ -1,7 +1,7 @@
 // Claim-level ERA review and posting. All decisions are recomputed against the current
 // ledger at posting time; no fuzzy matching, service-line allocation, or auto-application
 // of provider-level PLB adjustments. Kept separate from the X12 reader for testability.
-import { payPatch, patientLedgerMatches } from './claims'
+import { payPatch, patientLedgerMatches, carcHintsOf } from './claims'
 import { uid } from './model'
 
 const toCents = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 &&
@@ -13,18 +13,12 @@ const liveStatuses = new Set(['submitted', 'partially_paid'])
 // primary claim ledger until secondary reconciliation is implemented.
 const payableStatuses = new Set(['1', '19', 'manual-partial'])
 
-const denialHints = {
-  'CO-197': ['Precertification/authorization/notification absent', 'Verify the authorization and dates of service, then correct or appeal.'],
-  'CO-96': ['Non-covered charge', 'Check the member benefit and code coverage before appealing.'],
-  'CO-16': ['Missing or incomplete claim information', 'Review required claim fields and resubmit with corrections.'],
-  'CO-29': ['Filing limit exceeded', 'Check the timely filing limit and submission proof.'],
-  'CO-50': ['Medical necessity not established', 'Review medical-necessity documentation and appeal instructions.'],
-}
-
-export function eraDenialInfo(line) {
+// CARC hints come from Settings → Billing defaults (carcHintsOf), defaults in claims.js
+export function eraDenialInfo(line, state) {
   const adjustment = (line.adjustments || []).find((a) => a.group !== 'PR' && /^(?:\d+|[A-Z]\d+)$/i.test(a.reason))
   const carc = adjustment ? `${adjustment.group}-${adjustment.reason}` : 'unavailable'
-  const [reason, fix] = denialHints[carc] || [
+  const hint = carcHintsOf(state).find((h) => h.code === carc)
+  const [reason, fix] = hint ? [hint.label, hint.fix] : [
     adjustment ? `Payer denial ${carc}` : 'Payer denial — no CARC supplied',
     'Review the ERA adjustment and payer guidance before correcting or appealing.',
   ]
@@ -151,10 +145,10 @@ function recordLine(row, decision, reason = '') {
   }
 }
 
-function applyRow(row, eraId, trace, date, at, makeId) {
+function applyRow(row, eraId, trace, date, at, makeId, state) {
   const claim = row.claim
   if (row.kind === 'denial') {
-    const denial = { ...eraDenialInfo(row.line), note: `ERA ${trace || eraId}`, at }
+    const denial = { ...eraDenialInfo(row.line, state), note: `ERA ${trace || eraId}`, at }
     return { claim: { ...claim, status: 'denied', denial, history: [...(claim.history || []), { at, ev: `Denied by ERA — ${denial.code}: ${denial.reason}` }] } }
   }
   const ref = trace || eraId
@@ -195,7 +189,7 @@ export function planEraImport(state, parsed, opts = {}) {
   const claimUpserts = [], payments = {}, detail = []
   for (const row of preview.rows) {
     if (!selected.has(row.id)) { detail.push(recordLine(row, 'parked', row.reason || 'Deferred for manual review')); continue }
-    const applied = applyRow(row, id, trace, date, at, makeId)
+    const applied = applyRow(row, id, trace, date, at, makeId, state)
     claimUpserts.push(applied.claim)
     if (applied.payment) {
       if (state.payments?.[applied.payment.id] || payments[applied.payment.id]) return { ok: false, msg: 'Payment identifier already exists', preview }
@@ -237,7 +231,7 @@ export function planParkedEraPost(state, eraId, selectedIds, opts = {}) {
   const updates = new Map()
   for (const row of preview.rows) {
     if (selected.has(row.id)) {
-      const applied = applyRow(row, era.id, era.traceNo, era.paymentDate, at, makeId)
+      const applied = applyRow(row, era.id, era.traceNo, era.paymentDate, at, makeId, state)
       claimUpserts.push(applied.claim)
       if (applied.payment) {
         if (state.payments?.[applied.payment.id] || payments[applied.payment.id]) return { ok: false, msg: 'Payment identifier already exists', preview }

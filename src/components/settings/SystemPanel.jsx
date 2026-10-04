@@ -13,6 +13,7 @@ import {
   VALIDATION_LEVELS, clearinghousesCfg, evvCfg, integrationsCfg, INTEGRATION_STATUSES,
 } from '../../lib/settingsMasters'
 import { RANGE_PRESETS, DIMS, METRICS } from '../../lib/analytics'
+import { denialReasonsOf, carcHintsOf } from '../../lib/claims'
 import { Section, Row, TextField, NumberField, Select, Toggle, Seg, Banner, DataTable, IconButton } from './kit'
 
 /**
@@ -366,6 +367,7 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
           <Row label="Invoice sequence"><NumberField value={settings.billing?.invoiceSeq ?? 1} min={1} max={100000} testid="set-bill-seq" disabled={readOnly} onCommit={(v) => patch({ billing: { ...settings.billing, invoiceSeq: v } })} /></Row>
           <Row label="Default filing deadline"><NumberField value={settings.billing?.defaultFilingDays ?? 90} min={0} max={365} suffix="days" testid="set-bill-filing" disabled={readOnly} onCommit={(v) => patch({ billing: { ...settings.billing, defaultFilingDays: v } })} /></Row>
         </div>
+        <ReasonLists settings={settings} actions={actions} toast={toast} readOnly={readOnly} />
       </Section>
     ),
 
@@ -810,6 +812,56 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
       </div>
       {orderedKeys.map((k) => sectionBlocks[k] || null)}
     </>
+  )
+}
+
+/**
+ * Denial reasons (offered when a claim is marked denied) and remittance code hints (what an
+ * ERA adjustment code means and what to do). Edited as a draft, saved in one settings op.
+ */
+function ReasonLists({ settings, actions, toast, readOnly }) {
+  const [draft, setDraft] = useState(() => ({ denialReasons: denialReasonsOf({ settings }).map((r) => ({ ...r })), carcHints: carcHintsOf({ settings }).map((h) => ({ ...h })) }))
+  const upd = (list, i, k, v) => setDraft((d) => ({ ...d, [list]: d[list].map((r, j) => (j === i ? { ...r, [k]: v } : r)) }))
+  const del = (list, i) => setDraft((d) => ({ ...d, [list]: d[list].filter((_, j) => j !== i) }))
+  const add = (list, row) => setDraft((d) => ({ ...d, [list]: [...d[list], row] }))
+  const save = () => {
+    const res = actions.settingsOp('billing.reasons', draft)
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'error' })
+  }
+  const input = (list, i, k, label, width) => (
+    <input className="input" aria-label={label} placeholder={label} disabled={readOnly} data-testid={`set-${list === 'denialReasons' ? 'den' : 'carc'}-${k}-${i}`} value={draft[list][i][k] || ''} onChange={(e) => upd(list, i, k, e.target.value)} style={width ? { width } : undefined} />
+  )
+  return (
+    <div data-testid="set-bill-reasons" style={{ marginTop: 14 }}>
+      <Row label="Denial reasons" hint="Offered when a claim is marked denied, each with the next step" stack>
+        <div className="set-table">
+          {draft.denialReasons.map((r, i) => (
+            <div className="set-trow" key={i} style={{ gridTemplateColumns: '1.2fr 1.4fr 32px' }}>
+              {input('denialReasons', i, 'label', 'Reason')}
+              {input('denialReasons', i, 'fix', 'Next step')}
+              <IconButton icon="trash" title="Remove reason" disabled={readOnly} testid={`set-den-del-${i}`} onClick={() => del('denialReasons', i)} />
+            </div>
+          ))}
+        </div>
+        <button type="button" className="btn btn-sm" disabled={readOnly} data-testid="set-den-add" onClick={() => add('denialReasons', { label: '', fix: '' })}>{Icon.plus({ size: 12 })} Add reason</button>
+      </Row>
+      <Row label="Remittance code hints" hint="What an ERA adjustment code (group-reason, e.g. CO-197) means and what to do about it" stack>
+        <div className="set-table">
+          {draft.carcHints.map((h, i) => (
+            <div className="set-trow" key={i} style={{ gridTemplateColumns: '90px 1.2fr 1.4fr 32px' }}>
+              {input('carcHints', i, 'code', 'Code')}
+              {input('carcHints', i, 'label', 'Meaning')}
+              {input('carcHints', i, 'fix', 'Next step')}
+              <IconButton icon="trash" title="Remove hint" disabled={readOnly} testid={`set-carc-del-${i}`} onClick={() => del('carcHints', i)} />
+            </div>
+          ))}
+        </div>
+        <button type="button" className="btn btn-sm" disabled={readOnly} data-testid="set-carc-add" onClick={() => add('carcHints', { code: '', label: '', fix: '' })}>{Icon.plus({ size: 12 })} Add code</button>
+      </Row>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+        <button type="button" className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-bill-reasons-save" onClick={save}>Save reasons and hints</button>
+      </div>
+    </div>
   )
 }
 

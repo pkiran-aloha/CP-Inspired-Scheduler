@@ -17,6 +17,7 @@ import { EARNING_CODES, EARNING_BY_ID, defaultPayrollSettings, earningCodesFor, 
 import { STATUSES, STATUS_ORDER, BILL_CODES, TYPES, isServiceAppt, uid } from './model'
 import { abaActivityById, abaHoursCfg } from './abaHours'
 import { providerIdIssues } from './providerIds'
+import { planReasonLists } from './claims'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -1256,6 +1257,11 @@ export function planSettingsOp(state, op, payload = {}) {
       if (patch.billingContact && !isEmail(patch.billingContact)) return fail('That billing contact is not a valid email address.')
       if (patch.portalUrl && !/^https:\/\//.test(patch.portalUrl)) return fail('The portal link must be an https:// address.')
       return done('Subscription record updated', { patch: { subscription: { ...cfg, ...patch } } })
+    }
+    case 'billing.reasons': {
+      const plan = planReasonLists(payload)
+      if (!plan.ok) return fail(plan.msg)
+      return done(plan.msg, { patch: { billing: { ...(settings.billing || {}), denialReasons: plan.denialReasons, carcHints: plan.carcHints } } })
     }
     case 'system.patch': {
       const patch = { ...payload.patch }
