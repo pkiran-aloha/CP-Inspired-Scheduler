@@ -51,6 +51,13 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - Undo history is tab-local (25 steps). Never persist it.
 - Beware import cycles: `seed.js` imports `authBudget.js`; `master.js` imports `seed.js`. Keep `authBudget.js` free of `master.js` imports (that's why `authUnits.js` is separate).
 - Money is handled in cents internally (`cents()` in paymentLedger); refuse values with more than 2 decimals.
+- A claim line can bill several appointments, because same-day sessions merge under the Medicaid rule. Read a line's appointments with `lineApptIds(line)` from `claims.js`, never `line.apptId` alone.
+- Billing compliance baseline is **Medicaid norms**:
+  - 15-minute units, counted by the CPT midpoint rule
+  - a day's minutes for one code are added up, then rounded once
+  - credential modifiers on each line
+
+  A payer's own rule, set in Masters → Payer, overrides these. `docs/specs/configurable-billing.md` has the details.
 
 ## Testing rules
 
