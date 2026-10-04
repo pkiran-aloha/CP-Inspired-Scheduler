@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced with main at c185259 on 2026-10-04._
+_Last synced with main at 4532aa0 on 2026-10-04._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -60,7 +60,7 @@ Changes are saved to localStorage about a quarter of a second after the last edi
 
 [`security.js`](../../src/lib/security.js):
 - Definitions: `SECURITY_AREAS`, `ACCESS_LEVELS`, `ROLE_TEMPLATES`, `defaultSecurity`, `normalizeSecurity`, `validateSecurityConfig`.
-- Checks: `currentAccount`, `currentRole`, `accessLevel`, `canAccess`, `canAccessRecord`, `officesForRecord`, `scopeWorkspaceToAccount`, `areaForSection`, `canAccessSection`, `firstAccessibleSection`.
+- Checks: `currentAccount`, `currentRole`, `accessLevel`, `canAccess`, `canAccessRecord`, `officesForRecord` (a claim's office scope comes from its client and from every session its lines bill, including each session on a merged same-day line), `scopeWorkspaceToAccount`, `areaForSection`, `canAccessSection`, `firstAccessibleSection`.
 - Gate: `authorizeAction(state, action)`. It looks up the areas the action touches through the internal `actionAreas`, requires Full for everything except `setUI` and `toggleSel` (View), and then runs a per-action office-scope check.
 - Rule for contributors: a new action type needs an entry in `actionAreas` **and** in the record-scope switch, otherwise it is refused as "This action is not authorized."
 - Account and role changes: `applySecurityChange` validates the change and appends an audit entry. `createActions` exposes `securityMutation` and `switchDemoAccount`. The action authorizes and applies the change once to get the message, then dispatches `securityTx`, and the reducer applies it again against live state. `account.switch` needs no area.
@@ -78,7 +78,7 @@ Changes are saved to localStorage about a quarter of a second after the last edi
 ### Persistence
 
 - `StoreProvider` runs an effect that debounces 250 ms, then `localStorage.setItem('aloha-aba.v3', serializeForStorage(state))`. A thrown write sets `saveError` and renders the `storage-warning` alert; a later successful write clears it.
-- `initial()` reads `aloha-aba.v3`, falling back to the legacy key `pulse-aba-scheduler.v2`, merges every sub-object over current defaults, runs `normalizeWorkspace`, and writes back immediately only when a migration changed something or an old save carried history. `normalizeWorkspace` chains the migrations and then `normalizeSecurity`; it must be idempotent and return the same object when nothing changed so storage is not rewritten for no reason.
+- `initial()` reads `aloha-aba.v3`, falling back to the legacy key `pulse-aba-scheduler.v2`, merges every sub-object over current defaults, runs `normalizeWorkspace`, and writes back immediately only when a migration changed something or an old save carried history. `normalizeWorkspace` chains the migrations (the latest is the one-time `normalizeUnitNorms`, flag `meta.unitNorm15`) and then `normalizeSecurity`; it must be idempotent and return the same object when nothing changed so storage is not rewritten for no reason.
 - A new durable collection must be added to `WORKSPACE_FIELDS`, validated on import and covered by a round-trip test and an Undo test (see [architecture](architecture.md)).
 
 ### Backup

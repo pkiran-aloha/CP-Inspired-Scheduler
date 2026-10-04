@@ -25,13 +25,16 @@ The rules for contributors and agents are in [`../../AGENTS.md`](../../AGENTS.md
 | [settings](settings.md) | Settings masters, system options, data import |
 | [security-undo-backup](security-undo-backup.md) | Demo role-based access, the 25-step Undo, backup and restore, storage warning |
 | [architecture](architecture.md) | Folder layout, data flow, testing rules, CI/deploy, known doc/code mismatches |
+| [faq](faq.md) | Short answers to common front-desk and billing questions; meant to back an in-app Help screen |
 
 ## Glossary
 
 - **Auth (authorization).** A payer's approval for a client to receive a set of services, usually with hours or units per code and a start and end date. Scheduling guards compare bookings against it.
-- **Units.** The billing quantity for a CPT/HCPCS code. A unit has a length in minutes (the length depends on the code and the payer's rule). The app's built-in codes mostly use 30-minute units, while real 97153 is a 15-minute unit; this is an open item in [`../HANDOFF.md`](../HANDOFF.md).
+- **Units.** The billing quantity for a CPT/HCPCS code. A unit has a length in minutes (the length depends on the code and the payer's rule). The app follows the Medicaid / CPT norm: the ABA codes (97151 to 97158, 0362T, 0373T) and H2019 are 15-minute units counted by the midpoint rule (8 minutes or more makes a unit), and 253MT is 30 minutes. A payer's own unit size or rounding overrides this. Rates in the code table are per 15-minute unit.
 - **CPT / HCPCS.** The procedure codes that name a billed service, for example 97153 (adaptive behavior treatment by protocol). CPT codes are five digits; HCPCS Level II codes begin with a letter, for example H2019.
-- **Modifier.** A two-character add-on to a procedure code (for example HO) that a payer uses to tell who delivered the service. Claim lines in the app currently carry an empty modifier from assembly.
+- **Modifier.** A two-character add-on to a procedure code (for example HO) that a payer uses to tell who delivered the service. Claim lines carry up to four, in this order: the payer's own service modifier, the rendering provider's credential modifier (HO for a BCBA, HN for a BCaBA, HM for an RBT, HP for a psychologist; on by default, a payer can turn it off) and the payer's place-of-service modifier. Self-pay invoices carry none.
+- **Place of service (POS).** The CMS code for where the session happened. The app derives it from the session's location: home 12, school 03, telehealth 10, community 99, otherwise office 11.
+- **Merge same day.** A payer rule, on by default, that puts same-day sessions for one client, code and rendering provider on one claim line and rounds their combined minutes once. **Separate Claim By** is the opposite control: it splits a client's month into several claims.
 - **MUE.** Medically Unlikely Edit: the most units a payer will accept for a code in a day. The app also supports a weekly cap per payer.
 - **NPI.** National Provider Identifier, a 10-digit number with a check digit. The app validates the check digit.
 - **Medicaid ID.** The provider number a state Medicaid program assigns. Each payer can be set to bill with the NPI, the Medicaid ID, or both.

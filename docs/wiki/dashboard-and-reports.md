@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced with main at e434bb7 on 2026-10-04._
+_Last synced with main at 4532aa0 on 2026-10-04._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 
@@ -72,7 +72,7 @@ Catalogue (19 reports):
 
 ### Reports
 
-- [reports.js](../../src/lib/reports.js): every entry in `REPORTS` has `{id, cat, name, icon, blurb, build(state, ctx)}` and `build` returns `{columns, rows, summary, note}`. `runReport(state, id, ctx)` wraps it with the definition and timing. Also `REPORT_CATS`, `REPORT_BY_ID`, `inScope`, `toCSV`, `validationIssues` (shared by the Data Quality report, Billing and KPI badges). Rows may carry `_link` for drill-through.
+- [reports.js](../../src/lib/reports.js): every entry in `REPORTS` has `{id, cat, name, icon, blurb, build(state, ctx)}` and `build` returns `{columns, rows, summary, note}`. `runReport(state, id, ctx)` wraps it with the definition and timing. Also `REPORT_CATS`, `REPORT_BY_ID`, `inScope`, `toCSV`, `validationIssues` (shared by the Data Quality report, Billing and KPI badges). Its Billing checks count units under the session's own unit size (15 minutes by default), and one warning compares sessions of the same code, client and date: when rounding each session separately bills a different total than counting the day once, it raises a **Billing** warning. That warning only fires for payers that turned off "merge same day" in Claims Settings, because claims otherwise merge the day's time and round once. Rows may carry `_link` for drill-through.
 - To add a report: append an object to `REPORTS_RAW` with a unique id and an existing category id; the palette and the Reports screen read the registry, so nothing else is needed.
 - [rpTrends.js](../../src/lib/rpTrends.js): `priorResult` (re-runs a report over the preceding equal window), `numericTotals`, `deltaPct`, `pickDateCol`, `numCols`, `seriesFor`.
 - [exportKit.js](../../src/lib/exportKit.js): `buildSpec`, `specToXls`, `specToPdf` (jsPDF), `downloadDoc`. The payroll register reuses it ([Payroll](payroll.md)).

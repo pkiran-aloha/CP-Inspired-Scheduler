@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js_
-_Last synced with main at c185259 on 2026-10-04._
+_Last synced with main at 4532aa0 on 2026-10-04._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -46,7 +46,7 @@ Money is held in integer cents inside `paymentLedger.js` (`cents()`); values wit
 
 ### Migrations
 
-`normalizeWorkspace` chains these in order, then `normalizeSecurity`: `normalizePayerCf`, `normalizeAbaHours`, `normalizeApptPcfs`, `normalizeLegacyCustom`, `normalizeBillingV2` (in `master.js`), `normalizeBillingIds`, `normalizeCobLedger`, `normalizeIntake`, `normalizeVerificationForms`, `normalizeSettingsMasters`, `normalizeAuthUnits`. A new field on an existing record needs an idempotent migration here that returns the same object when nothing changes. A new durable collection must be added to `WORKSPACE_FIELDS` in `workspaceBackup.js`, validated on import, and given a round-trip test and an Undo test.
+`normalizeWorkspace` chains these in order, then `normalizeSecurity`: `normalizePayerCf`, `normalizeAbaHours`, `normalizeApptPcfs`, `normalizeLegacyCustom`, `normalizeBillingV2` (in `master.js`), `normalizeBillingIds`, `normalizeCobLedger`, `normalizeIntake`, `normalizeVerificationForms`, `normalizeSettingsMasters`, `normalizeAuthUnits`, `normalizeUnitNorms` (once, flag `meta.unitNorm15`; moves untouched 30-minute defaults to 15 minutes and never changes claims). A new field on an existing record needs an idempotent migration here that returns the same object when nothing changes. A new durable collection must be added to `WORKSPACE_FIELDS` in `workspaceBackup.js`, validated on import, and given a round-trip test and an Undo test.
 
 ### Testing rules
 
@@ -73,7 +73,7 @@ Git workflow, in short: branch from an up-to-date `main` (`feat/`, `fix/`, `chor
 
 ## Known doc/code mismatches
 
-Each item below was checked against the code at the sync commit. They are recorded, not fixed, and each one is a candidate for a small cleanup branch.
+Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers) were removed. They are recorded, not fixed, and each one is a candidate for a small cleanup branch.
 
 Docs versus repo:
 
@@ -96,7 +96,12 @@ Billing and A/R behaviour (ERA, payments, secondary, A/R):
 Other findings from writing these pages:
 
 13. `fileAppeal` sets a claim's status to `appealed`, which is not in `CLAIM_STATUSES`. The desk KPIs ignore it, and `planClaimPayment` refuses payments on it (only Submitted and Partially paid are open). Appeals "Mark Won" sets status `paid` through `updateClaim` without posting any money, so the balance can remain in A/R under a Paid claim.
-14. The CMS-1500 data mapping fills several boxes with derived placeholders (`memberIdOf`, `authNoOf`, a made-up box 7a group number, box 26 from the client id), and its note line says "e-file via ANSI 837P", which the app does not do. The configurable-billing spec lists the fix as slice 4.
+14. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
 15. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
 16. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
 17. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
+
+Found while syncing with the billing-rules work:
+
+18. The Validations "Auto-fill" button in `ReportsView.jsx` (`autoFill`) sets units to the raw duration divided by the unit size, rounded to two decimals, instead of the payer's unit rule. The booking dialog, Quick Add and the Billing desk's unit fix all use `unitRuleFor` and `unitsFor` (midpoint rule), so the same session can get different units depending on which button fills them. The billing-readiness rows in `reports.js` also estimate with the code's unit size and fractional units.
+19. In Payer, Billing Rules, Claims Settings, "Separate Claim By: Supervising Provider" does nothing (`separateKey` in `claims.js` returns no key because sessions record no supervisor). The merge checkbox label says "same service provider", while `mergeSameDayLines` also requires the same code, modifiers, rate and unit rule. Box 17 and 19 options, box 33B ID types, claim file options, appointment time and the taxonomy checkboxes are stored but read by nothing (listed in `docs/specs/configurable-billing.md`).

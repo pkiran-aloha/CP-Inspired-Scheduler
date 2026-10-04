@@ -1,8 +1,8 @@
 # Settings
 
-_Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx_
+_Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced with main at e434bb7 on 2026-10-04._
+_Last synced with main at 4532aa0 on 2026-10-04._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -23,7 +23,7 @@ If your account has view-only access to the Workspace settings area, every panel
 | Organization | Practice identity, NPI and tax ID, and the **office and location master** |
 | Payroll | Pay cycle, earning codes, overtime rules (see [Payroll](payroll.md)) |
 | Qualification | Degrees, certifications and licences, and expiry |
-| Services | Service types, billing codes, units, rates, required credentials |
+| Services | Service types, billing codes, unit length (new services default to 15 minutes), rates per unit, rounding, required credentials |
 | Security | Local demo accounts and role-based access (browser-local, not real authentication) |
 | Clinical Integrations | Local export seams: calendar `.ics`, a telehealth room reference card, a link to the QuickBooks desk, and a record of the last local run |
 | Text Messaging Services | Sender identity, quiet hours, templates, opt-outs. Off by default; **nothing is ever sent** |
@@ -51,7 +51,9 @@ See [Scheduling](scheduling.md) for what each finding means at booking time.
 
 ### Payer billing rules
 
-Masters > Payers > open a payer. Tabs are Profile, Services (the payer's own contract sheet, including per-service unit size, rounding, modifier and rate overrides) and **Billing Rules**, with these sections: Concurrent Billing, Claims Settings, Appointment Settings (for example signature required), Qualification Modifiers, Place of Service Modifiers, **MUEs** (daily and per-code unit maximums, plus a per-code weekly limit used at booking), **Provider IDs** (NPI, Medicaid ID or both) and **Payment Terms** (payer kind, days to pay, payer share, copay, filing deadline). Claim aging, the copay estimate, payment presets and CMS-1500 box 7b read Payment Terms. The billing consequences are covered in [Billing and claims](billing-and-claims.md).
+Masters > Payers > open a payer. Tabs are Profile, Services (the payer's own contract sheet, including per-service unit size, rounding, modifier and rate overrides) and **Billing Rules**, with these sections: Concurrent Billing, Claims Settings, Appointment Settings (for example signature required), Qualification Modifiers, Place of Service Modifiers, **MUEs** (daily and per-code unit maximums, plus a per-code weekly limit used at booking), **Provider IDs** (NPI, Medicaid ID or both) and **Payment Terms** (payer kind, days to pay, payer share, copay, filing deadline). Claim aging, the copay estimate, payment presets and CMS-1500 box 7b read Payment Terms.
+
+Claims Settings holds the claim-assembly rules. These are read today: **Separate Claim By** (Rendering Provider, Service Provider or Place of Service splits a client's month into several claims; Supervising Provider has no effect), the **merge same day** checkbox (on by default), the **credential modifier** checkbox (on by default: HO for a BCBA, HN for a BCaBA, HM for an RBT, HP for a psychologist on each line) and **Box 32** (the default leaves the service facility blank). Place of Service Modifiers add a modifier by CMS place-of-service code (02, 10, 11, 03, 12 home, 99); a payer's own service modifier is set on the Services tab. The Profile tab's CMS type and the group and plan identifiers fill CMS-1500 box 1, 7a and 10. The billing consequences are covered in [Billing and claims](billing-and-claims.md).
 
 ### Data Import
 
@@ -88,7 +90,7 @@ Settings writes follow action, then plan, then Tx:
 
 - Everything lives under `settings.*` (for example `offices`, `apptStatuses`, `customLists`, `qualifications`, `payroll`, `authGuard`, `smart`, `abaHours`, `appointmentValidations`, `clinicalIntegrations`, `textMessaging`, `importLog`). `settings` is in `WORKSPACE_FIELDS`, so it is exported and validated with the backup, and a restore re-merges the guard defaults instead of dropping them.
 - `normalizeSettingsMasters` (called from `normalizeWorkspace`) fills missing masters (for example `appointmentValidations`) idempotently and returns the same object when nothing changed.
-- Payer rules: `ensurePayer` fills defaults for `rules` (`concurrent`, `claims`, `appt`, `qualMods`, `posMods`, `mue` with `daily`, `per`, `weekly`).
+- Payer rules: `ensurePayer` fills defaults for `rules` (`concurrent`, `claims` with `separateBy`, `box32` and `flags` such as `mergeSameDay` and `credentialMods`, `appt`, `qualMods`, `posMods`, `mue` with `daily`, `per`, `weekly`). `POS_CODES` in `master.js` is the place-of-service list the modifier rows use.
 
 ### Components
 
@@ -104,6 +106,7 @@ Settings writes follow action, then plan, then Tx:
 - **No real authentication.** Security is browser-local role-based access for demos.
 - **Not everything is undoable.** Guard, smart-scheduling, ABA and several System Settings changes take no Undo snapshot (see the write path).
 - **Qualification Modifiers keyed by education level cannot drive a check**: staff records carry no education level.
+- **Several Claims Settings fields are stored but read by nothing**: Box 17 and 19 options, Box 33B ID types, Claim File Options, Include Appointment Time, the taxonomy checkboxes and "Use Service Provider as Rendering Provider". The merge checkbox's label says same service provider, while the code also requires the same code, modifiers, rate and unit rule.
 - **Appointment guards are dialog-level.** A Stop validation or authorization guard refuses a save in the booking dialog; Quick Add, drag-moves and imports do not run them.
 - Data Import does not parse Excel, run OCR or fetch from a network, caps at 500 rows, and has no per-row undo (a commit is one Undo step).
 - Daily overtime and double-time settings are stored but not priced by payroll (see [Payroll](payroll.md)).

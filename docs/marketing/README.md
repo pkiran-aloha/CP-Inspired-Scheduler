@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at c185259 on 2026-10-04._
+_Last synced with main at 4532aa0 on 2026-10-04._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -54,7 +54,7 @@ Secondary: *See what's checked before you save* (links to "Why practices trust i
 The booking dialog shows what a booking will do to the client's authorization, the payer's limits and the family's attendance pattern before the session is saved. Your schedulers decide with the numbers in front of them, not after the claim comes back.
 
 - **Book-time authorization guard.** Shows committed and remaining hours, the weekly pace against the authorized week, days to expiry and a projected exhaustion date. Off, flag, warn or stop, chosen by the practice; the default is warn.
-- **Per-code unit ledger with payer rules.** Authorizations carry unit pools per CPT code. Minutes convert to units by the payer's own unit size and rounding (AMA 8-minute rule by default), and daily MUE limits, weekly per-code limits and credential rules are checked at booking.
+- **Per-code unit ledger with payer rules.** Authorizations carry unit pools per CPT code. Minutes convert to units by the payer's own unit size and rounding, with the Medicaid / CPT norm as the default (15-minute units, the 8-minute midpoint rule), and daily MUE limits, weekly per-code limits and credential rules are checked at booking.
 - **Know before you pick.** Every staff member and client in the booking pickers carries a verdict chip, and one Checks panel in the dialog shows every issue in a shared severity language.
 - **Scheduler Insights panel.** Fill against an 85–95% band, a weekday × hour coverage heat grid, named idle windows per clinician, an authorization burn-down and an at-risk session worklist.
 - **Five calendar views:** day, week, month, agenda and timeline, with drag-to-move and resize, a backfill inbox for cancelled sessions a qualified colleague could cover, and a Cmd/Ctrl+K command palette.
@@ -84,7 +84,10 @@ Completed sessions become claim-ready lines and are grouped into claims. Submiss
 
 - **Submission gates** for timely filing, rendering-provider credentials and payer provider-ID rules. Held claims show the specific fix.
 - **Provider ID rule per payer:** NPI, Medicaid ID or both. It drives the appointment validation, the claim gate and the CMS-1500 boxes (23b, 33a, 33b), and a readiness line names who cannot yet be billed under it.
-- **CMS-1500 (02/12) PDF:** a printable facsimile with the form's drop-out red captions and black data, generated from the same field mapping the claim uses.
+- **Medicaid unit norms by default.** The ABA codes bill per 15 minutes under the midpoint rule, and the booking dialog, Quick Add and the claim all count units with the payer's own rule, so the authorization pool and the claim agree.
+- **Modifiers on every line, from the payer's settings.** Each insurance claim line carries up to four modifiers: the payer's service modifier, the rendering provider's credential modifier (HO, HN, HM, HP) and the payer's place-of-service modifier. The credential modifier can be switched off per payer.
+- **Same-day merge and claim splitting.** By default, same-day sessions for one client, code and rendering provider become one line with their minutes added up and rounded once, the Medicaid way. A payer can turn that off, or ask for separate claims by rendering provider or place of service.
+- **CMS-1500 (02/12) PDF:** a printable facsimile with the form's drop-out red captions and black data, generated from the same field mapping the claim uses. Program, group number, plan ID, other-coverage and service-facility boxes read the payer and client records, and a blank value prints as a dash rather than an invented one. It is a PDF you print; some boxes, such as the member and authorization numbers, are still placeholders in this prototype.
 - **Denials, rebills and appeals:** record a denial with its reason and suggested fix, void and rebill with disputed lines returned to staging, and start appeal letters from templates.
 - **Secondary (COB) queue:** prepares a claim-level COB draft from the primary's remaining balance and records an external filing locally. It does not generate or send a secondary claim.
 
@@ -131,7 +134,7 @@ A configurable dashboard and a report library share one metrics engine, so the s
 
 Thirteen settings modules hold the practice's own rules. Masters are edited in one place and read everywhere, and changes that would break existing records are refused.
 
-- **Payer billing rules:** provider-ID rule, MUE daily limits, per-code weekly limits, unit size and rounding overrides per service.
+- **Payer billing rules:** provider-ID rule, MUE daily limits, per-code weekly limits, unit size and rounding overrides per service, place-of-service modifiers, the credential-modifier switch, merge-same-day and separate-claim-by rules, and the CMS type, group and plan identifiers the CMS-1500 prints.
 - **Payment Terms per payer:** payer kind, expected days to pay, estimated payer share, copay and filing deadline. Claim aging, copay estimates, payment presets and timely filing read them, and each save is validated and undoable.
 - **Guarded changes:** office names must be unique, an office still in use can't be deleted until its records are moved, a renamed office updates every record that uses it, and a status with appointments on it must be reassigned before removal.
 - **Appointment status, custom lists, custom fields, qualifications, services and earning codes**, each a single master.
@@ -198,15 +201,15 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Section | Backing files |
 |---|---|
 | Positioning, Tagline, Hero | `PRODUCT.md` (Positioning, Product Principles, Capabilities and Constraints), `AGENTS.md` (Non-negotiables) |
-| Scheduling & scheduling intelligence | `src/lib/authBudget.js`, `src/lib/authUnits.js`, `src/lib/bookingChecks.js`, `src/lib/insights.js`, `src/lib/smart.js`, `src/components/AppointmentModal.jsx`, `src/components/BookingChecks.jsx`, `src/components/SchedulerInsights.jsx`, `src/components/TimelineView.jsx`, `src/components/MonthView.jsx`, `src/components/AgendaView.jsx`, `src/components/NeedsCover.jsx`, `src/components/CommandPalette.jsx`, `docs/specs/scheduling-intelligence-ideas.md` (status column) |
+| Scheduling & scheduling intelligence | `src/lib/authBudget.js`, `src/lib/authUnits.js`, `src/lib/bookingChecks.js`, `src/lib/insights.js`, `src/lib/smart.js`, `src/lib/model.js` (unit table, `unitsFor`), `src/components/AppointmentModal.jsx`, `src/components/QuickAdd.jsx`, `src/components/BookingChecks.jsx`, `src/components/SchedulerInsights.jsx`, `src/components/TimelineView.jsx`, `src/components/MonthView.jsx`, `src/components/AgendaView.jsx`, `src/components/NeedsCover.jsx`, `src/components/CommandPalette.jsx`, `docs/specs/scheduling-intelligence-ideas.md` (status column) |
 | Cancellations | `src/lib/cancelReasons.js`, `src/lib/risk.js`, `src/lib/reports.js` (Cancellation Root Cause), `src/components/SchedulerInsights.jsx` |
 | Intake | `src/lib/intake.js`, `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
-| Billing, claims & CMS-1500 | `src/lib/claims.js`, `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |
+| Billing, claims & CMS-1500 | `src/lib/claims.js` (`lineModifiers`, `mergeSameDayLines`, `posFor`), `src/lib/authUnits.js` (`unitRuleFor`), `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |
 | ERA posting, payments & recoupments | `src/lib/era.js`, `src/lib/eraPosting.js`, `src/lib/paymentLedger.js` (`planRecoupment`, patient receipts), `src/components/PaymentCenterView.jsx` |
 | A/R | `src/components/ArManagerView.jsx`, `src/lib/claims.js` (AR engine), `src/lib/billingDocs.js` (statements) |
 | Payroll | `src/lib/payroll.js`, `src/lib/payrollExport.js`, `src/components/payroll/*`, `src/lib/settingsMasters.js` (earning codes, overtime floor) |
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/AnalyticsView.jsx` |
-| Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/components/SettingsModal.jsx` |
+| Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |
 | Security, Undo & backup | `src/state/store.jsx` (reducer, Undo, persistence), `src/lib/security.js`, `src/components/SecurityView.jsx`, `src/lib/workspaceBackup.js` |
 | Why practices trust it | `PRODUCT.md` (Product Principles), `AGENTS.md` (Non-negotiables 2–4), `src/lib/security.js` (`authorizeAction`) |
 | Short-form assets | Derived from the sections above; refresh whenever any of them changes |

@@ -2,7 +2,7 @@
 
 _Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at e434bb7 on 2026-10-04._
+_Last synced with main at 4532aa0 on 2026-10-04._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -65,12 +65,14 @@ What the authorization findings mean:
 - **N% committed** (caution): at or above the warn percentage (default 85).
 - **Over the weekly hours**: more hours booked in the week than the authorized week.
 - **Expires soon**: a flag at the renewal-alert days (default 30), a caution inside the urgent days (default 14).
-- **Units, per code**: a code not on the authorization, or committed units over or near the per-code pool. The session's units are shown ("4 units of 97153, 30-min units, AMA rounding").
+- **Units, per code**: a code not on the authorization, or committed units over or near the per-code pool. The session's units are shown ("4 units of 97153, 15-min units, AMA rounding").
 - **Payer limits**: the payer's per-code daily, all-code daily and per-code weekly maximum units (set under Masters > Payer > Billing Rules > MUEs).
 - **Credential**: the booked staff member's credential cannot render the code, or is not one the payer lists for that service.
 - **Advisory notes** (never escalate): projected exhaustion date at the current pace, and under-paced delivery.
 
 The authorization window total is weekly hours times weeks on file. It is an estimate of the pool, not a statement of units a payer granted. Check the units against the payer letter.
+
+**How a session's units are counted.** The booking dialog's Billing tab, Quick Add and the one-click unit fix on the Billing desk's Blocked tab all count units with one rule chain (`unitRuleFor` then `unitsFor`): the payer's per-service override, the payer's own service, the service master, then the code default. The default is the Medicaid / CPT norm: 15-minute units for the ABA codes (97151 to 97158, 0362T, 0373T) and H2019, with the midpoint rule (a unit counts at 8 minutes or more; 38 minutes is 3 units, 37 is 2). 253MT stays at 30 minutes. A payer can set its own unit size and rounding (AMA, Nearest, Round Up, Round Down, Truncate). The Billing tab shows the rule it used, for example "45 min in 15-min units (AMA rounding) = 3 units x rate". A billing code picked by hand that differs from the service's own code ignores the service's unit rule and uses the code default. Because the authorization pool and the claim use the same rule, they agree.
 
 ### Cancelling and skipping
 
@@ -105,7 +107,7 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 ### Modules
 
 - [authBudget.js](../../src/lib/authBudget.js): hours guard. `authGuardCfg`, `AUTH_MODES`, `consumesAuth`, `clientAuthWindow`, `authBurn`, `authBand` (`AUTH_BANDS`), `authCheckFor` (returns `{severity, blocked, headline, reasons, notes, stats}`), `authBoard`. Mode caps severity at the end of `authCheckFor`.
-- [authUnits.js](../../src/lib/authUnits.js): per-code unit ledger and payer rule pack. `unitsFor` (rounding), `unitRuleFor` (payer service override, then payer service, then service master, then code default; AMA default), `apptUnits`, `unitLedger`, `unitCheckFor`, `mergeAuthChecks(hours, units, settings)` (folds both verdicts under the same mode cap), `normalizeAuthUnits`, `seedAuthUnits`, `poolFromWeeklyHours`. Kept separate from `authBudget.js` to avoid an import cycle through `master.js`.
+- [authUnits.js](../../src/lib/authUnits.js): per-code unit ledger and payer rule pack. `unitRuleFor` (payer service override, then payer service, then service master, then code default; AMA default), `unitsFor` (rounding; the function lives in `model.js` and is re-exported here), `apptUnits`, `unitLedger`, `unitCheckFor`, `mergeAuthChecks(hours, units, settings)` (folds both verdicts under the same mode cap), `normalizeAuthUnits`, `normalizeUnitNorms` (one-time move of untouched 30-minute defaults to 15 minutes), `seedAuthUnits`, `poolFromWeeklyHours`. Kept separate from `authBudget.js` to avoid an import cycle through `master.js`.
 - [bookingChecks.js](../../src/lib/bookingChecks.js): `candidateVerdicts(state, draft, kind, opts)` returns `{personId: {tone, label, detail, count}}`; `authChip`, `TONE_RANK`.
 - [risk.js](../../src/lib/risk.js): `riskModel`, `riskFor`, `riskQueue`, `riskOf`, `riskCfg`, `RISK_BANDS`. Settings key `settings.risk`; no Settings panel edits it, so defaults apply.
 - [insights.js](../../src/lib/insights.js): `coverageBoard`, `insightBoard`, `forwardDays`.
@@ -116,13 +118,13 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 
 ### Components
 
-[AppointmentModal.jsx](../../src/components/AppointmentModal.jsx) builds `checkGroups` and feeds [BookingChecks.jsx](../../src/components/BookingChecks.jsx) (`BookingChecks`, `ToneGlyph`, `VerdictChip`, `TONE_ICON`). Views: `TimeGrid.jsx` (Day and Week), `TimelineView.jsx`, `MonthView.jsx`, `AgendaView.jsx`; `App.jsx` owns the key handlers and the visible range. Also `NeedsCover.jsx`, `SchedulerInsights.jsx`, `CommandPalette.jsx`, `QuickAdd.jsx`, `KeysHelp.jsx`.
+[AppointmentModal.jsx](../../src/components/AppointmentModal.jsx) builds `checkGroups` and feeds [BookingChecks.jsx](../../src/components/BookingChecks.jsx) (`BookingChecks`, `ToneGlyph`, `VerdictChip`, `TONE_ICON`). Views: `TimeGrid.jsx` (Day and Week), `TimelineView.jsx`, `MonthView.jsx`, `AgendaView.jsx`; `App.jsx` owns the key handlers and the visible range. Also `NeedsCover.jsx`, `SchedulerInsights.jsx`, `CommandPalette.jsx`, `QuickAdd.jsx` (which now sets units from the same rule chain), `KeysHelp.jsx`.
 
 ### State, permissions, migrations
 
 - Fields: `appts` (map by id), client `authStart`, `authEnd`, `authWeekly`, `authUnits`; `settings.authGuard`, `settings.smart`, `settings.risk`, `settings.appointmentValidations`.
 - `setSettings` with `authGuard` or `risk` keys routes to the `calendar` permission area (schedulers own it), not `settings`.
-- `normalizeWorkspace` in store.jsx runs `normalizeAuthUnits` (converts weekly hours to per-code units, flagged "converted, verify") and `normalizeAbaHours` (strips the flag from service appointments, records `meta.abaHoursStripped`). Both are idempotent.
+- `normalizeWorkspace` in store.jsx runs `normalizeAuthUnits` (converts weekly hours to per-code units, flagged "converted, verify"), `normalizeUnitNorms` (once, flag `meta.unitNorm15`: untouched 30-minute services, their rates, authorization pools and unbilled appointments move to 15-minute units; claims are never touched) and `normalizeAbaHours` (strips the flag from service appointments, records `meta.abaHoursStripped`). All are idempotent.
 - Undo history is tab-local, 25 steps, never persisted.
 
 ### Tests
@@ -140,7 +142,7 @@ Honest limits:
 
 - Nothing is sent. Confirming a session, assigning cover or recording a cancellation reason changes local records only. No SMS, email or reminder goes to a family.
 - Appointment guards run in the booking dialog, not the reducer, so Quick Add, drag-moves and other non-dialog edits bypass them (see the write path).
-- The authorization window is an estimate (weekly hours times weeks). `BILL_CODES` use 30-minute units where real 97153 units are 15 minutes; correct this per payer in the service override. Payer credential rows keyed by education level cannot drive a check because staff have no education field.
+- The authorization window is an estimate (weekly hours times weeks). `BILL_CODES` now use the 15-minute Medicaid norm; a payer that bills a different unit length is set per payer in the service override. The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for a code keeps a pool in the wrong unit until someone fixes it in Clients, Edit. Payer credential rows keyed by education level cannot drive a check because staff have no education field.
 - Risk configuration (`settings.risk`) has no Settings panel.
 - Known issue from the handoff: `staffSatisfiesQualification` may flag BCBAs on BCBA-only codes.
 - An intake conversion does not copy approved units into the new client's pool (see [Intake](intake.md)).
