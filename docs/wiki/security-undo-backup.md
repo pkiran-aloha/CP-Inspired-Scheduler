@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced with main at dcfce22 on 2026-10-04._
+_Last synced with main at dcfce22 on 2026-10-04 (plus client statements)._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -42,7 +42,7 @@ Open Settings, Security (also reachable from the nav for accounts with access). 
 
 Settings, System, "Data & backup" shows storage use and three actions.
 
-- **Export workspace (.json)** downloads `aloha-aba-backup-<date>.json`. It holds every durable collection: appointments, claims, payments, invoices, ERA imports, billed files, QuickBooks records, verification forms, staff, clients, teams, payers, services, custom fields, settings, security, saved reports, dashboards, payroll data, intake requests and referral sources. It does not hold navigation state or Undo history. The file is not encrypted; treat it with care even though the seed data is fictional.
+- **Export workspace (.json)** downloads `aloha-aba-backup-<date>.json`. It holds every durable collection: appointments, claims, payments, invoices, ERA imports, billed files, QuickBooks records, verification forms, staff, clients, teams, payers, services, custom fields, settings, security, saved reports, dashboards, payroll data, intake requests, referral sources and client statements. It does not hold navigation state or Undo history. The file is not encrypted; treat it with care even though the seed data is fictional.
 - **Restore backup...** reads a file (50 MB limit), validates it, and shows a preview of counts. Nothing changes until you press "Replace workspace". Cancel leaves the workspace alone. A successful restore is one Undo step, with an Undo button on the toast.
 - **Older files.** A version 2 file is accepted and gets the current demo security defaults. The oldest seven-field export (appointments, claims, staff, clients, teams, settings, reports) is accepted with a warning: it never contained masters or billing ledgers, so those start empty.
 - **Who can back up.** Export and restore need Full access to every area and all-office scope. Others see a message saying so.

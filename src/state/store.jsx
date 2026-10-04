@@ -9,6 +9,7 @@ import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
+import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -56,6 +57,7 @@ export function blankState() {
     claims,
     payments: paymentsFromClaims(Object.values(claims), { at: Date.now() }),
     invoices: {},
+    statements: {},
     verificationForms: seedVerificationForms(clientsWithIntake, PAYERS),
     eraImports: {},
     billedFiles: {},
@@ -134,6 +136,7 @@ export function initial() {
           reports: { saved: (saved.reports && saved.reports.saved) || [] },
           payments: saved.payments || {},
           invoices: saved.invoices || {},
+          statements: saved.statements || {},
           verificationForms: saved.verificationForms || {},
           eraImports: saved.eraImports || {},
           billedFiles: saved.billedFiles || {},
@@ -381,7 +384,7 @@ export function reducer(state, action) {
     case 'record': {
       // Money must go through a guarded claim/receipt transaction, never a
       // generic document write that leaves the claim aggregate out of sync.
-      if (!['invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !action.item?.id) return state
+      if (!['invoices', 'statements', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !action.item?.id) return state
       const cur = state[action.coll] || {}
       return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
     }
@@ -529,7 +532,7 @@ export function reducer(state, action) {
     case 'clearDemo': {
       // Clear the dependent financial ledgers too; leaving payments/files behind
       // creates orphaned claims. The whole operation must be a single Undo.
-      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests']) }
+      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, statements: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests', 'statements']) }
     }
     case 'relabel': {
       const next = { ...state.appts }
@@ -553,7 +556,7 @@ export function reducer(state, action) {
       // requests point at clients that still exist.
       const seedInt = seedIntake({ appts: withClaims, clients: state.clients, staff: state.staff, payers: state.payers })
       const clients = state.clients.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
-      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients']) }
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements']) }
     }
     case 'roster': {
       const list = state[action.list]
@@ -880,6 +883,25 @@ function createActions(state, dispatch, rawState = state) {
       return { ok: true, msg: plan.msg, id: options.paymentId }
     },
     /** Payer take-back on a paid primary claim: reopens the balance, one Undo. */
+    /** Client statements: issue, mark how it was delivered, void. Each is one record write, one Undo. */
+    issueStatement: (clientId) => {
+      const plan = planStatement(state, clientId, { id: uid(), at: Date.now() })
+      if (!plan.ok) return plan
+      dispatch({ type: 'record', coll: 'statements', item: plan.item })
+      return { ok: true, msg: plan.msg, id: plan.item.id }
+    },
+    markStatementSent: (id, via) => {
+      const plan = planStatementSent(state, id, { via, at: Date.now() })
+      if (!plan.ok) return plan
+      dispatch({ type: 'record', coll: 'statements', item: plan.item })
+      return { ok: true, msg: plan.msg }
+    },
+    voidStatement: (id, reason) => {
+      const plan = planStatementVoid(state, id, { reason, at: Date.now() })
+      if (!plan.ok) return plan
+      dispatch({ type: 'record', coll: 'statements', item: plan.item })
+      return { ok: true, msg: plan.msg }
+    },
     recordRecoupment: (claimId, payload) => {
       const options = { at: Date.now(), paymentId: uid() }
       const plan = planRecoupment(state, claimId, payload, options)

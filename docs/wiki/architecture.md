@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/components/HelpView.jsx_
-_Last synced with main at dcfce22 on 2026-10-04._
+_Last synced with main at dcfce22 on 2026-10-04 (plus client statements)._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -97,7 +97,7 @@ Billing and A/R behaviour (ERA, payments, secondary, A/R):
 Other findings from writing these pages:
 
 13. `fileAppeal` sets a claim's status to `appealed`, which is not in `CLAIM_STATUSES`. The desk KPIs ignore it, and `planClaimPayment` refuses payments on it (only Submitted and Partially paid are open). Appeals "Mark Won" sets status `paid` through `updateClaim` without posting any money, so the balance can remain in A/R under a Paid claim.
-14. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`) and the authorization number in boxes 11, 17 and 23 (`authNoOf`) only when the chart has none on file (intake conversion or Clients > Edit fills them), the diagnosis (`dxFor`, from the client's program, even when intake carried a diagnosis to the chart), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
+14. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
 15. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
 16. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
 17. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).

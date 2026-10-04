@@ -20,6 +20,18 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Hackathon wave 4 — records (in progress)
+
+**Client statements.** Billing → Generate Invoice → **Issue statement** turns what a family owes into a numbered statement. The numbering is `STM-<yyyymm>-<nnn>`, with one line per claim, frozen on the day it is issued.
+
+The **Statements** list underneath gives each statement:
+- **PDF:** downloads the statement.
+- **Live balance:** patient receipts reduce it, and it reads *Paid* once settled.
+- **Mark sent:** records how you delivered it (mailed, handed over, your own email or portal). The app sends nothing.
+- **Void:** needs a reason.
+
+Each of these is one Undo. Statements are a new durable collection, included in workspace backups; older backups import with none. Code is in `src/lib/statements.js`, with tests in `statements.test.jsx`.
+
 ### Hackathon wave 3 — intake
 
 **Easier intake.**

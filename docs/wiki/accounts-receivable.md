@@ -1,7 +1,7 @@
 # Accounts receivable
 
-_Sources: src/lib/claims.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx_
-_Last synced with main at dcfce22 on 2026-10-04._
+_Sources: src/lib/claims.js, src/lib/statements.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx_
+_Last synced with main at dcfce22 on 2026-10-04 (plus client statements)._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -47,6 +47,18 @@ Open Billing, AR Manager.
 
 Open Billing, Generate Invoice. The page title reads "Invoices, draft patient share". Pick clients on the left, tick "Patient share only" to restrict to claims with a reported patient balance, and press "Download draft statement". The file is `Patient-share-draft-<date>.txt`. The preview shows each client's claims and their remaining reported patient share. The statement is a draft you print or hand over yourself; the app does not mail or email it and does not record that you did. Receipts are recorded separately with "Record receipt".
 
+### Client statements
+
+For a numbered statement with history, press **Issue statement** on a client in the preview. The button appears when the family owes something: self-pay charges, or a patient share the payer reported.
+
+The statement is numbered `STM-<year><month>-<nnn>`. It freezes one line per claim with what the family owed that day. It then appears under **Statements** at the bottom of the page, where each row offers four things:
+- **PDF** downloads a printable statement.
+- **Its balance is live.** Patient receipts recorded in the Payment Center reduce it, and it reads *Paid* once nothing on its claims is owed.
+- **Mark sent** records how you delivered it: mailed, handed over, emailed from your own email, or posted to your own portal. The app sends nothing.
+- **Void** needs a reason and leaves the claims unchanged.
+
+Issuing, marking sent and voiding are each one Undo. Statements are in workspace backups. The demo data has no family balances, so the list starts empty. `src/lib/statements.js`; tests: `statements.test.jsx`.
+
 ### The desk's aging indicators
 
 On the Billing desk, a Submitted claim shows an age and a "late" flag. That uses a different engine from the AR Manager (see "How it works"): its buckets are 0 to 30, 31 to 60, 61 to 90 and 90 plus, only for Submitted claims, and "late" means older than 1.6 times the payer's expected days to pay, which comes from the payer's Payment Terms.
@@ -90,7 +102,7 @@ The AR Manager is read-only. It changes nothing itself; "Record receipt" and "Re
 ## Not yet built
 
 - No collections workflow: no dunning letters, call log, payment plans or send-to-collections status.
-- No statement history and no "mark as sent". The statement is a text download with no record that it was given to anyone. A PDF statement is on the backlog in [`../HANDOFF.md`](../HANDOFF.md).
+- No statement delivery. Statements are downloaded and delivered by the practice; nothing is mailed, emailed or posted by the app, and there is no family portal.
 - No payer-level aging by contract terms. Aging buckets are fixed at 30-day steps and do not use the payer's expected days to pay.
 - No bad-debt reserve or write-off approval step; write-offs post straight to the ledger.
 - No hover formulas on the AR Manager's KPIs (the dashboard widget has them).
