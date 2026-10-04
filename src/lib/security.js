@@ -351,7 +351,7 @@ export function officesForRecord(state, kind, item, seen = new Set()) {
   }
   if (kind === 'claim') {
     const client = relatedRecord(state, 'clients', item.clientId)
-    const appts = (item.lines || []).map((line) => relatedRecord(state, 'appts', line.apptId)).filter(Boolean)
+    const appts = (item.lines || []).flatMap((line) => line.apptIds || [line.apptId]).map((id) => relatedRecord(state, 'appts', id)).filter(Boolean)
     return union([...(client ? [['client', client]] : []), ...appts.map((appt) => ['appointment', appt])])
   }
   if (kind === 'provider') return item.kind === 'office' ? [...SECURITY_OFFICES] : item.kind === 'staff' ? staffOffice(item.refId) : []

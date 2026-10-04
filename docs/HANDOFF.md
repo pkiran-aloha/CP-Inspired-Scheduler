@@ -37,6 +37,10 @@ Hackathon wave 2: configurable billing (#8). This wave is in progress. The plan 
   - box 32 from the `rules.claims.box32` rule
 
   Other changes: no invented practice NPI, and the MEDICARE checkbox bug is fixed. Box 17 still waits on referring-provider data.
+- **Slice 5, claim split rules.**
+  - **Merge Same Day** (`mergeSameDayLines`, on by default). A merged line carries `apptIds`. **Always read a line's appointments through `lineApptIds(l)`**, never `l.apptId` alone. This applies to the gate, submit, release, drop, rebill, security scope, the seed and the auth migration.
+  - **Separate Claim By** splits the plan key by rendering provider or by POS.
+  - The Validations same-day warning now fires only for payers that turned the merge off.
 
 Hackathon wave 1 — billing (from the departments' hackathon list):
 - **Billing Health dashboard widget** (`billingKpis.js`): clean-claim %, denial %, net collection %, cash posted, days in A/R, A/R >90 %, charge lag, recoupments; formula + target on hover; on the default board (last); saved boards add it from the gallery.
@@ -58,7 +62,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 | Wave | Items | Notes / open questions |
 |---|---|---|
-| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slices 1–4 have shipped. Next is slice 5, claim split rules (Separate Claim By, Merge Same Day, which also covers the Medicaid same-day minutes rule). Slices 5–6 are in `docs/specs/configurable-billing.md`. Medicaid norms are the compliance baseline for every slice. |
+| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slices 1–5 have shipped. Next is slice 6, denial reasons and CARC hints as a Settings list. Slice 6 are in `docs/specs/configurable-billing.md`. Medicaid norms are the compliance baseline for every slice. |
 | **Intake (#5)** | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | Maintainer picked all three. Downloadable intake packet + filled request as PDF (jsPDF is installed); trace the General Requests → Client Intake → Client List hand-offs end-to-end and fix confusing steps; run `impeccable` critique on the intake screens first. |
 | **Inbox, tasks, notifications (#1 + #2)** | Message center + task assignment + notifications | Local, in-workspace only (no delivery off-device, no client portal yet). |
 | **Records (#4, #10, #13)** | Client statements; Cabinet expirations; RBT PDU report | Statements: history, PDF, mark sent/paid (no email). Cabinet: documents register with expiry + alerts (metadata only). PDU: log entries per staff vs renewal requirement — confirm requirement per credential with the maintainer. |

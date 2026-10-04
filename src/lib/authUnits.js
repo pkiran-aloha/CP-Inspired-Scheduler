@@ -161,7 +161,7 @@ export function normalizeUnitNorms(state) {
     return { ...c, authUnits: Object.fromEntries(Object.entries(pool).map(([code, u]) => [code, codes.has(code) ? Math.round(u * old(code)) : u])) }
   })
   const next = { ...state, svcs, payers, clients }
-  const billed = new Set(Object.values(state.claims || {}).filter((c) => c.status !== 'void').flatMap((c) => (c.lines || []).map((l) => l.apptId)))
+  const billed = new Set(Object.values(state.claims || {}).filter((c) => c.status !== 'void').flatMap((c) => (c.lines || []).flatMap((l) => l.apptIds || [l.apptId])))
   let appts = state.appts
   for (const a of Object.values(state.appts || {})) {
     const b = a.billing

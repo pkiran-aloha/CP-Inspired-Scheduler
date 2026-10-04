@@ -35,7 +35,7 @@ describe('unit rule for a hand-picked code', () => {
 })
 
 describe('normalizeUnitNorms (saved workspaces)', () => {
-  const billed = new Set(Object.values(BASE.claims).flatMap((c) => c.lines.map((l) => l.apptId)))
+  const billed = new Set(Object.values(BASE.claims).flatMap((c) => c.lines.flatMap((l) => l.apptIds || [l.apptId])))
   const unbilled = Object.values(BASE.appts).find((a) => !billed.has(a.id) && a.billing?.code === '97153' && a.type !== 'drive')
   const billedAppt = Object.values(BASE.appts).find((a) => billed.has(a.id) && a.billing?.code)
   const legacy = {
@@ -71,12 +71,14 @@ describe('same-day aggregation check', () => {
     id, date: today, type: 'service', status: 'completed', clientIds: [c0.id], staffIds: [BASE.staff[0].id], start, end: start + 37, notes: 'ok',
     verification: { verifyStatus: 'verified' }, billing: { code: '97153', unitMins: 15, minutes: 37, units, rate: 9 },
   })
-  const flags = (appts) => validationIssues({ ...BASE, appts }, [today]).filter((i) => /counting the day/.test(i.msg))
+  const noMerge = { ...BASE, payers: BASE.payers.map((p) => (p.name === c0.insurer ? { ...p, rules: { ...(p.rules || {}), claims: { flags: { mergeSameDay: false } } } } : p)) }
+  const flags = (appts, base = noMerge) => validationIssues({ ...base, appts }, [today]).filter((i) => /counting the day/.test(i.msg))
 
-  it('warns when per-session rounding bills a different total than the day counted once', () => {
+  it('warns, for a payer that does not merge same-day lines, when per-session rounding bills differently', () => {
     const f = flags({ x1: mk('x1', 540, 2), x2: mk('x2', 700, 2) }) // 74 min once = 5 units, billed 4
     expect(f).toHaveLength(1)
     expect(f[0].msg).toMatch(/2 sessions of 97153 on one day bill 4 units; counting the day's 74 minutes once gives 5/)
     expect(flags({ x1: mk('x1', 540, 3), x2: mk('x2', 700, 2) })).toHaveLength(0)
+    expect(flags({ x1: mk('x1', 540, 2), x2: mk('x2', 700, 2) }, BASE)).toHaveLength(0) // default: the claim merges them
   })
 })

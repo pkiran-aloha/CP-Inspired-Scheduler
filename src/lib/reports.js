@@ -849,12 +849,14 @@ export function validationIssues(state, days, scope) {
     }
   }
   // Medicaid / CPT: time for one code, one client, one date of service is added up and
-  // rounded once. Flag a day whose per-session rounding bills a different number of units.
+  // rounded once. Claims do that when the payer's "Merge same day" rule is on (default);
+  // for a payer that turned it off, flag a day whose per-session rounding bills differently.
+  const mergesDay = (cid) => (state.payers || []).find((p) => p.name === clients[cid]?.insurer)?.rules?.claims?.flags?.mergeSameDay !== false
   const sameDay = {}
   for (const a of scopedList) {
     const b = a.billing
     if (a.status !== 'completed' || !TYPES[a.type]?.billable || !b?.code || b.mileage || !(b.unitMins > 0)) continue
-    for (const cid of a.clientIds || []) (sameDay[`${cid}|${b.code}|${a.date}`] ||= []).push(a)
+    for (const cid of a.clientIds || []) if (!mergesDay(cid)) (sameDay[`${cid}|${b.code}|${a.date}`] ||= []).push(a)
   }
   for (const [key, group] of Object.entries(sameDay)) {
     if (group.length < 2) continue
@@ -863,7 +865,7 @@ export function validationIssues(state, days, scope) {
     const mins = group.reduce((t, a) => t + (a.billing.minutes || a.end - a.start), 0)
     const billed = group.reduce((t, a) => t + (Number(a.billing.units) || 0), 0)
     const once = unitsFor(mins, b.unitMins, b.rounding || 'AMA')
-    if (billed !== once) push('warn', 'Billing', `${group.length} sessions of ${code} on one day bill ${billed} units; counting the day's ${mins} minutes once gives ${once}`, clients[cid]?.name || '—', `Set the day's ${code} units to ${once} in total`, { kind: 'appt', id: group[0].id, date }, date)
+    if (billed !== once) push('warn', 'Billing', `${group.length} sessions of ${code} on one day bill ${billed} units; counting the day's ${mins} minutes once gives ${once}`, clients[cid]?.name || '—', `Turn on "Merge same day" in the payer's Claims Settings, or set the day's ${code} units to ${once} in total`, { kind: 'appt', id: group[0].id, date }, date)
   }
 
   // double-book detection (same day only, cheap pass).

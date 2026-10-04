@@ -4,7 +4,7 @@ import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion, LOST_REASONS } from '../lib/intake'
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
-import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims, planPayerTerms } from '../lib/claims'
+import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims, planPayerTerms, lineApptIds } from '../lib/claims'
 import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
@@ -1095,9 +1095,9 @@ function createActions(state, dispatch, rawState = state) {
     },
     dropClaimLine: (claimId, apptId) => {
       const c = state.claims[claimId]
-      if (!c || c.method === 'secondary' || c.secondary || c.status !== 'draft' || !c.lines.some((l) => l.apptId === apptId)) return { ok: false, msg: 'Only an unlinked primary draft line can be released' }
+      if (!c || c.method === 'secondary' || c.secondary || c.status !== 'draft' || !c.lines.some((l) => lineApptIds(l).includes(apptId))) return { ok: false, msg: 'Only an unlinked primary draft line can be released' }
       const r = dropLinePatch(state, c, apptId)
-      const apptPatches = [{ id: apptId, patch: { claimId: null, billing: { ...(state.appts[apptId]?.billing || {}), status: null, claimNo: null } } }]
+      const apptPatches = r.released.map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null } } }))
       if (r.removeClaim) {
         dispatch({ type: 'claimsTx', claimDel: [claimId], apptPatches })
         return { ok: true, msg: `${c.no} had its last line removed — claim dissolved, line back in staging` }
