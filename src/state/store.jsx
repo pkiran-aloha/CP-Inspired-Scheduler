@@ -13,6 +13,7 @@ import { planStatement, planStatementSent, planStatementVoid } from '../lib/stat
 import { planCabinetDoc, planCabinetArchive } from '../lib/cabinet'
 import { planPduEntry } from '../lib/credentials'
 import { planTask, planTaskDone } from '../lib/tasks'
+import { planMessage, readUpdates } from '../lib/messages'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -64,6 +65,7 @@ export function blankState() {
     cabinet: {},
     pdus: {},
     tasks: {},
+    messages: {},
     verificationForms: seedVerificationForms(clientsWithIntake, PAYERS),
     eraImports: {},
     billedFiles: {},
@@ -146,6 +148,7 @@ export function initial() {
           cabinet: saved.cabinet || {},
           pdus: saved.pdus || {},
           tasks: saved.tasks || {},
+          messages: saved.messages || {},
           verificationForms: saved.verificationForms || {},
           eraImports: saved.eraImports || {},
           billedFiles: saved.billedFiles || {},
@@ -393,9 +396,11 @@ export function reducer(state, action) {
     case 'record': {
       // Money must go through a guarded claim/receipt transaction, never a
       // generic document write that leaves the claim aggregate out of sync.
-      if (!['invoices', 'statements', 'cabinet', 'pdus', 'tasks', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !action.item?.id) return state
+      const list = action.items || (action.item ? [action.item] : [])
+      if (!['invoices', 'statements', 'cabinet', 'pdus', 'tasks', 'messages', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payExports'].includes(action.coll) || !list.length || list.some((i) => !i?.id)) return state
       const cur = state[action.coll] || {}
-      return { ...state, [action.coll]: { ...cur, [action.item.id]: action.item }, history: pushSnap(state, [action.coll]) }
+      // noSnap: bookkeeping such as read receipts takes no Undo slot
+      return { ...state, [action.coll]: { ...cur, ...Object.fromEntries(list.map((i) => [i.id, i])) }, history: action.noSnap ? state.history : pushSnap(state, [action.coll]) }
     }
     case 'setUI': {
       const patch = { ...action.patch }
@@ -541,7 +546,7 @@ export function reducer(state, action) {
     case 'clearDemo': {
       // Clear the dependent financial ledgers too; leaving payments/files behind
       // creates orphaned claims. The whole operation must be a single Undo.
-      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests', 'statements', 'cabinet', 'pdus', 'tasks']) }
+      return { ...state, appts: {}, claims: {}, payments: {}, invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, messages: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, payRuns: {}, payExports: {}, paySheets: {}, intakeRequests: {}, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'payRuns', 'payExports', 'paySheets', 'intakeRequests', 'statements', 'cabinet', 'pdus', 'tasks', 'messages']) }
     }
     case 'relabel': {
       const next = { ...state.appts }
@@ -565,7 +570,7 @@ export function reducer(state, action) {
       // requests point at clients that still exist.
       const seedInt = seedIntake({ appts: withClaims, clients: state.clients, staff: state.staff, payers: state.payers })
       const clients = state.clients.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
-      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements', 'cabinet', 'pdus', 'tasks']) }
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, messages: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements', 'cabinet', 'pdus', 'tasks', 'messages']) }
     }
     case 'roster': {
       const list = state[action.list]
@@ -892,6 +897,18 @@ function createActions(state, dispatch, rawState = state) {
       return { ok: true, msg: plan.msg, id: options.paymentId }
     },
     /** Payer take-back on a paid primary claim: reopens the balance, one Undo. */
+    /** Inbox messages: send (one Undo); opening a thread marks it read (no Undo slot). */
+    sendMessage: (input) => {
+      const plan = planMessage(state, input, { id: uid(), at: Date.now(), from: currentAccount(state)?.id || null })
+      if (!plan.ok) return plan
+      dispatch({ type: 'record', coll: 'messages', item: plan.item })
+      return { ok: true, msg: plan.msg, id: plan.item.id, threadId: plan.item.threadId }
+    },
+    markThreadRead: (threadId) => {
+      const items = readUpdates(state, threadId, currentAccount(state)?.id || null)
+      if (items.length) dispatch({ type: 'record', coll: 'messages', items, noSnap: true })
+      return { ok: true, msg: '' }
+    },
     /** Inbox tasks: add / edit, mark done or reopen. One record write, one Undo. */
     saveTask: (input) => {
       const plan = planTask(state, input, { id: input.id || uid(), at: Date.now(), by: currentAccount(state)?.staffId || null, can: (area) => canAccess(state, area, 'view') })
