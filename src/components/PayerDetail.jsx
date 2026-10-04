@@ -9,6 +9,7 @@ import { PayerForm, RemoveArm } from './PayersView'
 import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
 import { BILL_CODES, uid } from '../lib/model'
 import { PROVIDER_ID_RULES, providerIdRule, providerIdIssues } from '../lib/providerIds'
+import { PAYER_KINDS, payerPolicy } from '../lib/claims'
 
 /**
  * Payer deep record — opened by clicking a payer row. Three tabs mirroring how
@@ -27,6 +28,7 @@ const RULE_SECTIONS = [
   { id: 'pos', label: 'Place of Service Modifiers', icon: 'pin' },
   { id: 'mue', label: 'MUEs', icon: 'alert' },
   { id: 'ids', label: 'Provider IDs', icon: 'user' },
+  { id: 'terms', label: 'Payment Terms', icon: 'dollar' },
 ]
 const UNITS_OPTS = ['5 Minutes', '10 Minutes', '15 Minutes', '30 Minutes', '45 Minutes', '60 Minutes']
 const MUE_LIMITS = ['No Limits', '96', '60', '45', '30', '24', '16', '8']
@@ -561,6 +563,11 @@ function RuleBody({ p, section, patch, saved }) {
   const [pos, setPos] = useState(() => ({ rows: rules.posMods.map((r) => ({ ...r })), hideTeleOther: rules.hideTeleOther, hideTeleHome: rules.hideTeleHome }))
   const [mue, setMue] = useState(() => ({ daily: rules.mue.daily || '', per: { ...(rules.mue.per || {}) }, weekly: { ...(rules.mue.weekly || {}) } }))
   const [idRule, setIdRule] = useState(() => providerIdRule(p).id)
+  const [terms, setTerms] = useState(() => {
+    const pol = payerPolicy(p.name, state)
+    return { kind: pol.kind, avgDays: String(pol.avgDays), coinsPct: String(Math.round(pol.coins * 10000) / 100), copay: String(pol.copay), filingDays: p.ext?.filingDeadlineDays == null ? '' : String(p.ext.filingDeadlineDays) }
+  })
+  const toast = useToast()
   const svcOpts = useMemo(() => [...svcList(state).map((s) => ({ value: s.id, label: s.label, sub: s.code })), ...(state.payers || []).flatMap((x) => localSvcs(x)).map((s) => ({ value: s.id, label: `${s.label}`, sub: 'payer service' }))], [state.svcs, state.payers])
 
   if (section === 'ids') {
@@ -582,6 +589,36 @@ function RuleBody({ p, section, patch, saved }) {
             : <>Every staff member has the identifiers this rule needs.</>}
         </div>
         <SaveRow onCancel={saved} onSave={() => commit('providerId', idRule, `${p.name} now bills with ${PROVIDER_ID_RULES.find((r) => r.id === idRule).label}`)} />
+      </div>
+    )
+  }
+
+  if (section === 'terms') {
+    const fld = (k, label, hint, attrs = {}) => (
+      <div className="pr-frow" data-testid={`terms-row-${k}`}>
+        <span className="pr-flabel" title={hint}>{label}</span>
+        <input className="input" type="number" aria-label={label} data-testid={`terms-${k}`} value={terms[k]} onChange={(e) => setTerms({ ...terms, [k]: e.target.value })} {...attrs} />
+      </div>
+    )
+    const save = () => {
+      const res = state.actions.setPayerTerms(p.id, terms)
+      toast({ message: res.msg, kind: res.ok ? 'ok' : 'error' })
+      if (res.ok) saved()
+    }
+    return (
+      <div className="pr-sec" data-testid="pr-terms">
+        <SecHead t="Payment Terms" s="What billing expects from this payer. Claim aging, payment presets, copay estimates, the timely-filing gate and CMS-1500 box 7b read these values." />
+        <div className="pr-fields">
+          <div className="pr-frow" data-testid="terms-row-kind">
+            <span className="pr-flabel">Payer kind</span>
+            <Dropdown testid="terms-kind" value={terms.kind} onChange={(v) => setTerms({ ...terms, kind: v })} options={PAYER_KINDS.map((k) => ({ value: k.id, label: k.label }))} />
+          </div>
+          {fld('avgDays', 'Expected days to pay', 'A submitted claim is flagged late after 1.6 × this many days.', { min: 1, max: 365, step: 1 })}
+          {fld('coinsPct', 'Estimated payer share (%)', 'Used for the "Estimate" payment preset. An estimate only: post what the remittance says.', { min: 0, max: 100, step: 0.01 })}
+          {fld('copay', 'Estimated copay per line ($)', 'Used for the copay estimate and the "Leave estimated copay" preset.', { min: 0, step: 0.01 })}
+          {fld('filingDays', 'Filing deadline (days)', 'Days from date of service to file. Blank uses the practice default.', { min: 1, max: 999, step: 1, placeholder: `practice default (${state.settings?.billing?.defaultFilingDays ?? 90})` })}
+        </div>
+        <SaveRow onCancel={saved} onSave={save} />
       </div>
     )
   }

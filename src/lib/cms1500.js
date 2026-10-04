@@ -9,7 +9,7 @@
 // The electronic standard is ANSI 837P — this PDF is the printable companion using the
 // same derivations.
 import { jsPDF } from 'jspdf'
-import { payerPolicy, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
+import { payerPolicy, filingDaysOf, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
 import { providerIdRule, providerIdsFor } from './providerIds'
 
 export const LINES_PER_PAGE = 6 // the paper grid carries six service rows
@@ -41,7 +41,7 @@ export function cms1500Data(state, claim) {
   const org = state.settings.org || {}
   const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
   const staff = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))
-  const pol = payerPolicy(claim.payer)
+  const pol = payerPolicy(claim.payer, state)
   const first = state.appts[claim.lines[0]?.apptId] || {}
   const renderStaff = staff[first.staffIds?.[0]]
   const dx = dxFor(client)
@@ -80,7 +80,7 @@ export function cms1500Data(state, claim) {
       b('9', 0, 'Referral · records', [dx.length > 1 ? `Records support ${dx.length} diagnoses` : 'Records not required']),
       b('10', 0, 'Insurance plan ID', [String(pol.kind === 'medicaid' ? 41 : 40)]),
       b('7a', 0, 'Group / FEIN number', [`GRP-${String(400 + (client.id ? client.id.charCodeAt(1) * 7 : 0)).slice(-4)}`]),
-      b('7b', 0, 'Timely filing days', [String(pol.timely)]),
+      b('7b', 0, 'Timely filing days', [String(filingDaysOf(state, claim.payer))]),
       b('10d', 0, 'Accept assignment', ['YES']),
       b('11', 0, 'Authorization number', [authNoOf(client)]),
       b('12', 0, 'Claim codes', [claim.version > 1 ? 'REPLACEMENT' : '—']),

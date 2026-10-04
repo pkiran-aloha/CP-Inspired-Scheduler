@@ -11,7 +11,7 @@ import { download } from '../lib/ics'
 import { addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import {
   stagedAppts, planClaims, claimGate, claimStats, claimCsv, claimsCsv, quickPosts,
-  CLAIM_STATUSES, DENIAL_REASONS, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, payerPolicy,
+  CLAIM_STATUSES, DENIAL_REASONS, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, filingDaysOf,
   secondaryEligible,
 } from '../lib/claims'
 import { claimTo1500, claimsTo1500, cms1500Data } from '../lib/cms1500'
@@ -256,7 +256,7 @@ export default function BillingView({ initialTab }) {
               {staged.map((a, i) => {
                 const c = clientOf(a.clientIds?.[0])
                 const prov = (settings.providers || []).find((p) => p.kind === 'staff' && p.refId === a.staffIds?.[0])
-                const timely = (() => { const pol = payerPolicy(c.insurer || 'Self-pay'); const filing = (state.payers || []).find((pp) => pp.name === (c.insurer || ''))?.ext?.filingDeadlineDays ?? bill.defaultFilingDays ?? pol.timely ?? 90; const due = isoDate(new Date(new Date(a.date).getTime() + filing * 86400000)); const today = todayISO(); const daysLeft = Math.round((new Date(due) - new Date(today)) / 86400000); return { due, daysLeft, amber: daysLeft <= 21 && daysLeft >= 0, over: daysLeft < 0 } })()
+                const timely = (() => { const filing = filingDaysOf(state, c.insurer || 'Self-pay'); const due = isoDate(new Date(new Date(a.date).getTime() + filing * 86400000)); const today = todayISO(); const daysLeft = Math.round((new Date(due) - new Date(today)) / 86400000); return { due, daysLeft, amber: daysLeft <= 21 && daysLeft >= 0, over: daysLeft < 0 } })()
                 return (
                   <div className="py-trow" key={a.id} data-testid={`bil-row-${i}`} style={{ gridTemplateColumns: '40px 1.4fr 1fr 110px 1fr 100px 110px', minHeight: 56, transition: 'background .12s', background: picked.has(a.id) ? '#f5f3ff' : undefined }}>
                     <div className="py-cell"><span className={`cb ${picked.has(a.id) ? 'on' : ''}`} onClick={() => toggle(a.id)} role="checkbox" aria-checked={picked.has(a.id)} data-testid={`bil-pick-${i}`} style={{ width: 20, height: 20, borderRadius: 6 }}>{picked.has(a.id) && Icon.check({ size: 12 })}</span></div>
@@ -321,7 +321,7 @@ export default function BillingView({ initialTab }) {
             <div style={{ maxHeight: 720, overflow: 'auto' }}>
               {list.map((c, i) => {
                 const cl = clientOf(c.clientId)
-                const age = agingOf(c)
+                const age = agingOf(c, undefined, state)
                 const isSel = claim?.id === c.id
                 return (
                   <button key={c.id} className={`clm-card ${isSel ? 'on' : ''}`} data-testid={`clm-row-${i}`} onClick={() => { setSel(c.id); setDisputed(new Set()) }} style={{ width: '100%', textAlign: 'left', padding: '14px 16px', border: 'none', borderBottom: '1px solid var(--line)', background: isSel ? '#f5f3ff' : 'var(--panel)', cursor: 'pointer', display: 'block', borderLeft: `3px solid ${isSel ? '#6366f1' : 'transparent'}` }}>
@@ -467,9 +467,9 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
   const org = settings.org || {}
   const gate = claim.status === 'draft' ? claimGate(state, claim) : { ok: true, bad: [] }
   const badIds = new Set(gate.bad.map((b) => b.line.apptId))
-  const age = agingOf(claim)
+  const age = agingOf(claim, undefined, state)
   const due = dueOf(claim)
-  const copay = copayOf(claim, client)
+  const copay = copayOf(claim, client, state)
   const dx = dxFor(client)
   const firstAppt = appts[claim.lines[0]?.apptId]
   const facility = firstAppt?.location || client.home || org.address
