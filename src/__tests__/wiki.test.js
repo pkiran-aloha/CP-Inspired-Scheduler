@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
-import { fileURLToPath } from 'url'
+import path from 'path'
 import { REPO_BLOB, buildWiki, renderMarkdown, resolveHref, searchTerms, searchWiki } from '../lib/wiki'
 
-const ROOT = fileURLToPath(new URL('../../', import.meta.url))
+// vitest runs from the repo root; under jsdom import.meta.url is not a file: URL
+const ROOT = `${path.resolve(process.cwd()).replace(/\\/g, '/')}/`
 const WIKI_DIR = `${ROOT}docs/wiki/`
 const wikiFiles = () => Object.fromEntries(fs.readdirSync(WIKI_DIR).filter((f) => f.endsWith('.md'))
   .map((f) => [`../../docs/wiki/${f}`, fs.readFileSync(WIKI_DIR + f, 'utf8')]))

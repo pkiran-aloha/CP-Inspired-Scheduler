@@ -581,7 +581,8 @@ function actionAreas(state, action) {
       const areas = []
       if (patch.settings === true) areas.push('settings')
       if (patch.inbox === true || patch.openAppt) areas.push('calendar')
-      if (Object.prototype.hasOwnProperty.call(patch, 'section')) {
+      // Help & Wiki holds no practice data: every role may open it
+      if (Object.prototype.hasOwnProperty.call(patch, 'section') && patch.section !== 'help') {
         const area = areaForSection(patch.section)
         if (!area) return null
         areas.push(area)
