@@ -681,6 +681,7 @@ function RuleBody({ p, section, patch, saved }) {
           {chk('renderTaxo', 'Include Rendering Provider Taxonomy Code on Claim')}
           {chk('billTaxo', 'Include Billing Provider Taxonomy Code on Claim')}
           {chk('mergeSameDay', 'Merge appointments for same day, same client and same service provider into one charge line')}
+          {chk('credentialMods', "Add the rendering provider's credential modifier to each line (HO BCBA · HN BCaBA · HM RBT · HP Psychologist), the Medicaid norm")}
         </div>
         <SaveRow onCancel={saved} onSave={() => commit('claims', clm)} />
       </div>

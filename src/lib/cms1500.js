@@ -9,7 +9,7 @@
 // The electronic standard is ANSI 837P — this PDF is the printable companion using the
 // same derivations.
 import { jsPDF } from 'jspdf'
-import { payerPolicy, filingDaysOf, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
+import { payerPolicy, filingDaysOf, posFor, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
 import { providerIdRule, providerIdsFor } from './providerIds'
 
 export const LINES_PER_PAGE = 6 // the paper grid carries six service rows
@@ -24,15 +24,7 @@ export const lastFirst = (name = '') => {
 }
 export const money2 = (n) => (n == null || Number.isNaN(Number(n)) ? '' : Number(n).toFixed(2))
 
-// place of service from where a line happened
-export function posFor(appt) {
-  const loc = String(appt?.location || '').toLowerCase()
-  if (/home/.test(loc)) return '12' // home
-  if (/school/.test(loc)) return '03' // school
-  if (/community/.test(loc)) return '06' // community
-  if (/telehealth|video/.test(loc)) return '10' // telehealth
-  return '11' // office
-}
+export { posFor } // place of service lives in claims.js: claim-line modifiers key off it too
 
 // ---------- pure mapping (everything the renderer prints, decided in one testable pass) ----------
 // Box ids here are data keys; the renderer decides which *printed* box each feeds,

@@ -29,6 +29,7 @@ Hackathon wave 2: configurable billing (#8). This wave is in progress. The plan 
   - Billed units use `unitRuleFor`, the same rule chain as the authorization ledger (payer override, then payer service, then service master, then code). `unitsFor` now lives in `model.js`.
   - Reports → Validations warns when same-day sessions for one code and client round to a different total than the day counted once.
   - One-time migration `normalizeUnitNorms` (`meta.unitNorm15`). It never changes claims.
+- **Slice 3, claim-line modifiers** (`lineModifiers` in `claims.js`). The order is: payer service modifier, then credential modifier (Medicaid norm; switch `rules.claims.flags.credentialMods`), then payer POS modifier. `posFor` moved to `claims.js` and now uses CMS POS codes: community 99, and 12 replaces the mislabelled 06. No migration was needed. Saved payer POS rows keyed `06` (unlikely) would need re-picking as `12`.
 
 Hackathon wave 1 — billing (from the departments' hackathon list):
 - **Billing Health dashboard widget** (`billingKpis.js`): clean-claim %, denial %, net collection %, cash posted, days in A/R, A/R >90 %, charge lag, recoupments; formula + target on hover; on the default board (last); saved boards add it from the gallery.
@@ -50,7 +51,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 | Wave | Items | Notes / open questions |
 |---|---|---|
-| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slices 1 and 2 have shipped. Next is slice 3, modifiers on claim lines. Slices 4–6 are in `docs/specs/configurable-billing.md`. Medicaid norms are the compliance baseline for every slice. |
+| **Configurable billing (#8)** (in progress) | "We didn't have to submit hard-code requests for billing" | Slices 1–3 have shipped. Next is slice 4, CMS-1500 boxes from the payer record. Slices 4–6 are in `docs/specs/configurable-billing.md`. Medicaid norms are the compliance baseline for every slice. |
 | **Intake (#5)** | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | Maintainer picked all three. Downloadable intake packet + filled request as PDF (jsPDF is installed); trace the General Requests → Client Intake → Client List hand-offs end-to-end and fix confusing steps; run `impeccable` critique on the intake screens first. |
 | **Inbox, tasks, notifications (#1 + #2)** | Message center + task assignment + notifications | Local, in-workspace only (no delivery off-device, no client portal yet). |
 | **Records (#4, #10, #13)** | Client statements; Cabinet expirations; RBT PDU report | Statements: history, PDF, mark sent/paid (no email). Cabinet: documents register with expiry + alerts (metadata only). PDU: log entries per staff vs renewal requirement — confirm requirement per credential with the maintainer. |
