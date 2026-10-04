@@ -346,7 +346,7 @@ function ClinicalEditor({ req }) {
         <label className="iq-fld"><span>Payer decision</span>
           <Dropdown value={f.auth.decision} onChange={(v) => setSub('auth', 'decision', v)} options={[{ value: '', label: 'Not submitted' }, ...Object.entries(AUTH_DECISIONS).map(([k, v]) => ({ value: k, label: v.label }))]} testid="iq-cl-decision" />
         </label>
-        <label className="iq-fld"><span>Approved units</span><input className="input" type="number" min="0" value={f.auth.units} onChange={(e) => setSub('auth', 'units', e.target.value)} data-testid="iq-cl-units" /></label>
+        <label className="iq-fld"><span>Approved units (15-min)</span><input className="input" type="number" min="0" value={f.auth.units} onChange={(e) => setSub('auth', 'units', e.target.value)} data-testid="iq-cl-units" /></label>
         <label className="iq-fld"><span>Authorisation #</span><input className="input" value={f.auth.authNo} onChange={(e) => setSub('auth', 'authNo', e.target.value)} data-testid="iq-cl-authno" /></label>
       </div>
       <div className="iq-actions"><button className="btn btn-sm btn-primary" onClick={save} data-testid="iq-cl-save">Save clinical record</button></div>

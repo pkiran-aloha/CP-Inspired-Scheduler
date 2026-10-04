@@ -173,6 +173,8 @@ function ClientModal({ client, dup, onClose }) {
               <F k="insurer" label="Payer / insurer" icon="shield">
                 <select className="input" value={form.insurer} onChange={(e) => set('insurer', e.target.value)} data-testid="cm-insurer">{[...new Set([...(state.payers || []).filter((pp) => pp.status === 'active').map((pp) => pp.name), ...(form.insurer && !(state.payers || []).some((pp) => pp.name === form.insurer) ? [form.insurer] : [])])].map((pr) => <option key={pr}>{pr}</option>)}</select>
               </F>
+              <F k="memberId" label="Member ID (claims)" icon="badge" hint={form.memberId ? null : 'Blank prints a demo placeholder on claims'} />
+              <F k="authNo" label="Authorization # (claims)" icon="shield" />
               <F k="home" label="Primary site" icon="house" />
               <F k="authWeekly" label="Authorized hrs / week" icon="clock" type="number" />
               <F k="authStart" label="Auth start" icon="cal" type="date" />

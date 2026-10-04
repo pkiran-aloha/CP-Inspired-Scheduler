@@ -128,8 +128,10 @@ function hashNum(s) {
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
   return Math.abs(h)
 }
-export const memberIdOf = (c) => `${(c.insurer || 'SP').replace(/[^A-Z]/gi, '').slice(0, 3).toUpperCase()}${String(1000000 + (hashNum(c.id) % 8999999))}`
-export const authNoOf = (c) => `AUTH-${c.authStart?.slice(0, 4) || '2026'}-${String(40000 + (hashNum(c.id) % 9999)).padStart(5, '0')}`
+// The chart's own member ID / authorization number when on file (intake carries them);
+// otherwise a deterministic demo placeholder.
+export const memberIdOf = (c) => String(c.memberId || '').trim() || `${(c.insurer || 'SP').replace(/[^A-Z]/gi, '').slice(0, 3).toUpperCase()}${String(1000000 + (hashNum(c.id) % 8999999))}`
+export const authNoOf = (c) => String(c.authNo || '').trim() || `AUTH-${c.authStart?.slice(0, 4) || '2026'}-${String(40000 + (hashNum(c.id) % 9999)).padStart(5, '0')}`
 export const npiOf = (staffId) => {
   const base = ('1' + String(12000000 + (hashNum(staffId || 'x') % 79999999)).padStart(8, '0')).slice(0, 9)
   return base + npiCheck(base)
@@ -657,7 +659,7 @@ export function claimCsv(state, claim) {
   const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
   const L = [
     `# ${org.name || 'Practice'} — Claim ${claim.no} (${claim.status}) · ${claim.mode === 'selfpay' ? 'Self-pay invoice' : claim.payer}`,
-    `# Client ${client.name || claim.clientId} · member ${memberIdOf({ id: claim.clientId, insurer: claim.payer })} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(client)}`,
+    `# Client ${client.name || claim.clientId} · member ${memberIdOf(claim.method === 'secondary' ? { id: claim.clientId, insurer: claim.payer, memberId: client.secondary?.memberId } : { ...client, id: claim.clientId, insurer: claim.payer })} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(client)}`,
     `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Primary payer paid ${(claim.paid || 0).toFixed(2)} · Secondary received ${(claim.secondaryPaid || 0).toFixed(2)} · Patient received ${(claim.patientPaid || 0).toFixed(2)} · ${claim.method === 'secondary' ? 'Filing balance (not additional A/R)' : 'Primary A/R'} ${dueOf(claim).toFixed(2)}`,
     'line,date_of_service,hcpcs,mod,description,units,rate,charge,rendered_by',
     ...claim.lines.map((l, i) => `${i + 1},${l.dos},${l.code}${l.mod ? ',' + l.mod : ','},"${l.desc}",${l.units},${l.rate},${l.charge},"${l.staff}"`),

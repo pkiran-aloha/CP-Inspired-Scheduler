@@ -37,7 +37,9 @@ export function cms1500Data(state, claim) {
   const first = state.appts[claim.lines[0]?.apptId] || {}
   const renderStaff = staff[first.staffIds?.[0]]
   const dx = dxFor(client)
-  const member = memberIdOf({ id: client.id, insurer: claim.payer })
+  const authNo = authNoOf(claim.method === 'secondary' ? { ...client, authNo: client.secondary?.authNo } : client)
+  // a secondary filing prints the secondary member ID, never the primary's
+  const member = memberIdOf(claim.method === 'secondary' ? { id: client.id, insurer: claim.payer, memberId: client.secondary?.memberId } : { ...client, insurer: claim.payer })
   // the payer's provider-ID rule decides NPI, Medicaid ID (qualifier 1D) or both
   const idPayer = (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
   const idRule = providerIdRule(idPayer).id
@@ -82,18 +84,18 @@ export function cms1500Data(state, claim) {
       b('7a', 0, 'Group / FEIN number', [idPayer?.ext?.group || '—']),
       b('7b', 0, 'Timely filing days', [String(filingDaysOf(state, claim.payer))]),
       b('10d', 0, 'Accept assignment', ['YES']),
-      b('11', 0, 'Authorization number', [authNoOf(client)]),
+      b('11', 0, 'Authorization number', [authNo]),
       b('12', 0, 'Claim codes', [claim.version > 1 ? 'REPLACEMENT' : '—']),
       b('14', 0, 'Diagnosis A–L', [dx.join(' ')]), // printed in 21
       b('15', 0, 'Onset / first symptom date', [usDate(claim.dosFrom)]),
       b('16', 0, 'Original reference number', [claim.parentNo || '—']),
-      b('17', 0, 'Prior auth number', [authNoOf(client)]), // printed in 23
+      b('17', 0, 'Prior auth number', [authNo]), // printed in 23
       b('18', 0, 'Hospitalization related', ['NO']),
       b('19', 0, 'Additional claim info', [`Plan of care: ${renderStaff?.cert || 'BCBA'} · ${client.school ? `school ${client.school}` : 'clinic/home services'}`]),
       b('20', 0, 'Outside lab?', ['NO']),
       b('21', 0, 'Authorized by — signature', ['BCBA plan of care']),
       b('22', 0, 'Resubmission code', [claim.version > 1 ? '7' : '—']),
-      b('23', 0, 'Prior authorization number', [authNoOf(client)]),
+      b('23', 0, 'Prior authorization number', [authNo]),
       b('23a', 0, 'Service dates', [`${usDate(claim.dosFrom)} – ${usDate(claim.dosTo)}`]),
       b('23b', 0, showNpi ? 'Rendering NPI' : 'Rendering Medicaid ID (1D)', [showNpi ? rIds.npi : `1D ${rIds.medicaid || '—'}`]),
       b('23c', 0, 'Total charge', [`$ ${money2(claim.charges)}`]),

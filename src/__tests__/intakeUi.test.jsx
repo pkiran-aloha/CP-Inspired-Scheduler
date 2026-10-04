@@ -167,7 +167,10 @@ describe('Conversion closes the loop into the client roster', () => {
       expect(chart.intakeNo).toBe(CONVERTIBLE.no)
       expect(chart.insurer).toBeTruthy()
       expect(chart.authWeekly).toBeGreaterThan(0)
-      expect(saved.appts && Object.values(saved.appts).some((a) => a.intakeId === CONVERTIBLE.id) || true).toBe(true)
+      // approved units land in the unit pool (15-minute units), and the payer IDs travel with the chart
+      if (Number(CONVERTIBLE.auth?.units) > 0) expect(chart.authUnits).toEqual({ 97153: Math.round(Number(CONVERTIBLE.auth.units)) })
+      expect(chart.memberId).toBe(String(CONVERTIBLE.memberId || '').trim())
+      if (CONVERTIBLE.apptId) expect(saved.appts[CONVERTIBLE.apptId].clientIds).toEqual([chart.id])
     })
     // the payoff lands in the Client module: the roster opens on the new chart
     await waitFor(() => expect(screen.getByTestId('cli-search').value).toBe(`${CONVERTIBLE.firstName} ${CONVERTIBLE.lastName}`))

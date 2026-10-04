@@ -19,6 +19,15 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 
+### Hackathon wave 3 — intake (in progress)
+
+**Conversion carries the intake data into the client chart.**
+- **Approved units:** these come from the payer's authorization decision and go into the client's unit pool as 15-minute units, under 97153. They are marked to check against the payer letter, because the request does not say which codes they cover. They used to be divided as if they were hours.
+- **Weekly hours guard:** derived from those units.
+- **IDs and clinical details:** the member ID, group number, authorization number, diagnosis, assigned BCBA and emergency contact go to the chart.
+- **Claims and the CMS-1500:** these print the chart's real member ID and authorization number. A secondary filing prints the secondary's. A demo placeholder appears only when the chart has none.
+- **Client form:** now has Member ID and Authorization # fields.
+
 ### Hackathon wave 2 — configurable billing
 
 The goal is that a payer contract change needs a setting, not a code change. The audit and the slice plan are in `docs/specs/configurable-billing.md`.
