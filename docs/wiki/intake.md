@@ -1,8 +1,8 @@
 # Intake
 
-_Sources: src/lib/intake.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
+_Sources: src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at 388d080 on 2026-10-04._
+_Last synced with main at 388d080 on 2026-10-04 (plus the intake PDFs)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -64,6 +64,10 @@ Specific moves behave as follows:
 
 Six tabs: Overview, Contacts, Benefits (VOB), Clinical, Docs and consents, Timeline. Documents have a status (Missing, Requested, Received, Waived, Expired) and only Received or Waived count. Required documents depend on the record: an IEP/IFSP for school-based settings, custody papers when a guardianship note exists. Consents (treat, HIPAA, financial responsibility are required; media, telehealth, records release are optional) are captured on screen, not sent. The Timeline shows every logged event.
 
+**Downloads.** Both are generated in the browser and nothing is sent; print them or attach them to your own email.
+- **Summary PDF** (in the drawer header) is everything on the request. It covers child, guardian and emergency contact, referral, clinical, insurance and benefits, assessment and authorization, and the status of every document and consent. It contains client information.
+- **Intake packet** (on the worklist toolbar) is a blank packet for families to fill in. It has fill-in fields, a checklist of documents to bring, and a signature line for each consent. The practice supplies its own consent wording; the packet lists which consents are needed.
+
 ### Converting to a client
 
 Convert is available only from Authorization with every converted-gate item met. One action creates the client chart, links the request and the client both ways, copies attribution to the referral source, and (if an assessment visit exists) attaches the new client to that appointment and confirms it. One Undo reverses all of it.
@@ -112,13 +116,12 @@ Intake does not follow the strict plan-then-Tx pattern. Domain actions in `creat
 
 ### Tests
 
-`intake.test.js` (pure engine: graph, gates, SLA, KPIs, normalization, conversion) and `intakeUi.test.jsx` (header and toolbar shape, menus, waitlist form, rail to booking, guardian gate, reopen, Escape layering, conversion). Backup coverage is in `workspaceBackup.test.js`.
+`intake.test.js` (pure engine: graph, gates, SLA, KPIs, normalization, conversion), `intakeDocs.test.jsx` (summary and packet content, real PDF output, both downloads) and `intakeUi.test.jsx` (header and toolbar shape, menus, waitlist form, rail to booking, guardian gate, reopen, Escape layering, conversion). Backup coverage is in `workspaceBackup.test.js`.
 
 ## Not yet built
 
-- **No downloadable forms.** There is no intake packet or filled-request PDF yet (jsPDF is installed; this is a planned wave in `docs/HANDOFF.md`, along with an end-to-end review of the General Requests, Client Intake and Client List hand-offs).
+- **No e-signature or fillable PDF.** The intake packet is printed and signed on paper; signed consents are then recorded on screen. An end-to-end review of the General Requests, Client Intake and Client List hand-offs is still planned in `docs/HANDOFF.md`.
 - **Nothing is transmitted.** Benefits verification is a recorded call and reference, not an eligibility query. Authorization is recorded, not submitted. Consents are captured on screen, with no e-signature service or portal.
-- **Approved units are not carried into the client's per-code pool** on conversion (known issue in the handoff).
 - The assessment appointment is created without a client and bypasses the scheduling guards in [Scheduling](scheduling.md).
 - No intake task or message center yet (planned with inbox and notifications). The `tasks` field on a request exists but has no screen.
 - The intake guard strength is fixed: gates always block. There is no off/flag/warn/stop setting for intake gates.
