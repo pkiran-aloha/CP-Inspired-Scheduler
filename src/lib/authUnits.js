@@ -44,12 +44,14 @@ const codeUnitMins = (state, code) =>
 
 /** The code and the payer's unit rule that apply to one appointment (or booking draft). */
 export function unitRuleFor(state, a) {
-  const svc = a.service ? svcById(state, a.service) : null
-  const code = a.billingCode || a.billing?.code || svc?.code || ''
+  const picked = a.service ? svcById(state, a.service) : null
+  const code = a.billingCode || a.billing?.code || picked?.code || ''
+  // a billing code picked by hand that differs from the service's own drops the service's unit rule
+  const svc = picked && (!picked.code || picked.code === code) ? picked : null
   const payer = payerForAppt(state, a.clientIds)
   const p = payer ? ensurePayer(payer) : null
-  const ov = (p && a.service && p.svcOv?.[a.service]) || null
-  const local = (p && a.service && (p.svcs || []).find((s) => s.id === a.service)) || null
+  const ov = (p && svc && p.svcOv?.[a.service]) || null
+  const local = (p && svc && (p.svcs || []).find((s) => s.id === a.service)) || null
   const unitMins = num(ov?.unitSize) || num(local?.unitSize) || local?.unitMins || svc?.unitMins || codeUnitMins(state, code)
   const rounding = ov?.rounding || local?.rounding || svc?.rounding || 'AMA'
   const credentials = (ov?.credentials?.length ? ov.credentials : local?.credentials) || []

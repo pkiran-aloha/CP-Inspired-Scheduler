@@ -2,7 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { blankState } from '../state/store'
 import { autoBilling, unitsFor, LEGACY_UNIT_DEFAULTS, BILL_CODES } from '../lib/model'
-import { normalizeUnitNorms } from '../lib/authUnits'
+import { normalizeUnitNorms, unitRuleFor } from '../lib/authUnits'
 import { validationIssues } from '../lib/reports'
 import { todayISO } from '../lib/date'
 
@@ -23,6 +23,14 @@ describe('code defaults', () => {
       const now = BILL_CODES.find((c) => c.id === id)
       expect((now.rate * 60) / now.unitMins).toBeCloseTo((old.rate * 60) / old.unitMins, 2)
     }
+  })
+})
+
+describe('unit rule for a hand-picked code', () => {
+  it('a billing code other than the service’s own drops the service’s unit rule', () => {
+    const c = BASE.clients.find((x) => x.insurer === 'Aetna')
+    expect(unitRuleFor(BASE, { service: 'dtt', billingCode: '253MT', clientIds: [c.id] }).unitMins).toBe(30)
+    expect(unitRuleFor(BASE, { service: 'dtt', clientIds: [c.id] }).rounding).toBe('Nearest') // Aetna's dtt override still applies
   })
 })
 
