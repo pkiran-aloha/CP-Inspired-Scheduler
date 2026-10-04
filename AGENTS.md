@@ -40,6 +40,7 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - `src/styles.css`: the single stylesheet. Tokens on `:root`, redefined under `[data-theme='dark']`. Grew by appended chunks that override earlier ones (some `!important`): check for later overrides before editing a rule. Append new blocks at the end.
 - `src/__tests__/`: `*.test.js` (pure) and `*.test.jsx` (Testing Library UI flows).
 - `docs/specs/`: design briefs. `scheduling-intelligence-ideas.md` tracks what is shipped vs not. Billing specs are historical, not a statement of what exists.
+- `docs/wiki/`: the platform wiki (per area: user guide + how it works). `docs/marketing/README.md`: marketing copy. Each wiki page names its backing files in a `_Sources:_` line; the marketing copy does so in its Source map table.
 - `scripts/c3x-*.py`: one-off history. Don't run or extend.
 
 ## Architecture rules
@@ -78,7 +79,7 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - Commit messages: Conventional Commits (`feat(scope): …`), body explains *why*. On Windows write multi-line messages from Git Bash: `git commit -F - <<'EOF' … EOF` (PowerShell 5.1 splits arguments on quotes).
 - Land: `git push -u origin <branch>; git switch main && git pull --ff-only && git merge --no-ff <branch> && git push origin main`.
 - After pushing `main`, check CI before starting the next change. Without `gh`, the public API works: `https://api.github.com/repos/pkiran-aloha/CP-Inspired-Scheduler/actions/runs?head_sha=<sha>` and, for failures, `…/check-runs/<job id>/annotations`.
-- One feature per branch, landed and green before the next. Update README "Current development context" and `docs/HANDOFF.md` when a feature lands.
+- One feature per branch, landed and green before the next. Update README "Current development context" and `docs/HANDOFF.md` when a feature lands. In the same branch, update every `docs/wiki/*.md` page whose `_Sources:_` line lists a file you changed (and bump its Last-synced line), and refresh the matching `docs/marketing/README.md` section when the change is something a practice would notice. Keep both honest: describe only what ships.
 - Never force-push `main`, rewrite published history, or delete branches/data you didn't create without the maintainer's say-so.
 
 ## UI conventions

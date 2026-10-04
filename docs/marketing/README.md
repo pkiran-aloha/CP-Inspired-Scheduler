@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at a1e8cdd on 2026-10-04._
+_Last synced with main at c185259 on 2026-10-04._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -20,7 +20,7 @@ Every claim on this page maps to shipped code (see the [Source map](#source-map)
 
 ### Tagline
 
-**Every change checked. Every change reversible.**
+**Checks where decisions happen. One Undo per financial change.**
 
 Alternates:
 
@@ -37,7 +37,7 @@ Book, bill and pay with the checks built in.
 
 ### Subhead
 
-Aloha ABA brings scheduling, intake, claims, ERA posting, A/R and payroll into one workspace. Each change is validated against your authorizations, payer rules and ledgers before it is saved, and each one comes back with a single Undo.
+Aloha ABA brings scheduling, intake, claims, ERA posting, A/R and payroll into one workspace. Bookings made in the booking dialog are checked against your authorizations and payer rules before they are saved, invalid financial entries are refused, and every claim, payment or posting reverses with a single Undo.
 
 ### Primary call to action
 
@@ -51,7 +51,7 @@ Secondary: *See what's checked before you save* (links to "Why practices trust i
 
 ### Scheduling and scheduling intelligence: see the authorization before you book the session
 
-The calendar shows what a booking will do to the client's authorization, the payer's limits and the family's attendance pattern before the session is saved. Your schedulers decide with the numbers in front of them, not after the claim comes back.
+The booking dialog shows what a booking will do to the client's authorization, the payer's limits and the family's attendance pattern before the session is saved. Your schedulers decide with the numbers in front of them, not after the claim comes back.
 
 - **Book-time authorization guard.** Shows committed and remaining hours, the weekly pace against the authorized week, days to expiry and a projected exhaustion date. Off, flag, warn or stop, chosen by the practice; the default is warn.
 - **Per-code unit ledger with payer rules.** Authorizations carry unit pools per CPT code. Minutes convert to units by the payer's own unit size and rounding (AMA 8-minute rule by default), and daily MUE limits, weekly per-code limits and credential rules are checked at booking.
@@ -129,19 +129,20 @@ A configurable dashboard and a report library share one metrics engine, so the s
 
 ### Settings and payer rules: configure the practice without filing a ticket
 
-Thirteen settings modules hold the practice's own rules, and each write is checked before it is saved. Masters are edited in one place and read everywhere.
+Thirteen settings modules hold the practice's own rules. Masters are edited in one place and read everywhere, and changes that would break existing records are refused.
 
 - **Payer billing rules:** provider-ID rule, MUE daily limits, per-code weekly limits, unit size and rounding overrides per service.
+- **Payment Terms per payer:** payer kind, expected days to pay, estimated payer share, copay and filing deadline. Claim aging, copay estimates, payment presets and timely filing read them, and each save is validated and undoable.
 - **Guarded changes:** office names must be unique, an office still in use can't be deleted until its records are moved, a renamed office updates every record that uses it, and a status with appointments on it must be reassigned before removal.
 - **Appointment status, custom lists, custom fields, qualifications, services and earning codes**, each a single master.
-- **CSV data import** for clients, staff and appointments: columns map automatically, every row is validated, duplicates are detected, a clean preview is required, and the commit is all-or-nothing. Nothing is uploaded.
+- **CSV data import** for clients, staff, appointments and other masters: columns map automatically, every row is validated, duplicates are detected, a clean preview is required, and the commit is all-or-nothing. Nothing is uploaded.
 - **ABA Hours tracking** for behavior-analytic time on non-service appointments, tallied by credential track against targets the practice sets.
 
 ### Security, Undo and backup: mistakes are one keystroke from fixed
 
 Every financial or compound change is one reducer transaction, so one Undo reverses all of it. The whole workspace exports to a versioned file you can inspect before you restore it.
 
-- **One action, one Undo:** claim submissions with their files, ERA postings, recoupments, intake conversions and settings changes each reverse in one step (25 steps, kept in the open tab).
+- **One action, one Undo:** claim submissions with their files, ERA postings, recoupments, intake conversions and most settings changes each reverse in one step (25 steps, kept in the open tab).
 - **Versioned backup and restore (JSON):** covers ledgers, masters, settings, saved reports and dashboards. Import validates the file and previews its counts before you confirm the replace.
 - **Roles and office scoping:** role templates, per-area permission levels, office-scoped access and an audit trail, with at least one active administrator always kept. These are local access controls, not authentication, and the app says so.
 - **Storage-failure warning:** if the browser refuses a save, an on-screen alert says your edits are in memory only and points you to an immediate export.
@@ -166,7 +167,7 @@ Every financial or compound change is one reducer transaction, so one Undo rever
 
 ### 50-word description
 
-Aloha ABA is a practice suite for ABA providers that brings scheduling, intake, claims, ERA posting, A/R and payroll into one workspace. Bookings are checked against authorizations and payer rules, invalid financial states are refused, and every compound change reverses with one Undo. A local-first prototype that runs on fictional data.
+Aloha ABA is a practice suite for ABA providers that brings scheduling, intake, claims, ERA posting, A/R and payroll into one workspace. Bookings are checked against authorizations and payer rules, invalid financial states are refused, and every financial change reverses with one Undo. A local-first prototype that runs on fictional data.
 
 ### 25-word description
 
@@ -186,7 +187,7 @@ One workspace for ABA scheduling, intake, billing and payroll. Every change is c
 
 ### Elevator pitch
 
-ABA practices lose money in the gaps between tools: a session booked past its authorization, a claim missing the provider ID the payer wants, a remittance posted to the wrong claim. Aloha ABA puts scheduling, intake, billing, payments, A/R and payroll in one workspace and runs the checks at the moment of the decision. The booking dialog shows unit usage and payer limits before you save. Claims are held with the specific fix. ERA lines post only on an exact match. Every compound change reverses with one Undo. It is a working, local-first prototype on fictional data, built to grow into a production system, and it never claims to have done something it hasn't.
+ABA practices lose money in the gaps between tools: a session booked past its authorization, a claim missing the provider ID the payer wants, a remittance posted to the wrong claim. Aloha ABA puts scheduling, intake, billing, payments, A/R and payroll in one workspace and runs the checks at the moment of the decision. The booking dialog shows unit usage and payer limits before you save. Claims are held with the specific fix. ERA lines post only on an exact match. Every claim, payment and posting reverses with one Undo. It is a working, local-first prototype on fictional data, built to grow into a production system, and it never claims to have done something it hasn't.
 
 ---
 
