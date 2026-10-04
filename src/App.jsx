@@ -41,6 +41,7 @@ import PayrollSummaryView from './components/payroll/PayrollSummaryView'
 import PayrollIdMappingView from './components/payroll/PayrollIdMappingView'
 import QuickBooksPayrollView from './components/payroll/QuickBooksPayrollView'
 import PayrollSetupView from './components/payroll/PayrollSetupView'
+import HelpView from './components/HelpView'
 import NeedsCover from './components/NeedsCover'
 import SchedulerInsights from './components/SchedulerInsights'
 import SettingsModal from './components/SettingsModal'
@@ -87,7 +88,8 @@ function Shell() {
 
   const section = ui.section || 'calendar'
   const area = section === 'settings' && ui.settingsModule === 'security' ? 'security' : areaForSection(section)
-  const routeAllowed = section === 'settings'
+  // Help & Wiki holds no practice data, so every role can open it
+  const routeAllowed = section === 'help' ? true : section === 'settings'
     ? (state.canAccess('settings', 'view') || state.canAccess('security', 'view'))
     : (!!area && state.canAccess(area, 'view'))
   const canScheduleEdit = state.canAccess('calendar', 'full')
@@ -305,6 +307,7 @@ function Shell() {
         {section === 'pay-idmap' && <PayrollIdMappingView />}
         {section === 'pay-qbo' && <QuickBooksPayrollView />}
         {section === 'pay-setup' && <PayrollSetupView />}
+        {section === 'help' && <HelpView />}
         {(section === 'settings' || section === 'security') && (
           <SettingsModal
             forcedModule={section === 'security' ? 'security' : null}
