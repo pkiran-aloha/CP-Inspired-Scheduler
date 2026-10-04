@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intake.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at 2b51459 on 2026-10-04._
+_Last synced with main at 04c62e2 on 2026-10-04 (plus the intake conversion carry-forward)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -68,7 +68,11 @@ Six tabs: Overview, Contacts, Benefits (VOB), Clinical, Docs and consents, Timel
 
 Convert is available only from Authorization with every converted-gate item met. One action creates the client chart, links the request and the client both ways, copies attribution to the referral source, and (if an assessment visit exists) attaches the new client to that appointment and confirms it. One Undo reverses all of it.
 
-Mapping notes: the chart gets `authWeekly` as the approved units divided by the window's weeks, `authStart` and `authEnd` from the window, and the payer name as `insurer`. The approved units are not copied into the client's per-code authorization pool, so enter those under Clients > Edit before relying on the unit guard in [Scheduling](scheduling.md).
+Mapping notes:
+- **Approved units:** the payer's approved units (15-minute units, the Medicaid norm) become the client's authorization pool under 97153. They are marked *converted, verify against the payer letter*, because the request does not record which codes the units cover. Split them by code under Clients > Edit; saving confirms them. The unit guard in [Scheduling](scheduling.md) uses this pool.
+- **Weekly hours:** `authWeekly` is the units × 15 minutes ÷ the window's weeks, capped at 80.
+- **Window and payer:** `authStart` and `authEnd` come from the window, and the payer name becomes `insurer`.
+- **Other fields carried:** the chart also gets the member ID, group number, authorization number, diagnosis, assigned BCBA and emergency contact. Claims and the CMS-1500 print that member ID and authorization number (see [Billing and claims](billing-and-claims.md)).
 
 ### Referral Sources
 

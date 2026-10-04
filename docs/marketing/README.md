@@ -75,6 +75,7 @@ Intake is a pipeline with gates, not a status field. Each stage asks for exactly
 - **Eleven stages:** new referral, contact, screening, benefits, clinical review, waitlist or scheduled, assessment, authorization and conversion, plus a closed state that requires a reason. Every move is one Undo.
 - **Gates that hold:** screening needs the essentials, benefits needs payer and member details, review needs a completed verification of benefits, scheduling needs a real appointment on the calendar, and conversion needs an authorization decision, documents, consents and a verified guardian.
 - **Conversion creates the chart** and re-points the booked assessment to it, and the roster links back to the originating request.
+- **Nothing is retyped at conversion.** The chart receives the payer's approved units as its authorization pool, plus the member ID, the authorization number and the diagnosis. Claims then print the real member ID and authorization number.
 - **Referral Sources register** with owner, dormancy threshold and live volume, conversion and days-to-assessment figures.
 - Intake KPIs on the dashboard, in Analytics and in the *Intake Pipeline & Referral Conversion* report.
 

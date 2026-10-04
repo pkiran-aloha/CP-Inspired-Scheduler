@@ -687,11 +687,13 @@ export function planConversion(state, id, opts = {}) {
   const clientId = opts.clientId
   const payerName = (state.payers || []).find((p) => p.id === req.payerId)?.name || req.payerName || ''
   const secondaryName = (state.payers || []).find((p) => p.id === req.secondaryPayerId)
-  const hours = Number(req.auth?.units) ? Number(req.auth.units) : Number(req.assessment?.recommendedHoursPerWeek) || 15
-  // audited-hours-per-week: the practice tracks weekly authorised hours, and the
-  // request only ever recorded units for the whole window.
+  // The payer approved UNITS for the whole window (15-minute units, the Medicaid norm).
+  // They become the client's unit pool; the weekly hours guard is derived from them.
+  // The request does not say which codes the units cover, so they go to 97153 (1:1
+  // treatment by protocol) and are marked for checking against the payer letter.
   const weeks = req.auth?.windowStart && req.auth?.windowEnd ? Math.max(1, Math.round(daysBetween(req.auth.windowStart, req.auth.windowEnd) / 7)) : 12
-  const authWeekly = req.auth?.decision === 'approved' || req.auth?.decision === 'partial' ? Math.max(1, Math.round(hours / weeks)) : Math.max(1, Math.round(hours / weeks))
+  const units = Math.round(Number(req.auth?.units) || 0)
+  const authWeekly = units > 0 ? Math.min(80, Math.max(1, Math.round((units * 15) / 60 / weeks))) : Math.max(1, Math.round(Number(req.assessment?.recommendedHoursPerWeek) || 15))
 
   const client = {
     id: clientId,
@@ -708,6 +710,14 @@ export function planConversion(state, id, opts = {}) {
     dob: req.dob || '',
     sex: req.gender || 'M',
     authWeekly,
+    ...(units > 0 ? { authUnits: { 97153: units }, authUnitsConverted: true } : {}),
+    payerId: req.payerId || null,
+    memberId: String(req.memberId || '').trim(),
+    groupNumber: String(req.groupNumber || '').trim(),
+    authNo: String(req.auth?.authNo || '').trim(),
+    diagnosis: req.diagnosis || '',
+    bcbaId: req.bcbaAssignedId || null,
+    emergency: req.emergency?.name ? { ...req.emergency } : null,
     authStart: req.auth?.windowStart || todayISO(),
     authEnd: req.auth?.windowEnd || isoDate(addDays(parseISO(todayISO()), 180)),
     geo: [37.34, -121.97],

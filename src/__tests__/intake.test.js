@@ -199,13 +199,16 @@ describe('conversion — one plan, fully referential', () => {
     expect(planConversion(state, req.id, { clientId: 'c' }).ok).toBe(true)
   })
 
-  it('derives weekly authorised hours from the approved window', () => {
+  it('carries the approved units into the client pool and derives weekly hours from them', () => {
     const state = blankState()
     const start = Date.now()
-    const req = gatedRequest({ auth: { submittedAt: iso(start), units: 240, unitsRequested: 240, windowStart: iso(start), windowEnd: iso(start + 84 * DAY), decision: 'approved' } })
+    const req = gatedRequest({ memberId: 'MBR-778', groupNumber: 'G-12', diagnosis: 'F84.0', auth: { submittedAt: iso(start), units: 240, unitsRequested: 240, windowStart: iso(start), windowEnd: iso(start + 84 * DAY), decision: 'approved', authNo: 'PA-5521' } })
     state.intakeRequests = { [req.id]: req }
     const plan = planConversion(state, req.id, { clientId: 'c' })
-    expect(plan.client.authWeekly).toBe(20) // 240 h over 12 weeks
+    expect(plan.client.authUnits).toEqual({ 97153: 240 }) // units, not hours
+    expect(plan.client.authUnitsConverted).toBe(true) // code split to verify against the letter
+    expect(plan.client.authWeekly).toBe(5) // 240 × 15 min = 60 h over 12 weeks
+    expect(plan.client).toMatchObject({ memberId: 'MBR-778', groupNumber: 'G-12', authNo: 'PA-5521', diagnosis: 'F84.0' })
   })
 })
 
