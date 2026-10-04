@@ -1,6 +1,6 @@
 # Architecture
 
-_Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js_
+_Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/components/HelpView.jsx_
 _Last synced with main at 2b51459 on 2026-10-04._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
@@ -11,6 +11,7 @@ You do not need this page to use the app. Three things are worth knowing as a us
 
 - **Everything is local.** Your data is in this browser under `aloha-aba.v3`. Clearing site data erases it; export a backup first (see [security-undo-backup](security-undo-backup.md)).
 - **A refusal means nothing changed.** When the app refuses an action (a stop-level message in a toast), it did not write anything. Warnings (caution) let you proceed; flags and to-fill-in marks are informational.
+- **Help is built in.** Help & Wiki at the bottom of the navigation rail opens this wiki and its FAQ with search. Every role can open it; it holds no practice data.
 - **A new version can appear while a tab is open.** The nav rail compares its build id with `public/version.json` and tells you when a newer deployment is available. Reload to get it; your data stays in the browser.
 
 ## How it works
@@ -20,7 +21,7 @@ You do not need this page to use the app. Three things are worth knowing as a us
 - `src/main.jsx`, `src/App.jsx`: entry and the shell (nav, routing by `ui.section`, global shortcuts, command palette).
 - `src/state/store.jsx`: the one store. It holds the seeded workspace (`blankState`), load and migrations (`initial`, `normalizeWorkspace`), the `reducer`, Undo (`pushSnap`), `createActions` and persistence. It is about 1,400 lines; search it, do not read it whole.
 - `src/lib/`: pure domain engines with no React. Billing: `claims`, `cms1500`, `providerIds`, `billingDocs`, `billingKpis`, `era`, `eraPosting`, `paymentLedger`, `secondaryLedger`, `master`. Payroll: `payroll`, `payrollExport`. Intake: `intake`. Settings: `settingsMasters`, `dataImport`. Scheduling intelligence: `authBudget`, `authUnits`, `risk`, `insights`, `cancelReasons`, `abaHours`, `bookingChecks`, `smart`. Reporting: `reports`, `analytics`, `dash`, `rpTrends`. Platform: `security`, `workspaceBackup`, `seed`, `model`, `date`, `exportKit`, `ics`.
-- `src/components/`: screens, with sub-folders `intake/`, `payroll/` and `settings/`. `BookingChecks.jsx` is the booking dialog's Checks rail and the severity glyphs.
+- `src/components/`: screens, with sub-folders `intake/`, `payroll/` and `settings/`. `BookingChecks.jsx` is the booking dialog's Checks rail and the severity glyphs. `HelpView.jsx` is the Help & Wiki screen: it bundles `docs/wiki/*.md` with `import.meta.glob` (raw text, at build time) and renders and searches it through `src/lib/wiki.js` (an escaping markdown renderer, page ordering from this wiki's home table, and ranked section search).
 - `src/ui/`: shared primitives (`Icons.jsx`, `Toast.jsx`, `SignaturePad.jsx`, `avatars.jsx`).
 - `src/styles.css`: the single stylesheet. Tokens are on `:root` and redefined under `[data-theme='dark']`. It grew by appended blocks that override earlier ones (some `!important`), so check for later overrides before editing a rule, and append new blocks at the end.
 - `src/__tests__/`: `*.test.js` (pure) and `*.test.jsx` (Testing Library flows), plus `fixtures/` (835 files).

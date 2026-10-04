@@ -237,6 +237,16 @@ export default function NavRail() {
             <span className="muted">{Object.keys(appts).length} appointments on file</span>
           </div>
         )}
+        <button
+          className={`nr-item ${section === 'help' ? 'on' : ''}`}
+          onClick={() => actions.setUI({ section: 'help' })}
+          data-testid="nav-help"
+          title="Help & Wiki: workflows, FAQs and screen guides"
+          aria-current={section === 'help' ? 'page' : undefined}
+        >
+          <span className="nr-ic">{Icon.info({ size: 15 })}</span>
+          {!collapsed && <span className="nr-label">Help &amp; Wiki</span>}
+        </button>
         <button className="nr-item" onClick={() => actions.setSettings({ theme: state.settings.theme === 'dark' ? 'light' : 'dark' })} title="Toggle light / dark theme">
           <span className="nr-ic">{state.settings.theme === 'dark' ? Icon.sun({ size: 15 }) : Icon.moon({ size: 15 })}</span>
           {!collapsed && <span className="nr-label">Theme</span>}

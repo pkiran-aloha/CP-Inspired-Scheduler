@@ -35,6 +35,7 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
   - reports (every report: `{columns, rows, summary, note}`), analytics, dash, rpTrends
   - scheduling intelligence: `authBudget.js` (hours guard), `authUnits.js` (per-code unit pools, payer unit rules, MUE/weekly caps, credentials; `mergeAuthChecks`), `risk.js`, `insights.js`, `cancelReasons.js`, `abaHours.js`, `bookingChecks.js` (per-candidate verdicts in pickers)
   - billing: `providerIds.js` (payer rule NPI / Medicaid ID / both), `billingKpis.js` (dashboard Billing Health)
+  - help: `wiki.js` renders and searches `docs/wiki/*.md` for the in-app Help & Wiki screen (`HelpView.jsx`, bundled at build time, so a wiki edit is a Help edit). `wiki.test.js` fails CI if a page's `_Sources:` lists a missing file or a wiki link goes nowhere.
 - `src/components/`: screens (sub-folders `intake/`, `payroll/`, `settings/`). `BookingChecks.jsx` = the booking dialog's Checks rail + severity glyphs.
 - `src/ui/`: shared primitives (Icons — one drawn SVG set, Toast, SignaturePad, avatars).
 - `src/styles.css`: the single stylesheet. Tokens on `:root`, redefined under `[data-theme='dark']`. Grew by appended chunks that override earlier ones (some `!important`): check for later overrides before editing a rule. Append new blocks at the end.
@@ -65,7 +66,7 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - Cover the UI action **and** the persisted state for every new workflow; add pure tests for every `src/lib` change.
 - Tests must be date-independent: build dates relative to `todayISO()`; never assume a weekday has appointments.
 - **`blankState()` / `buildSeed()` generate fresh random appointment ids per call.** In a test file build one `const BASE = blankState()` and derive variants with spreads; never mix claims/appointments from separate calls.
-- Select elements by `data-testid` with module prefixes (`py-`, `pd-`, `pay-`, `pc-`, `iq-`, `dw-`, `bk-`, `nav-sub-`). No shared helper module; seed via `localStorage.setItem('aloha-aba.v3', JSON.stringify(state))` then render `<App />`.
+- Select elements by `data-testid` with module prefixes (`py-`, `pd-`, `pay-`, `pc-`, `iq-`, `dw-`, `bk-`, `nav-sub-`, `help-`). No shared helper module; seed via `localStorage.setItem('aloha-aba.v3', JSON.stringify(state))` then render `<App />`.
 - When a change intentionally alters existing behaviour (default dashboard widgets, a button that now asks first, an always-visible panel), search the tests for the old assumption and update them in the same change: `grep -rn "<old text or id>" src/__tests__`.
 - Exact-text queries (`getByText('…')`) throw on duplicates; panels that echo messages must not render the exact same string twice.
 

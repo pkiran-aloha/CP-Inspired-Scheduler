@@ -140,6 +140,7 @@ Thirteen settings modules hold the practice's own rules. Masters are edited in o
 - **Guarded changes:** office names must be unique, an office still in use can't be deleted until its records are moved, a renamed office updates every record that uses it, and a status with appointments on it must be reassigned before removal.
 - **Appointment status, custom lists, custom fields, qualifications, services and earning codes**, each a single master.
 - **CSV data import** for clients, staff, appointments and other masters: columns map automatically, every row is validated, duplicates are detected, a clean preview is required, and the commit is all-or-nothing. Nothing is uploaded.
+- **Help & Wiki inside the app:** every workflow, screen guide and FAQ answer, searchable from the navigation rail and updated with each release.
 - **ABA Hours tracking** for behavior-analytic time on non-service appointments, tallied by credential track against targets the practice sets.
 
 ### Security, Undo and backup: mistakes are one keystroke from fixed
@@ -211,6 +212,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Payroll | `src/lib/payroll.js`, `src/lib/payrollExport.js`, `src/components/payroll/*`, `src/lib/settingsMasters.js` (earning codes, overtime floor) |
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/AnalyticsView.jsx` |
 | Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |
+| Help & Wiki (Settings section bullet) | `src/components/HelpView.jsx`, `src/lib/wiki.js`, `docs/wiki/*` |
 | Security, Undo & backup | `src/state/store.jsx` (reducer, Undo, persistence), `src/lib/security.js`, `src/components/SecurityView.jsx`, `src/lib/workspaceBackup.js` |
 | Why practices trust it | `PRODUCT.md` (Product Principles), `AGENTS.md` (Non-negotiables 2–4), `src/lib/security.js` (`authorizeAction`) |
 | Short-form assets | Derived from the sections above; refresh whenever any of them changes |
