@@ -21,6 +21,8 @@ Hackathon wave 5: Inbox (#1 + #2). This wave is in progress.
   - Notifications are derived and not stored, filtered by `canAccess`.
   - Adds a `tasks` collection. Its record action needs no area (`actionAreas` returns `[]`), and an undo of tasks needs no area. Office scope comes from the linked client or the assignee.
   - Note: `ui.inbox` is the older needs-cover panel; this is a separate panel.
+  - A security review asked for client names to be hidden from roles without Clients. The picker, the linked label and `planTask` now respect `canAccess` (`4e12be2`).
+  - Gap: the demo's signed-in account has no `staffId`, so "my tasks" notifications never show for it. Link the demo admin account to a staff record in the seed to fix this.
 - **Next slice:** messages between staff (threads stored locally).
 
 Hackathon wave 4: Records (#4, #10, #13). This wave is complete.
