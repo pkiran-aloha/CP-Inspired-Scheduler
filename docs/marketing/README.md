@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at 2b51459 on 2026-10-04._
+_Last synced with main at dcfce22 on 2026-10-04._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -73,8 +73,9 @@ A cancellation records a reason from the practice's own list, and each reason is
 Intake is a pipeline with gates, not a status field. Each stage asks for exactly what the next team needs, and conversion creates the client chart in one step.
 
 - **Eleven stages:** new referral, contact, screening, benefits, clinical review, waitlist or scheduled, assessment, authorization and conversion, plus a closed state that requires a reason. Every move is one Undo.
+- **Every blocker has a Fix button** that opens the tab or form where the missing item is recorded, and a first call needs only the essentials (name, date of birth, office, a phone, guardian contact and an owner).
 - **Gates that hold:** screening needs the essentials, benefits needs payer and member details, review needs a completed verification of benefits, scheduling needs a real appointment on the calendar, and conversion needs an authorization decision, documents, consents and a verified guardian.
-- **Conversion creates the chart** and re-points the booked assessment to it, and the roster links back to the originating request.
+- **Conversion creates the chart**, re-points the booked assessment to it and opens the new client's profile; the roster links back to the originating request.
 - **Paperwork in one click.** Download a blank intake packet for families (fill-in fields, the documents to bring, a signature line for each consent) or a PDF summary of any request. Both are generated on your computer; nothing is sent.
 - **Nothing is retyped at conversion.** The chart receives the payer's approved units as its authorization pool, plus the member ID, the authorization number and the diagnosis. Claims then print the real member ID and authorization number.
 - **Referral Sources register** with owner, dormancy threshold and live volume, conversion and days-to-assessment figures.
