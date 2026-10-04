@@ -1,7 +1,7 @@
 // ---- Claim lifecycle engine: staging → claim assembly → submission gates → payment / denial / rebill ----
 // Pure + deterministic: the same functions power the Billing workspace, the demo seed,
 // the reports desk (claim registers) and the store's undoable transitions.
-import { BILL_CODES, TYPES, computeBilling } from './model'
+import { BILL_CODES, CRED_MODIFIERS, TYPES, computeBilling } from './model'
 import { isoDate, parseISO } from './date'
 import { providerIdIssues, providerIdRule } from './providerIds' // call-time only (providerIds reads validNpi from here)
 
@@ -154,7 +154,36 @@ export function planClaims(state, appts) {
   return [...groups.values()].sort((x, y) => (x.dosFrom < y.dosFrom ? -1 : 1))
 }
 
-export function lineFor(a, state) {
+// CMS place-of-service code from where a session happened
+export function posFor(appt) {
+  const loc = String(appt?.location || '').toLowerCase()
+  if (/home/.test(loc)) return '12' // home
+  if (/school/.test(loc)) return '03' // school
+  if (/telehealth|video/.test(loc)) return '10' // telehealth in the patient's home
+  if (/community/.test(loc)) return '99' // other place of service
+  return '11' // office
+}
+
+/**
+ * Line modifiers (box 24D, up to four), in order:
+ * 1. the payer's own modifier for the service (Payer → Services);
+ * 2. the rendering provider's credential (HO / HN / HM / HP) — the Medicaid norm, on unless
+ *    the payer turns it off in Billing Rules → Claims Settings;
+ * 3. the payer's place-of-service modifier for the session's POS.
+ * Self-pay invoices carry none.
+ */
+export function lineModifiers(state, a, payerName, mode) {
+  if (mode === 'selfpay') return ''
+  const p = (state.payers || []).find((x) => x.name === payerName) || {}
+  const rules = p.rules || {}
+  const svcMod = a.service ? p.svcOv?.[a.service]?.modifier || (p.svcs || []).find((s) => s.id === a.service)?.modifier || '' : ''
+  const staff = (state.staff || []).find((s) => s.id === a.staffIds?.[0])
+  const cred = rules.claims?.flags?.credentialMods === false || !staff ? '' : CRED_MODIFIERS[credOf(staff.role)] || ''
+  const posMod = (rules.posMods || []).find((r) => r.pos === posFor(a))?.mod || ''
+  return [...new Set([svcMod, cred, posMod].filter(Boolean))].slice(0, 4).join(' ')
+}
+
+export function lineFor(a, state, plan = {}) {
   const staff = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))
   const b = a.billing || {}
   const codeDef = BILL_CODES.find((c) => c.id === b.code)
@@ -162,7 +191,7 @@ export function lineFor(a, state) {
     const rate = state.settings.mileageRate ?? b.mileageRate ?? 0.7
     return { apptId: a.id, dos: a.date, t0: a.start, t1: a.end, code: '14220', desc: `Travel ${a.title || ''}`.trim(), units: b.distance || 0, rate, charge: r2((b.distance || 0) * rate), staff: names(a.staffIds, staff), kind: 'mileage' }
   }
-  return { apptId: a.id, dos: a.date, t0: a.start, t1: a.end, code: b.code || '—', mod: '', desc: a.title || codeDef?.label.split(' · ')[1] || 'Treatment', units: b.units || 0, rate: b.rate || codeDef?.rate || 0, charge: r2(computeBilling(a)), staff: names(a.staffIds, staff), kind: 'session' }
+  return { apptId: a.id, dos: a.date, t0: a.start, t1: a.end, code: b.code || '—', mod: lineModifiers(state, a, plan.payer, plan.mode), desc: a.title || codeDef?.label.split(' · ')[1] || 'Treatment', units: b.units || 0, rate: b.rate || codeDef?.rate || 0, charge: r2(computeBilling(a)), staff: names(a.staffIds, staff), kind: 'session' }
 }
 const names = (ids, staff) => (ids || []).map((i) => staff[i]?.name || i).join(', ')
 
@@ -189,7 +218,7 @@ export function assembleClaims(state, plans, { seqStart, at = Date.now() } = {})
       no: claimNoAt(prefix, seq, p.dosFrom),
       clientId: p.clientId, payer: p.payer, mode: p.mode,
       dosFrom: p.dosFrom, dosTo: p.dosTo,
-      lines: p.appts.map((id) => lineFor(byId[id], state)),
+      lines: p.appts.map((id) => lineFor(byId[id], state, p)),
       status: 'draft', charges: p.charges, units: p.units,
       adj: 0, paid: 0, patientPaid: 0, remittance: null, denial: null, parentNo: null, version: 1,
       submittedAt: null, closedAt: null, note: '',

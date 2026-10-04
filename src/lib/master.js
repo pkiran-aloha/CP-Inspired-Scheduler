@@ -127,7 +127,7 @@ export const POS_CODES = [
   { id: '10', label: '10 · Telehealth — patient home' },
   { id: '11', label: '11 · Office' },
   { id: '03', label: '03 · School' },
-  { id: '06', label: "06 · Patient's Home" },
+  { id: '12', label: '12 · Home' },
   { id: '99', label: '99 · Other place of service' },
 ]
 export const CMS_TYPES = ['Group Health Plan', 'Medicaid', 'Medicare', 'Commercial', 'TRICARE', 'Blue Cross/Blue Shield', 'Feeding Program', 'Other']
@@ -146,7 +146,7 @@ const DEFAULT_CLAIMS = {
   box32: 'Auto-populate if blank, leave blank if same as billing NPI',
   box33B: '—', box33B2: '—',
   file: 'One file per claim', apptTime: 'Do not include',
-  flags: { renderProvider: false, renderTaxo: false, billTaxo: false, mergeSameDay: true },
+  flags: { renderProvider: false, renderTaxo: false, billTaxo: false, mergeSameDay: true, credentialMods: true },
 }
 const DEFAULT_RULES = {
   concurrent: { allowed: true, rules: [] },

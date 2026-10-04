@@ -47,6 +47,13 @@ Saved workspaces are migrated once:
 
 Claims are never changed. Details and limits are in `docs/specs/configurable-billing.md`.
 
+**Modifiers on claim lines.** New claims now fill box 24D. Each line gets up to four modifiers, in this order:
+1. the payer's own modifier for the service (Payer → Services)
+2. the rendering provider's credential modifier: HO for BCBA, HN for BCaBA, HM for RBT, HP for psychologist. This is the Medicaid norm. It is on by default, and a payer can switch it off in Billing Rules → Claims Settings.
+3. the payer's place-of-service modifier
+
+Self-pay invoices carry none. Place of service now uses CMS codes (home 12, school 03, office 11, telehealth at home 10, community 99). The old list labelled 06 as home. `lineModifiers` / `posFor` are in `src/lib/claims.js`. Tests: `claimModifiers.test.jsx`.
+
 ### Hackathon wave 1 — billing
 
 **Provider IDs: NPI, Medicaid ID or both.** Masters → Payer → Billing Rules → **Provider IDs** lets billing staff choose which identifier a payer expects for the rendering provider, with a readiness line naming who can't be billed under the rule yet. `src/lib/providerIds.js` drives three places: the appointment validation *Missing NPI / Medicaid ID* (which now reads the provider records in Billing → Provider IDs instead of an NPI field staff rows never had, ending the false flag on every clinician), the claim gate (only once a payer chooses a rule, so existing claims are unaffected), and the CMS-1500 (NPI in 23b/33a; Medicaid ID with qualifier 1D in 23b/33b; both). Tests: `providerIds.test.js`.
