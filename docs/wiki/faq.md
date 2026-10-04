@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced with main at 3e79dca on 2026-10-04 (plus the intake UX fixes)._
+_Last synced with main at dcfce22 on 2026-10-04._
 
 [Wiki home](README.md)
 
@@ -63,7 +63,11 @@ Each stage has a gate that lists what must be true first, for example a logged c
 
 ### How do I turn an intake into a client?
 
-Convert is available from the Authorization stage once every item in the converted gate is met. One action creates the client chart and links it both ways, and one Undo reverses it. The approved units are not copied into the client's per-code authorization pool, so enter them under Clients, Edit afterwards. [More: Intake](intake.md#converting-to-a-client)
+Convert is available from the Authorization stage once every item in the converted gate is met. One action creates the client chart, links it both ways and opens the new client's profile; one Undo reverses it. The payer's approved units become the client's authorization pool under 97153, marked to verify against the payer letter, and the member ID, authorization number and diagnosis come across too. Split the units by code under Clients, Edit. [More: Intake](intake.md#converting-to-a-client)
+
+### How do I give a family the intake paperwork?
+
+Use **Intake packet** on the Intake Requests toolbar for a blank packet (fill-in fields, documents to bring, a signature line per consent), or **Summary PDF** in a request's drawer for everything recorded on that request. Both are generated in your browser; print them or attach them to your own email. Aloha does not send them. [More: Intake](intake.md#the-detail-drawer)
 
 ## Billing and claims
 
