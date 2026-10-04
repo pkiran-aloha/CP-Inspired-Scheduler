@@ -10,6 +10,8 @@ Three facts shape every page in this wiki:
 
 The rules for contributors and agents are in [`../../AGENTS.md`](../../AGENTS.md). Current state and next steps are in [`../HANDOFF.md`](../HANDOFF.md). Product context is in [`../../PRODUCT.md`](../../PRODUCT.md).
 
+**In the app:** this wiki and its FAQ open from **Help & Wiki** at the bottom of the navigation rail (or Cmd/Ctrl+K, then "wiki"), with search across every page. Help bundles these files at build time, so editing a page here changes Help on the next deploy.
+
 ## Pages
 
 | Page | What it covers |
@@ -25,7 +27,7 @@ The rules for contributors and agents are in [`../../AGENTS.md`](../../AGENTS.md
 | [settings](settings.md) | Settings masters, system options, data import |
 | [security-undo-backup](security-undo-backup.md) | Demo role-based access, the 25-step Undo, backup and restore, storage warning |
 | [architecture](architecture.md) | Folder layout, data flow, testing rules, CI/deploy, known doc/code mismatches |
-| [faq](faq.md) | Short answers to common front-desk and billing questions; meant to back an in-app Help screen |
+| [faq](faq.md) | Short answers to common front-desk and billing questions; also searchable in the app under Help & Wiki |
 
 ## Glossary
 
@@ -56,6 +58,8 @@ The rules for contributors and agents are in [`../../AGENTS.md`](../../AGENTS.md
 ## Keeping this wiki current
 
 Every page except this one starts with a `_Sources:_` line that lists the repo files it documents, followed by a `_Last synced with main at <sha> on <date>._` line.
+
+- CI enforces part of this: `src/__tests__/wiki.test.js` fails when a `_Sources:_` path no longer exists, when this home page does not link a page, or when a wiki link points at a missing page or heading.
 
 - When a change touches one of the files in a page's `_Sources:_` line, update that page and its Last-synced line in the same branch.
 - If a new file starts to matter to a page, add it to that page's `_Sources:_` line.
