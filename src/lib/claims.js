@@ -1,7 +1,7 @@
 // ---- Claim lifecycle engine: staging → claim assembly → submission gates → payment / denial / rebill ----
 // Pure + deterministic: the same functions power the Billing workspace, the demo seed,
 // the reports desk (claim registers) and the store's undoable transitions.
-import { BILL_CODES, CRED_MODIFIERS, TYPES, computeBilling } from './model'
+import { BILL_CODES, CRED_MODIFIERS, TYPES, computeBilling, unitsFor } from './model'
 import { isoDate, parseISO } from './date'
 import { providerIdIssues, providerIdRule } from './providerIds' // call-time only (providerIds reads validNpi from here)
 
@@ -142,7 +142,7 @@ export function planClaims(state, appts) {
     if (!c) continue
     const payer = c.insurer || 'Self-pay'
     const mode = payer === 'Self-pay' ? 'selfpay' : 'insurance'
-    const key = `${c.id}|${mode}|${mode === 'selfpay' ? 'inv' : a.date.slice(0, 7)}`
+    const key = `${c.id}|${mode}|${mode === 'selfpay' ? 'inv' : `${a.date.slice(0, 7)}|${separateKey(state, payer, a)}`}`
     const g = groups.get(key) || { clientId: c.id, client: c.name, payer, mode, dosFrom: a.date, dosTo: a.date, appts: [], charges: 0, units: 0 }
     g.appts.push(a.id)
     g.dosFrom = a.date < g.dosFrom ? a.date : g.dosFrom
@@ -205,6 +205,41 @@ export function nextClaimSeq(claims) {
 }
 export const claimNoAt = (prefix, seq, iso) => `${prefix}-${iso.slice(0, 4)}${iso.slice(5, 7)}-${String(seq).padStart(3, '0')}`
 
+// Every appointment a claim line bills. A merged same-day line bills several.
+export const lineApptIds = (l) => l.apptIds || [l.apptId]
+const lineUnits = (lines) => lines.reduce((t, l) => t + (l.kind === 'mileage' ? 1 : l.units), 0)
+
+/**
+ * Medicaid / CPT: one code, one client, one date of service, one rendering provider is one
+ * line. Minutes are added up first and rounded once under the sessions' unit rule. Sessions
+ * whose unit rule or rate differ stay on separate lines.
+ */
+export function mergeSameDayLines(lines, apptsById) {
+  const out = []
+  const at = new Map()
+  for (const l of lines) {
+    const b = apptsById[l.apptId]?.billing || {}
+    const key = l.kind === 'session' && b.unitMins > 0 ? [l.dos, l.code, l.mod, apptsById[l.apptId]?.staffIds?.[0] || '', l.rate, b.unitMins, b.rounding || 'AMA'].join('|') : null
+    if (!key || !at.has(key)) { if (key) at.set(key, out.length); out.push(l); continue }
+    const i = at.get(key)
+    const m = out[i]
+    const ids = [...lineApptIds(m), l.apptId]
+    const minutes = ids.reduce((t, id) => t + (apptsById[id].billing?.minutes || apptsById[id].end - apptsById[id].start), 0)
+    const units = unitsFor(minutes, b.unitMins, b.rounding || 'AMA')
+    const desc = `${String(m.desc).replace(/ · \d+ sessions$/, '')} · ${ids.length} sessions`
+    out[i] = { ...m, apptIds: ids, desc, t0: Math.min(m.t0, l.t0), t1: Math.max(m.t1, l.t1), minutes, units, charge: r2(units * m.rate) }
+  }
+  return out
+}
+
+// Payer rule "Separate Claim By": the extra key that splits one client-month into claims.
+function separateKey(state, payerName, a) {
+  const by = (state.payers || []).find((p) => p.name === payerName)?.rules?.claims?.separateBy
+  if (by === 'Rendering Provider' || by === 'Service Provider') return a.staffIds?.[0] || ''
+  if (by === 'Place of Service') return posFor(a)
+  return '' // 'Supervising Provider' needs a supervisor on the session, which the app does not record
+}
+
 // assemble → actual claim objects (used by the store action AND the demo seeder)
 export function assembleClaims(state, plans, { seqStart, at = Date.now() } = {}) {
   let seq = seqStart ?? nextClaimSeq(state.claims)
@@ -213,20 +248,23 @@ export function assembleClaims(state, plans, { seqStart, at = Date.now() } = {})
   const claims = []
   for (const p of plans) {
     const client = (state.clients || []).find((c) => c.id === p.clientId) || { id: p.clientId, name: p.client }
+    const mergeDay = p.mode !== 'selfpay' && (state.payers || []).find((x) => x.name === p.payer)?.rules?.claims?.flags?.mergeSameDay !== false
+    const raw = p.appts.map((id) => lineFor(byId[id], state, p))
+    const lines = mergeDay ? mergeSameDayLines(raw, byId) : raw
     claims.push({
       id: `clm-${prefix.toLowerCase()}-${seq}-${at.toString(36)}`,
       no: claimNoAt(prefix, seq, p.dosFrom),
       clientId: p.clientId, payer: p.payer, mode: p.mode,
       dosFrom: p.dosFrom, dosTo: p.dosTo,
-      lines: p.appts.map((id) => lineFor(byId[id], state, p)),
-      status: 'draft', charges: p.charges, units: p.units,
+      lines,
+      status: 'draft', charges: r2(lines.reduce((t, l) => t + l.charge, 0)), units: lineUnits(lines),
       adj: 0, paid: 0, patientPaid: 0, remittance: null, denial: null, parentNo: null, version: 1,
       submittedAt: null, closedAt: null, note: '',
-      createdAt: at, history: [{ at, ev: `Draft assembled from staging — ${p.appts.length} charge line${p.appts.length > 1 ? 's' : ''}, ${p.dosFrom} → ${p.dosTo}` }],
+      createdAt: at, history: [{ at, ev: `Draft assembled from staging — ${lines.length} charge line${lines.length > 1 ? 's' : ''}${lines.length < raw.length ? ` (${raw.length} sessions; same-day time per code added up)` : ''}, ${p.dosFrom} → ${p.dosTo}` }],
     })
     seq++
   }
-  return { claims, apptPatch: claims.flatMap((c) => c.lines.map((l) => ({ id: l.apptId, patch: { claimId: c.id, billing: { ...(byId[l.apptId].billing || {}), status: 'claimed', claimNo: c.no } } }))) }
+  return { claims, apptPatch: claims.flatMap((c) => c.lines.flatMap(lineApptIds).map((id) => ({ id, patch: { claimId: c.id, billing: { ...(byId[id].billing || {}), status: 'claimed', claimNo: c.no } } }))) }
 }
 
 // ---------- submission gate (mirrors the validation rules at claim level) ----------
@@ -237,8 +275,8 @@ export function claimGate(state, claim) {
   const today = isoDate(new Date())
   const idPayer = claim.mode === 'selfpay' ? null : (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
   const bad = []
-  for (const l of claim.lines) {
-    const a = state.appts[l.apptId]
+  for (const [l, apptId] of claim.lines.flatMap((x) => lineApptIds(x).map((id) => [x, id]))) {
+    const a = state.appts[apptId]
     if (!a) { bad.push({ line: l, why: 'Source appointment no longer exists — drop this line' }); continue }
     if (a.billing?.status === 'billed') { bad.push({ line: l, why: 'Line was already billed outside a claim' }); continue }
     if (!(a.billing?.units > 0) && !(a.billing?.mileage && a.billing?.distance > 0)) bad.push({ line: l, why: `Missing billable units on ${l.dos}` })
@@ -280,7 +318,7 @@ export function submitPatch(state, claim) {
   const at = Date.now()
   return {
     claim: { ...claim, status: 'submitted', submittedAt: claim.submittedAt || at, history: [...claim.history, ev(claim.mode === 'selfpay' ? `Invoice sent to family (${claim.payer})` : `Claim submitted to ${claim.payer}`, at)] },
-    apptPatches: claim.lines.map((l) => ({ id: l.apptId, patch: { billing: { ...(state.appts[l.apptId]?.billing || {}), status: 'claimed', claimNo: claim.no, submittedAt: at } } })),
+    apptPatches: claim.lines.flatMap(lineApptIds).map((id) => ({ id, patch: { billing: { ...(state.appts[id]?.billing || {}), status: 'claimed', claimNo: claim.no, submittedAt: at } } })),
   }
 }
 export function payPatch(claim, { amount, checkNo, adj, note, paidAt = Date.now() }) {
@@ -302,39 +340,43 @@ export function releasePatch(state, claim, kind, extraHist) {
   const at = Date.now()
   return {
     claim: { ...claim, status: 'void', closedAt: at, history: [...claim.history, ev(extraHist || `Voided — ${claim.lines.length} line${claim.lines.length > 1 ? 's' : ''} released back to staging`, at)] },
-    apptPatches: claim.lines.map((l) => ({ id: l.apptId, patch: { claimId: null, billing: { ...(state.appts[l.apptId]?.billing || {}), status: null, claimNo: null, submittedAt: null } } })),
+    apptPatches: claim.lines.flatMap(lineApptIds).map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null, submittedAt: null } } })),
     kind,
   }
 }
 // drop one line from a draft/void-pending claim → back to staging; claim re-totaled (or removed if empty)
 export function dropLinePatch(state, claim, apptId) {
   const at = Date.now()
-  const lines = claim.lines.filter((l) => l.apptId !== apptId)
+  // a merged same-day line goes back whole: every session it bills returns to staging
+  const dropped = claim.lines.find((l) => lineApptIds(l).includes(apptId))
+  const released = dropped ? lineApptIds(dropped) : [apptId]
+  const lines = claim.lines.filter((l) => l !== dropped)
   const charges = r2(lines.reduce((t, l) => t + l.charge, 0))
-  const units = lines.reduce((t, l) => t + (l.kind === 'mileage' ? 1 : l.units), 0)
+  const units = lineUnits(lines)
   if (!lines.length) {
-    return { removeClaim: true, claim: { ...claim, lines, charges, units, history: [...claim.history, ev(`Last line removed — claim dissolved`, at)] } }
+    return { removeClaim: true, released, claim: { ...claim, lines, charges, units, history: [...claim.history, ev(`Last line removed — claim dissolved`, at)] } }
   }
-  const dropped = claim.lines.find((l) => l.apptId === apptId)
   return {
+    released,
     claim: { ...claim, lines, charges, units, adj: Math.min(claim.adj, charges), history: [...claim.history, ev(`Line removed: ${dropped?.code} · ${dropped?.dos} → back to staging`, at)] },
   }
 }
 export function rebillPatch(state, claim, dropIds, { seqStart } = {}) {
   const at = Date.now()
-  const keep = claim.lines.filter((l) => !dropIds.includes(l.apptId))
+  const keep = claim.lines.filter((l) => !lineApptIds(l).some((id) => dropIds.includes(id)))
+  const releaseIds = claim.lines.filter((l) => !keep.includes(l)).flatMap(lineApptIds)
   const voided = { ...claim, status: 'void', closedAt: at, history: [...claim.history, ev(`Voided for rebill → ${claim.no}-R${claim.version + 1}`, at)] }
   const charges = r2(keep.reduce((t, l) => t + l.charge, 0))
   const next = {
     ...claim, id: `${claim.id}-r${claim.version + 1}`, no: claim.no.replace(/-R\d+$/, '') + `-R${claim.version + 1}`,
     version: claim.version + 1, parentNo: claim.no, status: 'draft', lines: keep, charges,
-    units: keep.reduce((t, l) => t + (l.kind === 'mileage' ? 1 : l.units), 0),
+    units: lineUnits(keep),
     adj: 0, paid: 0, remittance: null, denial: null, submittedAt: null, closedAt: null, createdAt: at,
     history: [{ at, ev: `Rebill draft from ${claim.no} — ${dropIds.length ? `dropped ${dropIds.length} disputed line${dropIds.length > 1 ? 's' : ''} back to staging` : 'lines unchanged'}` }],
   }
   return { voided, next, apptPatches: [
-    ...dropIds.map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null } } })),
-    ...keep.map((l) => ({ id: l.apptId, patch: { claimId: next.id, billing: { ...(state.appts[l.apptId]?.billing || {}), status: 'claimed', claimNo: next.no } } })),
+    ...releaseIds.map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null } } })),
+    ...keep.flatMap(lineApptIds).map((id) => ({ id, patch: { claimId: next.id, billing: { ...(state.appts[id]?.billing || {}), status: 'claimed', claimNo: next.no } } })),
   ] }
 }
 

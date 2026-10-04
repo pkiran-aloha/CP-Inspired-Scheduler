@@ -660,9 +660,9 @@ export function buildDemoClaims(appts, clients, settings, today) {
       if (age >= 30) lateSet.push(c)
       else midSet.push(c)
     }
-    for (const l of c.lines) {
-      const a = out[l.apptId]
-      if (a) out[l.apptId] = { ...a, claimId: c.id, billing: { ...(a.billing || {}), status: 'claimed', claimNo: c.no } }
+    for (const id of c.lines.flatMap((l) => l.apptIds || [l.apptId])) {
+      const a = out[id]
+      if (a) out[id] = { ...a, claimId: c.id, billing: { ...(a.billing || {}), status: 'claimed', claimNo: c.no } }
     }
   }
   // exactly two denials — a timely-filing bounce on a straggler, a records request on a recent one

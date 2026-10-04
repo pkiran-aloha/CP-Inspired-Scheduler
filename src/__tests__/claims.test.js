@@ -130,6 +130,32 @@ describe('claims engine', () => {
     expect(dropped.patch.billing.status).toBe(null)
   })
 
+  it('Medicaid same-day rule: one code, one day, one provider is one line, minutes rounded once', () => {
+    const s37 = (id, start, o = {}) => appt(id, 'c1', { start, end: start + 37, billing: { code: '97151', units: 2, rate: 16, unitMins: 15, minutes: 37, rounding: 'AMA' }, ...o })
+    const st = state([s37('m1', 540), s37('m2', 700)])
+    const { claims, apptPatch } = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 1 })
+    const c = claims[0]
+    expect(c.lines).toHaveLength(1)
+    expect(c.lines[0]).toMatchObject({ apptIds: ['m1', 'm2'], minutes: 74, units: 5, charge: 80 }) // 2 + 2 billed separately
+    expect(c.charges).toBe(80)
+    expect(apptPatch.map((p) => p.id).sort()).toEqual(['m1', 'm2'])
+    expect(submitPatch(st, c).apptPatches.map((p) => p.id).sort()).toEqual(['m1', 'm2'])
+    expect(dropLinePatch(st, c, 'm2').released).toEqual(['m1', 'm2'])
+    // a payer that switched "Merge same day" off keeps one line per session
+    const off = { ...st, payers: [{ name: 'Aetna', rules: { claims: { flags: { mergeSameDay: false } } } }] }
+    expect(assembleClaims(off, planClaims(off, stagedAppts(off, null)), { seqStart: 1 }).claims[0].lines).toHaveLength(2)
+    // different rendering providers stay on separate lines
+    const two = state([s37('m1', 540), s37('m2', 700, { staffIds: ['s1'] })])
+    expect(assembleClaims(two, planClaims(two, stagedAppts(two, null)), { seqStart: 1 }).claims[0].lines).toHaveLength(2)
+  })
+
+  it('"Separate claim by" splits a client-month by rendering provider or place of service', () => {
+    const st = (by) => ({ ...state([appt('p1', 'c1'), appt('p2', 'c1', { date: d(-11), staffIds: ['s1'], location: "Kid's home" })]), payers: [{ name: 'Aetna', rules: { claims: { separateBy: by } } }] })
+    expect(planClaims(st('—'), stagedAppts(st('—'), null))).toHaveLength(1)
+    expect(planClaims(st('Rendering Provider'), stagedAppts(st('Rendering Provider'), null))).toHaveLength(2)
+    expect(planClaims(st('Place of Service'), stagedAppts(st('Place of Service'), null))).toHaveLength(2)
+  })
+
   it('dropping the last line dissolves the draft claim', () => {
     const st = state([appt('a1', 'c1')])
     const { claims } = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 1 })

@@ -62,6 +62,12 @@ Self-pay invoices carry none. Place of service now uses CMS codes (home 12, scho
 - **Practice NPI:** an invented NPI is never printed.
 - **Fixed:** the MEDICARE checkbox used to be ticked on Medicaid claims.
 
+**Claim split rules.** These live in Payer → Billing Rules → Claims Settings.
+- **Merge Same Day** (on by default, the Medicaid norm) puts same-day sessions on one line. To merge, sessions must share the code, modifiers, rendering provider and rate. Their minutes are added up and rounded once, so two 37-minute sessions bill 5 units, not 2 + 2. The line says how many sessions it covers. Dropping, rebilling or voiding it returns every one of them to staging.
+- **Separate Claim By** splits a client's month into several claims, by rendering provider or by place of service.
+
+Turning Merge Same Day off for a payer brings back one line per session. Reports → Validations then flags the days where that bills a different number of units. `mergeSameDayLines` / `lineApptIds` are in `src/lib/claims.js`.
+
 ### Hackathon wave 1 — billing
 
 **Provider IDs: NPI, Medicaid ID or both.** Masters → Payer → Billing Rules → **Provider IDs** lets billing staff choose which identifier a payer expects for the rendering provider, with a readiness line naming who can't be billed under the rule yet. `src/lib/providerIds.js` drives three places: the appointment validation *Missing NPI / Medicaid ID* (which now reads the provider records in Billing → Provider IDs instead of an NPI field staff rows never had, ending the false flag on every clinician), the claim gate (only once a payer chooses a rule, so existing claims are unaffected), and the CMS-1500 (NPI in 23b/33a; Medicaid ID with qualifier 1D in 23b/33b; both). Tests: `providerIds.test.js`.
