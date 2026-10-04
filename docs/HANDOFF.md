@@ -21,8 +21,13 @@ Hackathon wave 4: Records (#4, #10, #13). This wave is in progress.
   - Uses a new `statements` collection, wired into `WORKSPACE_FIELDS`, backup (an older v3 file starts empty), security (`statement` records are office-scoped by client, billing area) and the `record` reducer.
   - Each statement can be downloaded as a PDF, marked sent with a delivery method, or voided with a reason. Its balance is live.
   - The demo seed has no family balances, so the list starts empty.
-- **Next slices:**
-  - Cabinet: a documents register with expiry dates and alerts.
+- **Slice 2, Cabinet** (`cabinet.js`, `CabinetView.jsx`, Staff → Cabinet sub-section).
+  - Uses a new `cabinet` collection.
+  - Security: area `staff`, office scope by owner (staff office, client offices, or all for practice documents).
+  - Backup: an older v3 file starts empty.
+  - Alerts show in a banner and on the Staff rail badge when a document is expired or due within 30 days.
+  - Records are archived, not deleted, and only metadata is stored.
+- **Next slice:**
   - Credentials and PDU report. The maintainer chose the BACB baseline plus practice PDUs: RBT annual renewal, competency assessment and monthly supervision %; BCBA 32 and BCaBA 20 CEUs per 2-year cycle; plus a practice-set annual RBT PDU target, defaulting to 12 hours and editable.
 
 Hackathon wave 3: Intake (#5). This wave is complete.

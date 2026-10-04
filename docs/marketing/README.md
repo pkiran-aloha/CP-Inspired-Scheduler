@@ -111,6 +111,7 @@ A/R Manager counts each dollar once. Insurance balances and the patient share th
 - Aging by client or by payer: current, 31–60, 61–90, 91–120 and 121+ days, with an over-90 KPI.
 - Patient share is capped at the open primary balance and held while a secondary filing is still pending.
 - **Record receipt** directly from a client's claim, and download a clearly marked draft patient-share statement.
+- **Never miss an expiry.** The Cabinet tracks every credential, license, background check, CPR card, insurance policy and consent that expires. Anything expired or due within 30 days shows on the Staff menu. Only the details are recorded; your files stay where you keep them.
 - **Client statements with a history.** Issue a numbered statement, download it as a PDF, and record how you delivered it. Its balance updates as the family pays. You deliver it; the app never mails or emails anything.
 - CSV export of the aging view.
 
