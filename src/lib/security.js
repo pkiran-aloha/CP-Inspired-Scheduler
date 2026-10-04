@@ -355,6 +355,7 @@ export function officesForRecord(state, kind, item, seen = new Set()) {
     return union([...(client ? [['client', client]] : []), ...appts.map((appt) => ['appointment', appt])])
   }
   if (kind === 'provider') return item.kind === 'office' ? [...SECURITY_OFFICES] : item.kind === 'staff' ? staffOffice(item.refId) : []
+  if (kind === 'pdu') return staffOffice(item.staffId)
   if (kind === 'cabinet') {
     if (item.ownerKind === 'staff') return staffOffice(item.ownerId)
     const client = item.ownerKind === 'client' ? relatedRecord(state, 'clients', item.ownerId) : null
@@ -458,6 +459,7 @@ export function scopeWorkspaceToAccount(state) {
     invoices: filterMap(state.invoices, 'invoice'),
     statements: filterMap(state.statements, 'statement'),
     cabinet: filterMap(state.cabinet, 'cabinet'),
+    pdus: filterMap(state.pdus, 'pdu'),
     verificationForms: filterMap(state.verificationForms, 'form'),
     eraImports: filterMap(state.eraImports, 'era'),
     billedFiles: filterMap(state.billedFiles, 'billedFile'),
@@ -514,7 +516,7 @@ function areasForUndo(state) {
   const snapshot = state?.history?.[state.history.length - 1]
   if (!snapshot) return []
   const map = {
-    appts: 'calendar', claims: 'billing', payments: 'billing', invoices: 'billing', statements: 'billing', cabinet: 'staff', verificationForms: 'forms',
+    appts: 'calendar', claims: 'billing', payments: 'billing', invoices: 'billing', statements: 'billing', cabinet: 'staff', pdus: 'staff', verificationForms: 'forms',
     eraImports: 'billing', billedFiles: 'billing', qbo: 'billing', staff: 'staff', clients: 'clients', teams: 'staff',
     payers: 'masters', svcs: 'masters', customFields: 'masters', payProfiles: 'payroll', paySheets: 'payroll',
     payRuns: 'payroll', payExports: 'payroll', payrollSettings: 'payroll', billingSettings: 'billing',
@@ -540,7 +542,7 @@ function actionAreas(state, action) {
       if (action.coll === 'payExports') return action.item?.permissionArea === 'payrollQbo' ? ['payrollQbo'] : ['payroll']
       if (action.coll === 'verificationForms') return ['forms']
       if (['invoices', 'statements', 'eraImports', 'billedFiles', 'qbo'].includes(action.coll)) return ['billing']
-      if (action.coll === 'cabinet') return ['staff']
+      if (action.coll === 'cabinet' || action.coll === 'pdus') return ['staff']
       return null
     case 'roster':
       if (action.list === 'staff') {
@@ -722,7 +724,7 @@ function actionWithinOfficeScope(state, action) {
       })
     }
     case 'record': {
-      const map = { payExports: ['payExport', 'payExports'], verificationForms: ['form', 'verificationForms'], invoices: ['invoice', 'invoices'], statements: ['statement', 'statements'], cabinet: ['cabinet', 'cabinet'], eraImports: ['era', 'eraImports'], billedFiles: ['billedFile', 'billedFiles'], qbo: ['qbo', 'qbo'] }
+      const map = { payExports: ['payExport', 'payExports'], verificationForms: ['form', 'verificationForms'], invoices: ['invoice', 'invoices'], statements: ['statement', 'statements'], cabinet: ['cabinet', 'cabinet'], pdus: ['pdu', 'pdus'], eraImports: ['era', 'eraImports'], billedFiles: ['billedFile', 'billedFiles'], qbo: ['qbo', 'qbo'] }
       const entry = map[action.coll]
       if (!entry) return false
       const [kind, collection] = entry
@@ -820,7 +822,7 @@ function actionWithinOfficeScope(state, action) {
     case 'undo': {
       const snapshot = state.history?.[state.history.length - 1]
       if (!snapshot) return true
-      const recordKinds = { appts: ['appointment', 'appts'], claims: ['claim', 'claims'], payments: ['payment', 'payments'], invoices: ['invoice', 'invoices'], statements: ['statement', 'statements'], cabinet: ['cabinet', 'cabinet'], verificationForms: ['form', 'verificationForms'], eraImports: ['era', 'eraImports'], billedFiles: ['billedFile', 'billedFiles'], qbo: ['qbo', 'qbo'], staff: ['staff', 'staff'], clients: ['client', 'clients'], teams: ['team', 'teams'], payProfiles: ['payProfile', 'payProfiles'], paySheets: ['paySheet', 'paySheets'], payRuns: ['payRun', 'payRuns'], payExports: ['payExport', 'payExports'], intakeRequests: ['intake', 'intakeRequests'], referralSources: ['referral', 'referralSources'] }
+      const recordKinds = { appts: ['appointment', 'appts'], claims: ['claim', 'claims'], payments: ['payment', 'payments'], invoices: ['invoice', 'invoices'], statements: ['statement', 'statements'], cabinet: ['cabinet', 'cabinet'], pdus: ['pdu', 'pdus'], verificationForms: ['form', 'verificationForms'], eraImports: ['era', 'eraImports'], billedFiles: ['billedFile', 'billedFiles'], qbo: ['qbo', 'qbo'], staff: ['staff', 'staff'], clients: ['client', 'clients'], teams: ['team', 'teams'], payProfiles: ['payProfile', 'payProfiles'], paySheets: ['paySheet', 'paySheets'], payRuns: ['payRun', 'payRuns'], payExports: ['payExport', 'payExports'], intakeRequests: ['intake', 'intakeRequests'], referralSources: ['referral', 'referralSources'] }
       for (const key of Object.keys(snapshot)) {
         if (key === '__workspaceSnapshot') continue
         const descriptor = recordKinds[key]

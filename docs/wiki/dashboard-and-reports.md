@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced with main at c8e666b on 2026-10-04 (plus the Cabinet)._
+_Last synced with main at 50db57a on 2026-10-04 (plus credentials and PDUs)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 
@@ -55,7 +55,7 @@ Catalogue (19 reports):
 | Category | Reports |
 |---|---|
 | Operations and Capacity | Attendance & Session Ledger; Staff Utilization vs Target; Cancellations & Backfill Log; Cancellation Root Cause; Open Staff Capacity (Gaps); Intake Pipeline & Referral Conversion |
-| Clinical and Compliance | Authorization Burn-down (weekly hours pace); Authorization Utilization (per client and code across the authorization's own window, with a renewal flag at 30 days left or 75 percent committed, and "Verify" on units converted from weekly hours); Re-assessment Due Dates; BCBA Supervision Coverage; Documentation & Verification |
+| Clinical and Compliance | Authorization Burn-down (weekly hours pace); Authorization Utilization (per client and code across the authorization's own window, with a renewal flag at 30 days left or 75 percent committed, and "Verify" on units converted from weekly hours); Re-assessment Due Dates; BCBA Supervision Coverage; Credentials & PDUs (every clinician against renewal: BCBA 32 and BCaBA 20 CEUs per 2-year cycle, RBT yearly competency assessment, 30-day supervision %, and the practice's RBT PDU target; renewal dates from Staff > Cabinet, entries logged there); Documentation & Verification |
 | Billing and Claims | Claim-Ready Lines; Blocked Claims & Fixes; Revenue by Code x Bucket; Claims Register; Payer Mix & Billing Status |
 | People and Payroll | Payroll & Session Hours; Behavior-Analytic Hours (ABA time) |
 | Data Quality | Data Quality & Validations (live cross-module checks) |

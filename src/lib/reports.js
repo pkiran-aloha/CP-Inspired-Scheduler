@@ -2,6 +2,7 @@
 // Every report returns { columns, rows, summary, note } so the UI, CSV export and tests share one shape.
 
 import { TYPES, STATUSES, BILL_CODES, computeBilling, overlapsType, isServiceAppt, unitsFor } from './model'
+import { credentialRow, rbtPduTarget } from './credentials'
 import { abaStaffRows, abaTotals, abaActivityById, countsAsAbaHours } from './abaHours'
 import { rangeMetrics } from './analytics'
 import { agingOf, dueOf, isPrimaryReceivable } from './claims'
@@ -403,6 +404,35 @@ const REPORTS_RAW = [
           { label: 'Below cadence', value: rows.filter((r) => r.status === 'Below cadence').length },
           { label: 'Under BACB 5%', value: rows.filter((r) => r.supMinPct < 5 && r.caseloadH > 0).length },
         ],
+      }
+    },
+  },
+  {
+    id: 'credentials', cat: 'clinical', name: 'Credentials & PDUs', icon: 'badge',
+    blurb: 'Every clinician against what renewal needs: BCBA and BCaBA CEUs per cycle, RBT competency, supervision and the practice PDU target.',
+    build(state, ctx) {
+      const today = todayISO()
+      const rows = (state.staff || [])
+        .filter((s) => !ctx.scope?.staff || ctx.scope.staff === s.id)
+        .map((s) => credentialRow(state, s, today))
+        .filter(Boolean)
+        .map((r) => ({ ...r, _link: { kind: 'staff', id: r.staffId } }))
+        .sort((a, b) => (a.status === 'On track') - (b.status === 'On track') || (a.renewal < b.renewal ? -1 : 1))
+      return {
+        columns: [
+          { k: 'name', label: 'Clinician' }, { k: 'credential', label: 'Credential' }, { k: 'renewal', label: 'Renewal' },
+          { k: 'windowStart', label: 'Counting from' }, { k: 'unit', label: 'Counts' },
+          { k: 'required', label: 'Required', t: 'num', ...moneyCell }, { k: 'logged', label: 'Logged', t: 'num', ...moneyCell }, { k: 'remaining', label: 'To go', t: 'num', ...moneyCell },
+          { k: 'competency', label: 'Competency' }, { k: 'supPct', label: 'Supervision % (30 days)', t: 'pct', ...moneyCell }, { k: 'status', label: 'Status' },
+        ],
+        rows,
+        summary: [
+          { label: 'On track', value: rows.filter((r) => r.status === 'On track').length },
+          { label: 'Hours to go', value: rows.filter((r) => /to go$/.test(r.status)).length },
+          { label: 'Competency due', value: rows.filter((r) => r.status === 'Competency assessment due').length },
+          { label: 'Renewal overdue', value: rows.filter((r) => r.status === 'Renewal overdue').length },
+        ],
+        note: `BACB: BCBA 32 and BCaBA 20 CEUs per 2-year cycle; RBTs renew yearly with a competency assessment and at least 5% supervision. RBT PDU target: ${rbtPduTarget(state)} h a year (practice setting). Renewal dates come from credentials in Staff → Cabinet; entries are logged there too. Verify against the BACB handbook for your cycle.`,
       }
     },
   },

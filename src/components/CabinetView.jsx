@@ -5,6 +5,8 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { todayISO } from '../lib/date'
 import { CABINET_CATEGORIES, CABINET_OWNERS, expiryState, daysLeft, ownerName, cabinetAlerts } from '../lib/cabinet'
+import { PDU_KINDS, rbtPduTarget } from '../lib/credentials'
+import { credOf } from '../lib/claims'
 
 const STATE_LABEL = { expired: 'Expired', due: 'Expires soon', ok: 'Current', none: 'No expiry' }
 const STATE_TONE = { expired: 'tone-stop', due: 'tone-warn', ok: 'tone-ok', none: '' }
@@ -91,6 +93,52 @@ export default function CabinetView() {
             )
           })}
         </div>
+        <CeuLog />
+      </div>
+    </div>
+  )
+}
+
+/** CEU / PDU / competency entries per clinician; the Credentials & PDUs report counts them. */
+function CeuLog() {
+  const state = useStore()
+  const { actions, staff = [] } = state
+  const toast = useToast()
+  const clinicians = staff.filter((s) => credOf(s.role) !== 'Other' && credOf(s.role) !== 'Psychologist')
+  const [f, setF] = useState({ staffId: clinicians[0]?.id || '', kind: 'pdu', date: todayISO(), hours: '', title: '', provider: '', ref: '' })
+  const [target, setTarget] = useState(String(rbtPduTarget(state)))
+  const entries = Object.values(state.pdus || {}).sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 12)
+  const say = (res) => toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  const add = () => { const res = actions.logPdu(f); say(res); if (res.ok) setF({ ...f, hours: '', title: '', provider: '', ref: '' }) }
+  return (
+    <div className="panel" data-testid="ceu-log" style={{ marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid var(--line)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+        <b style={{ fontSize: 14 }}>Training &amp; CEU log</b>
+        <span className="muted" style={{ fontSize: 12 }}>Counted by Reports → Credentials &amp; PDUs. BACB: BCBA 32 and BCaBA 20 CEUs per 2-year cycle; RBTs need a yearly competency assessment.</span>
+        <label style={{ marginLeft: 'auto', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>RBT PDU target (h / year)
+          <input className="input" style={{ width: 70, height: 28 }} type="number" min="0" step="0.25" data-testid="ceu-target" value={target} onChange={(e) => setTarget(e.target.value)} />
+          <button className="btn btn-xs" data-testid="ceu-target-save" onClick={() => say(actions.settingsOp('credentials.patch', { patch: { rbtPduHours: target } }))}>Save</button>
+        </label>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 8, alignItems: 'end' }}>
+        <label className="iq-fld"><span>Clinician</span><select className="input" data-testid="ceu-staff" value={f.staffId} onChange={(e) => setF({ ...f, staffId: e.target.value })}>{clinicians.map((s) => <option key={s.id} value={s.id}>{s.name} · {credOf(s.role)}</option>)}</select></label>
+        <label className="iq-fld"><span>Kind</span><select className="input" data-testid="ceu-kind" value={f.kind} onChange={(e) => setF({ ...f, kind: e.target.value })}>{PDU_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}</select></label>
+        <label className="iq-fld"><span>Completed</span><input className="input" type="date" data-testid="ceu-date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
+        {f.kind !== 'competency' && <label className="iq-fld"><span>Hours</span><input className="input" type="number" min="0.25" step="0.25" data-testid="ceu-hours" value={f.hours} onChange={(e) => setF({ ...f, hours: e.target.value })} /></label>}
+        <label className="iq-fld"><span>Course / assessment</span><input className="input" data-testid="ceu-title" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></label>
+        <label className="iq-fld"><span>Provider</span><input className="input" data-testid="ceu-provider" value={f.provider} onChange={(e) => setF({ ...f, provider: e.target.value })} /></label>
+        <button className="btn btn-sm btn-primary" data-testid="ceu-add" onClick={add}>Log entry</button>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        {!entries.length ? <div className="muted" style={{ fontSize: 12 }} data-testid="ceu-empty">No entries yet.</div> : entries.map((p) => (
+          <div key={p.id} data-testid={`ceu-row-${p.id}`} style={{ display: 'flex', gap: 10, fontSize: 12, padding: '6px 0', borderTop: '1px solid var(--line)', flexWrap: 'wrap' }}>
+            <span className="muted">{p.date}</span>
+            <b>{staff.find((s) => s.id === p.staffId)?.name || p.staffId}</b>
+            <span>{PDU_KINDS.find((k) => k.id === p.kind)?.label}</span>
+            <span>{p.title}{p.provider ? ` · ${p.provider}` : ''}</span>
+            {p.kind !== 'competency' && <span style={{ marginLeft: 'auto' }}>{p.hours} h</span>}
+          </div>
+        ))}
       </div>
     </div>
   )
