@@ -32,6 +32,7 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
     }
     out.push({ g: 'Actions', icon: 'moon', t: `Switch to ${settings.theme === 'dark' ? 'light' : 'dark'} mode`, hint: 'appearance', run: () => { actions.setSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }); onClose() } })
     out.push({ g: 'Actions', k: '?', icon: 'info', t: 'Keyboard shortcuts', hint: 'everything is a keystroke away', run: () => { onClose(); onHelp() } })
+    out.push({ g: 'Navigate', icon: 'info', t: 'Help & Wiki', hint: 'workflows, FAQs and screen guides', run: go({ section: 'help' }) })
     const secs = [
       ['calendar', 'Cal', 'Calendar board', 'cal'], ['clients', 'Cli', 'Clients roster', 'user'],
       ['staff', 'Stf', 'Staff directory', 'team'], ['billing', 'Bil', 'Billing & claims desk', 'dollar'],
