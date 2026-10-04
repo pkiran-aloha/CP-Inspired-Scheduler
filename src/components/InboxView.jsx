@@ -5,6 +5,66 @@ import { useToast } from '../ui/Toast'
 import { todayISO } from '../lib/date'
 import { currentAccount } from '../lib/security'
 import { TASK_PRIORITIES, linkLabel, notificationsFor, openTasksFor, taskState } from '../lib/tasks'
+import { accountName, recipientsFor, threadsFor, unreadCount } from '../lib/messages'
+
+/** Conversations between signed-in users of this workspace. Nothing is emailed or texted. */
+function Messages() {
+  const state = useStore()
+  const { actions } = state
+  const toast = useToast()
+  const me = currentAccount(state)?.id || null
+  const threads = threadsFor(state, me)
+  const [open, setOpen] = useState(null)
+  const [draft, setDraft] = useState(null)
+  const [reply, setReply] = useState('')
+  const say = (res) => { if (res.msg) toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' }) }
+  const view = threads.find((t) => t.threadId === open)
+  const openThread = (id) => { setOpen(id); setReply(''); actions.markThreadRead(id) }
+  if (!me) return <div className="muted" style={{ fontSize: 12 }}>Sign in as a user to send and read messages.</div>
+  if (view) {
+    return (
+      <div data-testid="msg-thread">
+        <button className="btn btn-xs" data-testid="msg-back" onClick={() => setOpen(null)}>{Icon.chevronL({ size: 11 })} All conversations</button>
+        <b style={{ display: 'block', margin: '10px 0 4px' }}>{view.subject}</b>
+        <div className="muted" style={{ fontSize: 11, marginBottom: 8 }}>With {view.people.map((p) => accountName(state, p)).join(', ')}</div>
+        {view.messages.map((m) => (
+          <div key={m.id} data-testid={`msg-${m.id}`} style={{ padding: '8px 10px', margin: '6px 0', borderRadius: 10, border: '1px solid var(--line)', background: m.fromId === me ? 'var(--panel-2)' : 'var(--panel)', fontSize: 12 }}>
+            <div className="muted" style={{ fontSize: 11 }}>{accountName(state, m.fromId)} · {new Date(m.at).toLocaleString()}</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{m.body}</div>
+          </div>
+        ))}
+        <textarea className="input" rows={3} style={{ width: '100%', marginTop: 8 }} aria-label="Reply" data-testid="msg-reply" value={reply} onChange={(e) => setReply(e.target.value)} />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 6 }}>
+          <button className="btn btn-sm btn-primary" data-testid="msg-reply-send" onClick={() => { const res = actions.sendMessage({ threadId: view.threadId, body: reply }); say(res); if (res.ok) setReply('') }}>Reply</button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <>
+      <div style={{ display: 'flex', marginBottom: 10 }}>
+        <button className="btn btn-sm btn-primary" style={{ marginLeft: 'auto' }} data-testid="msg-new" onClick={() => setDraft({ to: recipientsFor(state, me)[0]?.id || '', subject: '', body: '' })}>{Icon.plus({ size: 12 })} New message</button>
+      </div>
+      {draft && (
+        <div className="panel" data-testid="msg-form" style={{ padding: 12, borderRadius: 10, border: '1px solid var(--line)', marginBottom: 10, display: 'grid', gap: 8 }}>
+          <label className="iq-fld"><span>To</span><select className="input" data-testid="msg-f-to" value={draft.to} onChange={(e) => setDraft({ ...draft, to: e.target.value })}>{recipientsFor(state, me).map((a) => <option key={a.id} value={a.id}>{accountName(state, a.id)}</option>)}</select></label>
+          <label className="iq-fld"><span>Subject</span><input className="input" data-testid="msg-f-subject" value={draft.subject} onChange={(e) => setDraft({ ...draft, subject: e.target.value })} /></label>
+          <label className="iq-fld"><span>Message</span><textarea className="input" rows={4} data-testid="msg-f-body" value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} /></label>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button className="btn btn-sm" data-testid="msg-f-cancel" onClick={() => setDraft(null)}>Cancel</button>
+            <button className="btn btn-sm btn-primary" data-testid="msg-f-send" onClick={() => { const res = actions.sendMessage({ toIds: [draft.to], subject: draft.subject, body: draft.body }); say(res); if (res.ok) setDraft(null) }}>Send</button>
+          </div>
+        </div>
+      )}
+      {!threads.length ? <div className="muted" data-testid="msg-empty" style={{ fontSize: 12 }}>No conversations yet.</div> : threads.map((t) => (
+        <button key={t.threadId} type="button" data-testid={`msg-thread-${t.threadId}`} onClick={() => openThread(t.threadId)} style={{ display: 'flex', width: '100%', textAlign: 'left', gap: 8, padding: '10px 0', borderTop: '1px solid var(--line)', background: 'none', border: 'none', borderBlockStart: '1px solid var(--line)', fontSize: 12, cursor: 'pointer' }}>
+          <span style={{ flex: 1 }}><b>{t.subject}</b><span className="muted"> · {t.people.map((p) => accountName(state, p)).join(', ')}</span><div className="muted">{t.last.body.slice(0, 80)}</div></span>
+          {t.unread > 0 && <span className="tag tone-warn" data-testid={`msg-unread-${t.threadId}`}>{t.unread} new</span>}
+        </button>
+      ))}
+    </>
+  )
+}
 
 const TONE = { stop: 'tone-stop', warn: 'tone-warn', flag: 'tone-flag' }
 const DUE = { overdue: 'Overdue', today: 'Due today', upcoming: 'Due', none: 'No due date', done: 'Done' }
@@ -28,6 +88,7 @@ export default function InboxView({ onClose }) {
   const can = (area) => state.canAccess(area, 'view')
   const canClients = can('clients') // client names show only to roles that can open Clients
   const feed = notificationsFor(state, me, today, can)
+  const unread = unreadCount(state, currentAccount(state)?.id || null)
   const tasks = openTasksFor(state, scope === 'mine' ? me : null, today)
   const say = (res) => toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
   const save = () => {
@@ -49,7 +110,7 @@ export default function InboxView({ onClose }) {
           <button className="modal-x" aria-label="Close" data-testid="inbox-close" onClick={onClose} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 14 })}</button>
         </div>
         <div className="viewseg" role="tablist" style={{ margin: '10px 16px 0' }}>
-          {[['notifications', `Notifications (${feed.length})`], ['tasks', `Tasks (${openTasksFor(state, me, today).length} mine)`]].map(([k, l]) => (
+          {[['notifications', `Notifications (${feed.length})`], ['tasks', `Tasks (${openTasksFor(state, me, today).length} mine)`], ['messages', `Messages${unread ? ` (${unread} new)` : ''}`]].map(([k, l]) => (
             <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? 'on' : ''} data-testid={`inbox-tab-${k}`} onClick={() => setTab(k)}>{l}</button>
           ))}
         </div>
@@ -62,6 +123,7 @@ export default function InboxView({ onClose }) {
               </div>
             ))
           )}
+          {tab === 'messages' && <Messages />}
           {tab === 'tasks' && (
             <>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10 }}>

@@ -9,6 +9,7 @@ import { buildICS, download } from '../lib/ics'
 import { scanNeedsCover } from '../lib/smart'
 import { DEMO_RESET_AREAS, currentAccount, resolveAccount } from '../lib/security'
 import { notificationsFor } from '../lib/tasks'
+import { unreadCount } from '../lib/messages'
 
 function useOutside(ref, cb, on) {
   useEffect(() => {
@@ -25,7 +26,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
   const state = useStore()
   const { ui, settings, actions } = state
   const canSchedule = state.canAccess('calendar', 'view')
-  const inboxCount = notificationsFor(state, currentAccount(state)?.staffId || null, todayISO(), (area) => state.canAccess(area, 'view')).length
+  const inboxCount = notificationsFor(state, currentAccount(state)?.staffId || null, todayISO(), (area) => state.canAccess(area, 'view')).length + unreadCount(state, currentAccount(state)?.id || null)
   const canScheduleEdit = state.canAccess('calendar', 'full')
   const canOpenSettings = state.canAccess('settings', 'view')
   const canManageSecurity = state.canAccess('security', 'view')

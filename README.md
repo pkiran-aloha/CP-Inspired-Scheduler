@@ -20,7 +20,14 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
-### Hackathon wave 5 — inbox (in progress)
+### Hackathon wave 5 — inbox
+
+**Messages.** The Inbox's third tab holds conversations between signed-in users of the workspace.
+- **Starting and replying:** start one with a subject and recipient. A reply goes to everyone in the thread.
+- **Who sees it:** threads are listed only to their participants.
+- **Unread:** unread messages show on the thread and add to the envelope count. Opening a thread marks it read without using an Undo slot. Sending is one Undo.
+- **Where it lives:** everything stays in this workspace; nothing is emailed or texted. Messages are a new durable collection (`messages`) included in backups.
+- **Code and tests:** `src/lib/messages.js`; tests are in `messages.test.jsx`.
 
 **Inbox: tasks and notifications.** The envelope in the top bar opens the Inbox. Its count badge is the number of notifications waiting for you. It has two tabs:
 - **Notifications** are read fresh from the workspace each time. They cover:
