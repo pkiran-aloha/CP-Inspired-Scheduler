@@ -16,7 +16,13 @@ Last updated **2026-10-03** (end of session). Any agent resuming work: read this
 
 ## Shipped (newest first)
 
-Hackathon wave 3: Intake (#5). This wave is in progress.
+Hackathon wave 3: Intake (#5). This wave is complete.
+- **Slice 3, intake UX fixes:**
+  - The first-call form requires only the essentials.
+  - Gate items have a **Fix** button (`gateFixTab` in `IntakeCommon.jsx`).
+  - Conversion opens the new client's profile (`ui.cliOpen`).
+  - Names are unified to "Intake Requests" / "New Intake".
+  - Still open (small): two convert buttons (`iq-advance` at the auth stage and `iq-convert`). The assessment visit is booked without a client and bypasses the booking guards.
 - **Slice 1, conversion carries the data forward** (`planConversion` in `intake.js`).
   - **Approved units:** they now land in the client's unit pool as `{97153: units}`, flagged "verify against the payer letter". They used to be divided as if they were hours.
   - **Weekly hours:** `authWeekly` is units × 15 min ÷ weeks.
@@ -28,8 +34,6 @@ Hackathon wave 3: Intake (#5). This wave is in progress.
   - **Intake packet** (worklist toolbar): blank fields, a documents checklist and consent signature lines.
   - **Summary PDF** (drawer header): the full record.
 
-  Next slice:
-  - intake UX fixes: actionable gate items, naming, one Convert button, a lighter first-call form, landing on the new client's profile after conversion
 
 - **Help & Wiki screen** (`HelpView.jsx`, `src/lib/wiki.js`): rail footer button + Cmd/Ctrl+K; renders and searches the bundled `docs/wiki` (incl. the FAQ) for every role. `wiki.test.js` also guards the wiki's `_Sources:` and links in CI.
 - **Docs: platform wiki + marketing copy** (`docs/wiki/`, `docs/marketing/README.md`). Kept current by the landing rule in `AGENTS.md` (pages list their source files). `docs/wiki/architecture.md` ends with known doc/code mismatches worth fixing.
@@ -85,7 +89,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 | Wave | Items | Notes / open questions |
 |---|---|---|
 | ~~Configurable billing (#8)~~ (shipped 2026-10-04) | "We didn't have to submit hard-code requests for billing" | All 6 slices have shipped (see Shipped above and `docs/specs/configurable-billing.md`). Medicaid norms are the compliance baseline. Still open, small:<br>• the "stored but unused" list at the end of the spec<br>• box 17 (referring provider) and Supervising Provider: both need data that isn't recorded yet |
-| **Intake (#5)** | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | Maintainer picked all three. Downloadable intake packet + filled request as PDF (jsPDF is installed); trace the General Requests → Client Intake → Client List hand-offs end-to-end and fix confusing steps; run `impeccable` critique on the intake screens first. |
+| ~~Intake (#5)~~ (shipped 2026-10-04) | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | All three slices have shipped (see Shipped above). Still open:<br>• one Convert button instead of two<br>• the assessment visit is booked without a client and bypasses the booking guards<br>• an `impeccable` critique of the intake screens has not been run |
 | **Inbox, tasks, notifications (#1 + #2)** | Message center + task assignment + notifications | Local, in-workspace only (no delivery off-device, no client portal yet). |
 | **Records (#4, #10, #13)** | Client statements; Cabinet expirations; RBT PDU report | Statements: history, PDF, mark sent/paid (no email). Cabinet: documents register with expiry + alerts (metadata only). PDU: log entries per staff vs renewal requirement — confirm requirement per credential with the maintainer. |
 | **Integrations, honest partial (#3, #11, #12)** | Telehealth link; Apple/Google calendar; Stripe | Store the practice's own video link; per-staff `.ics` download; Stripe *payment link* + manual recording. Real sync/charging needs a backend — say so in the UI. |

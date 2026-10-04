@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced with main at 2b51459 on 2026-10-04._
+_Last synced with main at 3e79dca on 2026-10-04 (plus the intake UX fixes)._
 
 [Wiki home](README.md)
 
@@ -55,7 +55,7 @@ No. Confirming a session, assigning cover or recording a cancellation reason cha
 
 ### How do I add a new referral?
 
-Open Clients, Intake Manager, General Intake Requests and press New intake. The record starts at New referral on the board, and you work it forward stage by stage. [More: Intake](intake.md#working-the-pipeline)
+Open Clients, Intake Manager, Intake Requests and press New intake. The record starts at New referral on the board, and you work it forward stage by stage. [More: Intake](intake.md#working-the-pipeline)
 
 ### Why can't I move an intake to the next stage?
 

@@ -82,7 +82,19 @@ export function KpiStrip({ items, testid = 'iq-kpis' }) {
  * Gate checklist. A pipeline move is only allowed when every item is true —
  * rendering the same `GATES` data the reducer enforces keeps them in sync.
  */
-export function GateList({ req, target, testid = 'iq-gates' }) {
+// Where each gate item is fixed: a drawer tab, or 'form' for the full intake form.
+// Waitlist, booking and close-out items are fixed in the inline forms above the list.
+const GATE_FIX = {
+  owner: 'overview', contact: 'contacts', name: 'form', urgency: 'form',
+  diagnosis: 'clinical', concern: 'clinical', setting: 'clinical', screen: 'clinical', bcba: 'clinical',
+  payer: 'benefits', member: 'benefits', subscriber: 'benefits', plan: 'benefits', vob: 'benefits', vobref: 'benefits',
+  card: 'docs', report: 'docs', referraldoc: 'docs', consents: 'docs', docs: 'docs',
+  date: 'clinical', instrument: 'clinical', outcome: 'clinical', hours: 'clinical',
+  submitted: 'clinical', units: 'clinical', decision: 'clinical', approved: 'clinical',
+}
+export const gateFixTab = (target, id) => (id === 'guardian' ? (target === 'converted' ? 'overview' : 'form') : GATE_FIX[id] || null)
+
+export function GateList({ req, target, testid = 'iq-gates', onFix }) {
   const items = gateItems(target)
   if (!items.length) return <div className="muted" style={{ fontSize: 12 }}>No requirements recorded for this step.</div>
   return (
@@ -96,6 +108,9 @@ export function GateList({ req, target, testid = 'iq-gates' }) {
               <b>{g.label}</b>
               {!ok && <span className="why">Next: {g.action}</span>}
             </span>
+            {!ok && onFix && gateFixTab(target, g.id) && (
+              <button type="button" className="btn btn-xs" style={{ marginLeft: 'auto' }} data-testid={`iq-gate-fix-${target}-${g.id}`} onClick={() => onFix(gateFixTab(target, g.id))}>Fix</button>
+            )}
           </div>
         )
       })}

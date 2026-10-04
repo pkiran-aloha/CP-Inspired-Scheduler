@@ -271,6 +271,17 @@ export default function ClientsView() {
 
   const range = useMemo(() => resolveRange('last4', ui.anchor, settings.weekStart), [ui.anchor, settings.weekStart])
   const pivot = useMemo(() => Object.fromEntries(pivotRows(state, range.days, 'client').map((r) => [r.key, r])), [state.appts, range])
+  // intake conversion hands over the new chart's id: open its profile once
+  useEffect(() => {
+    if (!ui?.cliOpen) return
+    const c = clients.find((x) => x.id === ui.cliOpen)
+    if (c) {
+      const m = pivot[c.id] || { sessions: 0, hours: 0, units: 0, revenue: 0, cancelled: 0 }
+      setProf({ c, m, flags: clientFlags(state, c, range.days), burn: c.authWeekly ? Math.round((m.hours / (c.authWeekly * 4)) * 100) : 0 })
+    }
+    actions?.setUI({ cliOpen: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ui?.cliOpen])
 
   const rows = useMemo(() => {
     const list = clients

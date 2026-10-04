@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at 388d080 on 2026-10-04 (plus the intake PDFs)._
+_Last synced with main at 3e79dca on 2026-10-04 (plus the intake UX fixes)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -10,8 +10,8 @@ _Last synced with main at 388d080 on 2026-10-04 (plus the intake PDFs)._
 
 Intake is the pre-client pipeline: a family inquires, the team gathers what a payer and a clinician need, and the request becomes a client chart. It lives under **Clients > Intake Manager** in the sidebar, with three entries:
 
-- **General Intake Requests**: the pipeline as a board or a list.
-- **Client Intake**: a blank full intake form (always blank, never a stale edit).
+- **Intake Requests**: the pipeline as a board or a list.
+- **New Intake**: a blank intake form, never a stale edit. A first call needs only these: name, date of birth, office, a phone, the guardian with a phone or email, and an intake owner. Alias and address can wait.
 - **Referral Sources**: the register of who refers families and how well each source converts.
 
 Everything is recorded locally. Logging a contact, recording a verification call, or "submitting" an authorization request keeps a record of what staff did outside the app. The app contacts no family, payer or portal.
@@ -61,6 +61,8 @@ Specific moves behave as follows:
 - **Escape** closes one layer at a time: menu, then modal or inline form, then drawer.
 
 ### The detail drawer
+
+The **Next** box lists what the next stage needs. Each unmet item has a **Fix** button that opens the tab (or the full form) where that item is recorded. Waitlist, booking and close-out items are filled in the inline forms instead. After conversion you land on the new client's profile.
 
 Six tabs: Overview, Contacts, Benefits (VOB), Clinical, Docs and consents, Timeline. Documents have a status (Missing, Requested, Received, Waived, Expired) and only Received or Waived count. Required documents depend on the record: an IEP/IFSP for school-based settings, custody papers when a guardianship note exists. Consents (treat, HIPAA, financial responsibility are required; media, telehealth, records release are optional) are captured on screen, not sent. The Timeline shows every logged event.
 
@@ -120,7 +122,7 @@ Intake does not follow the strict plan-then-Tx pattern. Domain actions in `creat
 
 ## Not yet built
 
-- **No e-signature or fillable PDF.** The intake packet is printed and signed on paper; signed consents are then recorded on screen. An end-to-end review of the General Requests, Client Intake and Client List hand-offs is still planned in `docs/HANDOFF.md`.
+- **No e-signature or fillable PDF.** The intake packet is printed and signed on paper; signed consents are then recorded on screen. The assessment visit and the client chart are still separate records until conversion (see below).
 - **Nothing is transmitted.** Benefits verification is a recorded call and reference, not an eligibility query. Authorization is recorded, not submitted. Consents are captured on screen, with no e-signature service or portal.
 - The assessment appointment is created without a client and bypasses the scheduling guards in [Scheduling](scheduling.md).
 - No intake task or message center yet (planned with inbox and notifications). The `tasks` field on a request exists but has no screen.

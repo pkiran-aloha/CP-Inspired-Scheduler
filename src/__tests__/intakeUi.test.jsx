@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import App from '../App'
 import { blankState } from '../state/store'
 import { gateBlockers } from '../lib/intake'
+import { gateFixTab } from '../components/intake/IntakeCommon'
 
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
@@ -172,8 +173,9 @@ describe('Conversion closes the loop into the client roster', () => {
       expect(chart.memberId).toBe(String(CONVERTIBLE.memberId || '').trim())
       if (CONVERTIBLE.apptId) expect(saved.appts[CONVERTIBLE.apptId].clientIds).toEqual([chart.id])
     })
-    // the payoff lands in the Client module: the roster opens on the new chart
+    // the payoff lands in the Client module: the roster opens on the new chart, profile open
     await waitFor(() => expect(screen.getByTestId('cli-search').value).toBe(`${CONVERTIBLE.firstName} ${CONVERTIBLE.lastName}`))
+    expect(await screen.findByTestId('profile-modal')).toBeTruthy()
     const chartId = Object.values(stored().clients).find((c) => c.intakeId === CONVERTIBLE.id).id
     fireEvent.click(screen.getByTestId('cli-mode-table'))
     fireEvent.click(await screen.findByTestId(`cli-row-${chartId}`))
@@ -416,6 +418,20 @@ describe('Stage transitions route through forms, never into a dead end', () => {
     expect(screen.getByTestId('iq-gate-contacted-contact').dataset.ok).toBe('1')
   })
 
+  it('every unmet requirement in the Next box has a Fix button that opens the place to fix it', async () => {
+    const req = byStage('contacted')
+    render(<App />)
+    await openRequest(req)
+    const gates = await screen.findByTestId('iq-next-gates')
+    const fix = gates.querySelector('[data-testid^="iq-gate-fix-"]')
+    expect(fix, 'a contacted request has something left to screen').toBeTruthy()
+    const [, target, gate] = fix.getAttribute('data-testid').match(/^iq-gate-fix-([a-z]+)-([a-z]+)$/)
+    const where = gateFixTab(target, gate)
+    fireEvent.click(fix)
+    if (where === 'form') await waitFor(() => expect(screen.getByTestId('iq-first').value).toBe(req.firstName))
+    else await waitFor(() => expect(screen.getByTestId(`iq-tab-${where}`).getAttribute('aria-selected')).toBe('true'))
+  })
+
   it('opens a blank form from the nav even after editing a record from the drawer', async () => {
     const req = byStage('contacted')
     render(<App />)
@@ -424,6 +440,6 @@ describe('Stage transitions route through forms, never into a dead end', () => {
     await waitFor(() => expect(screen.getByTestId('iq-first').value).toBe(req.firstName))
     fireEvent.click(screen.getByTestId('nav-sub-intake-new'))
     await waitFor(() => expect(screen.getByTestId('iq-first').value).toBe(''))
-    expect(screen.queryByText(new RegExp(`Edit intake client — ${req.no}`))).toBe(null)
+    expect(screen.queryByText(new RegExp(`Edit intake request — ${req.no}`))).toBe(null)
   })
 })
