@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (D3 intake-to-first-week handoff implemented on the Arena branch; pending merge). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (D3 intake-to-first-week handoff, PR #26). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green at `d42a2a6` (PR #25, unified aging). D3 is implemented on `arena/01a10c0c-cp-inspired-scheduler`, pending PR/merge. Finish this feature and confirm main CI before choosing another.
+- State at handoff: D3 is delivered through PR #26 from `arena/01a10c0c-cp-inspired-scheduler`, based on green `main` at `d42a2a6` (PR #25, unified aging). PR #26 tests/build are green. Confirm the merged main/deploy run before choosing another feature; no next feature has been started.
 
 ## How the maintainer works
 
@@ -14,14 +14,16 @@ Last updated **2026-10-05** (D3 intake-to-first-week handoff implemented on the 
 - The maintainer may use other agents (not only Claude). `AGENTS.md` is the shared rulebook; `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` point to it.
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
-## Current feature — D3, ready for review
+## Shipped (newest first)
+
+### D3 — intake-to-first-week handoff (PR #26)
 
 - **Intake → first-week handoff.** A converted request and its client profile offer **Plan first week**. The conversion still lands on the profile. `intakeHandoff.js` proposes a practice-calendar week from scheduler-selected weekdays/time, session length, active authorized service and location. It subtracts existing clinical bookings, stays within the auth window and remaining unit pool (payer unit rules included), and shows up to three ranked staff per slot using `suggestStaff`, with reasons and practice/auth checks. Empty capacity and unfilled hours are explicit.
 - **Reviewed writes only.** `IntakeHandoff.jsx` opens `AppointmentModal` per occurrence; its optional `onCreate` path delegates to `bookHandoffSession` → `planHandoffSession` → `handoffSessionTx`. The reducer replans against live state; Stop refuses, Warn is named, exact duplicate client slots are refused, and one appointment with the existing `intakeId` field is one Undo. Permissions: Calendar Full, Clients/Intake View, office-scoped records. No new durable fields/collections or migration.
 - **Honest limits.** Proposals are ephemeral, not recurring series. One slot per selected weekday at the chosen time; this does not search all possible slots or confirm clinician working hours. Family preference text is shown but not parsed. Converted units/code and the weekly target still need payer-letter verification. First service shown in the handoff is derived from non-cancelled service appointments, not the assessment; the legacy intake `firstServiceDate` metric is not rewritten. Nothing is sent.
-- **Verification:** focused pure/UI tests cover proposal budgets, ranking, dates, conflicts, empty/invalid states, conversion entry points, reviewed save/cancel, persistence, one Undo, backup round-trip, duplicate/stale writes and access. Local full suite: 83 files / 836 tests passed; after final guard refinements, all 28 D3 tests plus 9 wiki tests passed. Production build passed. Await GitHub PR CI before merge. Browser visual check could not run because Chromium download failed in this sandbox (TLS/network).
+- **Verification:** focused pure/UI tests cover proposal budgets, ranking, dates, conflicts, empty/invalid states, conversion entry points, reviewed save/cancel, persistence, one Undo, backup round-trip, duplicate/stale writes and access. Local full suite: 83 files / 836 tests passed; after final guard refinements, all 28 D3 tests plus 9 wiki tests passed. Production build passed. GitHub PR tests/build passed (run `37312681223`); final landing-note updates also require green CI before merge. Browser visual check could not run because Chromium download failed in this sandbox (TLS/network).
 
-## Shipped (newest first)
+### Earlier releases
 
 - **Unified A/R aging engine.** The two aging engines are now one: `agingOf` ages claims exactly like `arOf` — any open primary receivable (draft, void, closed and zero-balance claims have no age) counts days from `submittedAt`, else `dosTo`, else `createdAt` (`agingSince`), into one five-bucket scheme (`agingBucketFor`: `current`, `31-60`, `61-90`, `91-120`, `121+`). The Billing desk strip, the claim drawer, the desk's aging sort and the Claims Register's days-out column now follow the same rule as the AR Manager, so a denied claim keeps aging while its balance is still owed. The AR Manager table shows 91–120 and 121+ as separate columns, matching the KPI strip, the drill chips and the CSV export. Covered by `claims.test.js` (desk buckets reconcile with the AR Manager's for the same claims) plus updated `payerTerms.test.jsx`. Architecture mismatches #7 and #8 are resolved.
 
@@ -143,7 +145,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next — after D3 lands and CI is green
 
-B3, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is the current feature above, not a new selection. After it lands, pick one with the maintainer: density optimiser (B2), or one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items). The DSO formula and both aging-engine mismatches are resolved.
+B3, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. After its main/deploy checks are green, pick one with the maintainer: density optimiser (B2), or one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items). The DSO formula and both aging-engine mismatches are resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
