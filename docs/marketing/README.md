@@ -113,6 +113,7 @@ Load a local 835 file and see each claim match, amount and adjustment before any
 A/R Manager counts each dollar once. Insurance balances and the patient share the payer actually reported sit in separate buckets, and an unknown remainder is never treated as family debt. Its Days in A/R uses the same DSO calculation as Billing Health on the dashboard: a shared 90-day service-start charge lookback, including drafts. At matching as-of dates, the figures match.
 
 - Aging by client or by payer: current, 31–60, 61–90, 91–120 and 121+ days, with an over-90 KPI.
+- One aging engine everywhere: the Billing desk, the Claims Register and the claim drawer age claims on the same clock and the same five buckets as the A/R Manager, and a denied claim keeps aging while its balance is still owed.
 - Patient share is capped at the open primary balance and held while a secondary filing is still pending.
 - **Record receipt** directly from a client's claim, and download a clearly marked draft patient-share statement.
 - **One inbox for what needs you.** Your overdue tasks, expiring documents and authorizations, late intake requests and denied claims are in one list, each one click from where you fix it. Assign tasks to anyone on the team. All in your workspace; nothing is emailed or texted.

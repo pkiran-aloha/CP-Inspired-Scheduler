@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
+_Last synced with main at 4375cb1 on 2026-10-05; includes the unified A/R aging engine from this branch._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -33,7 +33,7 @@ Open Billing, AR Manager.
 - **By Client.** One row per client with a balance.
 - **By filing / patient bucket.** One row per active filing payer, plus a patient bucket ("Patient / family (reported PR + self-pay)"). A balance is split between the payer's slice and the patient's reported share, so the slices add up to one receivable and are never counted twice. Three review buckets can appear: "Ledger mismatch / review" (the patient receipt ledger does not reconcile, or COB needs review), "COB draft / review" (a secondary draft exists but was not filed) and "COB remainder / review" (a secondary closed with something left).
 
-**Columns.** Last payment, Current (0 to 30 days), 31 to 60, 61 to 90, "91 to 120+" and Balance, 25 rows a page. The table merges 91 to 120 and 121 plus into one column; the KPI, over-90 figures and the CSV keep them separate.
+**Columns.** Last payment, Current (0 to 30 days), 31 to 60, 61 to 90, 91 to 120, 121 plus and Balance, 25 rows a page. The table, the over-90 KPI and the CSV all use the same five buckets.
 
 **Aging clock.** Days open are counted from when the claim was marked submitted. If it has no submitted date, from the last date of service; if that is missing too, from the date the claim was created.
 
@@ -63,7 +63,7 @@ Issuing, marking sent and voiding are each one Undo. Statements are in workspace
 
 ### The desk's aging indicators
 
-On the Billing desk, a Submitted claim shows an age and a "late" flag. That uses a different engine from the AR Manager (see "How it works"): its buckets are 0 to 30, 31 to 60, 61 to 90 and 90 plus, only for Submitted claims, and "late" means older than 1.6 times the payer's expected days to pay, which comes from the payer's Payment Terms.
+The Billing desk ages claims with the same engine as the AR Manager: one clock and the same five buckets (0 to 30, 31 to 60, 61 to 90, 91 to 120, 121 plus). The strip above the claim list buckets the submitted claims in the selected range, and the claim drawer shows any open primary claim's days out — a denied claim keeps aging while its balance is still owed. "Late" means older than 1.6 times the payer's expected days to pay, which comes from the payer's Payment Terms.
 
 ### Reading the numbers
 
@@ -82,7 +82,7 @@ On the Billing desk, a Submitted claim shows an age and a "late" flag. That uses
   - `arOf(state, asOfISO)` builds `{byClient, byPayer, totals}`. Open claims are those where `isPrimaryReceivable` holds, the status is not draft, and `dueOf` is above 0.005. Buckets are `current`, `31-60`, `61-90`, `91-120`, `121+`. Totals carry `totalAR`, `patientAR`, `over90`, `unassignedAR`, `dso`, `collectionsRate`, `writeOffYTD`, `billed90` and `paid90`.
   - `dueOf` is charges minus adjustments minus paid, and for a primary also minus `secondaryPaid` and `patientPaid`.
   - `receivableBucketOf` chooses the payer slice or a review bucket; `PATIENT_AR_BUCKET` names the patient slice; `patientResponsibilityOf` returns the remaining reported patient share; `patientLedgerMatches` checks that `patientPaid` equals the active, non-reversed patient receipts.
-  - `agingOf(claim, today, state)` and `claimStats(state, days)` drive the desk's KPI cards, its aging badge and the "late" flag; `payerPolicy` supplies the expected days.
+  - `agingOf(claim, today, state)` and `claimStats(state, days)` drive the desk's KPI cards, its aging badge and the "late" flag; `payerPolicy` supplies the expected days. They share the AR engine's clock and buckets: `agingSince` (submittedAt, else last date of service, else creation date) and `agingBucketFor` (the five buckets above). Draft, void, closed and zero-balance claims have no age.
 - [`billingKpis.js`](../../src/lib/billingKpis.js): the dashboard's Billing Health widget reuses `arOf` for open A/R, DSO and over-90 A/R, so Days in A/R is the same figure as the AR Manager. See [dashboard-and-reports](dashboard-and-reports.md).
 - [`reports.js`](../../src/lib/reports.js) uses `agingOf` and `dueOf` in a claim register that labels each row "Primary receivable" or "COB filing (not A/R)".
 - Screens: [`ArManagerView.jsx`](../../src/components/ArManagerView.jsx) memoizes `arOf` on `claims`, `payments` and the as-of date. [`GenerateInvoiceView.jsx`](../../src/components/GenerateInvoiceView.jsx) builds the draft text itself from `patientResponsibilityOf`.
@@ -99,7 +99,7 @@ The AR Manager is read-only. It changes nothing itself; "Record receipt" and "Re
 
 ### Tests
 
-[`ar.test.js`](../../src/__tests__/ar.test.js) checks that `arOf` produces five buckets and that the by-client and by-payer totals reconcile. [`billingKpis.test.js`](../../src/__tests__/billingKpis.test.js) checks that Billing Health uses the same DSO and that a missing denominator stays empty; [`dashboard.test.jsx`](../../src/__tests__/dashboard.test.jsx) checks that the widget displays that as a dash. [`patientFlow.test.jsx`](../../src/__tests__/patientFlow.test.jsx) and [`patientReceipts.test.js`](../../src/__tests__/patientReceipts.test.js) cover patient share, the statement page and receipt reversal.
+[`ar.test.js`](../../src/__tests__/ar.test.js) checks that `arOf` produces five buckets and that the by-client and by-payer totals reconcile; [`claims.test.js`](../../src/__tests__/claims.test.js) checks that the desk buckets reconcile with the AR Manager's for the same claims. [`billingKpis.test.js`](../../src/__tests__/billingKpis.test.js) checks that Billing Health uses the same DSO and that a missing denominator stays empty; [`dashboard.test.jsx`](../../src/__tests__/dashboard.test.jsx) checks that the widget displays that as a dash. [`patientFlow.test.jsx`](../../src/__tests__/patientFlow.test.jsx) and [`patientReceipts.test.js`](../../src/__tests__/patientReceipts.test.js) cover patient share, the statement page and receipt reversal.
 
 ## Not yet built
 
@@ -108,4 +108,4 @@ The AR Manager is read-only. It changes nothing itself; "Record receipt" and "Re
 - No payer-level aging by contract terms. Aging buckets are fixed at 30-day steps and do not use the payer's expected days to pay.
 - No bad-debt reserve or write-off approval step; write-offs post straight to the ledger.
 - No hover formulas on the AR Manager's KPIs (the dashboard widget has them).
-- The dashboard and AR Manager share one DSO formula. Two aging engines remain: AR Manager ages all open primary receivables in five buckets, while the Billing desk's indicators cover Submitted claims in four; see [architecture](architecture.md), "Known doc/code mismatches".
+- The dashboard and AR Manager share one DSO formula, and the AR Manager, the Billing desk, the Claims Register and the claim drawer share one aging engine: the same clock and the same five buckets.

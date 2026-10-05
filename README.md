@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### One A/R aging engine
+
+Every A/R view now ages claims the same way. The AR Manager, the Billing desk strip, the Claims Register and the claim drawer all count days for an open primary receivable from submission (falling back to the last date of service, then the creation date) and sort it into the same five buckets — current, 31–60, 61–90, 91–120 and 121+ days. A denied claim keeps aging while its balance is still owed; draft, void, closed and zero-balance claims show no age. The AR Manager table shows 91–120 and 121+ as separate columns, matching its KPI strip, drill chips and CSV export. `agingSince`, `agingBucketFor` and the rewritten `agingOf` live in `src/lib/claims.js`; `claims.test.js` reconciles the desk's buckets with the AR Manager's for the same claims.
+
 ### A/R DSO consistency
 
 Billing Health now reads "Days in A/R" from the same calculation as the AR Manager: open primary A/R divided by average daily primary charges whose service start falls in the 90-day lookback, with draft charges included. At the same as-of date, the two views produce the same DSO; both show a dash when there are no lookback charges. Covered by `billingKpis.test.js` and the dashboard UI test.

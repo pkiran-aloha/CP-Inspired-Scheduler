@@ -538,11 +538,28 @@ export function patientResponsibilityOf(state, primary) {
 
 export const copayOf = (c, client, state) => (c.mode === 'insurance' ? Math.min(payerPolicy(c.payer, state).copay * c.lines.length, c.charges) : 0)
 
+// ---------- one aging engine ----------
+// The AR Manager (arOf), the Billing desk (claimStats), the Claims Register and
+// the claim drawer all age claims the same way: an open primary receivable ages
+// from when it opened (submittedAt, else dosTo, else createdAt) into one shared
+// five-bucket scheme. Draft, void, closed and zero-balance claims have no age.
+export const AGING_BUCKETS = ['current', '31-60', '61-90', '91-120', '121+']
+export const AGING_BUCKET_LABELS = { current: '0–30', '31-60': '31–60', '61-90': '61–90', '91-120': '91–120', '121+': '121+' }
+export function agingBucketFor(days) {
+  if (days <= 30) return 'current'
+  if (days <= 60) return '31-60'
+  if (days <= 90) return '61-90'
+  if (days <= 120) return '91-120'
+  return '121+'
+}
+export const agingSince = (c) => (c.submittedAt ? new Date(c.submittedAt) : c.dosTo ? parseISO(c.dosTo) : new Date(c.createdAt))
+
 export function agingOf(c, today = isoDate(new Date()), state) {
-  if (!c.submittedAt || c.status !== 'submitted') return null
-  const days = Math.max(0, Math.round((parseISO(today) - new Date(c.submittedAt)) / 86400000))
+  if (!c || !isPrimaryReceivable(c) || c.status === 'draft') return null
+  if (dueOf(c) <= 0.005) return null
+  const days = Math.max(0, Math.round((parseISO(today) - agingSince(c)) / 86400000))
   const avg = payerPolicy(c.payer, state).avgDays
-  return { days, late: days > avg * 1.6, bucket: days <= 30 ? '0–30' : days <= 60 ? '31–60' : days <= 90 ? '61–90' : '90+' }
+  return { days, late: days > avg * 1.6, bucket: agingBucketFor(days) }
 }
 
 // ---------- portfolio stats for the KPI band ----------
@@ -556,7 +573,7 @@ export function claimStats(state, days) {
   const pending = inWin.filter((c) => c.status === 'submitted')
   const drafts = inWin.filter((c) => c.status === 'draft')
   const d2p = paid.filter((c) => c.submittedAt).map((c) => Math.max(0, Math.round((c.closedAt - c.submittedAt) / 86400000)))
-  const buckets = { '0–30': 0, '31–60': 0, '61–90': 0, '90+': 0 }
+  const buckets = Object.fromEntries(AGING_BUCKETS.map((b) => [b, 0]))
   let lateCount = 0
   for (const c of pending) { const a = agingOf(c, undefined, state);if (a) { buckets[a.bucket] += Math.round(Math.max(0, dueOf(c))); if (a.late) lateCount++ } }
   return {
@@ -586,14 +603,6 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
     return due > 0.005
   })
 
-  const bucketsFor = (days) => {
-    if (days <= 30) return 'current'
-    if (days <= 60) return '31-60'
-    if (days <= 90) return '61-90'
-    if (days <= 120) return '91-120'
-    return '121+'
-  }
-
   const byClientMap = {}
   const byPayerMap = {}
   const totals = { current:0, '31-60':0, '61-90':0, '91-120':0, '121+':0, totalAR:0, patientAR:0, over90:0 }
@@ -614,12 +623,8 @@ export function arOf(state, asOfISO = isoDate(new Date())) {
   for (const c of openClaims) {
     const due = dueOf(c)
     const patient = patientResponsibilityOf(state, c)
-    let openSince = null
-    if (c.submittedAt) openSince = new Date(c.submittedAt)
-    else if (c.dosTo) openSince = parseISO(c.dosTo)
-    else openSince = new Date(c.createdAt)
-    const days = Math.max(0, Math.round((asOf - openSince)/86400000))
-    const bucket = bucketsFor(days)
+    const days = Math.max(0, Math.round((asOf - agingSince(c))/86400000))
+    const bucket = agingBucketFor(days)
 
     // byClient
     if (!byClientMap[c.clientId]) {

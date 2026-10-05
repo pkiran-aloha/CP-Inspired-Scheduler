@@ -13,11 +13,12 @@ import { addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import {
   stagedAppts, planClaims, claimGate, claimStats, claimCsv, claimsCsv, quickPosts,
   CLAIM_STATUSES, denialReasonsOf, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, filingDaysOf,
-  secondaryEligible,
+  secondaryEligible, AGING_BUCKETS, AGING_BUCKET_LABELS,
 } from '../lib/claims'
 import { claimTo1500, claimsTo1500, cms1500Data } from '../lib/cms1500'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
+const AGING_DOT = { current: '#10b981', '31-60': '#f5990b', '61-90': '#f97316', '91-120': '#ef4444', '121+': '#b91c1c' }
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 const relDay = (ts) => {
   if (!ts) return '—'
@@ -212,10 +213,10 @@ export default function BillingView({ initialTab }) {
           <PipelineStep icon={Icon.dollar({ size: 14 })} label="Paid" count={`${stats.paid.n} · ${money(stats.paid.$)} · ${stats.denialRate}% denial`} active={tab === 'claims' && statusF === 'paid'} done={stats.paid.n > 0} color="#10b981" />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          {['0–30', '31–60', '61–90', '90+'].map((b) => (
-            <span key={b} className={`rp-sumchip ${stats.pending.buckets[b] ? 'on' : ''}`} style={{ padding: '8px 12px', opacity: stats.pending.buckets[b] ? 1 : 0.4, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: b === '0–30' ? '#10b981' : b === '31–60' ? '#f59e0b' : b === '61–90' ? '#f97316' : '#ef4444' }} />
-              <b>{money(stats.pending.buckets[b] || 0)}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{b}</span>
+          {AGING_BUCKETS.map((b) => (
+            <span key={b} title={`Days out ${AGING_BUCKET_LABELS[b]} days · submitted claims in range, aged on the same clock and buckets as the AR Manager`} className={`rp-sumchip ${stats.pending.buckets[b] ? 'on' : ''}`} style={{ padding: '8px 12px', opacity: stats.pending.buckets[b] ? 1 : 0.4, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: AGING_DOT[b] }} />
+              <b>{money(stats.pending.buckets[b] || 0)}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{AGING_BUCKET_LABELS[b]}</span>
             </span>
           ))}
         </div>

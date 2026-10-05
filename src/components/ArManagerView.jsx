@@ -124,21 +124,22 @@ export default function ArManagerView() {
           ) : (
             <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
               <div className="py-tbl" data-testid="ar-table">
-                <table style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><thead><tr><th>Client</th><th>Last Payment</th><th>Current (0–30)</th><th>Current</th><th>31–60</th><th>61–90</th><th>91–120</th><th>121+</th><th>Balance</th></tr></thead></table>
-                <div className="py-thead" style={{ gridTemplateColumns: view === 'client' ? '1.6fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr' : '1.6fr 1fr 0.8fr 0.8fr 0.8fr 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>
-                  <span>{view === 'client' ? 'Client' : 'Payer'}</span><span>Last Payment</span><span>Current (0–30)</span><span>31–60</span><span>61–90</span><span>91–120+</span><span>Balance</span>
+                <table style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><thead><tr><th>Client</th><th>Last Payment</th><th>Current (0–30)</th><th>31–60</th><th>61–90</th><th>91–120</th><th>121+</th><th>Balance</th></tr></thead></table>
+                <div className="py-thead" style={{ gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>
+                  <span>{view === 'client' ? 'Client' : 'Payer'}</span><span>Last Payment</span><span>Current (0–30)</span><span>31–60</span><span>61–90</span><span>91–120</span><span>121+</span><span>Balance</span>
                 </div>
                 {paged.map((r) => {
                   const isSel = selId === (view === 'client' ? r.clientId : r.payer)
                   const over90Pct = view === 'client' ? r.over90Pct : (r.balance ? Math.round((r.over90 / r.balance) * 100) : 0)
                   return (
-                    <div key={view === 'client' ? r.clientId : r.payer} data-testid={`ar-row-${view === 'client' ? r.clientId : r.payer}`} className={`py-trow ${isSel ? 'on' : ''}`} onClick={() => setSelId(view === 'client' ? r.clientId : r.payer)} style={{ gridTemplateColumns: view === 'client' ? '1.6fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr' : '1.6fr 1fr 0.8fr 0.8fr 0.8fr 1fr', minHeight: 60, padding: '12px 16px', cursor: 'pointer', background: isSel ? '#f5f3ff' : undefined, borderLeft: `3px solid ${isSel ? '#6366f1' : 'transparent'}` }}>
+                    <div key={view === 'client' ? r.clientId : r.payer} data-testid={`ar-row-${view === 'client' ? r.clientId : r.payer}`} className={`py-trow ${isSel ? 'on' : ''}`} onClick={() => setSelId(view === 'client' ? r.clientId : r.payer)} style={{ gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr', minHeight: 60, padding: '12px 16px', cursor: 'pointer', background: isSel ? '#f5f3ff' : undefined, borderLeft: `3px solid ${isSel ? '#6366f1' : 'transparent'}` }}>
                       <div className="py-idcell"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><PersonAvatar p={view === 'client' ? clients.find((c) => c.id === r.clientId) : null} size={28} /><div><b style={{ fontSize: 13 }}>{view === 'client' ? r.clientName : r.payer}</b><div style={{ display: 'flex', gap: 6, marginTop: 2 }}>{view === 'payer' && <span style={{ fontSize: 11, background: 'var(--panel-2)', padding: '2px 8px', borderRadius: 10 }}>{r.clientCount} clients</span>}{over90Pct > 50 && <span style={{ fontSize: 11, background: '#fee2e2', color: '#b91c1c', padding: '2px 8px', borderRadius: 10 }}>{over90Pct}% &gt;90d</span>}</div></div></div></div>
                       <div className="py-cell" style={{ fontSize: 12, color: 'var(--muted)' }}>{r.lastPayment ? `${r.lastPayment.date} · ${r.lastPayment.kind}` : '—'}</div>
                       <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets.current ? money(r.buckets.current) : '—'}</div>
                       <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets['31-60'] ? money(r.buckets['31-60']) : '—'}</div>
                       <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets['61-90'] ? money(r.buckets['61-90']) : '—'}</div>
-                      <div className="py-cell" style={{ fontSize: 13 }}>{(r.buckets['91-120'] || 0) + (r.buckets['121+'] || 0) ? money((r.buckets['91-120'] || 0) + (r.buckets['121+'] || 0)) : '—'}</div>
+                      <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets['91-120'] ? money(r.buckets['91-120']) : '—'}</div>
+                      <div className="py-cell" style={{ fontSize: 13 }}>{r.buckets['121+'] ? money(r.buckets['121+']) : '—'}</div>
                       <div className="py-cell"><b style={{ fontSize: 14, color: over90Pct > 50 ? '#b91c1c' : '#059669' }}>{money(r.balance)}</b>{r.patientAR > 0 && <small style={{ display: 'block', color: 'var(--muted)' }}>{money(r.patientAR)} reported PR</small>}</div>
                     </div>
                   )
