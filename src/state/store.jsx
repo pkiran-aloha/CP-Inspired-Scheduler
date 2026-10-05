@@ -15,7 +15,7 @@ import { seedRecords } from '../lib/demoRecords'
 import { planPduEntry } from '../lib/credentials'
 import { planTask, planTaskDone } from '../lib/tasks'
 import { planMessage, readUpdates } from '../lib/messages'
-import { planSettingsOp, normalizeSettingsMasters, appendImportLog } from '../lib/settingsMasters'
+import { planSettingsOp, normalizeSettingsMasters, appendImportLog, evaluateAppointmentValidations } from '../lib/settingsMasters'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/workspaceBackup'
@@ -1339,6 +1339,10 @@ function createActions(state, dispatch, rawState = state) {
         location: location || cur.office || '', service: 'fba', notes: `Intake assessment for ${cur.no}`,
         intakeId: cur.id, createdAt: Date.now(), updatedAt: Date.now(), custom: {}, documents: [], verification: null,
       }
+      // The same practice Appointment Validations as the booking dialog. There is no client yet
+      // (the family becomes one at conversion), so only staff and service checks can apply.
+      const checks = evaluateAppointmentValidations(state, appt)
+      if (checks.stops.length) return { ok: false, msg: `Not booked. ${checks.stops.map((i) => `${i.label}: ${i.message}`).join(' ')}` }
       const now = Date.now()
       const next = {
         ...cur, apptId, apptDate: date, clinicianId, bcbaAssignedId: cur.bcbaAssignedId || clinicianId, updatedAt: now,
@@ -1346,7 +1350,8 @@ function createActions(state, dispatch, rawState = state) {
         events: [...(cur.events || []), { at: now, by: by || null, ev: `Assessment booked for ${date}${rebook ? '' : ` — moved to ${stageDef('scheduled').label}`}` }],
       }
       dispatch({ type: 'intakeTx', upserts: [next], apptUpserts: [appt] })
-      return { ok: true, apptId, msg: `Assessment booked ${date} — it is on the calendar now` }
+      const review = checks.warns.length ? ` Review: ${checks.warns.map((i) => i.message).join(' ')}` : ''
+      return { ok: true, apptId, msg: `Assessment booked ${date} — it is on the calendar now.${review}` }
     },
   }
 }
