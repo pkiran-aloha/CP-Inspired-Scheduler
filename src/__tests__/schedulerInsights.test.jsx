@@ -60,6 +60,30 @@ const openPanel = async () => {
   return screen.findByTestId('scheduler-insights')
 }
 
+function seedDensity() {
+  const s = blankState()
+  const staffId = s.staff[0].id
+  const [c1, c2] = s.clients
+  const date = day(3)
+  const mk = (id, client, start, end, title) => ({
+    id, date, type: 'service', status: 'active', title,
+    clientIds: [client.id], staffIds: [staffId], start, end, location: client.home || 'Main Center', service: 'dtt',
+    notes: '', custom: {}, documents: [], verification: null,
+    billing: { code: '97153', unitMins: 15, units: 4, rate: 9, mileage: false },
+  })
+  const out = {
+    ...s,
+    appts: {
+      'den-early': mk('den-early', c1, 8 * 60, 9 * 60, 'Morning ABA'),
+      'den-late': mk('den-late', c2, 14 * 60, 15 * 60, 'Afternoon ABA'),
+    },
+    ui: { ...s.ui, section: 'calendar', view: 'week', anchor: date, insights: false },
+    history: [],
+  }
+  localStorage.setItem(KEY, JSON.stringify(out))
+  return out
+}
+
 describe('scheduler insights panel', () => {
   it('opens from the calendar toolbar and leads with four honest KPIs', async () => {
     seed()
@@ -78,6 +102,19 @@ describe('scheduler insights panel', () => {
     expect(await screen.findByTestId('si-heat')).toBeTruthy()
     expect(document.querySelectorAll('[data-testid^="si-gap-"]').length).toBeGreaterThan(0)
     expect(screen.getByText(/Bookable windows/)).toBeTruthy()
+  })
+
+  it('suggests and applies a same-day density move as a local calendar edit', async () => {
+    seedDensity()
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-density'))
+    const row = await screen.findByTestId('si-density-den-late')
+    expect(row.textContent).toMatch(/split|opens/i)
+    expect(row.textContent).toMatch(/Move to/)
+    fireEvent.click(screen.getByTestId('si-density-apply-den-late'))
+    await waitFor(() => expect(stored().appts['den-late'].start).toBe(9 * 60))
+    expect(stored().appts['den-late'].end).toBe(10 * 60)
+    expect(await screen.findByText(/Moved locally into a denser block/i)).toBeTruthy()
   })
 
   it('reports the authorization that has already lapsed, and totals it in the KPI', async () => {
