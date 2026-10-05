@@ -1,8 +1,8 @@
 # Settings
 
-_Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
+_Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/travel.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced with main at 414a9fe on 2026-10-05 (plus intake booking checks)._
+_Last synced with main at 4042e77 on 2026-10-05 (B3 Slice1 travel feasibility)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -20,7 +20,7 @@ If your account has view-only access to the Workspace settings area, every panel
 | Custom Lists | General lists (including the **Cancellation reasons** list used by [Scheduling](scheduling.md)) and Service Type lists |
 | Custom Fields | Extra fields a payer or program wants captured on appointments |
 | Data Import | Bring records in from a CSV file |
-| Organization | Practice identity, NPI and tax ID, and the **office and location master** |
+| Organization | Practice identity, NPI and tax ID, and the **office and location master** (optional lat/lng for travel time estimates, seeded for demo offices) |
 | Payroll | Pay cycle, earning codes, overtime rules (see [Payroll](payroll.md)) |
 | Qualification | Degrees, certifications and licences, and expiry. "Covers" makes a higher credential satisfy a lower one (BCBA covers BCaBA and RBT). The staff qualification check reads a person's credential from their cert ("BCBA #…" counts as BCBA), from each part of a "Credential · title" role, and from job titles listed in a qualification's "Applies to" (for example "Lead RBT") |
 | Services | Service types, billing codes, unit length (new services default to 15 minutes), rates per unit, rounding, required credentials |
@@ -46,7 +46,7 @@ Settings refuses invalid configuration instead of saving it, and tells you why:
 
 Because validations and the authorization guard are settings, the shared severity language applies here:
 
-- **Appointment Validations** (staff qualification, service-provider eligibility, overlap, missing NPI or Medicaid ID, pay rate, unavailable, client overlap and team assignment, payer cancelled/no-show, regional center, and the ABA Hours rules) each take None, Flag, Warn or Stop. Stop refuses the booking in the dialog.
+- **Appointment Validations** (staff qualification, service-provider eligibility, overlap, missing NPI or Medicaid ID, pay rate, unavailable, travel feasibility, client overlap and team assignment, payer cancelled/no-show, regional center, and the ABA Hours rules) each take None, Flag, Warn or Stop. Stop refuses the booking in the dialog. `staff.travel` defaults to Warn and says “Needs about 22 min from previous; gap is 10 min” with honest copy “estimated from straight-line distance; not a map route”.
 - **Authorization guard** takes Off, Flag, Warn or Stop. **Warn is the default**; Stop is a choice the practice makes on purpose. Also set here: warn-at percentage (85), stop-at percentage (100, Stop mode only), renewal alert days (30), urgent days (14) and the under-pace threshold (70). **Reset guard** restores the defaults.
 
 See [Scheduling](scheduling.md) for what each finding means at booking time.

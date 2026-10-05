@@ -1,8 +1,8 @@
 # Scheduling
 
-_Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at 8721364 on 2026-10-05 (plus qualification matching fix)._
+_Last synced with main at 4042e77 on 2026-10-05 (B3 Slice1 travel feasibility)._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -102,6 +102,16 @@ Risk factors are labelled `history` (learned from this workspace's resolved appo
 
 The ABA Hours checkbox exists on non-service appointments only. It marks behavior-analytic staff time for credential tracking (RBT, BCAT, graduate student, state certification). It has nothing to do with client authorizations. The Appointment Validations group `aba` enforces this (service appointments carrying the flag are a Stop by default).
 
+### Travel feasibility (B3 Slice1)
+
+A clinician cannot be in two places at once. When a booking has a previous or next session the same day for the same staff, the Checks rail shows whether there is enough time to get there.
+
+- **Where coordinates come from:** client `geo` (`[lat,lng]`) for home, school and community sessions, plus optional `lat`/`lng` on Settings > Organization offices for center/clinic sessions (seeded for demo offices). Telehealth and unknown places are skipped, never guessed.
+- **How the estimate is made:** straight-line haversine distance × 1.3 road factor at 25 mph plus a 5 min buffer. Honest copy everywhere: “estimated from straight-line distance × 1.3 road factor at 25 mph; not a map route”. No map API, no network.
+- **What you see:** “Needs about 22 min from previous; gap is 10 min” (severity **impossible** when gap < travel) or “Tight turnaround: about 18 min from X to Y, gap 22 min” (severity **tight** when gap < travel+10). The booking can still be saved — the rule `staff.travel` defaults to **Warn** in Appointment Validations.
+- **Know before you pick:** `candidateVerdicts` calls `evaluateAppointmentValidations`, so adding a staff member who would trigger a travel issue shows a chip in the picker before you add them.
+- **Code:** `src/lib/travel.js` (`haversineMi`, `estimateTravelMinutes`, `resolveApptLocation`, `travelLeg`, `travelChecksForStaffDay`, `routeForDay`, `suggestRouteOrder`, `TRAVEL_DEFAULTS`). Tests: `travel.test.js`. Slice2 (route view with legs and suggested re-order) is next.
+
 ## How it works
 
 ### Write path
@@ -120,7 +130,8 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 - [cancelReasons.js](../../src/lib/cancelReasons.js): `cancelReasonOptions`, `cancelSide`, `isPracticeCancel`, `reasonPatch`, `cancelReasonRows`, `seedCancelReason`. Appointments store `cancelReasonId` and `cancelReason`.
 - [smart.js](../../src/lib/smart.js): `suggestStaff`, `scanNeedsCover`, `backfillFor`, `smartCfg` (weights for team, history, fit, load under Settings > System Settings > Smart scheduling).
 - [abaHours.js](../../src/lib/abaHours.js): `countsAsAbaHours` is the single predicate; also `abaStaffRows`, `abaTotals`, `normalizeAbaHours`.
-- [settingsMasters.js](../../src/lib/settingsMasters.js): `DEFAULT_APPOINTMENT_VALIDATIONS` (groups `staff`, `client`, `payer`, `aba`), `appointmentValidationsCfg`, `evaluateAppointmentValidations` returning `{items, stops, warns, flags}`.
+- [travel.js](../../src/lib/travel.js): travel feasibility and routing. `haversineMi`, `estimateTravelMinutes`, `travelLeg`, `resolveApptLocation` (office lat/lng or client geo, skips telehealth/unknown), `travelChecksForStaffDay` (prev/next), `routeForDay` (legs, totals, tight/impossible), `suggestRouteOrder` (greedy nearest-neighbor read-only with miles saved), `TRAVEL_DEFAULTS` (1.3×, 25 mph, 5 min buffer, 10 min tight).
+- [settingsMasters.js](../../src/lib/settingsMasters.js): `DEFAULT_APPOINTMENT_VALIDATIONS` (groups `staff`, `client`, `payer`, `aba` plus `staff.travel`), `appointmentValidationsCfg`, `evaluateAppointmentValidations` returning `{items, stops, warns, flags}`.
 
 ### Components
 
@@ -135,14 +146,14 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 
 ### Tests
 
-`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js`, `schedulerInsights.test.jsx`, `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
+`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js`, `schedulerInsights.test.jsx`, `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
 
 ## Not yet built
 
 From the status column of `docs/specs/scheduling-intelligence-ideas.md`:
 
-- Not built: density optimiser (B2), travel feasibility and route sequencing (B3, deferred), access holdout (B4), calibrated overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), intake-to-first-session handoff (D3), scenario planner (D4).
-- Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6).
+- Not built: density optimiser (B2), access holdout (B4), calibrated overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), intake-to-first-session handoff (D3), scenario planner (D4).
+- Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6); travel feasibility check is shipped (B3 Slice1) with route view and suggested re-order as Slice2 next.
 
 Honest limits:
 
