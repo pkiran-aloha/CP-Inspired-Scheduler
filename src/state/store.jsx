@@ -1,7 +1,7 @@
 import { normalizeVerificationForms, seedVerificationForms } from '../lib/verificationForms'
 import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
-import { buildSeed, buildDemoClaims, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
+import { buildSeed, buildDemoClaims, seedFamilyShares, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion, LOST_REASONS } from '../lib/intake'
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims, planPayerTerms, lineApptIds } from '../lib/claims'
@@ -41,13 +41,14 @@ const normalizeWorkspace = (state) => {
 export function blankState() {
   const appts = buildSeed(todayISO())
   const settings = defaultSettings()
-  const { claims, appts: apptsWithClaims } = buildDemoClaims(appts, CLIENTS, settings, todayISO())
+  const { claims: demoClaims, appts: apptsWithClaims } = buildDemoClaims(appts, CLIENTS, settings, todayISO())
   // chunk-41: seed secondary insurance on first two clients for the COB queue
   const clientsWithSec = CLIENTS.map((c, idx) => {
     if (idx === 0 && PAYERS[0]) return { ...c, secondary: { payerId: PAYERS[0].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0001', relation: 'secondary', since: '2026-01-01', until: null, note: 'Seeded secondary for COB testing' } }
     if (idx === 1 && PAYERS[2]) return { ...c, secondary: { payerId: PAYERS[2].id, memberId: `SEC-${c.id.slice(0, 4).toUpperCase()}`, authNo: 'AUTH-S-0002', relation: 'secondary', since: '2026-02-01', until: null, note: '' } }
     return { ...c, secondary: null }
   })
+  const claims = seedFamilyShares(demoClaims, clientsWithSec)
   const seedPay = seedPayroll(STAFF, { payroll: settings.payroll })
   settings.payroll = { ...settings.payroll, anchor: seedPay.anchor }
   // Intake Manager: the pre-client pipeline. Converted demo requests hand their
@@ -565,7 +566,8 @@ export function reducer(state, action) {
     }
     case 'reseed': {
       const appts = buildSeed(todayISO())
-      const { claims, appts: withClaims } = buildDemoClaims(appts, state.clients, state.settings, todayISO())
+      const { claims: demoClaims, appts: withClaims } = buildDemoClaims(appts, state.clients, state.settings, todayISO())
+      const claims = seedFamilyShares(demoClaims, state.clients)
       // Rebuild seed payments from the new claims and remove documents tied to
       // the replaced ledger. Keep the user's rosters, masters and settings.
       const pay = seedPayroll(state.staff, { payroll: state.settings.payroll })

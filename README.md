@@ -26,6 +26,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Team task notifications.** The practice administrator account is not a staff member, so its Inbox now reports the whole team's overdue and due-today tasks. Staff accounts still see only their own.
 
+**Demo family balances.** Three demo families owe a coinsurance share the payer reported, so client statements and the patient A/R bucket have real examples. Clients with secondary coverage are left alone for the COB demo.
+
 ### Hackathon wave 6 — integrations, honest partial
 
 **Telehealth room link.** Settings > Clinical Integrations > Telehealth room link stores the practice's own video room (a full `https://` address; anything else is refused). Telehealth bookings (place of service 10) show the link under Location, and `.ics` exports add it to those events. The app does not host, open or record video.

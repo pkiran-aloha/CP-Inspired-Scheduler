@@ -695,6 +695,34 @@ export function buildDemoClaims(appts, clients, settings, today) {
   return { claims: Object.fromEntries(claims.map((c) => [c.id, c])), appts: out }
 }
 
+// A few paid insurance claims leave a family share (coinsurance the payer reported), so client
+// statements and the patient A/R bucket have something to show. One claim per client, at most
+// `max`. Clients with secondary coverage are skipped: their open balance belongs to the COB demo.
+export function seedFamilyShares(claims, clients, max = 3) {
+  const r2 = (n) => Math.round(n * 100) / 100
+  const primaryOnly = new Set((clients || []).filter((c) => !c.secondary).map((c) => c.id))
+  const picks = Object.values(claims)
+    .filter((c) => c.status === 'paid' && c.mode === 'insurance' && c.paid >= 50 && c.remittance && primaryOnly.has(c.clientId))
+    .sort((a, b) => String(a.no).localeCompare(String(b.no)))
+  const out = { ...claims }
+  const done = new Set()
+  for (const c of picks) {
+    if (done.size >= max) break
+    if (done.has(c.clientId)) continue
+    done.add(c.clientId)
+    // the payer paid less and reported the difference as the family's coinsurance
+    const share = Math.max(10, Math.round(c.paid * 0.1))
+    const paid = r2(c.paid - share)
+    const rem = { ...c.remittance, amount: paid, patientResp: share }
+    out[c.id] = {
+      ...c, paid, status: 'partially_paid', closedAt: null, remittance: rem,
+      history: [...c.history.filter((h) => !/^Payment posted/.test(h.ev)),
+        { at: rem.at, ev: `Payment posted — $${paid.toLocaleString()} via ${rem.checkNo}${c.adj ? ` (${c.adj.toLocaleString()} adjustment)` : ''} · $${share} patient responsibility reported` }],
+    }
+  }
+  return out
+}
+
 // ---- Intake Manager seeding ---------------------------------------------------
 // Referral sources are the upstream relationships the intake pipeline attributes
 // to; requests are the pre-client records themselves. Everything here is
