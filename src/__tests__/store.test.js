@@ -5,6 +5,24 @@ import { fmtTime, snap, minToHM, hmToMin, fmtDur, startOfWeek, addDays, isoDate,
 
 beforeEach(() => localStorage.clear())
 
+describe('payer edits', () => {
+  it('a generic payer edit is one undoable transaction that touches only the payers', () => {
+    const s = initial()
+    const target = s.payers[0]
+    const next = reducer(s, { type: 'payer', mode: 'patch', item: { id: target.id, name: `${target.name} (renamed)` } })
+    expect(next.payers.find((p) => p.id === target.id).name).toBe(`${target.name} (renamed)`)
+    expect(next.history.length).toBe(s.history.length + 1)
+    expect(next.clients).toBe(s.clients) // the snapshot restores payers only
+    const back = reducer(next, { type: 'undo' })
+    expect(back.payers.find((p) => p.id === target.id).name).toBe(target.name)
+    expect(back.history.length).toBe(s.history.length)
+    // noSnap: the service-delete contract cleanup must not add a step of its own
+    const quiet = reducer(s, { type: 'payer', mode: 'patch', item: { id: target.id, name: 'Quiet' }, noSnap: true })
+    expect(quiet.history.length).toBe(s.history.length)
+    expect(quiet.payers.find((p) => p.id === target.id).name).toBe('Quiet')
+  })
+})
+
 describe('initial state', () => {
   it('seeds the master rosters', () => {
     const s = initial()

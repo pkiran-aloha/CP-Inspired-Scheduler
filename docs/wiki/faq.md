@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
+_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
 
 [Wiki home](README.md)
 
@@ -213,7 +213,7 @@ In the same screen, press Restore backup and choose the file. Aloha validates it
 
 ### How does Undo work?
 
-Press `U` (not while typing in a field) or use the Undo button on a toast. Each action is one step, so assembling claims or posting an ERA reverses in one press. It holds the last 25 steps in this tab only, and some changes, such as plain settings patches and payer edits, take no snapshot. [More: Security, Undo and backup](security-undo-backup.md#undo)
+Press `U` (not while typing in a field) or use the Undo button on a toast. Each action is one step, so assembling claims or posting an ERA reverses in one press. It holds the last 25 steps in this tab only, and some changes, such as plain settings patches, payer add/remove and the service and custom-field masters, take no snapshot. [More: Security, Undo and backup](security-undo-backup.md#undo)
 
 ### What does the "Changes aren't saved" alert mean?
 

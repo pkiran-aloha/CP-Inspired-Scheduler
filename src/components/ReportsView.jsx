@@ -6,7 +6,8 @@ import { useToast } from '../ui/Toast'
 import { REPORTS, REPORT_CATS, REPORT_BY_ID, runReport, toCSV, validationIssues } from '../lib/reports'
 import { numCols, priorResult, numericTotals, deltaPct } from '../lib/rpTrends'
 import { fmtVal } from '../lib/exportKit'
-import { VERIFY_CHECKS } from '../lib/model'
+import { VERIFY_CHECKS, unitsFor } from '../lib/model'
+import { unitRuleFor } from '../lib/authUnits'
 import { bucketize, resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { buildSpec, specToXls, specToPdf, downloadDoc } from '../lib/exportKit'
@@ -162,8 +163,10 @@ export default function ReportsView() {
   const autoFill = (r) => {
     const a = state.appts[r._link?.id]
     if (!a) return
-    const unitMins = a.billing?.unitMins || 15
-    const units = Math.round(((a.end - a.start) / unitMins) * 100) / 100
+    // the payer's unit rule (payer override, payer service, service master, code) and its
+    // rounding — the same numbers the booking dialog and the Billing desk write
+    const { unitMins, rounding } = unitRuleFor(state, a)
+    const units = unitsFor(a.end - a.start, unitMins, rounding)
     const prev = { billing: a.billing }
     actions.update(a.id, { billing: { ...(a.billing || {}), units } })
     toast({ message: `Auto-filled ${units} billable units — table re-ran`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(a.id, prev) } })

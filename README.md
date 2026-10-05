@@ -20,6 +20,14 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Small correctness batch — auto-fill units, appeals, payer Undo
+
+**Report Auto-fill follows the payer's unit rule.** Reports > Validations and the Billing-readiness rows estimated units by dividing the visit by the *code's* unit size and rounding to two decimals, so the same session could get different numbers depending on which button filled it. Both now read `unitRuleFor` (payer override, payer service, service master, then code) and `unitsFor` (the rule's rounding) — the same numbers the booking dialog, Quick Add and the Billing desk write.
+
+**An appeal is a mark, not a status.** Filing an appeal used to set the claim to `appealed`, which is not in `CLAIM_STATUSES`: the desk KPIs ignored the claim and no payment could be posted against it; Mark Won set Paid without posting any money. Now the claim keeps its own status (a denial stays Denied and stays in A/R) and carries an `appeal` marker. Mark Won records the outcome and returns the claim to Submitted awaiting the payer's payment; Mark Lost leaves it Denied. Neither invents money, and a saved workspace that still holds the retired `appealed` status is healed on load (`normalizeAppealedClaims`).
+
+**Every payer edit is one Undo.** The profile fields, the inline list cells and the Billing Rules panels each take one snapshot (Payment Terms already did), and the Undo button is on the toast. The contract cleanup that runs when a service is deleted passes `noSnap`, so a delete cannot leave a half-Undo behind; service and custom-field master edits still take no snapshot. Tests: `autoFillUnits.test.js`, `appeals.test.jsx`, plus `store.test.js` and `mastersHub.test.jsx`.
+
 ### Follow-up 4 — payer qualification modifiers
 
 **Staff education.** Staff records carry an optional **Education level** (Doctoral, Master's, Bachelor's, Associate, HS), set in Staff > Edit and shown on the profile. It is what a payer's Qualification Modifiers match against.

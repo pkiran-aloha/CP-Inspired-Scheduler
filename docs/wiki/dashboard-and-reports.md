@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
+_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 

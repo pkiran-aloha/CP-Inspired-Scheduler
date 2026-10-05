@@ -352,6 +352,23 @@ describe('masters — billing rules', () => {
     expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.flags.mergeSameDay).toBe(true)
   })
 
+  it('a payer rule save is one Undo — the toast puts the previous rules back', async () => {
+    render(<App />)
+    await openDetail('py-blue-shield-ca')
+    fireEvent.click(screen.getByTestId('pd-tab-rules'))
+    fireEvent.click(await screen.findByTestId('pr-tab-claims'))
+    await screen.findByTestId('pr-claims')
+    expect(screen.getByTestId('clm-flag-mergeSameDay').checked).toBe(true)
+    fireEvent.click(screen.getByTestId('clm-flag-mergeSameDay'))
+    fireEvent.click(screen.getByTestId('pr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.flags.mergeSameDay).toBe(false))
+    fireEvent.click(await screen.findByText('Undo'))
+    // the payer goes back to the record the save started from; its effective rules are the
+    // defaults again (a record that never saved rules stores none — reads default through ensurePayer)
+    await waitFor(() => expect(ensurePayer(stored().payers.find((p) => p.id === 'py-blue-shield-ca')).rules.claims.flags.mergeSameDay).toBe(true))
+    expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules?.claims?.flags?.mergeSameDay).toBeUndefined()
+  })
+
   it('appointment settings: signature requirement toggle round-trips', async () => {
     render(<App />)
     await openDetail('py-blue-shield-ca')

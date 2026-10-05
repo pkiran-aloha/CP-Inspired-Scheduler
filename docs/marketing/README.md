@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
+_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -95,7 +95,7 @@ Completed sessions become claim-ready lines and are grouped into claims. Submiss
 - **Modifiers on every line, from the payer's settings.** Each insurance claim line carries up to four modifiers: the payer's service modifier, the rendering provider's credential modifier (HO, HN, HM, HP), the payer's qualification modifier for that clinician's education level (first matching row; blanks add nothing) and the payer's place-of-service modifier. The credential modifier can be switched off per payer, and the staff record's education level is optional — the payer panel reports anyone missing one instead of guessing.
 - **Same-day merge and claim splitting.** By default, same-day sessions for one client, code and rendering provider become one line with their minutes added up and rounded once, the Medicaid way. A payer can turn that off, or ask for separate claims by rendering provider or place of service.
 - **CMS-1500 (02/12) PDF:** a printable facsimile with the form's drop-out red captions and black data, generated from the same field mapping the claim uses. Program, group number, plan ID, other-coverage and service-facility boxes read the payer and client records, and a blank value prints as a dash rather than an invented one. It is a PDF you print; some boxes, such as the member and authorization numbers, are still placeholders in this prototype.
-- **Denials, rebills and appeals:** record a denial with a reason and next step from the practice's own list, void and rebill with disputed lines returned to staging, and start appeal letters from templates.
+- **Denials, rebills and appeals:** record a denial with a reason and next step from the practice's own list, void and rebill with disputed lines returned to staging, and start appeal letters from templates. An appeal is a mark on the claim, not a new status: a win re-opens the claim awaiting the payer's payment, and the money is posted when it actually arrives.
 - **Secondary (COB) queue:** prepares a claim-level COB draft from the primary's remaining balance and records an external filing locally. It does not generate or send a secondary claim.
 
 ### ERA posting, payments and recoupments: post what the remittance says, and nothing it doesn't

@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (follow-up 4, payer qualification modifiers + staff education, landed). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (follow-up 4, payer qualification modifiers + staff education, and a small correctness batch, landed). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green at `30a0927` with B3 complete. Follow-up 4 (payer qualification modifiers + staff education, branch `arena/01a10b07-cp-inspired-scheduler`) lands with this change. Next: pick from "Next" below.
+- State at handoff: `main` green at `996354a`; B3 and follow-up 4 are merged. The small correctness batch (report Auto-fill unit rule, appeals as a marker, payer-edit Undo) lands with this change. Next: pick from "Next" below.
 
 ## How the maintainer works
 
@@ -16,7 +16,8 @@ Last updated **2026-10-05** (follow-up 4, payer qualification modifiers + staff 
 
 ## Shipped (newest first)
 
-Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fixes, 3 B3 travel routing, 4 payer qualification modifiers).
+Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fixes, 3 B3 travel routing, 4 payer qualification modifiers, 5 small correctness batch).
+- **5, small correctness batch.** Three fixes. **Reports > Validations Auto-fill** (and the Billing-readiness rows and their `estCharge` in the same report) now use the payer's unit rule — payer override, then payer service, then service master, then the code — and its rounding, through `unitRuleFor`/`unitsFor`, so the number the report suggests is the number that lands; it used to divide the raw duration by the code's unit size and round to two decimals. **Appeals** no longer write a status: `fileAppeal` keeps the claim's own status (a denial stays Denied and stays in A/R) and stores an `appeal` marker; the new `appealOutcome` returns a won claim to Submitted awaiting the payer's payment instead of marking it Paid with no money posted, and Mark Lost leaves it Denied. Every claim status is now a `CLAIM_STATUSES` value, the desk KPIs count the claim again, and a saved workspace that still holds the retired `appealed` status is healed on load by `normalizeAppealedClaims`. **Payer edits** are one Undo — the profile fields, the inline list cells and the Billing Rules panels (Payment Terms already was); the payer-contract cleanup inside a service delete passes `noSnap` so it cannot leave a half-Undo behind, and service and custom-field master edits still take no snapshot. Tests: `autoFillUnits.test.js`, `appeals.test.jsx`, plus new cases in `store.test.js` and `mastersHub.test.jsx`.
 - **4a, payer qualification modifiers + staff education** (`education` on staff rows and in the staff form, `qualificationModifiersFor` + `staffQualifierTokens` in `claims.js`, `DEFAULT_QM` moved to `model.js`, `EDUCATION_LEVELS`/`QUAL_MODIFIER_KEYS`, `normalizeStaffEducation` in `master.js`, PayerDetail qual panel readiness line, demo staff educated). Cause: the payer's Qualification Modifiers rows are keyed by education level, but staff records carried no education field, so the setting could never apply. Now the first row whose level matches the rendering provider's education — or a "·" part of their role/cert, so Teacher/Therapist/Specialist rows still work — contributes its pair to the line between the credential and the POS modifier; blank modifiers add nothing, duplicates collapse, the four-modifier cap holds, and a rendering provider with no level recorded gets no qualification modifier (the panel says how many staff that is). The default rows were trimmed to the education code alone (the old `U6` first modifier is an hourly code that should not land on every claim because of a degree); saved payer rows are untouched. Tests: `qualificationModifiers.test.js` (11), updated `claimModifiers`/`mastersHub`/`masters` expectations.
 - **1a, demo records** (`src/lib/demoRecords.js`, called by `blankState` and `reseed`). Eight Cabinet documents (one expired, two due within 30 days), eight CEU/PDU entries, five tasks and three messages, built through the real planners and dated relative to today. Tests that need an empty collection now start from `{ ...blankState(), cabinet: {} }` and similar.
 - **1b, team task notifications** (`notificationsFor` in `tasks.js`). The demo admin stays unlinked on purpose: `normalizeSecurity` forces `staffId: null` on the system account. Instead, an account with no staff link is told about the whole team's overdue and due-today tasks ("2 team tasks are overdue"). Linked accounts still see only their own.
@@ -129,9 +130,9 @@ Scheduling intelligence round:
 
 Fixes: status-removal reassignment, payer template delete crash, send-for-approval, SecurityView import, read-only settings Seg, IntakeDetail hook order, current user from the demo account switcher.
 
-## Next — after B3
+## Next — after the correctness batch
 
-B3 and follow-up 4 are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the ``docs/wiki/architecture.md`` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), or density optimiser (B2), or a small correctness batch (Reports > Validations "Auto-fill" ignores the payer unit rule, architecture item 18; generic payer edits take no Undo snapshot; `fileAppeal` sets a status outside `CLAIM_STATUSES`, item 13).
+B3, follow-up 4 and the small correctness batch are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the ``docs/wiki/architecture.md`` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), or density optimiser (B2), or one of the smaller architecture mismatches (the two aging engines, the two DSO formulas, the `build*` document helpers only tests import).
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
@@ -153,7 +154,6 @@ Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §
 - Integrations panel stores API keys in plain local settings (needs the backend).
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
 - Merged remote branches still on GitHub: `docs/agents-handoff` and later feature branches. The maintainer deletes them with `git push origin --delete …`.
-- Generic payer edits (the `payer` action, `patch` mode) take no Undo snapshot. Only Payment Terms does.
 
 ## Resume prompts (paste into a new session; any agent)
 

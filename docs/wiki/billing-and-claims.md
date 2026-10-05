@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced with main at 30a0927 on 2026-10-05 (plus staff education + payer qualification modifiers)._
+_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -51,7 +51,7 @@ The desk has a range picker, a payer filter, KPI cards (In Staging, Drafts, Awai
 | Denied | A denial was recorded |
 | Void | Voided; its lines went back to staging |
 
-An eighth value, `appealed`, can appear after "File Appeal"; see "Not yet built".
+Filing an appeal does not add a status: the claim keeps Denied and records an `appeal` marker, so it still counts in the desk KPIs, denial rate and A/R. A won appeal returns the claim to Submitted awaiting the payer's payment.
 
 ### Denial, rebill, void, write-off
 
@@ -97,7 +97,7 @@ Billed Files lists the files recorded by Process, with range, format and status 
 
 ### Appeals
 
-Appeals lists denied claims and claims that have an appeal. Pick a claim, choose a template (medical necessity, authorization not found, timely filing), add a note and press File Appeal. The template is draft wording for you to reuse; the app does not send it. Mark Won and Mark Lost record the outcome locally. Mark Won sets the claim to Paid without posting any money; see "Not yet built".
+Appeals lists denied claims and claims that have an appeal. Pick a claim, choose a template (medical necessity, authorization not found, timely filing), add a note and press File Appeal. The template is draft wording for you to reuse; the app does not send it. Filing keeps the claim in its own status — a denial stays Denied and stays in A/R — and marks it with the appeal. Mark Won records the outcome and returns the claim to Submitted, awaiting the payer's payment: post the money when it arrives. Mark Lost leaves the claim Denied. Neither outcome posts money, and both are local record-keeping; see "Not yet built".
 
 ### Provider Identifier
 
@@ -138,7 +138,7 @@ Claim lifecycle transitions do not use the plan/Tx pair. Each `createActions` me
 
 ### State fields
 
-- `claims` (map): `no`, `status`, `mode` (insurance or selfpay), `method` (null, `ch`, `selfpay`, `secondary`), `lines[]` (a line has `apptId`; a merged same-day line also has `apptIds`, so always read a line's sessions through `lineApptIds(l)`, never `l.apptId` alone), `charges`, `paid`, `adj`, `timelyDue`, `version`, `parentNo`, `history[]`, `appeal`, `denial`.
+- `claims` (map): `no`, `status`, `mode` (insurance or selfpay), `method` (null, `ch`, `selfpay`, `secondary`), `lines[]` (a line has `apptId`; a merged same-day line also has `apptIds`, so always read a line's sessions through `lineApptIds(l)`, never `l.apptId` alone), `charges`, `paid`, `adj`, `timelyDue`, `version`, `parentNo`, `history[]`, `appeal` (filed date, template, note, outcome), `denial`.
 - `billedFiles` (map): `fileName`, `format` (`837p`), `status`, `billedThrough`, `claimIds`, `content`, `sendCount`.
 - `invoices` (map) and `settings.billing` (`claimPrefix`, `invoicePrefix`, `invoiceSeq`, `requireVerification`, `strictAuth`, `supervisionCheck`, `defaultFilingDays`).
 - `settings.providers` (provider master) and `payers[].policy`, `payers[].ext.filingDeadlineDays`, `payers[].rules.providerId`, `payers[].rules.claims` (`separateBy`, `box32`, `flags.mergeSameDay`, `flags.credentialMods`), `payers[].rules.qualMods` (`{qual, m1, m2}` keyed by education level or a role/title part) and `payers[].rules.posMods`. Staff rows carry the optional `education` this reads.
@@ -163,6 +163,6 @@ Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary d
 - Modifiers: a rendering provider whose staff record has no education level recorded gets no qualification modifier from the payer's Qualification Modifiers rows — the panel in Payer > Billing Rules says how many staff that is. Saved payer place-of-service rows keyed `06` (the old home code) need re-picking as `12`; default qualification rows are the education code alone, so a saved workspace keeps whatever rows it had.
 - "Separate Claim By: Supervising Provider" has no effect because sessions record no supervisor. A merged line takes the first listed staff member of its sessions as the rendering provider.
 - The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for that code keeps a pool in the wrong unit; fix it in Clients, Edit.
-- Appeals: `fileAppeal` sets the claim status to `appealed`, which is not in `CLAIM_STATUSES`, is not counted by the desk KPIs, and cannot receive a payment (posting needs Submitted or Partially paid). Mark Won sets Paid without posting money, so the balance can stay open in A/R. Appeal templates are text only.
+- Appeals never transmit and never move money: templates are text only, a win re-opens the claim for the payer's payment rather than inventing one, and nothing re-submits automatically. `fileAppeal` keeps the claim's own status (it writes an `appeal` marker, not a status) and a saved workspace that still holds the retired `appealed` status is healed on load (`normalizeAppealedClaims`).
 - No auto-void or auto-rebill, no claim-level attachments.
 - Stored payer fields that nothing reads yet are listed in the configurable-billing spec.

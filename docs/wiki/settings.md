@@ -2,7 +2,7 @@
 
 _Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/travel.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced with main at 30a0927 on 2026-10-05 (plus staff education + payer qualification modifiers)._
+_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -86,7 +86,7 @@ Settings writes follow action, then plan, then Tx:
 - Data Import: `actions.importRows` calls `planImport`, then `importTx` re-plans and applies creates and patches plus an `importLog` entry in one snapshot.
 - Permissions ([security.js](../../src/lib/security.js)): `settingsTx` needs the `settings` area, plus `payroll` for `payroll.*` and `earningCode.*` ops. `importTx` needs `settings` plus `clients`, `staff` or `calendar` depending on type. A new action type needs an entry in `actionAreas` and the record-scope switch or it is refused.
 
-**Not everything goes through `settingsTx`.** The Authorization guard, Smart scheduling weights, ABA Hours config and several System Settings fields are written with `actions.setSettings(patch)`, which dispatches a raw `setSettings` action: no planner, no cascade and no Undo snapshot. Its permission area depends on the key (`authGuard` and `risk` and `smart` map to `calendar`, `billing` and `providers` to `billing`, `payroll` to `payroll`, `analytics` to `analytics`, anything else to `settings`). Payer, service and custom-field master edits use their own `payer`, `svc` and `cfdef` reducer cases (area `masters`); only Payment Terms (`planPayerTerms`) takes an Undo snapshot.
+**Not everything goes through `settingsTx`.** The Authorization guard, Smart scheduling weights, ABA Hours config and several System Settings fields are written with `actions.setSettings(patch)`, which dispatches a raw `setSettings` action: no planner, no cascade and no Undo snapshot. Its permission area depends on the key (`authGuard` and `risk` and `smart` map to `calendar`, `billing` and `providers` to `billing`, `payroll` to `payroll`, `analytics` to `analytics`, anything else to `settings`). Payer, service and custom-field master edits use their own `payer`, `svc` and `cfdef` reducer cases (area `masters`). Every payer field or rules save takes one Undo snapshot, and so does Payment Terms (`planPayerTerms`); payer add/remove and service and custom-field edits do not. The payer-contract cleanup that runs as part of deleting a service passes `noSnap` so it cannot leave a half-Undo behind.
 
 ### State, migrations, backup
 
@@ -106,7 +106,7 @@ Settings writes follow action, then plan, then Tx:
 
 - **No real connections.** Clearing house, EVV, clinical integrations, text messaging and the subscription portal store configuration or run local exports only. The Integrations panel keeps keys in plain local settings and needs a backend before real credentials belong there.
 - **No real authentication.** Security is browser-local role-based access for demos.
-- **Not everything is undoable.** Guard, smart-scheduling, ABA and several System Settings changes take no Undo snapshot (see the write path).
+- **Not everything is undoable.** Guard, smart-scheduling, ABA and several System Settings changes take no Undo snapshot, and neither do payer add/remove or service and custom-field master edits (see the write path). Payer edits are undoable.
 - **Qualification modifiers are billing-only.** They key off the staff record's education level and appear on claim lines; they do not drive a booking or authorization check.
 - **Several Claims Settings fields are stored but read by nothing**: Box 17 and 19 options, Box 33B ID types, Claim File Options, Include Appointment Time, the taxonomy checkboxes and "Use Service Provider as Rendering Provider". The merge checkbox's label says same service provider, while the code also requires the same code, modifiers, rate and unit rule.
 - **Appointment guards are dialog-level.** A Stop validation or authorization guard refuses a save in the booking dialog; Quick Add, drag-moves and imports do not run them.
