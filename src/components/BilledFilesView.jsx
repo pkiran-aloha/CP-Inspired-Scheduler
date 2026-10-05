@@ -7,6 +7,8 @@ import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO } from '../lib/date'
 
+// Stored status `sent` only means the file was recorded here; nothing is transmitted.
+const STATUS_LABEL = { sent: 'Exported', pending: 'Pending', failed: 'Failed', void: 'Void' }
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
 export default function BilledFilesView() {
@@ -81,7 +83,7 @@ export default function BilledFilesView() {
 
   return (
     <div className="sectionpage" data-testid="bf-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="file" title="Billed Files" sub={`${range.label} · ${kpis.total} files in range · ${kpis.sent} sent · ${kpis.pending} pending`}>
+      <SectionBar icon="file" title="Billed Files" sub={`${range.label} · ${kpis.total} files in range · ${kpis.sent} exported · ${kpis.pending} pending · nothing transmitted`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ bfPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -92,9 +94,9 @@ export default function BilledFilesView() {
       <div className="batch-strip" data-testid="bf-kpis" style={{ margin: '16px', padding: '16px', gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
         {[
           ['Total', kpis.total, `${range.label}`, '#6366f1', 'bf-kpi-total'],
-          ['Sent', kpis.sent, 'Delivered', '#10b981', 'bf-kpi-sent'],
+          ['Exported', kpis.sent, 'Saved locally', '#10b981', 'bf-kpi-sent'],
           ['Pending', kpis.pending, 'Queued', '#f59e0b', 'bf-kpi-pending'],
-          ['837P', kpis.byFmt['837p'] || 0, 'EDI', '#0ea5e9', 'bf-kpi-837'],
+          ['837P', kpis.byFmt['837p'] || 0, 'Summary, not X12', '#0ea5e9', 'bf-kpi-837'],
         ].map(([label, val, sub, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 14 })}</span>
@@ -117,7 +119,7 @@ export default function BilledFilesView() {
         <div className="viewseg" style={{ borderRadius: 10, padding: 3 }} data-testid="bf-status-tabs">
           {[
             ['all', 'All'],
-            ['sent', 'Sent'],
+            ['sent', 'Exported'],
             ['pending', 'Pending'],
             ['failed', 'Failed'],
           ].map(([id, label]) => (
@@ -131,7 +133,7 @@ export default function BilledFilesView() {
         <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>File History</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} files · clearinghouse + paper + invoice exports</div></div>
+            <div><b style={{ fontSize: 14 }}>File History</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} files · claim, paper and invoice exports saved in this browser; upload or mail them yourself</div></div>
           </div>
           <div className="py-tbl" data-testid="bf-table" style={{ overflowX: 'auto' }}>
             <div className="py-thead" style={{ gridTemplateColumns: '120px 1.4fr 1fr 90px 100px 120px 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>
@@ -143,7 +145,7 @@ export default function BilledFilesView() {
                 <div className="py-cell"><div><b style={{ fontSize: 13 }}>{f.clientCount > 1 ? `${f.clientCount} clients` : f.client?.name || f.payer || 'File'}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}><span className="ln-code">{f.claim?.no || '—'}</span>{f.related.length > 1 ? ` + ${f.related.length - 1} more` : ''} · {f.payer || f.claim?.payer || '—'}</div></div></div>
                 <div className="py-cell" style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={f.fileName}>{f.fileName || `${f.claim?.no || f.id}.${f.format}`}<small style={{ display: 'block', color: 'var(--muted)' }}>{f.sendCount || 1} send{(f.sendCount || 1) === 1 ? '' : 's'}</small></div>
                 <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: 'var(--panel-2)' }}>{f.format}</span></div>
-                <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: f.status === 'sent' ? '#ecfdf5' : f.status === 'failed' ? '#fef2f2' : '#fef9c3' }}>{f.status}</span></div>
+                <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: f.status === 'sent' ? '#ecfdf5' : f.status === 'failed' ? '#fef2f2' : '#fef9c3' }}>{STATUS_LABEL[f.status] || f.status}</span></div>
                 <div className="py-cell"><b style={{ fontSize: 13 }}>{money(f.related.reduce((sum, c) => sum + (c.charges || 0), 0))}</b></div>
                 <div className="py-cell" style={{ display: 'flex', gap: 6 }}>
                   <button className="btn btn-xs" data-testid={`bf-download-${f.id}`} disabled={!contentOf(f)} title={contentOf(f) ? 'Download the stored artifact' : 'Original file content was not stored'} onClick={() => { if (downloadFile(f)) toast({ message: `Downloaded ${f.fileName || f.id}`, kind: 'ok' }) }} style={{ borderRadius: 8 }}>Download</button>
@@ -152,7 +154,7 @@ export default function BilledFilesView() {
               </div>
             ))}
             {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="bf-empty"><b>No billed files</b><div className="muted" style={{ fontSize: 12 }}>Submit claims to generate 837P / CMS-1500 files.</div></div>}
-            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} files</span><span>{kpis.sent} sent · {kpis.pending} pending</span></div>
+            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} files</span><span>{kpis.sent} exported · {kpis.pending} pending</span></div>
           </div>
         </div>
       </div>

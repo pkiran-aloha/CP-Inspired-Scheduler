@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main aef21fe plus the fix/modals-pdf-exports branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main 0f08b56 plus the fix/honest-claim-wording branch on 2026-10-05; unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -98,13 +98,13 @@ Docs versus repo:
 Billing and A/R behaviour (ERA, payments, secondary, A/R):
 
 7. The secondary screen is titled "Secondary Billing", while the nav item, the Billing desk heading and the README call it "Secondary Queue".
-8. Billed files are saved with status `sent` and `billedThrough: 'ch'`, and the Billed Files list defaults a missing status to `sent`, although nothing is ever transmitted (`submitClaims` in `store.jsx`, `BilledFilesView.jsx`). The "837P" file content is a pipe-delimited summary, not X12.
+8. Billed files are still stored with status `sent` and `billedThrough: 'ch'` (internal keys, kept so saved workspaces need no migration). The screen now shows that status as "Exported" and labels the 837P count "Summary, not X12"; the file content is a pipe-delimited summary.
 9. In `ArManagerView.jsx`, `clientPick` is never set to a non-empty value, so its "Clear filter" button can never appear.
 
 Other findings from writing these pages:
 
 10. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
-11. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
+11. Resolved: new claim history entries read "Marked submitted to <payer>; claim file saved locally, not transmitted" and the Process toast says "marked submitted · file saved in Billed Files, nothing transmitted". History entries already in a saved workspace keep their old text.
 12. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
 13. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
 

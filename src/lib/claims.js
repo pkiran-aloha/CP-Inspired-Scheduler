@@ -401,7 +401,7 @@ const ev = (text, at) => ({ at: at || Date.now(), ev: text })
 export function submitPatch(state, claim) {
   const at = Date.now()
   return {
-    claim: { ...claim, status: 'submitted', submittedAt: claim.submittedAt || at, history: [...claim.history, ev(claim.mode === 'selfpay' ? `Invoice sent to family (${claim.payer})` : `Claim submitted to ${claim.payer}`, at)] },
+    claim: { ...claim, status: 'submitted', submittedAt: claim.submittedAt || at, history: [...claim.history, ev(claim.mode === 'selfpay' ? `Invoice marked sent to family (${claim.payer}); the app sends nothing` : `Marked submitted to ${claim.payer}; claim file saved locally, not transmitted`, at)] },
     apptPatches: claim.lines.flatMap(lineApptIds).map((id) => ({ id, patch: { billing: { ...(state.appts[id]?.billing || {}), status: 'claimed', claimNo: claim.no, submittedAt: at } } })),
   }
 }

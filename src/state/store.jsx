@@ -911,7 +911,7 @@ function createActions(state, dispatch, rawState = state) {
       }
       if (claimUpserts.length) dispatch({ type: 'claimsTx', claimUpserts, apptPatches, billedFiles })
       if (!sent.length) return { ok: false, msg: gated.length ? `All ${gated.length} claim(s) held by gates — see the ⚠ on each` : 'Nothing to submit' }
-      return { ok: true, msg: `${sent.length} claim${sent.length > 1 ? 's' : ''} submitted${gated.length ? ` · ${gated.length} held by validation gates` : ''}`, sent, gated, fileId: billedFiles && Object.keys(billedFiles)[0] }
+      return { ok: true, msg: `${sent.length} claim${sent.length > 1 ? 's' : ''} marked submitted · file saved in Billed Files, nothing transmitted${gated.length ? ` · ${gated.length} held by validation gates` : ''}`, sent, gated, fileId: billedFiles && Object.keys(billedFiles)[0] }
     },
     postPayment: (id, payload) => {
       const options = { at: Date.now(), paymentId: uid() }

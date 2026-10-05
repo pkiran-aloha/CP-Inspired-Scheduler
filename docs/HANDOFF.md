@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (D3 intake-to-first-week handoff, PR #26). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (honest claim wording, `fix/honest-claim-wording`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: D3 is delivered through PR #26 from `arena/01a10c0c-cp-inspired-scheduler`, based on green `main` at `d42a2a6` (PR #25, unified aging). PR #26 tests/build are green. Confirm the merged main/deploy run before choosing another feature; no next feature has been started.
+- State at handoff: D3 (PR #26), B2 density (PR #27), the modal/PDF fix and the honest claim wording fix are on `main`. A parallel agent is working on the CMS-1500 form layout on the local branch `feat/cms1500-standard`; leave `cms1500.js` to that branch. Confirm the latest main/deploy run before choosing another feature.
 
 ## How the maintainer works
 
@@ -16,13 +16,20 @@ Last updated **2026-10-05** (D3 intake-to-first-week handoff, PR #26). Any agent
 
 ## Shipped (newest first)
 
+### Fix — honest claim wording (`fix/honest-claim-wording`)
+
+- Architecture mismatches #8 and #11 (honest-software gap): Process said "N claims submitted", the claim history said "Claim submitted to <payer>", and Billed Files showed files as "sent" / "Delivered" with an "EDI" 837P count, though nothing ever leaves the browser.
+- Now: the toast reads "marked submitted · file saved in Billed Files, nothing transmitted" (`submitClaims` in `store.jsx`); `submitPatch` in `claims.js` and the seed write "Marked submitted to <payer>; claim file saved locally, not transmitted" (self-pay: "Invoice marked sent to family …; the app sends nothing"); `BilledFilesView.jsx` labels stored status `sent` as **Exported**, the KPI "Saved locally", and the 837P KPI "Summary, not X12".
+- Copy only: stored keys (`status: 'sent'`, `billedThrough: 'ch'`) are unchanged, so there is no migration; history entries already saved keep their old text. The CMS-1500 PDF note line ("e-file via ANSI 837P") is left to the parallel CMS-1500 layout branch.
+- Tests: `claims.test.js` asserts the history wording; `billedFilesFlow.test.jsx` asserts "Exported" / "Saved locally" and that the stored status is still `sent`.
+
 ### Fix — modal overflow and PDF exports (`fix/modals-pdf-exports`)
 
 - **Modals.** Cause: `.modal` clips at `max-height` with `overflow: hidden`, and the staff/client edit body (`.pm-body`) and profile body (`.pf-body`) were not scroll containers, so the footer CTAs fell outside the clip; the profile's action row did not wrap and pushed "Edit" off the right edge. Fix (appended block at the end of `styles.css`): those bodies scroll, every `.modal` scrolls as the fallback for any body that still is not a scroll container (deny reason, Quick book, Save report, Add Provider), footers wrap, the profile chips put the value under the label at full width. The avatar picker moved inside the scrolling body (`StaffView.jsx`, `ClientsView.jsx`). `ProviderIdView.jsx`'s Add/Edit Provider dialog used an undefined `.modal-backdrop` class and rendered with no overlay; it now uses `.overlay` + `.modal-head`.
 - **PDF exports.** Cause 1: the payroll register (Process Payroll, Pay Runs) and Payroll Summary passed the jsPDF document itself to `downloadDoc`, which wrapped it as text: a 15-byte `[object Object]` file. `downloadDoc` (via `toBlob`) now renders a jsPDF document. Cause 2: jsPDF's standard fonts are WinAnsi; one character outside that set (the `→` in a statement's date range) made the whole line print as spaced UTF-16 gibberish. `winAnsi()` in `exportKit.js` wraps every generated document (reports, payroll, statements, intake, CMS-1500) and maps or drops such characters. Also: 1500 Batch no longer swallows a render error behind a success toast; page 1 of a multi-page export no longer says "continued"; register hours round to 2 decimals.
 - **Verification:** reproduced each symptom on the deployed site in the browser pane, then re-measured with the CSS injected (edit footer in view at 1024×600, 1024×768 and 375×812; no horizontal overflow). PDF logic checked with node and a stub jsPDF. New `src/__tests__/pdfExports.test.jsx` covers the download, the encoding, the "continued" label and the payroll summary download; it runs in CI.
 
-### B2 — scheduling density optimiser (built on `arena/01a10c30-cp-inspired-scheduler`, not yet landed)
+### B2 — scheduling density optimiser (PR #27, landed)
 
 - **Density tab in Scheduler Insights.** `src/lib/density.js` ranks same-day moves that pull future, unclaimed clinical sessions into adjacent idle windows so a clinician's day becomes a tighter block instead of a split day. Suggestions keep the same staff, clients and duration; score uses split idle minutes saved, day-span savings, block reduction and newly opened half-days. The panel names the current slot, target slot, adjacent block, warnings and honest limits.
 - **Reviewed local move.** `Move here` calls `planDensityMove` against live state before dispatching the existing one-appointment calendar move. It refuses stale suggestions, staff/client conflicts and Stop-level overlap/travel findings; warns are named. One appointment changes and the toast offers Undo. No drive-time records, recurring templates, family availability, messages or map/routing service are touched.
@@ -155,9 +162,9 @@ Scheduling intelligence round:
 
 Fixes: status-removal reassignment, payer template delete crash, send-for-approval, SecurityView import, read-only settings Seg, IntakeDetail hook order, current user from the demo account switcher.
 
-## Next — after D3 lands and CI is green
+## Next
 
-B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. After B2 lands and main/deploy checks are green, pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), access holdout (B4), overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
+B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. Pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), access holdout (B4), overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 

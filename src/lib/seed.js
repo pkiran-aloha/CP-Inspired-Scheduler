@@ -645,7 +645,7 @@ export function buildDemoClaims(appts, clients, settings, today) {
     const pol = PAYER_POLICY[c.payer] || { avgDays: 22, coins: 0.85 }
     if (age >= 40 && rnd() < 0.8) {
       c.submittedAt = stamp(age - 5)
-      c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice sent to family' : `Claim submitted to ${c.payer}` })
+      c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice marked sent to family; the app sends nothing' : `Marked submitted to ${c.payer}; claim file saved locally, not transmitted` })
       const short = c.mode === 'insurance' && rnd() < 0.45
       c.paid = short ? Math.round(c.charges * (pol.coins ?? 0.85)) : c.charges
       c.adj = Math.round((c.charges - c.paid) * 100) / 100
@@ -655,7 +655,7 @@ export function buildDemoClaims(appts, clients, settings, today) {
       c.history.push({ at: c.closedAt, ev: `Payment posted — $${c.paid.toLocaleString()} via ${c.remittance.checkNo}${short ? ` (${c.adj.toLocaleString()} adjustment)` : ''}` })
     } else if (age >= 13) {
       c.submittedAt = stamp(Math.max(3, age - 4))
-      c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice sent to family' : `Claim submitted to ${c.payer}` })
+      c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice marked sent to family; the app sends nothing' : `Marked submitted to ${c.payer}; claim file saved locally, not transmitted` })
       c.status = 'submitted'
       if (age >= 30) lateSet.push(c)
       else midSet.push(c)

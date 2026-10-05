@@ -100,6 +100,8 @@ describe('claims engine', () => {
     const tx = submitPatch(st, c)
     expect(tx.claim.status).toBe('submitted')
     expect(tx.claim.history.length).toBe(2)
+    // honest wording: a local status change, never a transmission
+    expect(tx.claim.history[1].ev).toMatch(/^(Marked submitted to .+; claim file saved locally, not transmitted|Invoice marked sent to family .+; the app sends nothing)$/)
     expect(tx.apptPatches.every((p) => p.patch.billing.submittedAt)).toBe(true)
   })
 

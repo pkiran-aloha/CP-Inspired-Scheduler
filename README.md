@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Honest claim wording
+
+Process and Submit now say what actually happens. The toast reads "N claims marked submitted · file saved in Billed Files, nothing transmitted". New claim history entries read "Marked submitted to <payer>; claim file saved locally, not transmitted". Billed Files shows a recorded file as **Exported** (saved in this browser), not Sent or Delivered, and labels the 837P count "Summary, not X12". Stored values are unchanged, so saved workspaces need no migration. Old history entries keep their old text.
+
 ### Modal overflow and PDF export fixes
 
 Staff and client edit dialogs keep their Save/Cancel footer in view and scroll the form between header and footer. The profile sheet no longer runs off the right edge. Every modal now scrolls rather than clips when its content is taller than the screen. The payroll register and payroll summary PDFs download as real PDFs (they were 15-byte `[object Object]` files). Statement, intake, report and CMS-1500 PDFs map characters the PDF fonts cannot draw instead of printing them as gibberish.

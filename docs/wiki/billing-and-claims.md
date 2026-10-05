@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main aef21fe plus the fix/modals-pdf-exports branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main 0f08b56 plus the fix/honest-claim-wording branch on 2026-10-05; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -93,7 +93,7 @@ Billed Files lists the files recorded by Process, with range, format and status 
 - The content is a pipe-delimited text summary of `claim no | payer | charges`. It is not an X12 837P and no payer or clearinghouse can read it as one.
 - Download gives you the stored content. Resend increments the send count and downloads the file again. Neither action transmits anything.
 - Files from older workspaces that stored artifacts on the claim are also listed. A file with no stored content is shown with a disabled download. The app never rebuilds an old artifact from today's data.
-- The status column reads "sent" because that is the stored value. It means "recorded", not "received by a payer".
+- The status column reads "Exported" (the stored value is still `sent`). It means the file was recorded and saved in this browser, not received by a payer. The 837P count says "Summary, not X12".
 
 ### Appeals
 
@@ -156,7 +156,6 @@ Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary d
 ## Not yet built
 
 - No transmission of any kind: no 837P X12, no clearinghouse, no payer portal, no eligibility check. The "837P" billed file is a pipe-delimited summary.
-- Wording gap: the claim history entry reads "Claim submitted to <payer>", toasts say "submitted", and the billed file status reads "sent". All of these mean a local status change.
 - The CMS-1500 PDF still fills some boxes with derived values.
   - **Member ID and authorization number:** box 1a (`memberIdOf`) and boxes 11, 17 and 23 (`authNoOf`) print the client chart's own member ID and authorization number. Intake conversion carries them, or you enter them under Clients > Edit. A secondary filing prints the secondary coverage's values. A hash-derived demo placeholder is printed only when the chart has none.
   - **Other derived values:** the diagnosis comes from the client's program (`dxFor`); the patient account number (box 26) and box 29 are built from the client id; and the rendering NPI falls back to a derived `npiOf` value when the provider has none. Box 17 waits on referring-provider data. The PDF's own note line still says "e-file via ANSI 837P", which the app does not do.
