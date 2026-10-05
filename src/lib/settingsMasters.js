@@ -18,6 +18,7 @@ import { STATUSES, STATUS_ORDER, BILL_CODES, TYPES, isServiceAppt, uid } from '.
 import { abaActivityById, abaHoursCfg } from './abaHours'
 import { providerIdIssues } from './providerIds'
 import { planReasonLists, posFor } from './claims'
+import { travelChecksForStaffDay } from './travel'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -71,17 +72,17 @@ export const settingsModule = (id) => SETTINGS_MODULES.find((m) => m.id === id) 
 // accounts against it, payroll profiles store it) and the schedulable locations
 // the calendar and intake module already use — so no existing value dangles.
 const DEFAULT_OFFICE_ROWS = [
-  { name: 'Main Center', type: 'Center', isLocation: true, address: '1140 Sunset Crest Way', city: 'San Jose', state: 'CA', zip: '95124', phone: '(408) 555-0134' },
-  { name: 'Northside Center', type: 'Center', isLocation: true, address: '880 North First St', city: 'San Jose', state: 'CA', zip: '95112', phone: '(408) 555-0141' },
-  { name: 'North Clinic', type: 'Clinic', isLocation: true, address: '2200 Oakland Rd', city: 'San Jose', state: 'CA', zip: '95131', phone: '(408) 555-0148' },
+  { name: 'Main Center', type: 'Center', isLocation: true, address: '1140 Sunset Crest Way', city: 'San Jose', state: 'CA', zip: '95124', phone: '(408) 555-0134', lat: 37.2505, lng: -121.9375 },
+  { name: 'Northside Center', type: 'Center', isLocation: true, address: '880 North First St', city: 'San Jose', state: 'CA', zip: '95112', phone: '(408) 555-0141', lat: 37.3655, lng: -121.9255 },
+  { name: 'North Clinic', type: 'Clinic', isLocation: true, address: '2200 Oakland Rd', city: 'San Jose', state: 'CA', zip: '95131', phone: '(408) 555-0148', lat: 37.3842, lng: -121.885 },
   { name: 'Clinic Room 2', type: 'Treatment room', isLocation: false, parent: 'Main Center', city: 'San Jose', state: 'CA' },
   { name: 'Assessment Lab', type: 'Assessment room', isLocation: false, parent: 'Main Center', city: 'San Jose', state: 'CA' },
-  { name: 'Jefferson Elementary', type: 'School', isLocation: true, address: '1201 Jefferson Ave', city: 'San Jose', state: 'CA', zip: '95125' },
-  { name: 'Lincoln Elementary', type: 'School', isLocation: true, address: '450 Lincoln Ave', city: 'San Jose', state: 'CA', zip: '95126' },
+  { name: 'Jefferson Elementary', type: 'School', isLocation: true, address: '1201 Jefferson Ave', city: 'San Jose', state: 'CA', zip: '95125', lat: 37.305, lng: -121.95 },
+  { name: 'Lincoln Elementary', type: 'School', isLocation: true, address: '450 Lincoln Ave', city: 'San Jose', state: 'CA', zip: '95126', lat: 37.31, lng: -121.94 },
   { name: 'School-based', type: 'Program', isLocation: false, city: 'San Jose', state: 'CA', note: 'Payroll grouping for itinerant school staff' },
   { name: 'Home programs', type: 'Program', isLocation: false, city: 'San Jose', state: 'CA', note: 'Payroll grouping for in-home staff' },
-  { name: 'Community park session', type: 'Community', isLocation: true, city: 'San Jose', state: 'CA' },
-  { name: 'Library community session', type: 'Community', isLocation: true, city: 'San Jose', state: 'CA' },
+  { name: 'Community park session', type: 'Community', isLocation: true, city: 'San Jose', state: 'CA', lat: 37.33, lng: -121.99 },
+  { name: 'Library community session', type: 'Community', isLocation: true, city: 'San Jose', state: 'CA', lat: 37.345, lng: -121.96 },
   { name: 'Telehealth (video)', type: 'Telehealth', isLocation: true, city: '', state: '' },
   { name: 'Remote / telehealth', type: 'Program', isLocation: false, city: '', state: '', note: 'Payroll grouping for remote staff' },
 ]
@@ -95,6 +96,7 @@ export const DEFAULT_OFFICES = DEFAULT_OFFICE_ROWS.map((row, i) => ({
   taxIdType: row.taxIdType || 'EIN', ein: row.ein || '', logoDataUrl: row.logoDataUrl || '',
   npi: '', timezone: 'America/Los_Angeles', scope: true, active: true,
   note: row.note || '', createdAt: 1,
+  lat: row.lat ?? null, lng: row.lng ?? null,
 }))
 
 export const OFFICE_TYPES = ['Center', 'Clinic', 'School', 'Community', 'Telehealth', 'Treatment room', 'Assessment room', 'Program', 'Administrative']
@@ -258,6 +260,7 @@ export const DEFAULT_APPOINTMENT_VALIDATIONS = {
     missingNpi: 'flag',
     payRate: 'flag',
     unavailable: 'warn',
+    travel: 'warn',
   },
   client: {
     overlap: 'warn',
@@ -635,6 +638,22 @@ export function evaluateAppointmentValidations(state, draft = {}) {
     }
   }
 
+  // 3b) Travel feasibility — does this staff have enough time to get from previous to this, and this to next?
+  if (draft.date && Number.isFinite(draft.start) && Number.isFinite(draft.end) && draft.end > draft.start && staffIds.length) {
+    // group appts by staff for this date
+    for (const sid of staffIds) {
+      const sameDay = appts
+        .filter((a) => a.date === draft.date && a.id !== draft.id && (a.staffIds || []).includes(sid) && !isCancelStatus(settings, a.status))
+        .sort((a, b) => a.start - b.start)
+      const checks = travelChecksForStaffDay(state, sid, draft, sameDay)
+      for (const c of checks) {
+        const label = c.severity === 'impossible' ? 'Travel impossible' : 'Tight travel'
+        // include honest copy suffix in message already, but ensure rule id is staff.travel
+        push('staff', 'travel', label, `${c.message}. Estimated from straight-line distance × 1.3 road factor at 25 mph; not a map route.`)
+      }
+    }
+  }
+
   // 4) Client Assignment (check if staff belongs to client's clinical team when teams are configured)
   if (isClinic && clientIds.length > 0 && staffIds.length > 0 && arr(state?.teams).length > 0) {
     for (const cid of clientIds) {
@@ -810,6 +829,13 @@ export function planSettingsOp(state, op, payload = {}) {
       if (item.npi && !isNpi(item.npi)) return fail('An office NPI must be exactly 10 digits (or left blank).')
       if (item.ein && !isTaxId(item.ein)) return fail('An office Tax ID / EIN looks like 12-3456789.')
       if (item.email && !isEmail(item.email)) return fail('That office email address does not look right.')
+      const latRaw = item.lat
+      const lngRaw = item.lng
+      const lat = latRaw === '' || latRaw == null ? null : Number(latRaw)
+      const lng = lngRaw === '' || lngRaw == null ? null : Number(lngRaw)
+      if (lat != null && (!Number.isFinite(lat) || lat < -90 || lat > 90)) return fail('Latitude must be between -90 and 90, or blank.')
+      if (lng != null && (!Number.isFinite(lng) || lng < -180 || lng > 180)) return fail('Longitude must be between -180 and 180, or blank.')
+      if ((lat == null) !== (lng == null)) return fail('Enter both latitude and longitude, or leave both blank.')
       const isLocation = item.excludeFromLocations != null ? !item.excludeFromLocations : item.isLocation !== false
       const next = {
         id: existing?.id || item.id || `off-${uid()}`,
@@ -826,6 +852,7 @@ export function planSettingsOp(state, op, payload = {}) {
         npi: clean(item.npi, 10), timezone: clean(item.timezone, 40) || 'America/Los_Angeles',
         scope: item.scope !== false, active: item.active !== false, note: clean(item.note, 240),
         createdAt: existing?.createdAt || Date.now(),
+        lat, lng,
       }
       const offices = existing ? rows.map((o) => (o.id === existing.id ? next : o)) : [...rows, next]
       const cascades = existing && existing.name !== name ? renameOfficeCascade(state, existing.name, name) : null
@@ -1382,6 +1409,17 @@ export function normalizeSettingsMasters(state) {
   else {
     const offices = settings.offices.map((o) => {
       const isLoc = o.excludeFromLocations != null ? !o.excludeFromLocations : o.isLocation !== false
+      const latRaw = o.lat === '' || o.lat == null ? null : Number(o.lat)
+      const lngRaw = o.lng === '' || o.lng == null ? null : Number(o.lng)
+      let lat = Number.isFinite(latRaw) ? latRaw : null
+      let lng = Number.isFinite(lngRaw) ? lngRaw : null
+      if (lat == null || lng == null) {
+        const def = DEFAULT_OFFICES.find((d) => d.name === o.name)
+        if (def?.lat != null && def?.lng != null) {
+          if (lat == null) lat = def.lat
+          if (lng == null) lng = def.lng
+        }
+      }
       return {
         id: o.id || `off-${uid()}`, code: o.code || '', name: clean(o.name, 80), type: o.type || 'Center',
         isLocation: isLoc, excludeFromLocations: !isLoc, parent: o.parent || '',
@@ -1390,6 +1428,7 @@ export function normalizeSettingsMasters(state) {
         taxIdType: o.taxIdType || 'EIN', ein: o.ein || '', logoDataUrl: o.logoDataUrl || '',
         npi: o.npi || '', timezone: o.timezone || 'America/Los_Angeles',
         scope: o.scope !== false, active: o.active !== false, note: o.note || '', createdAt: o.createdAt || Date.now(),
+        lat, lng,
       }
     })
     // the payroll office names security scopes against must always resolve
@@ -1459,6 +1498,16 @@ export function normalizeSettingsMasters(state) {
   if (!arr(settings.clearinghouses).length) { next.clearinghouses = DEFAULT_CLEARINGHOUSES; changed = true }
   if (!settings.evvConfig) { next.evvConfig = { ...DEFAULT_EVV_CONFIG }; changed = true }
   if (!settings.appointmentValidations) { next.appointmentValidations = { ...DEFAULT_APPOINTMENT_VALIDATIONS }; changed = true }
+  else {
+    const av = settings.appointmentValidations
+    const merged = {
+      staff: { ...DEFAULT_APPOINTMENT_VALIDATIONS.staff, ...(av.staff || {}) },
+      client: { ...DEFAULT_APPOINTMENT_VALIDATIONS.client, ...(av.client || {}) },
+      payer: { ...DEFAULT_APPOINTMENT_VALIDATIONS.payer, ...(av.payer || {}) },
+      aba: { ...DEFAULT_APPOINTMENT_VALIDATIONS.aba, ...(av.aba || {}) },
+    }
+    if (JSON.stringify(merged) !== JSON.stringify(av)) { next.appointmentValidations = merged; changed = true }
+  }
   if (!settings.subscription) { next.subscription = { ...DEFAULT_SUBSCRIPTION }; changed = true }
   if (!settings.notifications) { next.notifications = { ...DEFAULT_NOTIFICATIONS }; changed = true }
   if (!settings.system) { next.system = { ...DEFAULT_SYSTEM_CONFIG }; changed = true }

@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05**. Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (B3 Slice1 landed). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green and deployed at `b914709` (CI run 37268758409); working tree clean. All hackathon waves and follow-ups 1 (demo seed polish) and 2 (backlog fixes) are shipped. **Next: follow-up 3, scheduling idea B3** (see "Next" below; two product questions are open).
+- State at handoff: `main` green at `4042e77` before B3; Slice1 branch `feat/travel-check` in progress (travel.js pure logic, office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, tests). Next: land Slice1, then B3 Slice2 route view. See "Next" below.
 
 ## How the maintainer works
 
@@ -23,6 +23,7 @@ Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fix
 - **2a, staff qualification matching** (`heldQualifications` in `settingsMasters.js`). Cause: held values were compared whole, so cert "BCBA #5-12-0034" and role "BCBA · Clinical Supervisor" never matched the BCBA qualification; every staff member except one whose role was exactly "BCBA" got the Staff Qualification chip, RBTs on 97153 included. Now each value is also read as its "·" parts, without the "#number", and through the qualifications' "Applies to" job titles.
 - **2b, one Convert button** (`IntakeDetail.jsx`). The Overview's "Conversion readiness" panel no longer has its own `iq-convert` button; `iq-advance` in the Next box is the only way in. The panel now shows a status line (`iq-convert-note`).
 - **2c, intake booking checks** (`scheduleIntakeAssessment` in `store.jsx`). The visit stays client-less by design, but the draft now goes through `evaluateAppointmentValidations`: Stop items refuse it ("Not booked. Staff Overlap: …"), Warn items are appended to the confirmation ("Review: …"). Client checks cannot apply before conversion. Item 2 (backlog fixes) is complete.
+- **3a, B3 travel feasibility Slice1** (`src/lib/travel.js`, `settingsMasters.js`, `panels-practice.jsx`, `bookingChecks.js`). Pure travel engine: haversineMi, estimateTravelMinutes (1.3× road factor at 25 mph +5 min buffer, tight +10), resolveApptLocation (office lat/lng seeded for Main Center etc + client geo [lat,lng], skips telehealth/unknown), travelLeg, travelChecksForStaffDay (prev/next per clinician, severity impossible/tight, message "needs about X min from Y to Z; gap is N min" + honest copy "estimated from straight-line distance; not a map route"), routeForDay and suggestRouteOrder for Slice2 reuse, TRAVEL_DEFAULTS. Office master now has lat/lng optional with validation (both or neither, -90..90/-180..180) and normalization backfills demo coords. DEFAULT_OFFICE_ROWS seeded with San Jose coords. New rule staff.travel defaults Warn, merged in normalizeSettingsMasters. evaluateAppointmentValidations adds travel checks per staff per day. candidateVerdicts inherits via validation. Booking dialog Checks rail shows travel under Practice rules. Tests: travel.test.js (8). Item 3 Slice1 complete; Slice2 route view next.
 
 Hackathon wave 6: Integrations, honest partial (#3, #11, #12). This wave is complete.
 - **Slice 1, telehealth room link** (`telehealthRoomFor` and `isWebUrl` in `settingsMasters.js`). Reuses the existing `int-telehealth` integration row's `roomUrl`; `integration.patch` now refuses a non-`https://` link. The booking dialog shows it for POS-10 locations and `buildICS` takes an optional `roomFor` to add it to `.ics` events. One practice-wide room; no per-staff rooms yet.
@@ -126,18 +127,15 @@ Scheduling intelligence round:
 
 Fixes: status-removal reassignment, payer template delete crash, send-for-approval, SecurityView import, read-only settings Seg, IntakeDetail hook order, current user from the demo account switcher.
 
-## Next — follow-up 3: B3 travel feasibility and routing
+## Next — follow-up 3: B3 travel feasibility and routing (Slice2)
 
-The maintainer chose the order 1 demo seed polish → 2 backlog fixes → 3 B3 (2026-10-05). 1 and 2 are done. B3 is next and is the last planned item.
+Slice1 is done (branch feat/travel-check, see Shipped above): travel.js pure engine, office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, tests. Two product questions from earlier are resolved with recommended choices: check+suggest scope, client geo + office lat/lng, skip unknown.
 
-Spec: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Data already there: `clients[].geo` (`[lat, lng]`), drive appointments with origin/destination/mileage, `appointmentValidationsCfg` (Warn by default, Stop is the practice's choice), the booking dialog's Checks rail (`BookingChecks.jsx`, `bookingChecks.js`).
+**Slice2 remaining:** per-clinician day route view: legs, travel minutes, tight/impossible legs, suggested re-order read-only with miles saved, nothing moves. Reuse travel.js routeForDay and suggestRouteOrder. Add UI in Scheduler Insights or Day view? Spec suggests per-clinician day route view. Keep smallest change, one Undo not needed since read-only. Update README, HANDOFF, wiki scheduling.md, marketing docs. Land on main with CI green.
 
-**Two product questions were asked and not yet answered. Ask the maintainer again before building:**
+Spec: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Data: `clients[].geo`, office lat/lng, `appointmentValidationsCfg`, Checks rail, travel.js.
 
-1. **Scope.** Recommended: *check + suggest.* Slice 1 adds a travel check to the booking dialog's Checks rail ("Saija needs about 22 min from the previous session; the gap is 10 min"), for the previous and the next session that day. Slice 2 adds a per-clinician day route view: legs, travel minutes, tight or impossible legs, and a suggested re-order shown read-only with miles saved. Nothing moves on the calendar. Alternatives: also an "Apply this order" action (swaps that clinician's time slots as one Undo; the UI must tell the scheduler to confirm with each family), or check only.
-2. **Where coordinates come from.** Recommended: client `geo` for home, school and community sessions, plus a new optional lat/lng on Settings > Organization offices (seeded for the demo offices) for center sessions; unknown places are skipped, never guessed. Alternative: client `geo` only, with center sessions treated as the same place when the location name matches.
-
-Defaults that need no question: straight-line distance × 1.3 road factor at a configurable average speed (25 mph) plus a small buffer; a new `staff.travel` rule in Appointment Validations that defaults to Warn; pure logic in a new `src/lib/travel.js` with node-runnable checks; honest copy ("estimated from straight-line distance; not a map route").
+Defaults: 1.3 road factor at 25 mph +5 buffer, staff.travel Warn, pure logic in travel.js, honest copy "estimated from straight-line distance; not a map route".
 
 ## Hackathon waves (all shipped)
 
@@ -148,7 +146,7 @@ Defaults that need no question: straight-line distance × 1.3 road factor at a c
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• demo family balances, Cabinet and CEU data shipped 2026-10-05 (follow-ups 1a, 1c)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
-| Scheduling idea B3 | Travel feasibility & route sequencing | Next: follow-up 3 (see "Next" above). |
+| Scheduling idea B3 | Travel feasibility & route sequencing | Slice1 shipped (travel check in booking dialog, office lat/lng, staff.travel Warn). Slice2 next: per-clinician day route view with legs and suggested re-order read-only. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 
 ## Known issues / backlog (not yet fixed)

@@ -8,7 +8,7 @@ import {
 } from '../../lib/settingsMasters'
 
 const fmtWhen = (ts) => (ts ? new Date(ts).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—')
-const blankOffice = { name: '', type: 'Center', isLocation: true, excludeFromLocations: false, parent: '', address: '', city: '', state: 'CA', zip: '', addressNotes: '', phone: '', fax: '', email: '', taxIdType: 'EIN', ein: '', npi: '', timezone: 'America/Los_Angeles', scope: true, active: true, note: '' }
+const blankOffice = { name: '', type: 'Center', isLocation: true, excludeFromLocations: false, parent: '', address: '', city: '', state: 'CA', zip: '', addressNotes: '', phone: '', fax: '', email: '', taxIdType: 'EIN', ein: '', npi: '', timezone: 'America/Los_Angeles', scope: true, active: true, note: '', lat: null, lng: null }
 
 /* ── Organization ─────────────────────────────────────────────────────────── */
 
@@ -146,6 +146,8 @@ export function OrganizationPanel({ state, actions, toast, readOnly }) {
               <Row label="Fax"><TextField value={editor.fax || ''} onCommit={(v) => setEditor({ ...editor, fax: v })} wide={160} testid="set-office-f-fax" /></Row>
               <Row label="Email"><TextField value={editor.email || ''} onCommit={(v) => setEditor({ ...editor, email: v })} wide={220} testid="set-office-f-email" /></Row>
               <Row label="NPI" hint="Optional 10-digit NPI for this location"><TextField value={editor.npi} onCommit={(v) => setEditor({ ...editor, npi: v })} wide={160} testid="set-office-f-npi" /></Row>
+              <Row label="Latitude" hint="Optional — used for travel time estimate; e.g. 37.25"><TextField value={editor.lat ?? ''} onCommit={(v) => setEditor({ ...editor, lat: v })} wide={160} placeholder="37.25" testid="set-office-f-lat" /></Row>
+              <Row label="Longitude" hint="Optional — e.g. -121.94; needs latitude too"><TextField value={editor.lng ?? ''} onCommit={(v) => setEditor({ ...editor, lng: v })} wide={160} placeholder="-121.94" testid="set-office-f-lng" /></Row>
               <Row label="Timezone">
                 <Select value={editor.timezone || TIMEZONES[0]} wide={220} testid="set-office-f-tz" options={TIMEZONES.map((t) => ({ value: t, label: t.replace('America/', '') }))} onChange={(v) => setEditor({ ...editor, timezone: v })} />
               </Row>
