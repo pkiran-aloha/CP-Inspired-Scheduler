@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -110,7 +110,7 @@ Load a local 835 file and see each claim match, amount and adjustment before any
 
 ### A/R: a receivable you can trust, split the way it is owed
 
-A/R Manager counts each dollar once. Insurance balances and the patient share the payer actually reported sit in separate buckets, and an unknown remainder is never treated as family debt.
+A/R Manager counts each dollar once. Insurance balances and the patient share the payer actually reported sit in separate buckets, and an unknown remainder is never treated as family debt. Its Days in A/R uses the same DSO calculation as Billing Health on the dashboard: a shared 90-day service-start charge lookback, including drafts. At matching as-of dates, the figures match.
 
 - Aging by client or by payer: current, 31–60, 61–90, 91–120 and 121+ days, with an over-90 KPI.
 - Patient share is capped at the open primary balance and held while a secondary filing is still pending.
@@ -219,7 +219,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Intake | `src/lib/intake.js`, `src/lib/intakeDocs.js` (packet and summary PDFs), `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
 | Billing, claims & CMS-1500 | `src/lib/claims.js` (`lineModifiers`, `mergeSameDayLines`, `posFor`), `src/lib/authUnits.js` (`unitRuleFor`), `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |
 | ERA posting, payments & recoupments | `src/lib/era.js`, `src/lib/eraPosting.js`, `src/lib/paymentLedger.js` (`planRecoupment`, patient receipts), `src/components/PaymentCenterView.jsx` |
-| A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/lib/claims.js` (AR engine), `src/lib/statements.js` (client statements), `src/lib/settingsMasters.js` (`paymentLinkFor`), `src/lib/billingDocs.js` |
+| A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/components/DashboardView.jsx` (Billing Health DSO display), `src/lib/claims.js` (AR engine), `src/lib/billingKpis.js` (shared DSO), `src/lib/statements.js` (client statements), `src/lib/settingsMasters.js` (`paymentLinkFor`), `src/lib/billingDocs.js` |
 | Payroll | `src/lib/payroll.js`, `src/lib/payrollExport.js`, `src/components/payroll/*`, `src/lib/settingsMasters.js` (earning codes, overtime floor) |
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/AnalyticsView.jsx` |
 | Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |

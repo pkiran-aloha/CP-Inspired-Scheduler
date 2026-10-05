@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (follow-up 4, payer qualification modifiers + staff education, and a small correctness batch, landed). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (A/R DSO consistency added; follow-up 4 and the small correctness batch are already on `main`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green at `996354a`; B3 and follow-up 4 are merged. The small correctness batch (report Auto-fill unit rule, appeals as a marker, payer-edit Undo) lands with this change. Next: pick from "Next" below.
+- State at handoff: `main` green at `22a465a`; B3, follow-up 4 and the small correctness batch (report Auto-fill unit rule, appeals as a marker, payer-edit Undo) are merged. The DSO consistency change is the current feature. Next: pick from "Next" below.
 
 ## How the maintainer works
 
@@ -15,6 +15,8 @@ Last updated **2026-10-05** (follow-up 4, payer qualification modifiers + staff 
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+- **A/R DSO consistency.** Billing Health now takes DSO from `arOf`, the same calculation used by the AR Manager: open primary A/R divided by average daily charges from primary non-void claims whose `dosFrom` is on or after the date 90 days before the as-of date; draft charges are included. The dashboard renders an em dash when there is no denominator, matching the AR Manager. Covered by `billingKpis.test.js` and `dashboard.test.jsx`. DSO mismatch #7 is resolved; the aging engines remain a separate mismatch.
 
 Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fixes, 3 B3 travel routing, 4 payer qualification modifiers, 5 small correctness batch).
 - **5, small correctness batch.** Three fixes. **Reports > Validations Auto-fill** (and the Billing-readiness rows and their `estCharge` in the same report) now use the payer's unit rule — payer override, then payer service, then service master, then the code — and its rounding, through `unitRuleFor`/`unitsFor`, so the number the report suggests is the number that lands; it used to divide the raw duration by the code's unit size and round to two decimals. **Appeals** no longer write a status: `fileAppeal` keeps the claim's own status (a denial stays Denied and stays in A/R) and stores an `appeal` marker; the new `appealOutcome` returns a won claim to Submitted awaiting the payer's payment instead of marking it Paid with no money posted, and Mark Lost leaves it Denied. Every claim status is now a `CLAIM_STATUSES` value, the desk KPIs count the claim again, and a saved workspace that still holds the retired `appealed` status is healed on load by `normalizeAppealedClaims`. **Payer edits** are one Undo — the profile fields, the inline list cells and the Billing Rules panels (Payment Terms already was); the payer-contract cleanup inside a service delete passes `noSnap` so it cannot leave a half-Undo behind, and service and custom-field master edits still take no snapshot. Tests: `autoFillUnits.test.js`, `appeals.test.jsx`, plus new cases in `store.test.js` and `mastersHub.test.jsx`.
@@ -130,9 +132,9 @@ Scheduling intelligence round:
 
 Fixes: status-removal reassignment, payer template delete crash, send-for-approval, SecurityView import, read-only settings Seg, IntakeDetail hook order, current user from the demo account switcher.
 
-## Next — after the correctness batch
+## Next — after DSO consistency
 
-B3, follow-up 4 and the small correctness batch are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the ``docs/wiki/architecture.md`` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), or density optimiser (B2), or one of the smaller architecture mismatches (the two aging engines, the two DSO formulas, the `build*` document helpers only tests import).
+B3, follow-up 4, the small correctness batch and DSO consistency are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), density optimiser (B2), or one of the smaller architecture mismatches (the two aging engines, or the `build*` document helpers only tests import). The DSO formula mismatch is resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
@@ -153,15 +155,10 @@ Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integrations panel stores API keys in plain local settings (needs the backend).
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
-- Merged remote branches still on GitHub: `docs/agents-handoff` and later feature branches. The maintainer deletes them with `git push origin --delete …`.
 
 ## Resume prompts (paste into a new session; any agent)
 
 These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can read the repo and run git. Agents without a local clone should first clone `https://github.com/pkiran-aloha/CP-Inspired-Scheduler`.
-
-**Continue the plan (B3 next):**
-
-> Read `docs/HANDOFF.md` and `AGENTS.md` in this repo. Sync with GitHub: `git fetch`, confirm `main` matches `origin/main`, and report anything new (including any red CI on `main`, which you fix first). Then continue with follow-up 3, scheduling idea B3 (travel feasibility and routing), as described in HANDOFF "Next". Before writing code, ask me the two open product questions listed there, with your recommendation. Then build it one slice per branch: land each on `main`, check CI, and update the README, HANDOFF, wiki and marketing docs as AGENTS.md requires.
 
 **Let me pick the next work:**
 

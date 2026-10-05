@@ -1,7 +1,7 @@
 # Architecture
 
-_Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/components/HelpView.jsx_
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
+_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -82,7 +82,7 @@ Git workflow, in short: branch from an up-to-date `main` (`feat/`, `fix/`, `chor
 
 ## Known doc/code mismatches
 
-Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers, the Validations Auto-fill button — it now follows the payer unit rule — and the `appealed` claim status — an appeal is now a marker on the claim, not a status) were removed. These are recorded, not fixed, and each one is a candidate for a small cleanup branch.
+Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers, the Validations Auto-fill button — it now follows the payer unit rule — and the `appealed` claim status — an appeal is now a marker on the claim, not a status) were removed. The former DSO mismatch (#7) is resolved by the DSO-consistency change in this branch: Billing Health now reuses the AR Manager's DSO. The remaining items are recorded, not fixed, and each is a candidate for a small cleanup branch.
 
 Docs versus repo:
 
@@ -95,20 +95,19 @@ Docs versus repo:
 
 Billing and A/R behaviour (ERA, payments, secondary, A/R):
 
-7. Two DSO formulas exist. The AR Manager (`arOf`) divides open A/R by charges with a date of service start in the last 90 days, drafts included. The dashboard's Billing Health "Days in A/R" (`billingKpis.js`) divides open A/R by charges whose date of service end falls in the last 90 days, drafts excluded. The two numbers can differ for the same data.
-8. Two aging engines exist. `arOf` ages all open primary claims in five buckets (0 to 30, 31 to 60, 61 to 90, 91 to 120, 121 plus). `agingOf` and `claimStats` age only Submitted claims in four (0 to 30, 31 to 60, 61 to 90, 90 plus).
-9. The AR Manager table merges 91 to 120 and 121 plus into one "91-120+" column, while the KPI strip and CSV keep them separate.
-10. The secondary screen is titled "Secondary Billing", while the nav item, the Billing desk heading and the README call it "Secondary Queue".
-11. Billed files are saved with status `sent` and `billedThrough: 'ch'`, and the Billed Files list defaults a missing status to `sent`, although nothing is ever transmitted (`submitClaims` in `store.jsx`, `BilledFilesView.jsx`). The "837P" file content is a pipe-delimited summary, not X12.
-12. In `ArManagerView.jsx`, `clientPick` is never set to a non-empty value, so its "Clear filter" button can never appear.
+7. Two aging engines exist. `arOf` ages all open primary claims in five buckets (0 to 30, 31 to 60, 61 to 90, 91 to 120, 121 plus). `agingOf` and `claimStats` age only Submitted claims in four (0 to 30, 31 to 60, 61 to 90, 90 plus).
+8. The AR Manager table merges 91 to 120 and 121 plus into one "91-120+" column, while the KPI strip and CSV keep them separate.
+9. The secondary screen is titled "Secondary Billing", while the nav item, the Billing desk heading and the README call it "Secondary Queue".
+10. Billed files are saved with status `sent` and `billedThrough: 'ch'`, and the Billed Files list defaults a missing status to `sent`, although nothing is ever transmitted (`submitClaims` in `store.jsx`, `BilledFilesView.jsx`). The "837P" file content is a pipe-delimited summary, not X12.
+11. In `ArManagerView.jsx`, `clientPick` is never set to a non-empty value, so its "Clear filter" button can never appear.
 
 Other findings from writing these pages:
 
-13. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
-14. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
-15. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
-16. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
+12. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
+13. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
+14. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
+15. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
 
 Found while syncing with the billing-rules work:
 
-17. In Payer, Billing Rules, Claims Settings, "Separate Claim By: Supervising Provider" does nothing (`separateKey` in `claims.js` returns no key because sessions record no supervisor). The merge checkbox label says "same service provider", while `mergeSameDayLines` also requires the same code, modifiers, rate and unit rule. Box 17 and 19 options, box 33B ID types, claim file options, appointment time and the taxonomy checkboxes are stored but read by nothing (listed in `docs/specs/configurable-billing.md`).
+16. In Payer, Billing Rules, Claims Settings, "Separate Claim By: Supervising Provider" does nothing (`separateKey` in `claims.js` returns no key because sessions record no supervisor). The merge checkbox label says "same service provider", while `mergeSameDayLines` also requires the same code, modifiers, rate and unit rule. Box 17 and 19 options, box 33B ID types, claim file options, appointment time and the taxonomy checkboxes are stored but read by nothing (listed in `docs/specs/configurable-billing.md`).

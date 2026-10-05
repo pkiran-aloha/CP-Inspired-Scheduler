@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 
@@ -33,7 +33,7 @@ The default board is Pulse, Trend, Mix, Top Breakdown, Heatmap and Billing Healt
 - Denial rate: claims denied at least once over claims submitted.
 - Net collection rate: payer, secondary and patient payments over charges less contractual adjustments, for claims whose last service date is in the window.
 - Cash posted: every ledger line dated in the window, net of reversals and recoupments.
-- Days in A/R: open primary A/R over average daily charges across the last 90 days (point in time, no change figure).
+- Days in A/R: the same formula as the AR Manager — open primary A/R over average daily primary charges in the 90-day lookback from service start, with draft charges included (point in time, no change figure). The dashboard uses the range's ending date as its as-of date; at matching as-of dates, both views show the same value. If the lookback has no charges, it displays a dash. See [Accounts receivable](accounts-receivable.md#formulas).
 - A/R over 90 days: share of open primary A/R older than 90 days (point in time).
 - Charge lag: average days from last service date to submission.
 - Recouped: money payers took back (see the Payment Center in [Billing and claims](billing-and-claims.md)).

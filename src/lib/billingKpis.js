@@ -6,8 +6,8 @@
 // have no delta. Self-pay invoices are left out of claim-quality rates.
 // Pure: no React, no store.
 
-import { arOf, dueOf, isPrimaryReceivable } from './claims'
-import { addDays, isoDate, parseISO } from './date'
+import { arOf } from './claims'
+import { isoDate, parseISO } from './date'
 
 const isoOf = (t) => (t ? isoDate(new Date(t)) : '')
 const pct = (n, d) => (d ? Math.round((n / d) * 100) : 0)
@@ -45,12 +45,8 @@ export function billingKpis(state, days, prior, { today } = {}) {
   const prev = windowFigures(state, prior)
   const d = (c, p) => (p ? Math.round(((c - p) / Math.abs(p)) * 100) : c ? 100 : 0)
   const ar = arOf(state, asOf)
-  const last90 = new Set(Array.from({ length: 90 }, (_, i) => isoDate(addDays(parseISO(asOf), -i))))
-  const dailyCharges = Object.values(state.claims || {})
-    .filter((c) => isPrimaryReceivable(c) && c.status !== 'draft' && last90.has(c.dosTo))
-    .reduce((t, c) => t + (c.charges || 0), 0) / 90
-  const open = ar.totals.totalAR || Object.values(state.claims || {}).filter((c) => isPrimaryReceivable(c) && c.status !== 'draft').reduce((t, c) => t + Math.max(0, dueOf(c)), 0)
-  const dso = dailyCharges ? Math.round(open / dailyCharges) : 0
+  const open = ar.totals.totalAR
+  const dso = ar.totals.dso
   return [
     { k: 'cleanRate', label: 'Clean claim rate', value: cur.cleanRate, fmt: 'pct', delta: d(cur.cleanRate, prev.cleanRate),
       help: `Claims submitted in the window that were never denied or rebilled ÷ claims submitted (${cur.submitted}). Target 95%+.` },
@@ -61,7 +57,7 @@ export function billingKpis(state, days, prior, { today } = {}) {
     { k: 'cash', label: 'Cash posted', value: Math.round(cur.cash), fmt: 'money', delta: d(cur.cash, prev.cash),
       help: 'Every ledger line dated in the window: remittances and receipts, net of reversals and recoupments.' },
     { k: 'dso', label: 'Days in A/R', value: dso, delta: null,
-      help: `Open primary A/R today ($${Math.round(open).toLocaleString()}) ÷ average daily charges over the last 90 days. Target under 35–45 days.` },
+      help: `Same DSO as AR Manager: open primary A/R as of ${asOf} ($${Math.round(open).toLocaleString()}) ÷ average daily primary charges in the 90-day lookback from service start; drafts are included. Target under 35–45 days.` },
     { k: 'ar90', label: 'A/R over 90 days', value: pct(ar.totals.over90 || 0, ar.totals.totalAR || 0), fmt: 'pct', delta: null, invert: true,
       help: 'Share of open primary A/R older than 90 days, as of today. Target under 10–15%.' },
     { k: 'lag', label: 'Charge lag (days)', value: cur.lag, delta: d(cur.lag, prev.lag), invert: true,

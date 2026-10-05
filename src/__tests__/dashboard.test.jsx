@@ -76,6 +76,13 @@ describe('dashboard page', () => {
     expect(screen.getByTestId('dw-kpi-sessions')).toBeTruthy()
   })
 
+  it('shows a dash for Days in A/R when the shared charge lookback has no denominator', async () => {
+    localStorage.setItem(KEY, JSON.stringify({ ...blankState(), claims: {}, payments: {} }))
+    R(<App />)
+    fireEvent.click(screen.getByTestId('nav-dashboard'))
+    expect((await screen.findByTestId('dw-kpi-dso')).textContent).toContain('—')
+  })
+
   it('add from the gallery, remove, reorder — all persisted', async () => {
     const { container } = R(<App />)
     fireEvent.click(screen.getByTestId('nav-dashboard'))
