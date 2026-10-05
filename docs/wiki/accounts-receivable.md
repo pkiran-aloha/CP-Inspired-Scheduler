@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx_
-_Last synced with main at f1bc3cd on 2026-10-05 (plus online payment link)._
+_Last synced with main at c5211e0 on 2026-10-05 (plus demo family balances)._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -59,7 +59,7 @@ The statement is numbered `STM-<year><month>-<nnn>`. It freezes one line per cla
 
 If the practice saved an online payment link (for example a Stripe Payment Link) in Settings > Clinical Integrations, the PDF prints it under "How to pay" while the statement has a balance and is not void (`paymentLinkFor`). Paying online changes nothing here until someone records the receipt in the Payment Center.
 
-Issuing, marking sent and voiding are each one Undo. Statements are in workspace backups. The demo data has no family balances, so the list starts empty. `src/lib/statements.js`; tests: `statements.test.jsx`.
+Issuing, marking sent and voiding are each one Undo. Statements are in workspace backups. The demo data leaves three families owing a payer-reported coinsurance share (`seedFamilyShares` in `src/lib/seed.js`), so statements can be issued straight away; clients with secondary coverage are skipped so the COB demo is unchanged. `src/lib/statements.js`; tests: `statements.test.jsx`.
 
 ### The desk's aging indicators
 

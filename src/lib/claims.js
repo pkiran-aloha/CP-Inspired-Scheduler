@@ -835,8 +835,8 @@ export function paymentsFromClaims(claims, { at = Date.now() } = {}) {
     const kind = rem.checkNo && /^CHK/i.test(rem.checkNo) ? 'check' : rem.kind || 'eob'
     out[`pay-${c.id}`] = {
       id: `pay-${c.id}`, claimId: c.id, clientId: c.clientId, payer: c.payer,
-      kind, amount: r2(rem.amount || 0), adj: r2(rem.adj || 0), patientResp: 0,
-      ref: rem.checkNo || '—', date: c.closedAt ? isoDate(new Date(c.closedAt)) : isoDate(new Date(at)),
+      kind, amount: r2(rem.amount || 0), adj: r2(rem.adj || 0), patientResp: r2(rem.patientResp || 0),
+      ref: rem.checkNo || '—', date: isoDate(new Date(c.closedAt || rem.at || at)),
       reconciled: false, note: rem.note || '', attachments: [],
       source: null, reversalOf: null, createdAt: at, createdBy: 'Aloha (local)',
     }
