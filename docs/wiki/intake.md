@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at c5211e0 on 2026-10-05 (plus demo family balances)._
+_Last synced with main at 043ed5a on 2026-10-05 (plus single Convert button)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -72,7 +72,7 @@ Six tabs: Overview, Contacts, Benefits (VOB), Clinical, Docs and consents, Timel
 
 ### Converting to a client
 
-Convert is available only from Authorization with every converted-gate item met. One action creates the client chart, links the request and the client both ways, copies attribution to the referral source, and (if an assessment visit exists) attaches the new client to that appointment and confirms it. One Undo reverses all of it.
+Convert is available only from Authorization with every converted-gate item met. There is one Convert button, **Convert to client** in the Next box at the top of the request; the Overview's "Conversion readiness" panel only says what is still outstanding. One action creates the client chart, links the request and the client both ways, copies attribution to the referral source, and (if an assessment visit exists) attaches the new client to that appointment and confirms it. One Undo reverses all of it.
 
 Mapping notes:
 - **Approved units:** the payer's approved units (15-minute units, the Medicaid norm) become the client's authorization pool under 97153. They are marked *converted, verify against the payer letter*, because the request does not record which codes the units cover. Split them by code under Clients > Edit; saving confirms them. The unit guard in [Scheduling](scheduling.md) uses this pool.
