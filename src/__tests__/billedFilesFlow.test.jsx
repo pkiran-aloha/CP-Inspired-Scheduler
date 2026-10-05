@@ -37,6 +37,11 @@ describe('billing file integrity', () => {
     const row = await screen.findByTestId(`bf-row-${file.id}`)
     expect(row.textContent).toContain(file.fileName)
     expect(row.textContent).toContain('1 send')
+    // stored status stays `sent`, but the screen never claims a delivery
+    expect(file.status).toBe('sent')
+    expect(row.textContent).toContain('Exported')
+    expect(screen.getByTestId('bf-kpi-sent').textContent).not.toMatch(/Delivered|Sent/)
+    expect(screen.getByTestId('bf-kpi-sent').textContent).toContain('Saved locally')
 
     fireEvent.keyDown(window, { key: 'u' })
     await waitFor(() => expect(Object.keys(saved().billedFiles)).toHaveLength(0))
