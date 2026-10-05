@@ -53,6 +53,8 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - Undo history is tab-local (25 steps). Never persist it.
 - Beware import cycles: `seed.js` imports `authBudget.js`; `master.js` imports `seed.js`. Keep `authBudget.js` free of `master.js` imports (that's why `authUnits.js` is separate).
 - Money is handled in cents internally (`cents()` in paymentLedger); refuse values with more than 2 decimals.
+- Staff credentials are free text (cert "BCBA #5-12-0034", role "BCBA · Clinical Supervisor"). Check them with `staffSatisfiesQualification` in `settingsMasters.js`; never compare cert or role strings directly.
+- Anything that books an appointment outside the booking dialog (for example the intake assessment) runs `evaluateAppointmentValidations` on the draft: refuse on Stop items, name Warn items in the result message.
 - A claim line can bill several appointments, because same-day sessions merge under the Medicaid rule. Read a line's appointments with `lineApptIds(line)` from `claims.js`, never `line.apptId` alone.
 - Billing compliance baseline is **Medicaid norms**:
   - 15-minute units, counted by the CPT midpoint rule
@@ -66,6 +68,8 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - Cover the UI action **and** the persisted state for every new workflow; add pure tests for every `src/lib` change.
 - Tests must be date-independent: build dates relative to `todayISO()`; never assume a weekday has appointments.
 - **`blankState()` / `buildSeed()` generate fresh random appointment ids per call.** In a test file build one `const BASE = blankState()` and derive variants with spreads; never mix claims/appointments from separate calls.
+- **The fresh workspace is not empty.** `blankState()` seeds demo Cabinet documents, CEU/PDU entries, tasks and messages (`src/lib/demoRecords.js`) and three family coinsurance balances (`seedFamilyShares` in `seed.js`). A test that needs an empty collection clears it on its base: `const BASE = { ...blankState(), cabinet: {}, tasks: {} }`.
+- New demo data is built through the real `plan*` functions, dated relative to `todayISO()`, so it always passes the same validation as the screens.
 - Select elements by `data-testid` with module prefixes (`py-`, `pd-`, `pay-`, `pc-`, `iq-`, `dw-`, `bk-`, `nav-sub-`, `help-`). No shared helper module; seed via `localStorage.setItem('aloha-aba.v3', JSON.stringify(state))` then render `<App />`.
 - When a change intentionally alters existing behaviour (default dashboard widgets, a button that now asks first, an always-visible panel), search the tests for the old assumption and update them in the same change: `grep -rn "<old text or id>" src/__tests__`.
 - Exact-text queries (`getByText('…')`) throw on duplicates; panels that echo messages must not render the exact same string twice.

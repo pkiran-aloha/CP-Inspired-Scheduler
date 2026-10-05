@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-03** (end of session). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05**. Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green and deployed; working tree clean.
+- State at handoff: `main` green and deployed at `b914709` (CI run 37268758409); working tree clean. All hackathon waves and follow-ups 1 (demo seed polish) and 2 (backlog fixes) are shipped. **Next: follow-up 3, scheduling idea B3** (see "Next" below; two product questions are open).
 
 ## How the maintainer works
 
@@ -126,7 +126,20 @@ Scheduling intelligence round:
 
 Fixes: status-removal reassignment, payer template delete crash, send-for-approval, SecurityView import, read-only settings Seg, IntakeDetail hook order, current user from the demo account switcher.
 
-## Next — remaining hackathon items (ask the maintainer which wave)
+## Next — follow-up 3: B3 travel feasibility and routing
+
+The maintainer chose the order 1 demo seed polish → 2 backlog fixes → 3 B3 (2026-10-05). 1 and 2 are done. B3 is next and is the last planned item.
+
+Spec: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Data already there: `clients[].geo` (`[lat, lng]`), drive appointments with origin/destination/mileage, `appointmentValidationsCfg` (Warn by default, Stop is the practice's choice), the booking dialog's Checks rail (`BookingChecks.jsx`, `bookingChecks.js`).
+
+**Two product questions were asked and not yet answered. Ask the maintainer again before building:**
+
+1. **Scope.** Recommended: *check + suggest.* Slice 1 adds a travel check to the booking dialog's Checks rail ("Saija needs about 22 min from the previous session; the gap is 10 min"), for the previous and the next session that day. Slice 2 adds a per-clinician day route view: legs, travel minutes, tight or impossible legs, and a suggested re-order shown read-only with miles saved. Nothing moves on the calendar. Alternatives: also an "Apply this order" action (swaps that clinician's time slots as one Undo; the UI must tell the scheduler to confirm with each family), or check only.
+2. **Where coordinates come from.** Recommended: client `geo` for home, school and community sessions, plus a new optional lat/lng on Settings > Organization offices (seeded for the demo offices) for center sessions; unknown places are skipped, never guessed. Alternative: client `geo` only, with center sessions treated as the same place when the location name matches.
+
+Defaults that need no question: straight-line distance × 1.3 road factor at a configurable average speed (25 mph) plus a small buffer; a new `staff.travel` rule in Appointment Validations that defaults to Warn; pure logic in a new `src/lib/travel.js` with node-runnable checks; honest copy ("estimated from straight-line distance; not a map route").
+
+## Hackathon waves (all shipped)
 
 | Wave | Items | Notes / open questions |
 |---|---|---|
@@ -135,7 +148,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• demo family balances, Cabinet and CEU data shipped 2026-10-05 (follow-ups 1a, 1c)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
-| Scheduling idea B3 | Travel feasibility & route sequencing | From `docs/specs/scheduling-intelligence-ideas.md` §6; deferred by the maintainer. |
+| Scheduling idea B3 | Travel feasibility & route sequencing | Next: follow-up 3 (see "Next" above). |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 
 ## Known issues / backlog (not yet fixed)
@@ -147,6 +160,22 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 - Merged remote branches still on GitHub: `docs/agents-handoff` and later feature branches. The maintainer deletes them with `git push origin --delete …`.
 - Generic payer edits (the `payer` action, `patch` mode) take no Undo snapshot. Only Payment Terms does.
 
-## Resume prompt (paste into a new session)
+## Resume prompts (paste into a new session; any agent)
 
-> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main`, report anything new). Then ask me which hackathon wave to build next, recommending one, and follow the one-feature-at-a-time workflow.
+These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can read the repo and run git. Agents without a local clone should first clone `https://github.com/pkiran-aloha/CP-Inspired-Scheduler`.
+
+**Continue the plan (B3 next):**
+
+> Read `docs/HANDOFF.md` and `AGENTS.md` in this repo. Sync with GitHub: `git fetch`, confirm `main` matches `origin/main`, and report anything new (including any red CI on `main`, which you fix first). Then continue with follow-up 3, scheduling idea B3 (travel feasibility and routing), as described in HANDOFF "Next". Before writing code, ask me the two open product questions listed there, with your recommendation. Then build it one slice per branch: land each on `main`, check CI, and update the README, HANDOFF, wiki and marketing docs as AGENTS.md requires.
+
+**Let me pick the next work:**
+
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main`, report anything new). Then list what is left (HANDOFF "Next", the "Still open" notes in the waves table, and "Known issues / backlog"), recommend one item, ask me which to build, and follow the one-feature-at-a-time workflow.
+
+**Status check only (no code changes):**
+
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Run `git fetch`, compare `main` with `origin/main`, and check the latest CI run for `origin/main` via `https://api.github.com/repos/pkiran-aloha/CP-Inspired-Scheduler/actions/runs?head_sha=<sha>`. Report what changed since HANDOFF was last updated and whether `main` is green. Do not edit anything.
+
+**Fix a red `main`:**
+
+> Read `docs/HANDOFF.md` and `AGENTS.md`. `main` is red. Find the failing CI run for `origin/main` and its annotations (`…/check-runs/<job id>/annotations`), reproduce the failure as narrowly as you can, fix it on a `fix/…` branch with a regression test, land it and confirm CI is green. Touch nothing else.
