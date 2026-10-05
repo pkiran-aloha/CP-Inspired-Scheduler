@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/components/HelpView.jsx_
-_Last synced with main at 81bb662 on 2026-10-05 (plus demo records)._
+_Last synced with main at 1decd2f on 2026-10-05 (plus team task notifications)._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -13,7 +13,7 @@ You do not need this page to use the app. Three things are worth knowing as a us
 - **A refusal means nothing changed.** When the app refuses an action (a stop-level message in a toast), it did not write anything. Warnings (caution) let you proceed; flags and to-fill-in marks are informational.
 - **Help is built in.** Help & Wiki at the bottom of the navigation rail opens this wiki and its FAQ with search. Every role can open it; it holds no practice data.
 - **Inbox.** The envelope in the top bar opens two tabs; nothing is emailed or texted. Code: `src/lib/tasks.js`, `InboxView.jsx`.
-  - **Notifications** are read fresh from the workspace each time: your overdue or due-today tasks, Cabinet documents expiring, authorizations ending within 30 days, overdue intake requests, and denied claims. Each item appears only if your role can open that area.
+  - **Notifications** are read fresh from the workspace each time: your overdue or due-today tasks (for an account not linked to a staff member, such as the practice administrator, the whole team's), Cabinet documents expiring, authorizations ending within 30 days, overdue intake requests, and denied claims. Each item appears only if your role can open that area.
   - **Tasks** are assigned to staff, optionally about a client. Tasks belong to every role and are office-scoped by client or assignee. Each change is one Undo.
   - **Messages** are conversations between signed-in users (`src/lib/messages.js`).
   - **Demo records** (`src/lib/demoRecords.js`): a fresh workspace and "Regenerate demo data" get sample Cabinet documents, CEU and PDU entries, tasks and messages, built through the same planners the screens use and dated relative to today.
