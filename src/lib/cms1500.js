@@ -9,6 +9,7 @@
 // The electronic standard is ANSI 837P — this PDF is the printable companion using the
 // same derivations.
 import { jsPDF } from 'jspdf'
+import { winAnsi } from './exportKit'
 import { payerPolicy, filingDaysOf, posFor, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
 import { providerIdRule, providerIdsFor } from './providerIds'
 
@@ -159,7 +160,7 @@ const TINT = [238, 214, 218] // shaded service rows
 const WASH = [247, 239, 241] // very light cell wash
 const BLACK = [26, 26, 26] // what a provider would type on the form
 
-const newDoc = () => new jsPDF({ unit: 'pt', format: 'letter', compress: true })
+const newDoc = () => winAnsi(new jsPDF({ unit: 'pt', format: 'letter', compress: true }))
 
 export function claimTo1500(state, claim) {
   const doc = newDoc()

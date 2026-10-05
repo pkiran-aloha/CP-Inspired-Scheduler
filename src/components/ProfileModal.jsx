@@ -52,7 +52,7 @@ export function ProfileModal({ person, kind, kicker, chips = [], meter, tiles = 
         <div className="pf-body">
           <div className="pf-chips">
             {chips.map((c) => {
-              const inner = <><i>{Icon[c.icon]({ size: 12 })}</i><span>{c.label}</span><b>{c.value}</b>
+              const inner = <><i>{Icon[c.icon]({ size: 12 })}</i><span>{c.label}</span><b title={String(c.value)}>{c.value}</b>
                 {c.copy ? <button type="button" className="pf-chip-copy" title="Copy to clipboard" data-testid={`pf-copy-${c.copy}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); copy(c.value) }}>{Icon.copy({ size: 11 })}</button> : c.href ? <em>↗</em> : null}</>
               return c.href ? (
                 <a key={c.label} className="pf-chip link" href={c.href} title={`Open ${c.label}`} data-testid={c.testid}>{inner}</a>

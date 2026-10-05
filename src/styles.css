@@ -4063,3 +4063,25 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .iq-handoff-head, .iq-handoff-foot { padding: 14px; }
   .iq-handoff-body { padding: 0 14px 14px; }
 }
+
+/* ---- modal scroll contract: the head and the foot stay in view, the middle scrolls ----
+   .modal clips at max-height, so a body that is not a scroll container pushed the
+   footer CTAs out of reach (staff / client edit). Those bodies now scroll, and the
+   modal itself scrolls as the fallback for any body that still does not. */
+.modal, .modal-overlay .modal { overflow-x: hidden; overflow-y: auto; }
+.pm-body, .pf-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.pm-body > .pm-avabar { padding: 4px 0 0; }
+.pm-foot, .pf-foot, .modal-foot { flex-wrap: wrap; }
+/* profile sheet: the action row wraps instead of running off the right edge, the
+   primary action stays right, and chip values sit under their label at full width */
+.pf-modal { width: 640px; }
+.pf-foot .btn-primary { margin-left: auto; }
+.pf-chips { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.pf-chip { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; row-gap: 1px; align-items: center; }
+.pf-chip i { grid-row: 1 / span 2; }
+.pf-chip span { grid-column: 2; }
+.pf-chip b { grid-column: 2; grid-row: 2; margin-left: 0; max-width: none; min-width: 0; }
+.pf-chip-copy, .pf-chip em { grid-column: 3; grid-row: 1 / span 2; }
+.pf-tiles { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
+@media (max-width: 640px) { .pf-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .pf-chips { grid-template-columns: minmax(0, 1fr); } }

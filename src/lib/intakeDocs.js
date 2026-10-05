@@ -3,6 +3,7 @@
 // read); docToPdf turns one into a jsPDF document. Everything is generated in this
 // browser; nothing is sent anywhere.
 import { jsPDF } from 'jspdf'
+import { winAnsi } from './exportKit'
 import {
   INTAKE_DOCS, CONSENT_KINDS, VOB_FIELDS, AUTH_DECISIONS, ASSESSMENT_OUTCOMES,
   fullName, primaryPhone, referralLabel, stageDef, docStatus, requiredDocs, requiredConsents, consentSigned,
@@ -95,7 +96,7 @@ export function intakePacketDoc(state) {
 
 /** Render a document description as a letter-size PDF. */
 export function docToPdf(doc) {
-  const pdf = new jsPDF({ unit: 'pt', format: 'letter' })
+  const pdf = winAnsi(new jsPDF({ unit: 'pt', format: 'letter' }))
   const W = pdf.internal.pageSize.getWidth()
   const H = pdf.internal.pageSize.getHeight()
   const M = 48

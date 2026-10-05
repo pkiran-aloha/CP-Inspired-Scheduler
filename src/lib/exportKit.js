@@ -38,6 +38,25 @@ export function buildSpec({ org, def, columns, rows, totals, days, scopeLabel, n
   }
 }
 
+// jsPDF's standard fonts are WinAnsi: Latin-1 plus a few typographic marks. A single
+// character outside that set (an arrow, a minus sign, an emoji) makes jsPDF write the
+// whole string as UTF-16, which prints as spaced-out gibberish. Map the common ones
+// to ASCII and drop the rest.
+const WIN_ANSI_EXTRA = '€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ'
+export const pdfSafe = (v) => String(v ?? '')
+  .replace(/[→➜➡]/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->')
+  .replace(/−/g, '-').replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/[   ]/g, ' ')
+  .replace(/[^\u0000-ÿ]/g, (c) => (WIN_ANSI_EXTRA.includes(c) ? c : ''))
+/** Route every string a jsPDF document draws or measures through pdfSafe. */
+export function winAnsi(doc) {
+  const fix = (s) => (Array.isArray(s) ? s.map(pdfSafe) : typeof s === 'string' ? pdfSafe(s) : s)
+  const { text, splitTextToSize, getTextWidth } = doc
+  doc.text = function (s, ...rest) { return text.call(this, fix(s), ...rest) }
+  doc.splitTextToSize = function (s, ...rest) { return splitTextToSize.call(this, fix(s), ...rest) }
+  doc.getTextWidth = function (s) { return getTextWidth.call(this, fix(s)) }
+  return doc
+}
+
 const escH = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 // ---------- Excel (.xls — styled HTML workbook) ----------
@@ -104,18 +123,14 @@ export function specToXls(spec) {
 // paginates by measured row heights with a repeating header. What the screen shows
 // in full, the PDF contains in full — printable and signable as-is.
 export function specToPdf(spec) {
-  const doc = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape', compress: false })
+  const doc = winAnsi(new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape', compress: false }))
   const PW = 792
   const M = 30
   const CW = PW - M * 2
   const LINE = 8.9 // one 7.4pt line
   const BOTTOM = 596 // table floor (leaves room for the footer rule at 612)
   const cellText = (r, c) => fmtVal(r[c.k], c.t)
-  // jsPDF standard fonts are WinAnsi: map fancy glyphs to ASCII, then drop the rest
-  const safe = (v) => String(v ?? '')
-    .replace(/\u2192|\u279c/g, '->').replace(/[\u2212\u2013\u2014]/g, '-').replace(/[\u201c\u201d]/g, '"').replace(/[\u2018\u2019]/g, "'").replace(/\u00a0/g, ' ')
-    .replace(/[^\u0000-\u00ff]/g, '')
-  const T = (v) => { const t = safe(typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : v); return t === '' ? '\u002d' : t }
+  const T = (v) => { const t = pdfSafe(typeof v === 'string' ? v.replace(/\s+/g, ' ').trim() : v); return t === '' ? '\u002d' : t }
   const wrap = (t, w, size) => {
     doc.setFont('helvetica', 'normal'); doc.setFontSize(size)
     const out = doc.splitTextToSize(t, Math.max(12, w))
@@ -168,7 +183,8 @@ export function specToPdf(spec) {
     doc.setTextColor(255, 255, 255)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
     const pg = pages[pi]
-    const cont = pages.length > 1 ? `  (continued \u2014 rows ${pg.rows.length ? pg.rows[0].ri + 1 : 1}\u2013${pg.rows.length ? pg.rows[pg.rows.length - 1].ri + 1 : 0})` : ''
+    const span = `rows ${pg.rows.length ? pg.rows[0].ri + 1 : 1}\u2013${pg.rows.length ? pg.rows[pg.rows.length - 1].ri + 1 : 0}`
+    const cont = pages.length > 1 ? `  (${pi > 0 ? `continued \u2014 ${span}` : span})` : ''
     doc.text(wrap(T(`${spec.title}${cont}`), CW - 200, 13), M, 26)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6)
     doc.text(wrap(T(`${spec.range}  \u00b7  Scope: ${spec.scope}  \u00b7  ${spec.rows.length} rows`), CW - 200, 7.6), M, 40)
@@ -232,9 +248,16 @@ export function specToPdf(spec) {
   return doc
 }
 
-// ---------- download (works for text and Blob payloads) ----------
+// ---------- download (works for text, Blob and jsPDF document payloads) ----------
+// A jsPDF document passed as-is used to be stringified into a 15-byte
+// "[object Object]" file (the payroll register / summary PDFs); render it here.
+export function toBlob(data, mime) {
+  if (data instanceof Blob) return data
+  if (typeof data?.output === 'function') return data.output('blob')
+  return new Blob([data], { type: `${mime};charset=utf-8` })
+}
 export function downloadDoc(filename, data, mime) {
-  const blob = data instanceof Blob ? data : new Blob([data], { type: `${mime};charset=utf-8` })
+  const blob = toBlob(data, mime)
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

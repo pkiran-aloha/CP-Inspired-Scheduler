@@ -103,8 +103,8 @@ function StaffModal({ person, dup, onClose }) {
           </div>
           <button className="iconbtn" onClick={onClose} aria-label="Close">{Icon.x({ size: 14 })}</button>
         </div>
-        <AvatarPicker form={form} set={set} idp="sm" />
         <div className="pm-body">
+          <AvatarPicker form={form} set={set} idp="sm" />
           <section className="pm-sect">
             <h5>{Icon.team({ size: 12 })} Identity</h5>
             <div className="pm-grid">
