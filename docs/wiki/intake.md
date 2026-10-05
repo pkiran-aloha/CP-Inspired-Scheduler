@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at 043ed5a on 2026-10-05 (plus single Convert button)._
+_Last synced with main at 414a9fe on 2026-10-05 (plus intake booking checks)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -124,6 +124,6 @@ Intake does not follow the strict plan-then-Tx pattern. Domain actions in `creat
 
 - **No e-signature or fillable PDF.** The intake packet is printed and signed on paper; signed consents are then recorded on screen. The assessment visit and the client chart are still separate records until conversion (see below).
 - **Nothing is transmitted.** Benefits verification is a recorded call and reference, not an eligibility query. Authorization is recorded, not submitted. Consents are captured on screen, with no e-signature service or portal.
-- The assessment appointment is created without a client and bypasses the scheduling guards in [Scheduling](scheduling.md).
+- The assessment appointment is created without a client: the family only becomes a client at conversion, which links the visit to the new chart. Booking it runs the practice's Appointment Validations (see [Scheduling](scheduling.md)): a Stop rule, such as a staff overlap set to Stop, refuses the visit; Warn items are named in the confirmation. Client-based checks (client overlap, authorization) cannot apply until there is a client.
 - No intake task or message center yet (planned with inbox and notifications). The `tasks` field on a request exists but has no screen.
 - The intake guard strength is fixed: gates always block. There is no off/flag/warn/stop setting for intake gates.

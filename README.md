@@ -34,6 +34,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **One Convert button.** An intake request had two "Convert to client" buttons. The one in the Next box stays; the Conversion readiness panel now just says what is outstanding.
 
+**Intake assessment booking checks.** Booking an intake assessment now runs the practice's Appointment Validations, like the booking dialog. A rule set to Stop (for example a clinician already booked at that time) refuses the visit; Warn items are named in the confirmation. The visit still has no client until the request is converted.
+
 ### Hackathon wave 6 — integrations, honest partial
 
 **Telehealth room link.** Settings > Clinical Integrations > Telehealth room link stores the practice's own video room (a full `https://` address; anything else is refused). Telehealth bookings (place of service 10) show the link under Location, and `.ics` exports add it to those events. The app does not host, open or record video.
