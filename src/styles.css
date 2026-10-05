@@ -3815,6 +3815,19 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .si-risk-act { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
 .si-action { font-size: 10.8px; font-weight: 650; color: var(--text-2); text-align: right; max-width: 150px; line-height: 1.35; }
 .si-risk-btns { display: flex; gap: 5px; }
+.si-density-list { display: flex; flex-direction: column; gap: 8px; }
+.si-density { display: grid; grid-template-columns: 72px 1fr auto; gap: 12px; align-items: start; padding: 12px 14px; border-radius: 14px; background: var(--panel); border: 1px solid var(--line); box-shadow: var(--shadow-1); }
+.si-density-score { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 6px; border-radius: 11px; background: var(--accent-soft); color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+.si-density-score b { font-size: 17px; line-height: 1.1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.si-density-score i { font-style: normal; font-size: 9px; font-weight: 800; text-align: center; text-transform: uppercase; letter-spacing: 0.05em; color: color-mix(in srgb, var(--accent) 72%, var(--text)); }
+.si-density-main { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.si-density-top { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.si-density-top b { font-size: 12.8px; letter-spacing: -0.01em; }
+.si-density-times { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-2); }
+.si-density-times b { color: var(--text); }
+.si-density-arrow { color: var(--muted); display: inline-grid; place-items: center; }
+.si-density-why { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.si-density-act { display: flex; flex-direction: column; align-items: stretch; gap: 5px; }
 .si-note { display: flex; gap: 8px; padding: 10px 12px; border-radius: 12px; background: var(--panel-2); border: 1px solid var(--line); font-size: 11.2px; line-height: 1.5; color: var(--text-2); }
 .si-note svg { flex: none; margin-top: 2px; }
 .si-travel-list { display: flex; flex-direction: column; gap: 10px; }
@@ -3837,8 +3850,8 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 
 @media (max-width: 980px) {
   .si-kpis { grid-template-columns: repeat(2, 1fr); }
-  .si-auth, .si-risk { grid-template-columns: 1fr; }
-  .si-risk-act { align-items: flex-start; }
+  .si-auth, .si-risk, .si-density { grid-template-columns: 1fr; }
+  .si-risk-act, .si-density-act { align-items: flex-start; }
   .si-action { text-align: left; max-width: none; }
 }
 

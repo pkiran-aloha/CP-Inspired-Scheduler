@@ -5,6 +5,7 @@ import { Icon } from '../ui/Icons'
 import { PersonAvatar } from '../ui/avatars'
 import { DAY_SHORT, addDays, fmtDayLabel, fmtRange, isoDate, parseISO, todayISO } from '../lib/date'
 import { insightBoard } from '../lib/insights'
+import { planDensityMove } from '../lib/density'
 import { AUTH_BANDS } from '../lib/authBudget'
 import { RISK_BANDS } from '../lib/risk'
 import { routeForDay, suggestRouteOrder } from '../lib/travel'
@@ -47,8 +48,8 @@ export default function SchedulerInsights({ days, onClose }) {
   const [tab, setTab] = useState('coverage')
   const [scope, setScope] = useState('action') // auth tab: 'action' | 'all'
   const key = days.join(',')
-  const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.settings, key])
-  const { coverage, auth, risk } = board
+  const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.teams, state.svcs, state.payers, state.payProfiles, state.settings, key])
+  const { coverage, density, auth, risk } = board
 
   // ---- travel routes per staff per day ----
   const travelBoard = useMemo(() => {
@@ -100,13 +101,30 @@ export default function SchedulerInsights({ days, onClose }) {
     })
   }
 
+  const applyDensity = (row) => {
+    const plan = planDensityMove(state, row)
+    if (!plan.ok) {
+      toast({ message: plan.msg, kind: 'warn' })
+      return
+    }
+    const prev = row.from
+    actions.move(row.apptId, plan.patch)
+    toast({
+      message: `${plan.msg} Press U to undo.`,
+      kind: 'ok',
+      action: { label: 'Undo', onClick: () => actions.move(row.apptId, prev) },
+    })
+  }
+
   const showGrid = days.length >= 5
   const authRows = scope === 'action' ? auth.rows.filter((r) => ['lapsed', 'over', 'expiring', 'no-auth', 'watch'].includes(r.band)) : auth.rows
 
   const travelAlert = travelBoard.some((r) => r.route.totals.impossible > 0)
   const travelBadge = travelBoard.length ? `${travelBoard.length} route${travelBoard.length === 1 ? '' : 's'}` : 'clear'
+  const densityBadge = density.summary.suggestions ? `${density.summary.suggestions} move${density.summary.suggestions === 1 ? '' : 's'}` : 'clear'
   const tabs = [
     { id: 'coverage', label: 'Coverage', icon: 'grid', badge: `${coverage.summary.openHours}h open` },
+    { id: 'density', label: 'Density', icon: 'shuffle', badge: densityBadge, alert: density.summary.suggestions > 0 },
     { id: 'auth', label: 'Authorizations', icon: 'shield', badge: auth.summary.needsAction ? `${auth.summary.needsAction} to action` : 'clear', alert: auth.summary.needsAction > 0 },
     { id: 'risk', label: 'At risk', icon: 'alert', badge: risk.summary.flagged ? `${risk.summary.flagged} flagged` : 'clear', alert: risk.summary.high > 0 },
     { id: 'travel', label: 'Travel', icon: 'car', badge: travelBadge, alert: travelAlert },
@@ -233,6 +251,79 @@ export default function SchedulerInsights({ days, onClose }) {
                     <span className="si-gap-go">{Icon.chevronR({ size: 12 })}</span>
                   </button>
                 ))}
+              </div>
+            </>
+          )}
+
+          {tab === 'density' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Density optimiser</b>
+                  <span className="muted">
+                    {' '}
+                    — same-day suggestions that pull eligible future sessions into adjacent idle windows, so a clinician has a tighter block instead of a split day.
+                  </span>
+                </div>
+                <span className="si-band si-tone-info">
+                  {density.summary.suggestions ? `${density.summary.idleHours}h split time reducible` : 'No useful moves'}
+                </span>
+              </div>
+
+              {!density.rows.length && (
+                <div className="si-empty">
+                  {Icon.checkCircle({ size: 16 })} No same-day density moves in this range clear conflicts and improve a clinician's day.
+                </div>
+              )}
+
+              <div className="si-density-list">
+                {density.rows.map((row) => {
+                  const staff = (state.staff || []).find((s) => s.id === row.primaryStaffId)
+                  return (
+                    <div className="si-density" key={row.id} data-testid={`si-density-${row.apptId}`}>
+                      <div className="si-density-score">
+                        <b>{row.gain.idleMin ? `${Math.round(row.gain.idleMin / 60 * 10) / 10}h` : `${Math.round(row.gain.spreadMin / 60 * 10) / 10}h`}</b>
+                        <i>{row.gain.idleMin ? 'split saved' : 'span saved'}</i>
+                      </div>
+                      <div className="si-density-main">
+                        <div className="si-density-top">
+                          {staff && <PersonAvatar p={staff} size={22} />}
+                          <b>{row.title}</b>
+                          <span className="muted">{row.clientNames || 'No client'} · {row.staffName}</span>
+                        </div>
+                        <div className="si-density-times">
+                          <span><b>Now</b> {fmtDayLabel(row.date)} · {fmtRange(row.from.start, row.from.end, settings.h24)}</span>
+                          <span className="si-density-arrow">{Icon.chevronR({ size: 12 })}</span>
+                          <span><b>Move to</b> {fmtRange(row.to.start, row.to.end, settings.h24)} · {row.adjacentTo.side === 'before' ? 'before' : 'after'} {row.adjacentTo.title}</span>
+                        </div>
+                        <div className="si-density-why">
+                          <span className="si-factor si-src-policy" title="Computed from this clinician's calendar blocks; not a routing or outreach automation.">{row.reason}</span>
+                          {row.gain.halfDays > 0 && <span className="si-factor">opens {row.gain.halfDays} half-day{row.gain.halfDays === 1 ? '' : 's'}</span>}
+                          {row.warnings.slice(0, 2).map((w) => <span key={w} className="si-factor si-src-policy">Review: {w}</span>)}
+                          {row.driveNote && <span className="si-factor" title="Explicit Drive Time appointments are separate records.">drive blocks not moved</span>}
+                        </div>
+                      </div>
+                      <div className="si-density-act">
+                        <button className="btn btn-primary btn-sm" data-testid={`si-density-apply-${row.apptId}`} onClick={() => applyDensity(row)}>
+                          {Icon.shuffle({ size: 12 })} Move here
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => goToDay(row.date, row.primaryStaffId)}>
+                          Show day
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => openAppt(row.apptId)}>
+                          Open
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className="si-note">
+                {Icon.info({ size: 13 })}
+                <span>
+                  The optimiser only moves one existing session on the same day, keeps the same staff and clients, and rechecks live conflicts plus Stop-level overlap/travel rules before writing. It does not move separate Drive Time blocks, send messages, create recurrence changes or call a map service.
+                </span>
               </div>
             </>
           )}

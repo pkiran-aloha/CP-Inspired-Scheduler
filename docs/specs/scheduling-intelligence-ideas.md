@@ -1,6 +1,6 @@
 # Scheduling intelligence — a research brief and build plan
 
-**Status:** three of the ideas below are implemented in this round (see [Shipped](#shipped-this-round)); the rest are ranked, sized and grounded so they can be picked up directly.
+**Status:** the original round shipped A1/C1/B1 and the Scheduler Insights surface; later follow-ups shipped B2 density, B3 travel and D3 intake handoff. The remaining ideas are ranked, sized and grounded so they can be picked up directly.
 
 **Scope of this brief.** The question was how to make scheduling *smarter* and *analytically visual*. The answer here is deliberately not "add AI". ABA scheduling already has a well-understood failure taxonomy — authorizations that run dry, clinicians who sit idle while families wait, sessions that evaporate — and every one of those is measurable from data this app already holds. The brief ranks interventions by how much money and clinical continuity they protect per unit of build effort, and marks honestly what the workspace already does.
 
@@ -91,7 +91,7 @@ Grouped by theme. **Effort** is sized against *this* codebase (S ≈ under a day
 | # | Idea | Evidence | Effort | Status |
 |---|---|---|---|---|
 | B1 | **Coverage heat + named idle windows.** Weekday × hour fill against the working day, blocked time removed from the denominator, plus a ranked list of contiguous free windows per clinician, each clickable through to that day and that person. | [7][8][12] | M | **Shipped** |
-| B2 | **Density optimiser.** Suggest pulling a session into an adjacent idle window so a clinician ends up with a contiguous block instead of a split day — fewer drive legs, more open half-days, better RBT retention. | [1][12] | M | Not built |
+| B2 | **Density optimiser.** Suggest pulling a session into an adjacent idle window so a clinician ends up with a contiguous block instead of a split day — fewer drive legs, more open half-days, better RBT retention. | [1][12] | M | **Shipped 2026-10-05:** Scheduler Insights Density tab ranks same-day moves and can apply one local appointment move after live conflict/Stop-rule preflight. |
 | B3 | **Travel feasibility and sequencing.** Use `clients.geo` and existing drive appointments to detect impossible turnarounds and propose a re-ordered day. In-home practices run 60–70% utilization largely because of travel. | [1][6] | M/L | **Shipped 2026-10-05** (booking checks + read-only Travel route view; no map API) |
 | B4 | **Access holdout.** Reserve a configurable share of each week for new starts and same-day needs, and show on the coverage grid where that reservation is being eaten. | [12] | S/M | Not built |
 | B5 | **Credential-aware density.** Refuse/suggest against the credential the payer requires for a code (BCBA vs RBT vs BCaBA) using the qualification master that already exists. | [1][6] | S | Partly (`staffSatisfiesCredentials` exists; not wired to booking) |
@@ -152,6 +152,7 @@ One panel, opened from the calendar toolbar or with `I`, scoped to whatever rang
 
 - **Four KPIs** — schedule fill (against the 85–95% healthy band, labelled), open capacity in hours, authorizations needing action, at-risk sessions with expected lost hours.
 - **Coverage** — a weekday × hour heat grid shaded by fill with a legend, a 42-cell-per-week view for ranges ≥5 days and a per-day strip for shorter ones; below it, **named idle windows** ("Tess Tech · Tue · 08:00–18:00, 10h") that click straight through to that day filtered to that clinician.
+- **Density** — B2 now ranks same-day moves that pull future, unclaimed clinical sessions into adjacent idle windows. **Move here** preflights live staff/client conflicts plus Stop-level overlap/travel rules, then moves one appointment locally with one Undo.
 - **Authorizations** — burn-down bars with committed/authorized hours, this week against the authorized week, days to expiry, projected exhaustion and a band chip; scope toggle between needs-action and all clients.
 - **At risk** — the riskiest sessions with score, factors (history vs policy, colour-coded), the top reason in words, the recommended action, one-click **Confirm** and **Open**.
 
@@ -159,14 +160,20 @@ The pattern of "ranked by urgency, one click to the exact place that fixes it" i
 
 **Also wired:** the booking dialog renders the guard verdict and the risk verdict inline before you save, with the same numbers the panel shows; Settings gained the guard controls; a restored backup re-merges the guard defaults rather than losing them; and `setSettings` routes `authGuard`/`risk` to the *calendar* permission rather than the settings desk, because schedulers own this, not administrators.
 
+### 5.4 `src/lib/density.js` — density optimiser (B2, shipped 2026-10-05)
+
+The Density tab looks at the visible range and finds one-occurrence, same-day moves that turn a clinician's split day into a tighter block. It only considers future, unclaimed clinical sessions, keeps the same staff, clients and duration, and proposes slots immediately before or after another calendar block. Suggestions are ranked by split idle minutes saved, total day span saved, block reduction and newly opened half-days.
+
+Applying **Move here** is a local calendar edit, not automation outside the browser. The preflight rechecks live staff/client conflicts plus Stop-level overlap/travel findings before dispatching the existing move action. It does not move separate Drive Time records, infer family availability, edit recurring templates or call a routing/map service.
+
 ### Verification
 
 - `authBudget.test.js` (23) — window maths, live/lapsed/missing windows, what does and does not draw on the budget (travel, breaks, non-ABA-marked), week boundaries honouring the practice week start, projections, exclude-on-edit, every guard severity, mode capping, the not-counted advisory, and board ranking.
 - `schedulingRisk.test.js` (18) — model fitting and shrinkage, thin-data messaging, refuse-a-ceiling, model vs policy provenance, ordering guarantees (bad history > clean, far > near, unconfirmed > confirmed), continuity, already-recorded outcomes, the disabled switch, and the worklist's hour/charge exposure.
-- `schedulerInsights.test.js` (12) — capacity sold vs available, blocked time removed from the denominator, travel counted as sold but never as a session, per-clinician idle windows, the unified board and its KPI tones.
-- `schedulerInsights.test.jsx` (12) — the panel opens, the three tabs work, a lapsed authorization is reported and counted, the risk row explains itself and confirms undoably, nothing claims to be transmitted, and the guard is proven end-to-end: it refuses a save in Stop mode, allows it in the shipped Warn mode, and flags an uncounted clinical session.
+- `schedulerInsights.test.js` — capacity sold vs available, blocked time removed from the denominator, travel counted as sold but never as a session, per-clinician idle windows, density move ranking/preflight, the unified board and its KPI tones.
+- `schedulerInsights.test.jsx` — the panel opens, the tabs work, a same-day density move persists locally, a lapsed authorization is reported and counted, the risk row explains itself and confirms undoably, nothing claims to be transmitted, and the guard is proven end-to-end: it refuses a save in Stop mode, allows it in the shipped Warn mode, and flags an uncounted clinical session.
 
-Full suite: **616 tests across 49 files, green.** `npm run build` passes.
+Current B2 verification: focused `npx vitest run src/__tests__/schedulerInsights.test.js src/__tests__/schedulerInsights.test.jsx` — 30 tests green; full `npm test` — 83 files / 844 tests green; `npm run build` passed with the existing Vite chunk-size warning.
 
 ---
 

@@ -16,6 +16,12 @@ Last updated **2026-10-05** (D3 intake-to-first-week handoff, PR #26). Any agent
 
 ## Shipped (newest first)
 
+### B2 — scheduling density optimiser (built on `arena/01a10c30-cp-inspired-scheduler`, not yet landed)
+
+- **Density tab in Scheduler Insights.** `src/lib/density.js` ranks same-day moves that pull future, unclaimed clinical sessions into adjacent idle windows so a clinician's day becomes a tighter block instead of a split day. Suggestions keep the same staff, clients and duration; score uses split idle minutes saved, day-span savings, block reduction and newly opened half-days. The panel names the current slot, target slot, adjacent block, warnings and honest limits.
+- **Reviewed local move.** `Move here` calls `planDensityMove` against live state before dispatching the existing one-appointment calendar move. It refuses stale suggestions, staff/client conflicts and Stop-level overlap/travel findings; warns are named. One appointment changes and the toast offers Undo. No drive-time records, recurring templates, family availability, messages or map/routing service are touched.
+- **Verification:** focused `npx vitest run src/__tests__/schedulerInsights.test.js src/__tests__/schedulerInsights.test.jsx` passed (30 tests); full `npm test` passed (83 files / 844 tests); `npm run build` passed (Vite chunk-size warning only).
+
 ### D3 — intake-to-first-week handoff (PR #26)
 
 - **Intake → first-week handoff.** A converted request and its client profile offer **Plan first week**. The conversion still lands on the profile. `intakeHandoff.js` proposes a practice-calendar week from scheduler-selected weekdays/time, session length, active authorized service and location. It subtracts existing clinical bookings, stays within the auth window and remaining unit pool (payer unit rules included), and shows up to three ranked staff per slot using `suggestStaff`, with reasons and practice/auth checks. Empty capacity and unfilled hours are explicit.
@@ -145,7 +151,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next — after D3 lands and CI is green
 
-B3, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. After its main/deploy checks are green, pick one with the maintainer: density optimiser (B2), or one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items). The DSO formula and both aging-engine mismatches are resolved.
+B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. After B2 lands and main/deploy checks are green, pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), access holdout (B4), overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 

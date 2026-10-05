@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { coverageBoard, forwardDays, insightBoard } from '../lib/insights'
+import { densityBoard, planDensityMove } from '../lib/density'
 
 const TODAY = '2026-06-15' // a Monday
 const MON = '2026-06-15'
@@ -73,6 +74,59 @@ describe('capacity coverage', () => {
     expect(c.hourStart).toBe(8)
     expect(c.grid[1][1]).toMatchObject({ bookedHours: 1, fillPct: 50 }) // Monday 09:00, 1 of 2 clinicians
     expect(c.perDay.length).toBe(7)
+  })
+})
+
+describe('density optimisation', () => {
+  const splitState = () => state([
+    appt('early', { start: 480, end: 540, title: 'Morning ABA', clientIds: ['c1'], staffIds: ['s1'] }),
+    appt('late', { start: 840, end: 900, title: 'Afternoon ABA', clientIds: ['c2'], staffIds: ['s1'] }),
+  ], { clients: [
+    { id: 'c1', name: 'Client One', authWeekly: 20, authStart: '2026-06-01', authEnd: '2026-09-01' },
+    { id: 'c2', name: 'Client Two', authWeekly: 20, authStart: '2026-06-01', authEnd: '2026-09-01' },
+  ] })
+
+  it('suggests pulling a split-day session next to an existing block', () => {
+    const board = densityBoard(splitState(), [MON], { today: TODAY })
+    const row = board.allRows.find((r) => r.apptId === 'late' && r.to.start === 540)
+    expect(row).toBeTruthy()
+    expect(row).toMatchObject({ staffName: 'Sam Staff', reason: expect.stringMatching(/less split idle|opens/) })
+    expect(row.gain.idleMin).toBeGreaterThanOrEqual(300)
+    expect(board.summary.suggestions).toBeGreaterThan(0)
+  })
+
+  it('rechecks a density move before it is applied', () => {
+    const s = splitState()
+    const plan = planDensityMove(s, { apptId: 'late', to: { date: MON, start: 540, end: 600 } }, { today: TODAY })
+    expect(plan.ok).toBe(true)
+    expect(plan.patch).toEqual({ date: MON, start: 540, end: 600 })
+  })
+
+  it('refuses a stale move when the client is no longer free', () => {
+    const s = splitState()
+    const busyClient = appt('client-busy', { start: 540, end: 600, clientIds: ['c2'], staffIds: ['s2'], title: 'School make-up' })
+    const blocked = { ...s, appts: { ...s.appts, [busyClient.id]: busyClient } }
+    const plan = planDensityMove(blocked, { apptId: 'late', to: { date: MON, start: 540, end: 600 } }, { today: TODAY })
+    expect(plan.ok).toBe(false)
+    expect(plan.msg).toMatch(/client overlaps/i)
+  })
+
+  it('does not move today’s work into a slot that has already started', () => {
+    const board = densityBoard(splitState(), [MON], { today: TODAY, nowMin: 10 * 60 })
+    expect(board.allRows.some((r) => r.apptId === 'late' && r.to.start === 540)).toBe(false)
+    const plan = planDensityMove(splitState(), { apptId: 'late', to: { date: MON, start: 540, end: 600 } }, { today: TODAY, nowMin: 10 * 60 })
+    expect(plan.ok).toBe(false)
+    expect(plan.msg).toMatch(/already started/i)
+  })
+
+  it('does not suggest completed or claimed sessions as movable work', () => {
+    const s = state([
+      appt('early', { start: 480, end: 540, title: 'Morning ABA', clientIds: ['c1'], staffIds: ['s1'] }),
+      appt('done', { start: 840, end: 900, title: 'Completed ABA', clientIds: ['c2'], staffIds: ['s1'], status: 'completed' }),
+      appt('claimed', { start: 960, end: 1020, title: 'Claimed ABA', clientIds: ['c3'], staffIds: ['s1'], claimId: 'clm-1', billing: { code: '97153', units: 4, rate: 18, status: 'claimed' } }),
+    ])
+    const board = densityBoard(s, [MON], { today: TODAY })
+    expect(board.allRows.some((r) => ['done', 'claimed'].includes(r.apptId))).toBe(false)
   })
 })
 

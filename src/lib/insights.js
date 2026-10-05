@@ -1,9 +1,10 @@
 // ---- Scheduler insights: one board a scheduler opens when the day is already full ----
 //
-// Three questions, answered from the same ledger and in the same place:
+// Four questions, answered from the same ledger and in the same place:
 //   1. Where is the week actually full, and where is capacity sitting idle?      → coverage
-//   2. Which clients are about to run out of authorized hours or lose a renewal? → auth
-//   3. Which of these sessions is most likely to evaporate?                      → risk
+//   2. Which sessions can be pulled into a denser same-day block?                → density
+//   3. Which clients are about to run out of authorized hours or lose a renewal? → auth
+//   4. Which of these sessions is most likely to evaporate?                      → risk
 //
 // Pure and deterministic: the panel renders it, the tests assert on it, and no number
 // here is invented — every figure traces to an appointment, an authorization or staff
@@ -11,6 +12,7 @@
 import { addDays, isoDate, parseISO, todayISO } from './date'
 import { overlapsType, computeBilling, TYPES } from './model'
 import { authBoard } from './authBudget'
+import { densityBoard } from './density'
 import { riskQueue, riskHourOf } from './risk'
 
 const round1 = (n) => Math.round(n * 10) / 10
@@ -140,6 +142,7 @@ export function coverageBoard(state, days, { today = todayISO(), minGapHours = 1
  */
 export function insightBoard(state, days, { today = todayISO() } = {}) {
   const coverage = coverageBoard(state, days, { today })
+  const density = densityBoard(state, days, { today })
   const auth = authBoard(state, { today })
   const risk = riskQueue(state, days, { today })
   const list = Object.values(state.appts || {}).filter((a) => days.includes(a.date) && a.status !== 'cancelled')
@@ -150,6 +153,7 @@ export function insightBoard(state, days, { today = todayISO() } = {}) {
     days,
     today,
     coverage,
+    density,
     auth,
     risk,
     kpis: [

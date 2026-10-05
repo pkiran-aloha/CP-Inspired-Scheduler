@@ -1,8 +1,8 @@
 # Scheduling
 
-_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main 58d401e plus the B2 density optimiser branch on 2026-10-05; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -95,9 +95,10 @@ The needs-cover inbox lists cancelled sessions in the visible range that a quali
 
 ### Scheduler Insights
 
-Open it from the calendar toolbar or with `I`. It is scoped to the range on screen and has four tabs:
+Open it from the calendar toolbar or with `I`. It is scoped to the range on screen and has five tabs:
 
 - **Coverage.** Four KPIs (schedule fill against a labelled 85-95% band, open capacity, authorizations needing action, at-risk sessions), a weekday-by-hour heat grid, and named idle windows per clinician that click through to that day and person.
+- **Density.** Same-day optimisation suggestions for future, unclaimed clinical sessions. A row says what to move, where it would land next to an existing block, how much split idle time or day span it saves, and whether any review warnings remain. **Move here** rechecks live staff/client conflicts plus Stop-level overlap/travel rules, then moves that one appointment locally with one Undo. It keeps the same staff, clients and length; it does not move separate Drive Time blocks, send messages, edit a series or call a map service.
 - **Authorizations.** Burn-down per client: committed against authorized hours, this week against the authorized week, days to expiry, projected exhaustion, with a needs-action or all-clients toggle.
 - **At risk.** The riskiest sessions with score, factors, recommended action, **Open** and **Confirm**. Confirm marks the session confirmed locally (one Undo). No reminder is sent to the family.
 - **Travel.** Per-clinician day routes with legs, travel minutes, tight/impossible legs, totals and a read-only suggested re-order with miles saved. Nothing moves.
@@ -127,9 +128,11 @@ A clinician cannot be in two places at once. Two slices shipped.
 
 ### Write path
 
-Calendar writes are plain reducer actions, not plan-then-Tx. `createActions` in [store.jsx](../../src/state/store.jsx) exposes `create`, `update`, `move`, `remove` and `removeSeries`, which dispatch `upsertMany`, `patch` and `deleteMany`. Each takes one Undo snapshot of `appts`. `src/lib/security.js` maps all three to the `calendar` area. There is no `plan*` for appointments.
+Calendar writes are mostly plain reducer actions, not plan-then-Tx. `createActions` in [store.jsx](../../src/state/store.jsx) exposes `create`, `update`, `move`, `remove` and `removeSeries`, which dispatch `upsertMany`, `patch` and `deleteMany`. Each takes one Undo snapshot of `appts`. `src/lib/security.js` maps all three to the `calendar` area.
 
-Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the reducer. The modal refuses when `errors` is non-empty (including `STOP` validation items) or when an authorization check is `blocked`. Quick Add (`actions.create`), drag-moves and `actions.update` calls (NeedsCover, Insights Confirm, DetailCard) do not re-run the guards.
+Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the reducer. The modal refuses when `errors` is non-empty (including `STOP` validation items) or when an authorization check is `blocked`. Quick Add (`actions.create`), drag-moves and `actions.update` calls (NeedsCover, Insights Confirm, DetailCard) do not re-run the full guard stack.
+
+The Density tab is the exception that adds a pure preflight before using the normal move action: `planDensityMove` in [density.js](../../src/lib/density.js) rechecks same-day eligibility, staff/client conflicts and Stop-level overlap/travel findings immediately before **Move here** dispatches `actions.move`.
 
 ### Modules
 
@@ -137,7 +140,8 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 - [authUnits.js](../../src/lib/authUnits.js): per-code unit ledger and payer rule pack. `unitRuleFor` (payer service override, then payer service, then service master, then code default; AMA default), `unitsFor` (rounding; the function lives in `model.js` and is re-exported here), `apptUnits`, `unitLedger`, `unitCheckFor`, `mergeAuthChecks(hours, units, settings)` (folds both verdicts under the same mode cap), `normalizeAuthUnits`, `normalizeUnitNorms` (one-time move of untouched 30-minute defaults to 15 minutes), `seedAuthUnits`, `poolFromWeeklyHours`. Kept separate from `authBudget.js` to avoid an import cycle through `master.js`.
 - [bookingChecks.js](../../src/lib/bookingChecks.js): `candidateVerdicts(state, draft, kind, opts)` returns `{personId: {tone, label, detail, count}}`; `authChip`, `TONE_RANK`.
 - [risk.js](../../src/lib/risk.js): `riskModel`, `riskFor`, `riskQueue`, `riskOf`, `riskCfg`, `RISK_BANDS`. Settings key `settings.risk`; no Settings panel edits it, so defaults apply.
-- [insights.js](../../src/lib/insights.js): `coverageBoard`, `insightBoard`, `forwardDays`.
+- [insights.js](../../src/lib/insights.js): `coverageBoard`, `insightBoard`, `forwardDays`; it also pulls in the density board for the Scheduler Insights tabs.
+- [density.js](../../src/lib/density.js): B2 density optimiser. `densityBoard(state, days)` ranks same-day moves that pull future unclaimed clinical sessions next to an existing block and reports split idle/span savings; `planDensityMove` rechecks one move before the UI writes it.
 - [cancelReasons.js](../../src/lib/cancelReasons.js): `cancelReasonOptions`, `cancelSide`, `isPracticeCancel`, `reasonPatch`, `cancelReasonRows`, `seedCancelReason`. Appointments store `cancelReasonId` and `cancelReason`.
 - [smart.js](../../src/lib/smart.js): `suggestStaff`, `scanNeedsCover`, `backfillFor`, `smartCfg` (weights for team, history, fit, load under Settings > System Settings > Smart scheduling).
 - [abaHours.js](../../src/lib/abaHours.js): `countsAsAbaHours` is the single predicate; also `abaStaffRows`, `abaTotals`, `normalizeAbaHours`.
@@ -157,21 +161,21 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 
 ### Tests
 
-`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js`, `schedulerInsights.test.jsx`, `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
+`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js` (coverage + density), `schedulerInsights.test.jsx` (Insights tabs + density move), `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
 
 ## Not yet built
 
 From the status column of `docs/specs/scheduling-intelligence-ideas.md`:
 
-- Not built: density optimiser (B2), access holdout (B4), calibrated overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), intake-to-first-session handoff (D3), scenario planner (D4).
-- Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6); travel feasibility and route view are shipped (B3 Slice1+2) with honest straight-line estimates.
+- Not built: access holdout (B4), calibrated overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4).
+- Shipped from the catalogue: density optimiser (B2), travel feasibility and route view (B3 Slice1+2), and intake-to-first-week handoff (D3).
+- Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6).
 
 Honest limits:
 
 - Nothing is sent. Confirming a session, assigning cover or recording a cancellation reason changes local records only. No SMS, email or reminder goes to a family.
-- Appointment guards run in the booking dialog, not the reducer, so Quick Add, drag-moves and other non-dialog edits bypass them (see the write path).
+- Appointment guards run in the booking dialog, not the reducer, so Quick Add, drag-moves and other non-dialog edits bypass the full guard stack (see the write path). The Density tab rechecks conflicts and Stop-level overlap/travel rules before its move, but it is still a same-day calendar edit, not a full booking-dialog review.
+- The density optimiser moves only one appointment occurrence. It keeps the same staff, clients and duration; it does not move separate Drive Time blocks, infer family availability, edit a recurring template or optimize routes.
 - The authorization window is an estimate (weekly hours times weeks). `BILL_CODES` now use the 15-minute Medicaid norm; a payer that bills a different unit length is set per payer in the service override. The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for a code keeps a pool in the wrong unit until someone fixes it in Clients, Edit. The payer's qualification-modifier rows are billing-only; they do not drive a scheduling check, and they key off the staff record's education level (see [Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting)).
 - Risk configuration (`settings.risk`) has no Settings panel.
-- Known issue from the handoff: `staffSatisfiesQualification` may flag BCBAs on BCBA-only codes.
-- An intake conversion does not copy approved units into the new client's pool (see [Intake](intake.md)).
 - ABA Hours credits a block whole to everyone on it, from scheduled times rather than a clock-in.
