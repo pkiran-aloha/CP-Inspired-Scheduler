@@ -24,6 +24,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Telehealth room link.** Settings > Clinical Integrations > Telehealth room link stores the practice's own video room (a full `https://` address; anything else is refused). Telehealth bookings (place of service 10) show the link under Location, and `.ics` exports add it to those events. The app does not host, open or record video.
 
+**Per-staff calendar file.** Each Staff Roster card (and expanded table row) has a `.ics` button that saves that person's next 90 days of bookings for Apple or Google Calendar. It is a one-off file, not a subscription; the toast says to download again after changes. Client names are left out for roles without Clients access.
+
 ### Hackathon wave 5 — inbox
 
 **Messages.** The Inbox's third tab holds conversations between signed-in users of the workspace.
