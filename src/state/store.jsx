@@ -6,7 +6,7 @@ import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeInt
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims, planPayerTerms, lineApptIds } from '../lib/claims'
 import { todayISO } from '../lib/date'
-import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds, normalizeStaffEducation } from '../lib/master'
+import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds, normalizeStaffEducation, normalizeAppealedClaims } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
@@ -34,7 +34,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeStaffEducation(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid)))))))))))))
+  const normalized = normalizeStaffEducation(normalizeAppealedClaims(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid))))))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 
@@ -600,7 +600,9 @@ export function reducer(state, action) {
     case 'payer': {
       const list = state.payers || []
       if (action.mode === 'add') return { ...state, payers: [...list, action.item] }
-      if (action.mode === 'patch') return { ...state, payers: list.map((p) => (p.id === action.item.id ? { ...p, ...action.item } : p)) }
+      // every payer edit is one undoable transaction: the field/rules panels, the inline
+      // cells and the add-payer modal all land here, and Payment Terms pushes its own too
+      if (action.mode === 'patch') return { ...state, payers: list.map((p) => (p.id === action.item.id ? { ...p, ...action.item } : p)), history: action.noSnap ? state.history : pushSnap(state, ['payers']) }
       if (action.mode === 'terms') {
         const tx = planPayerTerms(state, action.id, action.input)
         return tx.ok ? { ...state, payers: list.map((p) => (p.id === tx.payer.id ? { ...p, ...tx.payer } : p)), history: pushSnap(state, ['payers']) } : state
@@ -829,7 +831,9 @@ function createActions(state, dispatch, rawState = state) {
     addCfDef: (item) => dispatch({ type: 'cfdef', mode: 'add', item: { id: uid(), status: 'active', required: false, options: [], onLabel: 'Yes', offLabel: 'No', note: '', ...item } }),
     updateCfDef: (item) => dispatch({ type: 'cfdef', mode: 'patch', item }),
     removeCfDef: (id) => dispatch({ type: 'cfdef', mode: 'remove', id }),
-    updatePayer: (item) => dispatch({ type: 'payer', mode: 'patch', item }),
+    // noSnap: a caller that is part of a bigger transaction (a service delete's contract
+    // cleanup) must not add a half-Undo step of its own
+    updatePayer: ({ noSnap, ...item }) => dispatch({ type: 'payer', mode: 'patch', item, noSnap }),
     removePayer: (id) => dispatch({ type: 'payer', mode: 'remove', id }),
     /** Payer payment terms (kind, days to pay, payer share, copay, filing window): validated, one Undo. */
     setPayerTerms: (id, input) => {
@@ -1125,9 +1129,27 @@ function createActions(state, dispatch, rawState = state) {
       if (!c) return { ok: false, msg: 'Claim not found' }
       const at = Date.now()
       const appeal = { date: payload.date || todayISO(), template: payload.template || 'med_necessity', note: payload.note || '', outcome: null, createdAt: at }
-      const patched = { ...c, appeal, status: 'appealed', history: [...(c.history || []), { at, ev: `Appeal filed — ${appeal.template}` }] }
+      // An appeal is a marker on the claim, not a status: the claim keeps its own status (a
+      // denial stays denied and stays in A/R) and no money is invented here.
+      const patched = { ...c, appeal, history: [...(c.history || []), { at, ev: `Appeal filed — ${appeal.template}` }] }
       dispatch({ type: 'claimsTx', claimUpserts: [patched] })
       return { ok: true, msg: `${c.no} appeal filed` }
+    },
+    /** Appeal outcome. A win returns the claim to awaiting payer payment so the payment can
+     *  be posted (the money is never invented); a loss leaves the claim exactly where it was. */
+    appealOutcome: (id, outcome) => {
+      const c = state.claims[id]
+      if (!c) return { ok: false, msg: 'Claim not found' }
+      if (c.method === 'secondary' || c.secondary) return { ok: false, msg: 'A secondary filing is managed in the COB queue' }
+      const at = Date.now()
+      const appeal = { ...(c.appeal || { date: todayISO() }), outcome, outcomeAt: at }
+      const won = outcome === 'won'
+      const patched = {
+        ...c, appeal, status: won ? 'submitted' : c.status,
+        history: [...(c.history || []), { at, ev: won ? 'Appeal won — awaiting the payer payment' : 'Appeal lost — claim stays denied' }],
+      }
+      dispatch({ type: 'claimsTx', claimUpserts: [patched] })
+      return { ok: true, msg: won ? `${c.no} marked won — post the payer payment to close it` : `${c.no} marked lost` }
     },
     updateClaim: (id, patch) => {
       const c = state.claims[id]

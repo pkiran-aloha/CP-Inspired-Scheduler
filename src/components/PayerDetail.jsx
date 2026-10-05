@@ -51,7 +51,7 @@ export default function PayerDetail({ payer, onBack }) {
     onBack()
     return true
   }
-  const patch = (changes, msg) => { actions.updatePayer({ id: p.id, ...changes }); if (msg) toast({ message: msg, kind: 'ok' }) }
+  const patch = (changes, msg) => { actions.updatePayer({ id: p.id, ...changes }); if (msg) toast({ message: msg, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } }) }
 
   return (
     <div className="sectionpage pd" data-testid="payer-detail">

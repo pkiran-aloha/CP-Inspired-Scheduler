@@ -11,7 +11,7 @@ import { intakeKpis, isWon, isLost, stageDef, fullName, ageLabel, referralLabel,
 import { addDays, isoDate, parseISO, todayISO } from './date'
 import { isCancelStatus } from './settingsMasters'
 import { cancelReasonRows, cancelSide } from './cancelReasons'
-import { unitLedger } from './authUnits'
+import { unitLedger, unitRuleFor } from './authUnits'
 
 export const REPORT_CATS = [
   { id: 'operations', label: 'Operations & Capacity' },
@@ -529,10 +529,15 @@ const REPORTS_RAW = [
         if (needVer && TYPES[a.type].hasVerification && a.verification?.verifyStatus !== 'verified') issues.push(a.verification ? `Verification ${a.verification.verifyStatus}` : 'Session not verified')
         if (!issues.length) continue
         const code = BILL_CODES.find((c) => c.id === a.billing?.code) || BILL_CODES[0]
-        const estCharge = r2(((a.end - a.start) / code.unitMins) * (a.billing?.rate || code.rate))
+        // the estimate and the Auto-fill button both use the payer's unit rule (payer override,
+        // payer service, service master, then code) and its rounding — the same chain the
+        // booking dialog and the Billing desk use, so the number here is the number that lands.
+        const rule = unitRuleFor(state, a)
+        const fixUnits = unitsFor(a.end - a.start, rule.unitMins, rule.rounding)
+        const estCharge = r2(fixUnits * (a.billing?.rate || code.rate))
         rows.push({
           date: a.date, client: firstClient(a, clients), staff: namesOf(a.staffIds, staff), type: TYPES[a.type].label,
-          issues: issues.join(' · '), fix: issues.includes('Missing billable units') ? `Auto-fill ${r2((a.end - a.start) / code.unitMins)} units @ ${code.id}` : issues.some((i) => i.startsWith('Verification') || i === 'Session not verified') ? 'Open session → verify & sign' : 'Set rate in billing tab',
+          issues: issues.join(' · '), fix: issues.includes('Missing billable units') ? `Auto-fill ${fixUnits} units @ ${rule.code || code.id}` : issues.some((i) => i.startsWith('Verification') || i === 'Session not verified') ? 'Open session → verify & sign' : 'Set rate in billing tab',
           estCharge, _link: { kind: 'appt', id: a.id, date: a.date },
         })
       }
@@ -857,7 +862,10 @@ export function validationIssues(state, days, scope) {
     if (a.status === 'completed' && TYPES[a.type]?.billable) {
       if (!a.billing) push('error', 'Billing', `Completed ${TYPES[a.type].label.toLowerCase()} has no billing line`, who, 'Open the session → Billing tab → add units', { kind: 'appt', id: a.id, date: a.date }, a.date)
       else {
-        if (!(a.billing.units > 0)) push('error', 'Billing', `${TYPES[a.type].label} completed with 0 billable units`, who, `Auto-fill ${r2((a.end - a.start) / (a.billing.unitMins || 15))} units`, { kind: 'appt', id: a.id, date: a.date }, a.date)
+        if (!(a.billing.units > 0)) {
+          const rule = unitRuleFor(state, a)
+          push('error', 'Billing', `${TYPES[a.type].label} completed with 0 billable units`, who, `Auto-fill ${unitsFor(a.end - a.start, rule.unitMins, rule.rounding)} units`, { kind: 'appt', id: a.id, date: a.date }, a.date)
+        }
         if (!(a.billing.rate > 0) && !a.billing.mileage) push('error', 'Billing', `Unit rate is $0 — claim would pay nothing`, who, 'Set rate from code table', { kind: 'appt', id: a.id, date: a.date }, a.date)
       }
       if (TYPES[a.type].hasVerification && a.verification?.verifyStatus !== 'verified') {

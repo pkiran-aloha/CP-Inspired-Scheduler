@@ -213,7 +213,7 @@ In the same screen, press Restore backup and choose the file. Aloha validates it
 
 ### How does Undo work?
 
-Press `U` (not while typing in a field) or use the Undo button on a toast. Each action is one step, so assembling claims or posting an ERA reverses in one press. It holds the last 25 steps in this tab only, and some changes, such as plain settings patches and payer edits, take no snapshot. [More: Security, Undo and backup](security-undo-backup.md#undo)
+Press `U` (not while typing in a field) or use the Undo button on a toast. Each action is one step, so assembling claims or posting an ERA reverses in one press. It holds the last 25 steps in this tab only, and some changes, such as plain settings patches, payer add/remove and the service and custom-field masters, take no snapshot. [More: Security, Undo and backup](security-undo-backup.md#undo)
 
 ### What does the "Changes aren't saved" alert mean?
 

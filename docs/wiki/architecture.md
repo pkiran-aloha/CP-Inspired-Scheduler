@@ -82,7 +82,7 @@ Git workflow, in short: branch from an up-to-date `main` (`feat/`, `fix/`, `chor
 
 ## Known doc/code mismatches
 
-Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers) were removed. They are recorded, not fixed, and each one is a candidate for a small cleanup branch.
+Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers, the Validations Auto-fill button — it now follows the payer unit rule — and the `appealed` claim status — an appeal is now a marker on the claim, not a status) were removed. These are recorded, not fixed, and each one is a candidate for a small cleanup branch.
 
 Docs versus repo:
 
@@ -104,13 +104,11 @@ Billing and A/R behaviour (ERA, payments, secondary, A/R):
 
 Other findings from writing these pages:
 
-13. `fileAppeal` sets a claim's status to `appealed`, which is not in `CLAIM_STATUSES`. The desk KPIs ignore it, and `planClaimPayment` refuses payments on it (only Submitted and Partially paid are open). Appeals "Mark Won" sets status `paid` through `updateClaim` without posting any money, so the balance can remain in A/R under a Paid claim.
-14. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
-15. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
-16. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
-17. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
+13. The CMS-1500 data mapping still fills some boxes with derived values: the member ID in box 1a (`memberIdOf`), the authorization number in boxes 11, 17 and 23 (`authNoOf`), the diagnosis (`dxFor`, from the client's program), boxes 26 and 29 (built from the client id) and a fallback rendering NPI (`npiOf`). Its note line still says "e-file via ANSI 837P", which the app does not do. Boxes 1, 6, 7a, 10, 32 and 33 were fixed to read the payer and client records or print a dash (configurable-billing slice 4).
+14. Claim history reads "Claim submitted to <payer>" and toasts say "submitted", which describes a local status change (honest-software wording gap).
+15. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
+16. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
 
 Found while syncing with the billing-rules work:
 
-18. The Validations "Auto-fill" button in `ReportsView.jsx` (`autoFill`) sets units to the raw duration divided by the unit size, rounded to two decimals, instead of the payer's unit rule. The booking dialog, Quick Add and the Billing desk's unit fix all use `unitRuleFor` and `unitsFor` (midpoint rule), so the same session can get different units depending on which button fills them. The billing-readiness rows in `reports.js` also estimate with the code's unit size and fractional units.
-19. In Payer, Billing Rules, Claims Settings, "Separate Claim By: Supervising Provider" does nothing (`separateKey` in `claims.js` returns no key because sessions record no supervisor). The merge checkbox label says "same service provider", while `mergeSameDayLines` also requires the same code, modifiers, rate and unit rule. Box 17 and 19 options, box 33B ID types, claim file options, appointment time and the taxonomy checkboxes are stored but read by nothing (listed in `docs/specs/configurable-billing.md`).
+17. In Payer, Billing Rules, Claims Settings, "Separate Claim By: Supervising Provider" does nothing (`separateKey` in `claims.js` returns no key because sessions record no supervisor). The merge checkbox label says "same service provider", while `mergeSameDayLines` also requires the same code, modifiers, rate and unit rule. Box 17 and 19 options, box 33B ID types, claim file options, appointment time and the taxonomy checkboxes are stored but read by nothing (listed in `docs/specs/configurable-billing.md`).

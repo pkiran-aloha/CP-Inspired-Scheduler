@@ -431,6 +431,25 @@ export function normalizeApptPcfs(state) {
 }
 
 /**
+ * Load-time heal for the retired appeal status. Before the correctness batch, `fileAppeal`
+ * wrote `status: 'appealed'`, which is not in `CLAIM_STATUSES`: the desk KPIs ignored the
+ * claim and no payment could be posted against it. A saved workspace may still carry it, so
+ * the claim goes back to Denied (its status before the appeal; a recorded win becomes
+ * Submitted, awaiting the payer payment) and keeps its `appeal` marker. Idempotent.
+ */
+export function normalizeAppealedClaims(state) {
+  let changed = false
+  const claims = {}
+  for (const [id, c] of Object.entries(state.claims || {})) {
+    if (c && c.status === 'appealed') {
+      claims[id] = { ...c, status: c.appeal?.outcome === 'won' ? 'submitted' : 'denied' }
+      changed = true
+    } else claims[id] = c
+  }
+  return changed ? { ...state, claims } : state
+}
+
+/**
  * Staff education (used by the payer's Qualification Modifiers) is optional: a missing or
  * blank value means "not recorded" and is left alone, so a workspace that never touched it
  * is returned unchanged. A stored value that is not one of EDUCATION_LEVELS is cleared.

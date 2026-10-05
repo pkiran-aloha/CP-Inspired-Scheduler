@@ -36,7 +36,7 @@ Open Settings, Security (also reachable from the nav for accounts with access). 
 - **One action, one Undo.** A compound change, such as assembling claims with their invoices, posting an ERA, or restoring a backup, is a single step.
 - **Depth.** The last 25 steps, in this browser tab only. Reloading the page or opening another tab starts with an empty Undo.
 - **What Undo covers.** Only the data the change touched is restored. Unrelated edits made afterwards (a theme switch, say) stay. Undo also checks your access: it is refused if reversing the step would touch a record outside your office scope or an area you cannot edit.
-- **What has no Undo.** Changes that take no snapshot: plain settings patches, security accounts and roles, payer add or edit or remove (only the Payment Terms save snapshots), staff and client roster edits, service and custom-field masters, dashboard and saved-report edits, and view changes. Check the toast: an Undo button appears only where one exists.
+- **What has no Undo.** Changes that take no snapshot: plain settings patches, security accounts and roles, payer add or remove, staff and client roster edits, service and custom-field masters, dashboard and saved-report edits, and view changes. A payer edit (the profile fields, the inline cells, the Billing Rules panels) and the Payment Terms save each take one Undo. Check the toast: an Undo button appears only where one exists.
 
 ### Backup and restore
 
@@ -70,7 +70,7 @@ Changes are saved to localStorage about a quarter of a second after the last edi
 ### Undo
 
 - `pushSnap(state, fields, billingPatch, payrollPatch)` appends `{ __workspaceSnapshot: true, <touched fields> }` to `state.history`, keeping the last 25 (`slice(-24)` plus the new one). Billing and payroll settings are snapshotted as only the keys the action changed.
-- Cases that push a snapshot: `upsertMany`, `patch` (unless `noSnap`), `deleteMany`, `claimsTx`, `payrollTx`, `intakeTx`, `record`, `settingsTx`, `importTx`, `clearDemo`, `reseed`, `relabel`, `replace`, and `payer` with mode `terms`.
+- Cases that push a snapshot: `upsertMany`, `patch` (unless `noSnap`), `deleteMany`, `claimsTx`, `payrollTx`, `intakeTx`, `record`, `settingsTx`, `importTx`, `clearDemo`, `reseed`, `relabel`, `replace`, and `payer` with mode `patch` (unless `noSnap`) or `terms`.
 - The `undo` case restores only the fields in the snapshot, drawing keys from `WORKSPACE_FIELDS`. Authorization for it is `areasForUndo` plus a record-by-record diff against office scope.
 - History is never persisted: `serializeForStorage` writes `history: []`, `initial` drops any persisted stack, and the backup excludes it.
 - The `U` key handler is in [`App.jsx`](../../src/App.jsx).

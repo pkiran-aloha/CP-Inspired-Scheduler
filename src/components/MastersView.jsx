@@ -88,7 +88,8 @@ function ServiceTypesView() {
     // also drop it from any payer contracts/overrides/local copies that still reference it
     for (const p of state.payers || []) {
       const had = (p.services || []).includes(sv.id) || (p.svcOv && p.svcOv[sv.id]) || (p.svcs || []).some((x) => x.ref === sv.id)
-      if (had) actions.updatePayer({ id: p.id, services: (p.services || []).filter((x) => x !== sv.id), svcOv: Object.fromEntries(Object.entries(p.svcOv || {}).filter(([k]) => k !== sv.id)), svcs: (p.svcs || []).filter((x) => x.ref !== sv.id) })
+      // noSnap: this cleanup is part of the service delete, so it must not add a half-Undo step
+      if (had) actions.updatePayer({ id: p.id, noSnap: true, services: (p.services || []).filter((x) => x !== sv.id), svcOv: Object.fromEntries(Object.entries(p.svcOv || {}).filter(([k]) => k !== sv.id)), svcs: (p.svcs || []).filter((x) => x.ref !== sv.id) })
     }
     actions.removeSvc(sv.id)
     toast({ message: `${sv.label} removed from the service master`, kind: 'info' })

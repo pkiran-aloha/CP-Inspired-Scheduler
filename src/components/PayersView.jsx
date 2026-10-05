@@ -194,7 +194,7 @@ export function PayersList() {
     toast({ message: `${v.name} added to the payer directory`, kind: 'ok' })
   }
   // inline edits write straight to the payer record — no modal round-trip
-  const patch = (p, changes, what) => { actions.updatePayer({ id: p.id, ...changes }); if (what) toast({ message: `${p.name} — ${what}`, kind: 'ok' }) }
+  const patch = (p, changes, what) => { actions.updatePayer({ id: p.id, ...changes }); if (what) toast({ message: `${p.name} — ${what}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } }) }
   const patchPhone = (p, phone) => {
     const list = (p.contacts || []).slice()
     const i = list.findIndex((c) => c.kind === 'Main')
