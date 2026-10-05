@@ -73,7 +73,7 @@ export default function SecondaryBillingView() {
 
   return (
     <div className="sectionpage" data-testid="sb-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="shield" title="Secondary Billing" sub={`Manual COB · ${stats.ready} ready · ${stats.submitted} filing recorded · ${stats.paid} paid · ${money(stats.totalRemaining)} primary balance · ${range.label}`}>
+      <SectionBar icon="shield" title="Secondary Queue" sub={`Manual COB · ${stats.ready} ready · ${stats.submitted} filing recorded · ${stats.paid} paid · ${money(stats.totalRemaining)} primary balance · ${range.label}`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ secPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 240, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>

@@ -889,7 +889,7 @@ function createActions(state, dispatch, rawState = state) {
       for (const id of ids) {
         const c = state.claims[id]
         if (!c || c.status !== 'draft') continue
-        if (c.method === 'secondary') { gated.push({ no: c.no, why: 'Use Secondary Billing to record filing manually', bad: 1 }); continue }
+        if (c.method === 'secondary') { gated.push({ no: c.no, why: 'Use Secondary Queue to record filing manually', bad: 1 }); continue }
         const gate = claimGate(state, c)
         if (!gate.ok) { gated.push({ no: c.no, why: gate.bad[0]?.why, bad: gate.bad.length }); continue }
         const tx = submitPatch(state, c)

@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main 0f08b56 plus the fix/honest-claim-wording branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main a272ecd plus the fix/small-mismatches branch on 2026-10-05; unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -97,9 +97,9 @@ Docs versus repo:
 
 Billing and A/R behaviour (ERA, payments, secondary, A/R):
 
-7. The secondary screen is titled "Secondary Billing", while the nav item, the Billing desk heading and the README call it "Secondary Queue".
+7. Resolved: the secondary screen title now reads "Secondary Queue", like the nav item, the Billing desk heading and the README.
 8. Billed files are still stored with status `sent` and `billedThrough: 'ch'` (internal keys, kept so saved workspaces need no migration). The screen now shows that status as "Exported" and labels the 837P count "Summary, not X12"; the file content is a pipe-delimited summary.
-9. In `ArManagerView.jsx`, `clientPick` is never set to a non-empty value, so its "Clear filter" button can never appear.
+9. Resolved: the never-set `clientPick` filter and its unreachable "Clear filter" button were removed from `ArManagerView.jsx`; the search box is the AR Manager's client filter.
 
 Other findings from writing these pages:
 
