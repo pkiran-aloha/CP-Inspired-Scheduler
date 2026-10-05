@@ -639,19 +639,14 @@ export function IntakeDetail({ id, onClose, onToast }) {
                 <h4>Conversion readiness</h4>
                 <KV k="Requirements met" v={`${GATES.converted.length - convBlockers.length}/${GATES.converted.length}`} tone={convBlockers.length ? 'var(--warn)' : 'var(--ok)'} />
                 <KV k="Outstanding" v={convBlockers.length ? convBlockers.map((b) => b.label).join(', ') : 'Ready to convert'} />
-                {isWon(req.stage) ? (
-                  <div className="iq-actions"><button className="btn btn-sm" disabled data-testid="iq-converted-flag">Already converted</button></div>
-                ) : isLost(req.stage) ? null : (
-                  <div className="iq-actions">
-                    <button className="btn btn-sm btn-primary" disabled={convBlockers.length > 0 || req.stage !== 'auth'} data-testid="iq-convert"
-                      title={req.stage !== 'auth' ? `Conversion happens from ${stageDef('auth').label}` : convBlockers.length ? 'Requirements outstanding' : 'Create the client chart'}
-                      onClick={() => setConvertOpen(true)}>
-                      {Icon.plus({ size: 12 })} Convert to client
-                    </button>
-                    <span className="muted" style={{ fontSize: 11.5 }}>
-                      {req.stage !== 'auth' ? `Available at the ${stageDef('auth').label} step` : convBlockers.length > 0 ? `${convBlockers.length} requirement${convBlockers.length > 1 ? 's' : ''} outstanding` : 'Everything is in place'}
-                    </span>
-                  </div>
+                {/* One Convert button: the Next box above. This panel only says where things stand. */}
+                {isLost(req.stage) ? null : (
+                  <p className="muted" data-testid="iq-convert-note" style={{ fontSize: 11.5, margin: '6px 0 0' }}>
+                    {isWon(req.stage) ? 'Already converted.'
+                      : req.stage !== 'auth' ? `Conversion opens at the ${stageDef('auth').label} step.`
+                        : convBlockers.length > 0 ? `${convBlockers.length} requirement${convBlockers.length > 1 ? 's' : ''} outstanding.`
+                          : 'Everything is in place. Use Convert to client above.'}
+                  </p>
                 )}
               </div>
             </div>

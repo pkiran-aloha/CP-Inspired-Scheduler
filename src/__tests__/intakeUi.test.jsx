@@ -155,7 +155,8 @@ describe('Conversion closes the loop into the client roster', () => {
     fireEvent.change(await screen.findByTestId('iq-search'), { target: { value: CONVERTIBLE.no } })
     fireEvent.click(screen.getByTestId('iq-mode-list'))
     fireEvent.click(await screen.findByTestId(`iq-open-${CONVERTIBLE.id}`))
-    fireEvent.click(await screen.findByTestId('iq-convert'))
+    expect(screen.queryByTestId('iq-convert')).toBe(null) // one Convert button, in the Next box
+    fireEvent.click(await screen.findByTestId('iq-advance'))
     const modal = await screen.findByTestId('iq-convert-modal')
     expect(within(modal).queryByTestId('iq-convert-blocked')).toBe(null) // every gate is met
     fireEvent.click(within(modal).getByTestId('iq-convert-confirm'))
