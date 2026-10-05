@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (honest claim wording, `fix/honest-claim-wording`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (small mismatches #7 and #9, `fix/small-mismatches`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: D3 (PR #26), B2 density (PR #27), the modal/PDF fix and the honest claim wording fix are on `main`. A parallel agent is working on the CMS-1500 form layout on the local branch `feat/cms1500-standard`; leave `cms1500.js` to that branch. Confirm the latest main/deploy run before choosing another feature.
+- State at handoff: D3 (PR #26), B2 density (PR #27), the modal/PDF fix, the honest claim wording fix and the small-mismatch fix (#7, #9) are on `main`. A parallel agent is working on the CMS-1500 form layout on the local branch `feat/cms1500-standard`; leave `cms1500.js` to that branch. Confirm the latest main/deploy run before choosing another feature.
 
 ## How the maintainer works
 
@@ -15,6 +15,12 @@ Last updated **2026-10-05** (honest claim wording, `fix/honest-claim-wording`). 
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### Fix — small mismatches #7 and #9 (`fix/small-mismatches`)
+
+- #7: `SecondaryBillingView.jsx`'s title read "Secondary Billing" while the nav, the Billing desk and the README say "Secondary Queue". The title and the Process gate message (`submitClaims` in `store.jsx`) now say "Secondary Queue". The `bil-secondary` route and `sb-` test ids are unchanged.
+- #9: `ArManagerView.jsx` held a `clientPick` filter nothing ever set, so its "Clear filter" button (`ar-clear-filter`) could never show. Removed; no test referenced it.
+- Remaining architecture mismatches: #1–6 (doc nits), #8 (stored keys only), #10, #12 (`build*` helpers only tests import), #13 (unenforced MFA/lock settings).
 
 ### Fix — honest claim wording (`fix/honest-claim-wording`)
 

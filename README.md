@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Small consistency fixes
+
+The secondary screen's title now reads **Secondary Queue**, matching its nav item and the Billing desk. The AR Manager lost an unreachable "Clear filter" button (its filter was never set); search remains the client filter.
+
 ### Honest claim wording
 
 Process and Submit now say what actually happens. The toast reads "N claims marked submitted · file saved in Billed Files, nothing transmitted". New claim history entries read "Marked submitted to <payer>; claim file saved locally, not transmitted". Billed Files shows a recorded file as **Exported** (saved in this browser), not Sent or Delivered, and labels the 837P count "Summary, not X12". Stored values are unchanged, so saved workspaces need no migration. Old history entries keep their old text.

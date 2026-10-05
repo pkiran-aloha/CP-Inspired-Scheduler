@@ -23,20 +23,18 @@ export default function ArManagerView() {
 
   const [view, setView] = useState('client')
   const [q, setQ] = useState('')
-  const [clientPick, setClientPick] = useState([])
   const [selId, setSelId] = useState(null)
   const [page, setPage] = useState(0)
   const perPage = 25
 
   const filteredByClient = useMemo(() => {
     let out = ar.byClient
-    if (clientPick.length) out = out.filter((r) => clientPick.includes(r.clientId))
     if (q.trim()) {
       const t = q.trim().toLowerCase()
       out = out.filter((r) => `${r.clientName} ${r.clientId}`.toLowerCase().includes(t))
     }
     return out
-  }, [ar.byClient, clientPick, q])
+  }, [ar.byClient, q])
 
   const filteredByPayer = useMemo(() => {
     let out = ar.byPayer
@@ -109,7 +107,6 @@ export default function ArManagerView() {
           <button className={view === 'client' ? 'on' : ''} data-testid="ar-tab-client" onClick={() => { setView('client'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.team({ size: 12 })} By Client</button>
           <button className={view === 'payer' ? 'on' : ''} data-testid="ar-tab-payer" onClick={() => { setView('payer'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.shield({ size: 12 })} By filing / patient bucket</button>
         </div>
-        {clientPick.length > 0 && <button className="btn btn-xs" data-testid="ar-clear-filter" onClick={() => setClientPick([])} style={{ borderRadius: 8 }}>Clear filter ({clientPick.length})</button>}
         <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{list.length} rows · {view === 'client' ? 'Client aging' : 'Disjoint filing and reported patient portions'} · reported share requires review</span>
       </div>
 

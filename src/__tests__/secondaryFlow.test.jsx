@@ -47,6 +47,7 @@ const mount = () => render(<ToastProvider><StoreProvider><TestRouter /></StorePr
 describe('manual COB UI, receipts, A/R and Undo', () => {
   it('draft → record external filing → apply payer remittance → review split A/R → reverse/undo atomically', async () => {
     mount()
+    expect(screen.getByTestId('sb-sec').textContent).not.toContain('Secondary Billing') // title matches the nav: Secondary Queue
     fireEvent.click(screen.getByTestId(`sb-release-${claimId}`))
     await waitFor(() => expect(saved().claims[claimId].secondary).toBeTruthy())
     const childId = saved().claims[claimId].secondary
