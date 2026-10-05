@@ -84,11 +84,14 @@ export function openTasksFor(state, staffId, today) {
  */
 export function notificationsFor(state, staffId, today, can = () => true) {
   const out = []
-  const mine = staffId ? openTasksFor(state, staffId, today) : []
+  // An account not linked to a staff member (the practice administrator) oversees the whole team's tasks.
+  const team = !staffId
+  const mine = openTasksFor(state, staffId || null, today)
   const overdue = mine.filter((t) => taskState(t, today) === 'overdue')
   const dueToday = mine.filter((t) => taskState(t, today) === 'today')
-  if (overdue.length) out.push({ id: 'tasks-overdue', tone: 'stop', text: `${overdue.length} of your tasks ${overdue.length > 1 ? 'are' : 'is'} overdue`, go: { tab: 'tasks' } })
-  if (dueToday.length) out.push({ id: 'tasks-today', tone: 'warn', text: `${dueToday.length} task${dueToday.length > 1 ? 's' : ''} due today`, go: { tab: 'tasks' } })
+  const n = (k) => `${k} ${team ? 'team ' : ''}task${k > 1 ? 's' : ''}`
+  if (overdue.length) out.push({ id: 'tasks-overdue', tone: 'stop', text: team ? `${n(overdue.length)} ${overdue.length > 1 ? 'are' : 'is'} overdue` : `${overdue.length} of your tasks ${overdue.length > 1 ? 'are' : 'is'} overdue`, go: { tab: 'tasks' } })
+  if (dueToday.length) out.push({ id: 'tasks-today', tone: 'warn', text: `${n(dueToday.length)} due today`, go: { tab: 'tasks' } })
   if (can('staff')) {
     const docs = cabinetAlerts(state, today)
     const expired = docs.filter((d) => d.expiresOn < today).length

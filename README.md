@@ -24,6 +24,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Demo records.** A fresh workspace (and Regenerate demo data) now includes sample Cabinet documents (one expired, two due within 30 days), CEU and PDU entries, tasks and messages, so the Cabinet, Credentials & PDUs report and Inbox show real examples. All fictional and dated relative to today.
 
+**Team task notifications.** The practice administrator account is not a staff member, so its Inbox now reports the whole team's overdue and due-today tasks. Staff accounts still see only their own.
+
 ### Hackathon wave 6 — integrations, honest partial
 
 **Telehealth room link.** Settings > Clinical Integrations > Telehealth room link stores the practice's own video room (a full `https://` address; anything else is refused). Telehealth bookings (place of service 10) show the link under Location, and `.ics` exports add it to those events. The app does not host, open or record video.

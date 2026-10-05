@@ -18,6 +18,7 @@ Last updated **2026-10-03** (end of session). Any agent resuming work: read this
 
 Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fixes, 3 B3 travel routing).
 - **1a, demo records** (`src/lib/demoRecords.js`, called by `blankState` and `reseed`). Eight Cabinet documents (one expired, two due within 30 days), eight CEU/PDU entries, five tasks and three messages, built through the real planners and dated relative to today. Tests that need an empty collection now start from `{ ...blankState(), cabinet: {} }` and similar.
+- **1b, team task notifications** (`notificationsFor` in `tasks.js`). The demo admin stays unlinked on purpose: `normalizeSecurity` forces `staffId: null` on the system account. Instead, an account with no staff link is told about the whole team's overdue and due-today tasks ("2 team tasks are overdue"). Linked accounts still see only their own.
 
 Hackathon wave 6: Integrations, honest partial (#3, #11, #12). This wave is complete.
 - **Slice 1, telehealth room link** (`telehealthRoomFor` and `isWebUrl` in `settingsMasters.js`). Reuses the existing `int-telehealth` integration row's `roomUrl`; `integration.patch` now refuses a non-`https://` link. The booking dialog shows it for POS-10 locations and `buildICS` takes an optional `roomFor` to add it to `.ics` events. One practice-wide room; no per-staff rooms yet.
@@ -35,7 +36,7 @@ Hackathon wave 5: Inbox (#1 + #2). This wave is complete.
   - Adds a `tasks` collection. Its record action needs no area (`actionAreas` returns `[]`), and an undo of tasks needs no area. Office scope comes from the linked client or the assignee.
   - Note: `ui.inbox` is the older needs-cover panel; this is a separate panel.
   - A security review asked for client names to be hidden from roles without Clients. The picker, the linked label and `planTask` now respect `canAccess` (`4e12be2`).
-  - Gap: the demo's signed-in account has no `staffId`, so "my tasks" notifications never show for it. Link the demo admin account to a staff record in the seed to fix this.
+  - The demo's signed-in account has no `staffId`; since 1b it sees team-wide task notifications instead of "my tasks".
 
 Hackathon wave 4: Records (#4, #10, #13). This wave is complete.
 - **Slice 3, Credentials & PDUs** (`credentials.js`, report `credentials`, Cabinet → Training & CEU log).
@@ -127,7 +128,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 |---|---|---|
 | ~~Configurable billing (#8)~~ (shipped 2026-10-04) | "We didn't have to submit hard-code requests for billing" | All 6 slices have shipped (see Shipped above and `docs/specs/configurable-billing.md`). Medicaid norms are the compliance baseline. Still open, small:<br>• the "stored but unused" list at the end of the spec<br>• box 17 (referring provider) and Supervising Provider: both need data that isn't recorded yet |
 | ~~Intake (#5)~~ (shipped 2026-10-04) | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | All three slices have shipped (see Shipped above). Still open:<br>• one Convert button instead of two<br>• the assessment visit is booked without a client and bypasses the booking guards<br>• an `impeccable` critique of the intake screens has not been run |
-| ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). Still open: link the demo account to a staff record (see Shipped). |
+| ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• the demo seed has no family balances, so statements start empty (Cabinet and CEU demo data shipped 2026-10-05)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
 | Scheduling idea B3 | Travel feasibility & route sequencing | From `docs/specs/scheduling-intelligence-ideas.md` §6; deferred by the maintainer. |

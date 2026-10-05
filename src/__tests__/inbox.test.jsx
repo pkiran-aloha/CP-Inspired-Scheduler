@@ -45,6 +45,12 @@ describe('inbox — tasks and notifications', () => {
     const st = { ...BASE, tasks: { t1: planTask(BASE, task(), { id: 't1' }).item } }
     const feed = notificationsFor(st, ME, today)
     expect(feed.find((n) => n.id === 'tasks-overdue').text).toMatch(/1 of your tasks is overdue/)
+    // an account with no staff link (the practice administrator) sees the whole team's tasks
+    const t2 = planTask(BASE, task({ assigneeId: BASE.staff[1].id, dueOn: today }), { id: 't2' }).item
+    const team = notificationsFor({ ...st, tasks: { ...st.tasks, t2 } }, null, today)
+    expect(team.find((n) => n.id === 'tasks-overdue').text).toBe('1 team task is overdue')
+    expect(team.find((n) => n.id === 'tasks-today').text).toBe('1 team task due today')
+    expect(notificationsFor(st, BASE.staff[1].id, today).some((n) => n.id === 'tasks-overdue')).toBe(false)
     expect(notificationsFor(st, ME, today, (area) => area !== 'billing').some((n) => n.id === 'denied')).toBe(false)
   })
 
@@ -89,12 +95,10 @@ describe('inbox — store and screen', () => {
     const t = Object.values(saved().tasks)[0]
     expect(t).toMatchObject({ title: 'Chase the signed consent', assigneeId: ME, dueOn: day(-2), status: 'open' })
     expect(within(panel).getByTestId(`task-state-${t.id}`).textContent).toMatch(/Overdue/)
-    // "my tasks" notifications need the signed-in account to be linked to a staff member
-    if (currentAccount(BASE)?.staffId) {
-      fireEvent.click(within(panel).getByTestId('inbox-tab-notifications'))
-      expect(within(panel).getByTestId('inbox-n-tasks-overdue')).toBeTruthy()
-      fireEvent.click(within(panel).getByTestId('inbox-tab-tasks'))
-    }
+    // the demo admin is not a staff member, so it is told about the team's overdue tasks
+    fireEvent.click(within(panel).getByTestId('inbox-tab-notifications'))
+    expect(within(panel).getByTestId('inbox-n-tasks-overdue').textContent).toMatch(/1 (team task|of your tasks) is overdue/)
+    fireEvent.click(within(panel).getByTestId('inbox-tab-tasks'))
     fireEvent.click(within(panel).getByTestId(`task-done-${t.id}`))
     await waitFor(() => expect(saved().tasks[t.id].status).toBe('done'))
   })
