@@ -41,7 +41,8 @@ describe('payer payment terms — engine', () => {
     expect(claim).toBeTruthy()
     const st = withPayer(claim.payer, { copay: 7, coins: 0.5, avgDays: 1 }, { filingDeadlineDays: 33 })
     expect(copayOf(claim, null, st)).toBe(Math.min(7 * claim.lines.length, claim.charges))
-    const aged = { ...claim, status: 'submitted', submittedAt: addDays(new Date(), -5).getTime() }
+    // the unified aging engine only ages claims with an open balance, so zero the seed claim's postings
+    const aged = { ...claim, status: 'submitted', submittedAt: addDays(new Date(), -5).getTime(), paid: 0, adj: 0, secondaryPaid: 0, patientPaid: 0 }
     expect(agingOf(aged, isoDate(new Date()), st).late).toBe(true) // 5 days > 1.6 × 1
     expect(quickPosts(st, claim, null).find((q) => q.id === 'contract').label).toBe('Estimate 50%')
     const box = (d, id) => d.boxes.find((b) => b.id === id)

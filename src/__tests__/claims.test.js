@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 // ---- claim lifecycle engine: pure tests over a synthetic micro-practice ----
 import {
   stagedAppts, planClaims, assembleClaims, nextClaimSeq, claimGate, submitPatch, payPatch,
-  denyPatch, rebillPatch, dropLinePatch, dueOf, agingOf, claimStats, claimCsv, claimNoAt, PAYER_POLICY,
+  denyPatch, rebillPatch, dropLinePatch, dueOf, agingOf, claimStats, claimCsv, claimNoAt, PAYER_POLICY, arOf,
 } from '../lib/claims'
 import { addDays, addMonths, isoDate } from '../lib/date'
 
@@ -169,7 +169,7 @@ describe('claims engine', () => {
     const c = claims[0]
     const old = Date.now() - 40 * 86400000
     const aged = { ...c, status: 'submitted', submittedAt: old }
-    expect(agingOf(aged).bucket).toBe('31–60')
+    expect(agingOf(aged).bucket).toBe('31-60')
     expect(agingOf(aged).late).toBe(true) // > Aetna's 24d median
     const paid = payPatch({ ...c, submittedAt: old }, { amount: c.charges, checkNo: 'X', adj: 0, paidAt: old + 10 * 86400000 }).claim
     const s = claimStats({ ...st, claims: { aged: aged, paid: paid, denied: { ...c, id: 'zz', status: 'denied' } } }, null)
@@ -178,6 +178,34 @@ describe('claims engine', () => {
     expect(s.denialRate).toBe(50)
     expect(s.avgDaysToPay).toBe(10)
     expect(s.staged.n).toBe(1) // a1 itself was never marked claimed in this synthetic state
+  })
+
+  it('one aging engine: desk, register and AR Manager share one clock and five buckets', () => {
+    const st = state([appt('a1', 'c1')])
+    const { claims } = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 1 })
+    const c = claims[0]
+    const mk = (id, daysAgo, over = {}) => ({
+      ...c, id, no: `CLM-${id}`, status: 'submitted', paid: 0, adj: 0,
+      submittedAt: Date.now() - daysAgo * 86400000, ...over,
+    })
+    // one claim per bucket; ages stay clear of the 30/60/90/120 edges
+    const five = { a: mk('a', 5), b: mk('b', 35), cc: mk('cc', 65), d: mk('d', 95), e: mk('e', 130) }
+    const s = claimStats({ ...st, claims: five }, null)
+    expect(Object.keys(s.pending.buckets)).toEqual(['current', '31-60', '61-90', '91-120', '121+'])
+    expect(Object.values(s.pending.buckets).every((v) => v > 0)).toBe(true)
+    // the desk buckets reconcile with the AR Manager's for the same claims
+    const ar = arOf({ ...st, claims: five }, isoDate(new Date()))
+    for (const b of ['current', '31-60', '61-90', '91-120', '121+']) {
+      expect(s.pending.buckets[b]).toBe(Math.round(ar.totals[b]))
+    }
+    // a denied claim keeps aging (it stays in A/R); closed and draft claims have no age
+    const denied = { ...c, id: 'den', status: 'denied', denial: { code: 'x' }, submittedAt: Date.now() - 40 * 86400000 }
+    expect(agingOf(denied).bucket).toBe('31-60')
+    expect(agingOf({ ...c, id: 'done', status: 'paid', paid: c.charges })).toBe(null)
+    expect(agingOf({ ...c, id: 'drft', status: 'draft', submittedAt: null })).toBe(null)
+    // with nothing submitted yet, an open claim ages from its date of service — the arOf clock
+    const dos = isoDate(addDays(new Date(), -50))
+    expect(agingOf({ ...denied, id: 'dos', submittedAt: null, dosFrom: dos, dosTo: dos }).bucket).toBe('31-60')
   })
 
   it('CSV export carries the practice header and one line per charge', () => {

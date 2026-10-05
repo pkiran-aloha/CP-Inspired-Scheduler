@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (A/R DSO consistency added; follow-up 4 and the small correctness batch are already on `main`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (unified A/R aging engine added; DSO consistency is already on `main`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green at `22a465a`; B3, follow-up 4 and the small correctness batch (report Auto-fill unit rule, appeals as a marker, payer-edit Undo) are merged. The DSO consistency change is the current feature. Next: pick from "Next" below.
+- State at handoff: `main` green at `4375cb1`; B3, follow-up 4, the small correctness batch and DSO consistency are merged. The unified A/R aging engine is the current feature. Next: pick from "Next" below.
 
 ## How the maintainer works
 
@@ -15,6 +15,8 @@ Last updated **2026-10-05** (A/R DSO consistency added; follow-up 4 and the smal
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+- **Unified A/R aging engine.** The two aging engines are now one: `agingOf` ages claims exactly like `arOf` — any open primary receivable (draft, void, closed and zero-balance claims have no age) counts days from `submittedAt`, else `dosTo`, else `createdAt` (`agingSince`), into one five-bucket scheme (`agingBucketFor`: `current`, `31-60`, `61-90`, `91-120`, `121+`). The Billing desk strip, the claim drawer, the desk's aging sort and the Claims Register's days-out column now follow the same rule as the AR Manager, so a denied claim keeps aging while its balance is still owed. The AR Manager table shows 91–120 and 121+ as separate columns, matching the KPI strip, the drill chips and the CSV export. Covered by `claims.test.js` (desk buckets reconcile with the AR Manager's for the same claims) plus updated `payerTerms.test.jsx`. Architecture mismatches #7 and #8 are resolved.
 
 - **A/R DSO consistency.** Billing Health now takes DSO from `arOf`, the same calculation used by the AR Manager: open primary A/R divided by average daily charges from primary non-void claims whose `dosFrom` is on or after the date 90 days before the as-of date; draft charges are included. The dashboard renders an em dash when there is no denominator, matching the AR Manager. Covered by `billingKpis.test.js` and `dashboard.test.jsx`. DSO mismatch #7 is resolved; the aging engines remain a separate mismatch.
 
@@ -132,9 +134,9 @@ Scheduling intelligence round:
 
 Fixes: status-removal reassignment, payer template delete crash, send-for-approval, SecurityView import, read-only settings Seg, IntakeDetail hook order, current user from the demo account switcher.
 
-## Next — after DSO consistency
+## Next — after the unified aging engine
 
-B3, follow-up 4, the small correctness batch and DSO consistency are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), density optimiser (B2), or one of the smaller architecture mismatches (the two aging engines, or the `build*` document helpers only tests import). The DSO formula mismatch is resolved.
+B3, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), density optimiser (B2), or one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items). The DSO formula and both aging-engine mismatches are resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
