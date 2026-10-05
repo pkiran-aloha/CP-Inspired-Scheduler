@@ -9,6 +9,7 @@ import { todayISO } from '../lib/date'
 import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds, normalizeStaffEducation, normalizeAppealedClaims } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
+import { planHandoffSession } from '../lib/intakeHandoff'
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
 import { planCabinetDoc, planCabinetArchive } from '../lib/cabinet'
 import { seedRecords } from '../lib/demoRecords'
@@ -365,6 +366,11 @@ export function reducer(state, action) {
     // ---- intake manager: one transaction per pipeline move, so a single Undo
     // steps the record back — including a conversion that also created a client
     // chart and re-pointed an appointment at it.
+    case 'handoffSessionTx': {
+      const plan = planHandoffSession(state, action.clientId, action.appt)
+      if (!plan.ok) return state
+      return { ...state, appts: { ...state.appts, [plan.appt.id]: plan.appt }, history: pushSnap(state, ['appts']) }
+    }
     case 'intakeTx': {
       const intakeRequests = { ...(state.intakeRequests || {}) }
       for (const r of action.upserts || []) intakeRequests[r.id] = r
@@ -796,6 +802,15 @@ function createActions(state, dispatch, rawState = state) {
     replace: (payload) => dispatch({ type: 'replace', payload }),
     dash: (mode, payload = {}) => dispatch({ type: 'dash', mode, ...payload }),
     relabel: () => dispatch({ type: 'relabel' }),
+    bookHandoffSession: (clientId, input) => {
+      const appt = { ...input, createdAt: Date.now(), updatedAt: Date.now() }
+      const permission = authorizeAction(rawState, { type: 'handoffSessionTx', clientId, appt })
+      if (!permission.ok) return permission
+      const plan = planHandoffSession(rawState, clientId, appt)
+      if (!plan.ok) return plan
+      const decision = dispatch({ type: 'handoffSessionTx', clientId, appt })
+      return decision?.ok === false ? decision : { ok: true, msg: plan.msg }
+    },
     create: (apptsIn) => {
       const appts = apptsIn.map((a) => ({ id: a.id || uid(), createdAt: Date.now(), updatedAt: Date.now(), status: 'active', custom: {}, clientIds: [], staffIds: [], notes: '', documents: [], verification: null, ...a }))
       dispatch({ type: 'upsertMany', appts })

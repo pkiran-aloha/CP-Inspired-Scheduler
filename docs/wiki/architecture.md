@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced with main at 4375cb1 on 2026-10-05; includes the unified A/R aging engine from this branch._
+_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -48,6 +48,8 @@ Import cycles to avoid: `seed.js` imports `authBudget.js`, and `master.js` impor
 5. **Undo.** `state.history` holds up to 25 snapshots of only the fields a change touched. It lives in this tab's memory and is never persisted.
 6. **Persist.** A `StoreProvider` effect waits 250 ms after the last state change, then writes `serializeForStorage(state)` (the state with `history` emptied) to localStorage. If the write throws, a `storage-warning` alert appears until a later write succeeds.
 7. **Load.** `initial()` reads the saved state, merges it over current defaults, runs `normalizeWorkspace`, and rewrites storage only if something changed.
+
+The D3 handoff uses `intakeHandoff.js` for a pure first-week proposal and `planHandoffSession`, then `bookHandoffSession` → `handoffSessionTx` for one reviewed appointment. It rechecks live state and uses the existing appointment/intake link; proposals are transient and no migration is required. See [intake](intake.md).
 
 Write patterns by area: settings writes go through `settingsTx` and `planSettingsOp`; payroll through `payrollTx`; billing money through the `plan*` and `*Tx` pairs in [era-and-payments](era-and-payments.md); claim lifecycle through pure patch functions and `claimsTx` in [billing-and-claims](billing-and-claims.md).
 

@@ -1,8 +1,8 @@
 # Intake
 
-_Sources: src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/components/AppointmentModal.jsx, src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -80,6 +80,19 @@ Mapping notes:
 - **Window and payer:** `authStart` and `authEnd` come from the window, and the payer name becomes `insurer`.
 - **Other fields carried:** the chart also gets the member ID, group number, authorization number, diagnosis, assigned BCBA and emergency contact. Claims and the CMS-1500 print that member ID and authorization number (see [Billing and claims](billing-and-claims.md)).
 
+### Plan the first week after conversion
+
+Open **Plan first week** on the newly converted client's profile, or on a converted intake request. Existing converted charts work too. You need Calendar Full and Clients/Intake View access; records remain office-scoped.
+
+1. Check the authorization letter. Conversion assigns approved units to 97153 and estimates weekly hours; confirm or correct those on the client chart. The planner needs a valid window, weekly target and an active service with authorized units.
+2. Read the family's preferred days, times and setting. These are free text, displayed as recorded, **not** parsed into availability. Confirm working hours with staff too.
+3. Choose a date in the desired week (the practice's week-start setting applies), weekdays, start time, minutes per session, service and location. Select **Propose week**.
+4. Review the weekly totals: already on the calendar, proposed, still unfilled. There is at most one slot per selected day; the last slot can be shorter to fit the weekly target. Past dates and dates outside authorization are excluded. Existing clinical bookings consume the weekly budget. Client clashes, unavailable staff and insufficient remaining units leave explicit gaps; the planner does not search other times automatically.
+5. Each usable slot has up to three ranked staff, score/reasons, and expandable checks. Ranking reuses care team, history, fit and workload. Stop candidates are excluded; warnings remain reviewable. Later slots include earlier tentative appointments using their top-ranked staff.
+6. Choose staff and **Review & book**. This opens the existing booking dialog with the slot filled in. Review the Checks rail and save one occurrence. Save rechecks live state, refuses Stop items and exact duplicates, and names warnings. Cancel creates nothing. The proposal refreshes after each save.
+
+Proposals are not saved, and no recurring series or outreach is created. Each saved session has one Undo and the existing appointment `intakeId` link. The first-service label is derived from non-cancelled service appointments, not the evaluation; this does not change the older intake `firstServiceDate` reporting field.
+
 ### Referral Sources
 
 A register with owner, volume, conversions, conversion rate, median days to assessment and last referral. A source tied to live requests cannot be deleted: it is marked dormant instead. The navigation badge and the header KPIs come from `intakeKpis`: open, new this week, conversion rate, median first-contact days, stalled and overdue counts, waiting families, funnel and lost reasons.
@@ -97,14 +110,18 @@ A register with owner, volume, conversions, conversion rate, median days to asse
 - Metrics: `intakeKpis`, `sourceStats`, `firstContactDays`, `referralToAssessmentDays`, `referralToServiceDays`.
 - Records: `blankIntake`, `intakeNo`, `normalizeIntake`, `planConversion`.
 
+The first-week handoff has a separate pure module, [intakeHandoff.js](../../src/lib/intakeHandoff.js): `handoffServices`, `proposeIntakeWeek`, and `planHandoffSession`. It reuses the smart ranking, authorization and practice-validation engines. The proposal only returns data; no reducer action or Undo snapshot is created until a session is confirmed.
+
 ### Write path
 
-Intake does not follow the strict plan-then-Tx pattern. Domain actions in `createActions` ([store.jsx](../../src/state/store.jsx)) do the validation and dispatch one `intakeTx` action, which the reducer applies without re-planning:
+The original intake pipeline does not follow the strict plan-then-Tx pattern. Domain actions in `createActions` ([store.jsx](../../src/state/store.jsx)) do the validation and dispatch one `intakeTx` action, which the reducer applies without re-planning:
 
 - `saveIntake` (a form save keeps the current stage; stage changes go only through `moveIntake`), `patchIntake`, `logContact`, `moveIntake` (gate enforcement inline), `reviewWaitlist`, `scheduleIntakeAssessment`, `convertIntake`, `deleteIntake`, `saveReferralSource`, `removeReferralSource`.
-- Only conversion has a pure planner: `planConversion` returns `{ok, msg, client, intake, apptPatch}`, and `convertIntake` dispatches `intakeTx` with `upserts`, `clients` and `apptPatches` so one Undo reverses everything.
+- Within that original pipeline, only conversion has a pure planner: `planConversion` returns `{ok, msg, client, intake, apptPatch}`, and `convertIntake` dispatches `intakeTx` with `upserts`, `clients` and `apptPatches` so one Undo reverses everything.
 - The `intakeTx` reducer case writes `intakeRequests`, `referralSources`, `clients` and `appts` and takes one snapshot of the touched collections.
 - Permissions (`src/lib/security.js`): `intakeTx` needs the `intake` area, plus `clients` when it adds a client and `calendar` when it touches appointments.
+
+The handoff **does** use the plan-then-Tx pattern: `bookHandoffSession` validates access and plans, then `handoffSessionTx` replans against live state and writes only `appts`, taking one snapshot. Its authorization requires Calendar Full plus Clients and Intake View, with checks for the linked client, request and appointment office scope. `AppointmentModal` accepts an optional `onCreate` callback for this reviewed single-occurrence path; ordinary booking is unchanged.
 
 ### State and migration
 
@@ -118,7 +135,7 @@ Intake does not follow the strict plan-then-Tx pattern. Domain actions in `creat
 
 ### Tests
 
-`intake.test.js` (pure engine: graph, gates, SLA, KPIs, normalization, conversion), `intakeDocs.test.jsx` (summary and packet content, real PDF output, both downloads) and `intakeUi.test.jsx` (header and toolbar shape, menus, waitlist form, rail to booking, guardian gate, reopen, Escape layering, conversion). Backup coverage is in `workspaceBackup.test.js`.
+`intake.test.js` (pure engine: graph, gates, SLA, KPIs, normalization, conversion), `intakeDocs.test.jsx` (summary and packet content, real PDF output, both downloads) and `intakeUi.test.jsx` (header and toolbar shape, menus, waitlist form, rail to booking, guardian gate, reopen, Escape layering, conversion). Backup coverage is in `workspaceBackup.test.js`. D3 is covered by `intakeHandoff.test.js` (planning, guards, security, live revalidation, backup round-trip and Undo) and `intakeHandoffUi.test.jsx` (entry points, proposal, staff choice, reviewed save/cancel, persisted appointment, invalid states and view-only access).
 
 ## Not yet built
 

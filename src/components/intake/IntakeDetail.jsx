@@ -478,6 +478,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
           <div className={`iq-banner ${isWon(req.stage) ? 'ok' : 'bad'}`} data-testid="iq-terminal">
             {isWon(req.stage)
               ? <>{Icon.checkCircle({ size: 14 })} <b>Converted {sinceText(req.convertedAt)}.</b> {linkedClient ? <>Client chart <b>{linkedClient.name}</b> carries this request as its origin{req.firstServiceDate ? ` · first service ${fmtDate(req.firstServiceDate)}` : ''}.</> : 'The linked client record is missing from this workspace.'}
+                {linkedClient && state.canAccess('calendar', 'full') && state.canAccess('clients', 'view') && <button className="btn btn-sm" data-testid="iq-plan-first-week" onClick={() => { actions.setUI({ section: 'clients', cliQ: linkedClient.name, cliHandoff: linkedClient.id }); onClose() }}>Plan first week</button>}
                 {linkedClient && <button className="btn btn-sm" data-testid="iq-open-client" onClick={() => { actions.setUI({ section: 'clients', cliQ: linkedClient.name }); onClose() }}>Open client record</button>}</>
               : <>{Icon.x({ size: 14 })} <b>Closed {req.lost?.at ? sinceText(req.lost.at) : ''} — {LOST_REASONS.find((x) => x.id === req.lost?.reason)?.label || 'reason not recorded'}.</b> {req.lost?.notes}
                 <button className="btn btn-sm" data-testid="iq-reopen" title="Put the request back in the pipeline as a new referral" onClick={() => move('new')}>{Icon.zap({ size: 12 })} Reopen</button></>}

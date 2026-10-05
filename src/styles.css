@@ -4026,3 +4026,27 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .help-pages { flex-direction: row; flex-wrap: wrap; }
   .help-main { padding: 16px; }
 }
+
+/* D3: reviewed intake-to-first-week handoff; uses shared light/dark tokens. */
+.iq-handoff { width: min(920px, calc(100vw - 24px)); max-height: calc(100dvh - 32px); display: flex; flex-direction: column; }
+.iq-handoff-head, .iq-handoff-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 22px; }
+.iq-handoff-head { border-bottom: 1px solid var(--line); }
+.iq-handoff-head h2 { margin: 6px 0; }
+.iq-handoff-head p, .iq-handoff-slot p { margin: 6px 0; }
+.iq-handoff-body { padding: 0 22px 22px; overflow-y: auto; min-height: 0; }
+.iq-handoff-note { padding: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; }
+.iq-handoff-context, .iq-handoff-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.iq-handoff-fields label, .iq-handoff-candidate label { display: grid; gap: 5px; font-size: 12px; }
+.iq-handoff-days { display: flex; flex-wrap: wrap; gap: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin: 16px 0; }
+.iq-handoff-days label { display: flex; align-items: center; gap: 5px; }
+.iq-handoff-results { margin-top: 22px; }
+.iq-handoff-slot { display: grid; grid-template-columns: 1fr 1.5fr; gap: 18px; padding: 16px 0; border-top: 1px solid var(--line); }
+.iq-handoff-candidate details { margin: 10px 0; font-size: 12px; }
+.iq-handoff-candidate summary { cursor: pointer; }
+.iq-handoff-candidate li { margin-bottom: 5px; }
+.iq-handoff-foot { border-top: 1px solid var(--line); font-size: 12px; }
+@media (max-width: 600px) {
+  .iq-handoff-context, .iq-handoff-fields, .iq-handoff-slot { grid-template-columns: 1fr; }
+  .iq-handoff-head, .iq-handoff-foot { padding: 14px; }
+  .iq-handoff-body { padding: 0 14px 14px; }
+}
