@@ -370,6 +370,8 @@ describe('masters — billing rules', () => {
     fireEvent.click(screen.getByTestId('pd-tab-rules'))
     fireEvent.click(await screen.findByTestId('pr-tab-qual'))
     await screen.findByTestId('pr-qual')
+    // the demo staff all carry an education level, so the panel's readiness line is clear
+    expect(screen.getByTestId('qm-readiness').textContent).toMatch(/Every staff member has an education level recorded/)
     const rows0 = screen.getAllByTestId(/qm-row-\d+/).length
     expect(rows0).toBe(5)
     fireEvent.click(screen.getByTestId('qm-del-4'))
@@ -503,7 +505,7 @@ describe('masters — platform relationships', () => {
   it('master helpers: ensurePayer defaults, rate fallback chain, concurrent note', () => {
     const bare = ensurePayer({ id: 'x', name: 'X' })
     expect(bare.rules.concurrent.allowed).toBe(true)
-    expect(bare.rules.qualMods[0]).toEqual({ qual: 'Doctoral', m1: 'U6', m2: 'HP' })
+    expect(bare.rules.qualMods[0]).toEqual({ qual: 'Doctoral', m1: 'HP', m2: '' }) // education code only — no hourly code by default
     expect(bare.services).toEqual([])
     const st = { svcs: [{ id: 'dtt', label: 'DTT', code: '97151', rate: 32, status: 'active', unitMins: 30 }], clients: [], payers: [], appts: [] }
     expect(rateFor(st, null, 'dtt', '97151').rate).toBe(32)

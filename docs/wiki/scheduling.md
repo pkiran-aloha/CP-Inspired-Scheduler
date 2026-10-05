@@ -2,7 +2,7 @@
 
 _Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at fdf36f6 on 2026-10-05 (B3 Slice1+2 travel feasibility and route view)._
+_Last synced with main at 30a0927 on 2026-10-05 (plus staff education + payer qualification modifiers)._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -165,7 +165,7 @@ Honest limits:
 
 - Nothing is sent. Confirming a session, assigning cover or recording a cancellation reason changes local records only. No SMS, email or reminder goes to a family.
 - Appointment guards run in the booking dialog, not the reducer, so Quick Add, drag-moves and other non-dialog edits bypass them (see the write path).
-- The authorization window is an estimate (weekly hours times weeks). `BILL_CODES` now use the 15-minute Medicaid norm; a payer that bills a different unit length is set per payer in the service override. The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for a code keeps a pool in the wrong unit until someone fixes it in Clients, Edit. Payer credential rows keyed by education level cannot drive a check because staff have no education field.
+- The authorization window is an estimate (weekly hours times weeks). `BILL_CODES` now use the 15-minute Medicaid norm; a payer that bills a different unit length is set per payer in the service override. The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for a code keeps a pool in the wrong unit until someone fixes it in Clients, Edit. The payer's qualification-modifier rows are billing-only; they do not drive a scheduling check, and they key off the staff record's education level (see [Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting)).
 - Risk configuration (`settings.risk`) has no Settings panel.
 - Known issue from the handoff: `staffSatisfiesQualification` may flag BCBAs on BCBA-only codes.
 - An intake conversion does not copy approved units into the new client's pool (see [Intake](intake.md)).

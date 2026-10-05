@@ -1,7 +1,7 @@
 # ERA and payments
 
 _Sources: src/lib/era.js, src/lib/eraPosting.js, src/lib/paymentLedger.js, src/lib/secondaryLedger.js, src/lib/claims.js, src/lib/billingDocs.js, src/components/PaymentCenterView.jsx, src/components/SecondaryBillingView.jsx, src/state/store.jsx, src/__tests__/fixtures/835-full.txt_
-_Last synced with main at 414a9fe on 2026-10-05 (plus intake booking checks)._
+_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
 
 This page covers how money gets onto claims in this browser: the Payment Center, 835 ERA import, manual remittances, voids, recoupments, patient receipts, and secondary (COB) filings. Claim lifecycle is in [billing-and-claims](billing-and-claims.md); aging and statements are in [accounts-receivable](accounts-receivable.md).
 

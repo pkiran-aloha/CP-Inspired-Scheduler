@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced with main at dcfce22 on 2026-10-04._
+_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
 
 [Wiki home](README.md)
 
@@ -97,7 +97,7 @@ Medicaid counts one code, one client, one date of service and one rendering prov
 
 ### Where do the modifiers on a claim line come from?
 
-Each insurance line gets up to four, in this order: the payer's own modifier for the service, the rendering provider's credential modifier (HO, HN, HM or HP), then the payer's place-of-service modifier. A payer can switch the credential modifier off in Claims Settings, and self-pay invoices carry none. [More: Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting)
+Each insurance line gets up to four, in this order: the payer's own modifier for the service, the rendering provider's credential modifier (HO, HN, HM or HP), the payer's Qualification Modifiers pair for the rendering provider's education level (the first matching row wins; a blank modifier adds nothing) and the payer's place-of-service modifier. A payer can switch the credential modifier off in Claims Settings — the qualification rows are separate and still apply — and self-pay invoices carry none. [More: Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting) [More: Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting)
 
 ### Can I use the CMS-1500 PDF as it is?
 
@@ -187,7 +187,7 @@ Open Settings, System, Billing Settings. Add or edit rows under Denial reasons (
 
 ### Where do I set a payer's billing rules?
 
-Open Masters, Payers, choose the payer, and use the Billing Rules tab. It holds provider ID rule, claims settings (merge same day, credential modifiers, separate claim by, box 32), place-of-service modifiers, daily and weekly unit limits, and payment terms. [More: Settings](settings.md#payer-billing-rules)
+Open Masters, Payers, choose the payer, and use the Billing Rules tab. It holds provider ID rule, claims settings (merge same day, credential modifiers, separate claim by, box 32), qualification modifiers (keyed by the staff record's education level), place-of-service modifiers, daily and weekly unit limits, and payment terms. [More: Settings](settings.md#payer-billing-rules)
 
 ### How do I import clients or staff from a CSV?
 

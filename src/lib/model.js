@@ -117,6 +117,25 @@ export function unitsFor(minutes, unitMins, rounding = 'AMA') {
 // provider-level modifiers that carry the credential on ABA claims
 export const CRED_MODIFIERS = { BCBA: 'HO', BCaBA: 'HN', Psychologist: 'HP', RBT: 'HM', Other: '' }
 
+// The education level recorded on a staff row. A payer's Qualification Modifiers rows are
+// keyed by these levels (see QUAL_MODIFIER_KEYS for the keys the payer editor offers).
+export const EDUCATION_LEVELS = ['Doctoral', "Master's", "Bachelor's", 'Associate', 'HS']
+
+// Keys a payer's Qualification Modifiers rows may use: the education levels plus the
+// role/title keys that match a "·"-part of a staff member's role or cert, so rows saved
+// under those keys keep working.
+export const QUAL_MODIFIER_KEYS = [...EDUCATION_LEVELS, 'Teacher', 'Therapist', 'Specialist']
+
+// Default Qualification Modifiers rows: the education-level code under the Medicaid norm.
+// A practice edits these per payer in Payer → Billing Rules → Qualification Modifiers.
+export const DEFAULT_QM = [
+  { qual: 'Doctoral', m1: 'HP', m2: '' },
+  { qual: "Master's", m1: 'HO', m2: '' },
+  { qual: "Bachelor's", m1: 'HN', m2: '' },
+  { qual: 'Associate', m1: 'HM', m2: '' },
+  { qual: 'HS', m1: 'HM', m2: '' },
+]
+
 export const MILEAGE_RATE = 0.7 // $ / mile default for drive time
 export const PAY_TAGS = ['Assessment report', 'Session note', 'IEP / IFSP', 'Consent / auth', 'Medical', 'Data export', 'Insurance']
 

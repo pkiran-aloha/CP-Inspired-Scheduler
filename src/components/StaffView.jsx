@@ -4,11 +4,12 @@ import { AvatarPicker, RemoveBtn } from './ClientsView'
 import { ProfileModal } from './ProfileModal'
 import { useStore } from '../state/store'
 import { SectionBar } from './NavRail'
+import { Dropdown } from './fields'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { fmtDayLabel, fmtTime, todayISO } from '../lib/date'
-import { overlapsType, uid } from '../lib/model'
+import { EDUCATION_LEVELS, overlapsType, uid } from '../lib/model'
 import { abaStaffRows } from '../lib/abaHours'
 import { staffCalendar, download } from '../lib/ics'
 
@@ -41,7 +42,7 @@ function StaffModal({ person, dup, onClose }) {
   const editing = !!person
   const src = person || dup
   const [form, setForm] = useState(() => {
-    if (!src) return { name: '', role: 'RBT', cert: '', email: '', phone: '', fte: 1, targetWeekH: 32, payrollRate: 26, color: AV_COLORS[state.staff.length % AV_COLORS.length], avatar: AVATAR_KEYS[Math.floor(Math.random() * AVATAR_KEYS.length)] }
+    if (!src) return { name: '', role: 'RBT', education: '', cert: '', email: '', phone: '', fte: 1, targetWeekH: 32, payrollRate: 26, color: AV_COLORS[state.staff.length % AV_COLORS.length], avatar: AVATAR_KEYS[Math.floor(Math.random() * AVATAR_KEYS.length)] }
     if (dup) {
       const { id: _drop, ...rest } = src
       return { ...rest, name: `${src.name} (copy)`, avatar: src.avatar || avatarKeyFor(src) }
@@ -79,6 +80,12 @@ function StaffModal({ person, dup, onClose }) {
       {errs[k] && <i className="pm-err">{errs[k]}</i>}
     </label>
   )
+  const Sel = ({ k, label, icon, options }) => (
+    <label className="bil-fld pm-fld">
+      <span>{icon ? <i className="pm-fi">{Icon[icon]({ size: 12 })} {label}</i> : label}</span>
+      <Dropdown testid={`sm-${k}`} value={form[k] ?? ''} onChange={(v) => set(k, v)} options={options} />
+    </label>
+  )
   return (
     <div className="overlay pm-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
@@ -104,6 +111,7 @@ function StaffModal({ person, dup, onClose }) {
               <F k="name" label="Full name" icon="edit" />
               {dupName && <div className="pm-hint warn">A team member with this exact name already exists — saving adds a second record</div>}
               <F k="role" label="Role / title" icon="star" />
+              <Sel k="education" label="Education level" icon="badge" options={[{ value: '', label: 'Not recorded' }, ...EDUCATION_LEVELS.map((l) => ({ value: l, label: l }))]} />
               <F k="cert" label="Credential #" icon="badge" />
               <F k="email" label="Email" icon="mail" type="email" />
               <F k="phone" label="Phone" icon="phone" type="tel" />
@@ -192,7 +200,7 @@ export default function StaffView() {
         const onLeaveToday = Object.values(state.appts).some((a) => a.date === today && (a.staffIds || []).includes(s.id) && a.type === 'unavailable')
         return { s, util: targetH ? Math.round((bookedH / targetH) * 100) : 0, booked: { sessions: clinical.length, revenue: Math.round(revenue) }, bookedH: Math.round(bookedH * 10) / 10, targetH: Math.round(targetH), caseload, pto, flags: staffFlags(state, s, days), next, onLeaveToday, aba: abaByStaff[s.id] || null }
       })
-      .filter((r) => !q || (r.s.name + r.s.role + r.s.cert).toLowerCase().includes(q.toLowerCase()))
+      .filter((r) => !q || (r.s.name + r.s.role + r.s.cert + (r.s.education || '')).toLowerCase().includes(q.toLowerCase()))
     const f = SORTS[sort]
     return [...list].sort((a, b) => {
       const av = f(a)
@@ -371,6 +379,7 @@ export default function StaffView() {
             { icon: 'mail', label: 'Email', value: prof.s.email || '—', href: prof.s.email ? `mailto:${prof.s.email}` : null, copy: prof.s.email ? 'email' : null },
             { icon: 'phone', label: 'Phone', value: prof.s.phone || '—', href: prof.s.phone ? `tel:${(prof.s.phone || '').replace(/\D/g, '')}` : null, copy: prof.s.phone ? 'phone' : null },
             { icon: 'badge', label: 'Credential', value: prof.s.cert || '—' },
+            { icon: 'star', label: 'Education', value: prof.s.education || 'Not recorded' },
             { icon: 'zap', label: 'ABA hours (behavior-analytic)', value: `⚡ ${prof.aba?.hours ?? 0}h · ${prof.aba?.trackLabel || '—'}` },
             { icon: 'users', label: 'FTE', value: String(prof.s.fte ?? 1) },
             { icon: 'dollar', label: 'Pay rate', value: `$${prof.s.payrollRate}/h` },
