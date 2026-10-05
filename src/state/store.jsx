@@ -6,7 +6,7 @@ import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeInt
 import { planSheet, planRun, newRun, defaultPayrollSettings, timesheet, computeRun, runGate, periodFromId, periodFor, sheetKey } from '../lib/payroll'
 import { stagedAppts, planClaims, assembleClaims, claimGate, submitPatch, denyPatch, rebillPatch, releasePatch, dropLinePatch, denialOf, paymentsFromClaims, planPayerTerms, lineApptIds } from '../lib/claims'
 import { todayISO } from '../lib/date'
-import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds } from '../lib/master'
+import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBillingV2, normalizeBillingIds, normalizeStaffEducation } from '../lib/master'
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
@@ -34,7 +34,7 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 // ledger fills browser storage and silently prevents later changes from saving.
 export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid))))))))))))
+  const normalized = normalizeStaffEducation(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid)))))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 

@@ -20,6 +20,12 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Follow-up 4 — payer qualification modifiers
+
+**Staff education.** Staff records carry an optional **Education level** (Doctoral, Master's, Bachelor's, Associate, HS), set in Staff > Edit and shown on the profile. It is what a payer's Qualification Modifiers match against.
+
+**Qualification modifiers on claim lines.** Payer > Billing Rules > Qualification Modifiers now applies: the first row whose level matches the rendering provider's education level — or a "·" part of their role or credential, so Teacher/Therapist/Specialist rows keep working — adds its modifier pair to each line, after the credential modifier and before the place-of-service modifier. A blank modifier adds nothing, duplicates collapse, and a line still caps at four. The panel reports how many staff have no level recorded; their lines carry no qualification modifier. The demo staff carry levels, so the demo claims show it. The default rows are the education code alone: the old first modifier, `U6`, is an hourly code that does not belong on every claim because of a degree.
+
 ### Follow-ups — demo seed polish
 
 **Demo records.** A fresh workspace (and Regenerate demo data) now includes sample Cabinet documents (one expired, two due within 30 days), CEU and PDU entries, tasks and messages, so the Cabinet, Credentials & PDUs report and Inbox show real examples. All fictional and dated relative to today.

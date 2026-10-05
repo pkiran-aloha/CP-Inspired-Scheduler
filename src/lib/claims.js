@@ -1,7 +1,7 @@
 // ---- Claim lifecycle engine: staging → claim assembly → submission gates → payment / denial / rebill ----
 // Pure + deterministic: the same functions power the Billing workspace, the demo seed,
 // the reports desk (claim registers) and the store's undoable transitions.
-import { BILL_CODES, CRED_MODIFIERS, TYPES, computeBilling, unitsFor } from './model'
+import { BILL_CODES, CRED_MODIFIERS, DEFAULT_QM, TYPES, computeBilling, unitsFor } from './model'
 import { isoDate, parseISO } from './date'
 import { providerIdIssues, providerIdRule } from './providerIds' // call-time only (providerIds reads validNpi from here)
 
@@ -220,7 +220,10 @@ export function posFor(appt) {
  * 1. the payer's own modifier for the service (Payer → Services);
  * 2. the rendering provider's credential (HO / HN / HM / HP) — the Medicaid norm, on unless
  *    the payer turns it off in Billing Rules → Claims Settings;
- * 3. the payer's place-of-service modifier for the session's POS.
+ * 3. the payer's Qualification Modifiers pair for the rendering provider's education level
+ *    (Billing Rules → Qualification Modifiers; the first matching row in row order);
+ * 4. the payer's place-of-service modifier for the session's POS.
+ * Duplicates collapse, so a qualification code equal to the credential code adds nothing.
  * Self-pay invoices carry none.
  */
 export function lineModifiers(state, a, payerName, mode) {
@@ -230,9 +233,39 @@ export function lineModifiers(state, a, payerName, mode) {
   const svcMod = a.service ? p.svcOv?.[a.service]?.modifier || (p.svcs || []).find((s) => s.id === a.service)?.modifier || '' : ''
   const staff = (state.staff || []).find((s) => s.id === a.staffIds?.[0])
   const cred = rules.claims?.flags?.credentialMods === false || !staff ? '' : CRED_MODIFIERS[credOf(staff.role)] || ''
+  const qual = qualificationModifiersFor(staff, p)
   const posMod = (rules.posMods || []).find((r) => r.pos === posFor(a))?.mod || ''
-  return [...new Set([svcMod, cred, posMod].filter(Boolean))].slice(0, 4).join(' ')
+  return [...new Set([svcMod, cred, qual?.m1, qual?.m2, posMod].filter(Boolean))].slice(0, 4).join(' ')
 }
+
+/**
+ * The payer's Qualification Modifiers pair for a rendering provider, or null. A row matches
+ * when its `qual` equals the staff member's recorded education level, or a "·"-part of their
+ * role or cert (so a "Teacher", "Therapist" or "Specialist" row still matches a job title).
+ * The first matching row in row order wins — the order the payer editor lets a user set.
+ */
+export function qualificationModifiersFor(staff, payer) {
+  const rows = payer?.rules?.qualMods?.length ? payer.rules.qualMods : DEFAULT_QM
+  if (!staff) return null
+  const tokens = new Set(staffQualifierTokens(staff))
+  const row = rows.find((r) => r.qual && tokens.has(qualKey(r.qual)))
+  return row ? { m1: row.m1 || '', m2: row.m2 || '', qual: row.qual } : null
+}
+
+// Staff rows carry free text (cert "BCBA #5-12-0034", role "BCBA · Clinical Supervisor"), so
+// a value is also read as its "·" parts and each part without its "#number" — never compared raw.
+export function staffQualifierTokens(staff) {
+  const out = []
+  for (const value of [staff.education, staff.cert, staff.role]) {
+    const s = String(value || '').trim()
+    if (!s) continue
+    out.push(s)
+    for (const part of s.split('·').map((p) => p.trim()).filter(Boolean)) out.push(part, part.split('#')[0].trim())
+  }
+  return [...new Set(out.filter(Boolean).map(qualKey))]
+}
+
+const qualKey = (v) => String(v).replace(/[’‘]/g, "'").trim().toLowerCase().replace(/\s+degree$/, '')
 
 export function lineFor(a, state, plan = {}) {
   const staff = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))

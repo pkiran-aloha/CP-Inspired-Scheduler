@@ -112,6 +112,20 @@ describe('staff modal — capacity edit & two-step remove', () => {
     expect(await screen.findByText(/Rohit Srivastava updated/)).toBeTruthy()
   })
 
+  it('records the education level that a payer\'s qualification modifiers read', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-staff'))
+    fireEvent.click(screen.getByTestId('stf-mode-table'))
+    await screen.findByTestId('staff-table')
+    fireEvent.click(screen.getByTestId('stf-row-s8'))
+    fireEvent.click(await screen.findByTestId('stf-edit-s8'))
+    expect(screen.getByTestId('sm-education').textContent).toMatch(/Master's/)
+    fireEvent.click(screen.getByTestId('sm-education'))
+    fireEvent.click(await screen.findByTestId('opt-sm-education-Doctoral'))
+    fireEvent.click(screen.getByTestId('sm-save'))
+    await waitFor(() => expect(stored().staff.find((x) => x.id === 's8').education).toBe('Doctoral'))
+  })
+
   it('remove arms first, confirms on the second click, then the row disappears', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-staff'))

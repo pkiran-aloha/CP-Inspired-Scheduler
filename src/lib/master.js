@@ -118,7 +118,8 @@ const mkPayment = (c) => {
 // services, per-service overrides and the billing-rules suite. Old persisted
 // snapshots never carried these keys, so every read funnels through
 // ensurePayer()/svcList() which merge defaults — no schema migration needed.
-import { BILL_CODES, SERVICES } from './model'
+import { BILL_CODES, DEFAULT_QM, EDUCATION_LEVELS, SERVICES } from './model'
+export { DEFAULT_QM }
 
 export const ROUNDINGS = ['AMA', 'Nearest', 'Round Up', 'Round Down', 'Truncate']
 export const MODIFIERS = ['U6', 'HP', 'HO', 'HN', 'HM', 'UN', 'HC', 'U1', 'U2', 'U3']
@@ -134,13 +135,6 @@ export const CMS_TYPES = ['Group Health Plan', 'Medicaid', 'Medicare', 'Commerci
 export const FORMATS = ['None', 'Custom Format 1', 'Custom Format 2']
 export const CREDENTIALS = ['BCBA', 'BCaBA', 'BQ', 'RBT', 'LCDC', 'SLP', 'OT', 'MSW']
 
-export const DEFAULT_QM = [
-  { qual: 'Doctoral', m1: 'U6', m2: 'HP' },
-  { qual: "Master's", m1: 'U6', m2: 'HO' },
-  { qual: "Bachelor's", m1: 'U6', m2: 'HN' },
-  { qual: 'Associate', m1: 'U6', m2: 'HM' },
-  { qual: 'HS', m1: 'U6', m2: 'HM' },
-]
 const DEFAULT_CLAIMS = {
   separateBy: '—', box17: '—', box19: '—',
   box32: 'Auto-populate if blank, leave blank if same as billing NPI',
@@ -434,4 +428,19 @@ export function normalizeApptPcfs(state) {
   }
   const meta = { ...(state.meta || {}), pcfCleared: true, pcfClearedCount: cleared }
   return changed ? { ...state, appts, meta } : { ...state, meta }
+}
+
+/**
+ * Staff education (used by the payer's Qualification Modifiers) is optional: a missing or
+ * blank value means "not recorded" and is left alone, so a workspace that never touched it
+ * is returned unchanged. A stored value that is not one of EDUCATION_LEVELS is cleared.
+ */
+export function normalizeStaffEducation(state) {
+  let changed = false
+  const staff = (state.staff || []).map((s) => {
+    if (!s.education || EDUCATION_LEVELS.includes(s.education)) return s
+    changed = true
+    return { ...s, education: '' }
+  })
+  return changed ? { ...state, staff } : state
 }

@@ -18,17 +18,25 @@ const appt = (o = {}) => ({ id: 'x', staffIds: [rbt.id], location: 'Clinic', ...
 const withRules = (name, rules) => ({ ...BASE, payers: BASE.payers.map((p) => (p.name === name ? { ...p, rules: { ...(p.rules || {}), ...rules } } : p)) })
 
 describe('claim line modifiers', () => {
-  it('Medicaid norm: the rendering provider credential, none on self-pay', () => {
-    expect(lineModifiers(BASE, appt(), 'Blue Shield CA', 'insurance')).toBe('HM')
+  it('Medicaid norm: the rendering provider credential, then the qualification modifier, none on self-pay', () => {
+    // the RBT is seeded with a bachelor's degree, so the payer's default Bachelor's row adds HN
+    expect(lineModifiers(BASE, appt(), 'Blue Shield CA', 'insurance')).toBe('HM HN')
+    // the BCBA's master's row carries HO — the same code as the credential, so it collapses
     expect(lineModifiers(BASE, appt({ staffIds: [bcba.id] }), 'Blue Shield CA', 'insurance')).toBe('HO')
     expect(lineModifiers(BASE, appt(), 'Self-pay', 'selfpay')).toBe('')
   })
 
   it("the payer's service modifier leads, its POS modifier follows, and the credential can be turned off", () => {
-    expect(lineModifiers(BASE, appt({ service: 'dtt' }), 'Aetna', 'insurance')).toBe('U6 HM') // seeded Aetna dtt override
+    expect(lineModifiers(BASE, appt({ service: 'dtt' }), 'Aetna', 'insurance')).toBe('U6 HM HN') // seeded Aetna dtt override
     const st = withRules('Blue Shield CA', { claims: { flags: { credentialMods: false } }, posMods: [{ pos: '10', mod: '95' }] })
-    expect(lineModifiers(st, appt(), 'Blue Shield CA', 'insurance')).toBe('')
-    expect(lineModifiers(st, appt({ location: 'Telehealth (video)' }), 'Blue Shield CA', 'insurance')).toBe('95')
+    // the credential modifier is off, but the payer's qualification rows still apply
+    expect(lineModifiers(st, appt(), 'Blue Shield CA', 'insurance')).toBe('HN')
+    expect(lineModifiers(st, appt({ location: 'Telehealth (video)' }), 'Blue Shield CA', 'insurance')).toBe('HN 95')
+  })
+
+  it('a staff member with no education level gets no qualification modifier', () => {
+    const st = { ...BASE, staff: BASE.staff.map((s) => (s.id === rbt.id ? { ...s, education: '' } : s)) }
+    expect(lineModifiers(st, appt(), 'Blue Shield CA', 'insurance')).toBe('HM')
   })
 
   it('assembled demo claims carry modifiers; POS uses CMS codes (community = 99)', () => {

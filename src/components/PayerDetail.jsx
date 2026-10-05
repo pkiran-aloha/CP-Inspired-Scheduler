@@ -7,7 +7,7 @@ import { CfPickRow } from './CfPick.jsx'
 import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
 import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
-import { BILL_CODES, uid } from '../lib/model'
+import { BILL_CODES, QUAL_MODIFIER_KEYS, uid } from '../lib/model'
 import { PROVIDER_ID_RULES, providerIdRule, providerIdIssues } from '../lib/providerIds'
 import { PAYER_KINDS, payerPolicy } from '../lib/claims'
 
@@ -704,14 +704,22 @@ function RuleBody({ p, section, patch, saved }) {
   if (section === 'qual') {
     const upd = (i, k, v) => setQm((x) => x.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
     const move = (i, d) => setQm((x) => { const y = [...x]; const j = i + d; if (y[j]) [y[i], y[j]] = [y[j], y[i]]; return y })
+    const none = { value: '', label: '— none —' }
+    const noEducation = (state.staff || []).filter((s) => !s.education).length
     return (
       <div className="pr-sec" data-testid="pr-qual">
-        <SecHead t="Qualification Modifiers" s="Modifier pair appended per rendering-provider credential — order decides which wins when staff holds several." />
+        <SecHead t="Qualification Modifiers" s="The first row whose level matches the rendering provider's education (or a part of their role) adds its pair to the claim line, after the credential and before the place-of-service modifier. Order decides which row wins; a blank modifier adds nothing." />
+        <div className={`pr-banner${noEducation ? '' : ' ok'}`} data-testid="qm-readiness">
+          {Icon[noEducation ? 'alert' : 'checkCircle']({ size: 12 })}{' '}
+          {noEducation
+            ? <>{noEducation} staff member{noEducation === 1 ? '' : 's'} {noEducation === 1 ? 'has' : 'have'} no education level recorded — their lines carry no qualification modifier. Set it on the staff record (Staff → Edit).</>
+            : <>Every staff member has an education level recorded.</>}
+        </div>
         {qm.map((r, i) => (
           <div className="pr-qrow" key={i} data-testid={`qm-row-${i}`}>
-            <Dropdown testid={`qm-qual-${i}`} value={r.qual} onChange={(v) => upd(i, 'qual', v)} options={['Doctoral', "Master's", "Bachelor's", 'Associate', 'HS', 'Teacher', 'Therapist', 'Specialist'].map((q) => ({ value: q, label: q }))} />
-            <Dropdown testid={`qm-m1-${i}`} value={r.m1} onChange={(v) => upd(i, 'm1', v)} options={MODIFIERS.map((m) => ({ value: m, label: m }))} />
-            <Dropdown testid={`qm-m2-${i}`} value={r.m2} onChange={(v) => upd(i, 'm2', v)} options={MODIFIERS.map((m) => ({ value: m, label: m }))} />
+            <Dropdown testid={`qm-qual-${i}`} value={r.qual} onChange={(v) => upd(i, 'qual', v)} options={QUAL_MODIFIER_KEYS.map((q) => ({ value: q, label: q }))} />
+            <Dropdown testid={`qm-m1-${i}`} value={r.m1 || ''} onChange={(v) => upd(i, 'm1', v)} options={[none, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} />
+            <Dropdown testid={`qm-m2-${i}`} value={r.m2 || ''} onChange={(v) => upd(i, 'm2', v)} options={[none, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} />
             <span className="pr-ord">
               <button className="iconbtn" title="Move up" data-testid={`qm-up-${i}`} disabled={i === 0} onClick={() => move(i, -1)}>{Icon.chevronL({ size: 12 })}</button>
               <button className="iconbtn" title="Move down" data-testid={`qm-down-${i}`} disabled={i === qm.length - 1} onClick={() => move(i, 1)}>{Icon.chevronR({ size: 12 })}</button>
@@ -719,7 +727,7 @@ function RuleBody({ p, section, patch, saved }) {
             </span>
           </div>
         ))}
-        <button className="btn btn-sm pr-addrule" data-testid="qm-add" onClick={() => setQm([...qm, { qual: 'Specialist', m1: 'U6', m2: 'UN' }])}>{Icon.plus({ size: 12 })} Add</button>
+        <button className="btn btn-sm pr-addrule" data-testid="qm-add" onClick={() => setQm([...qm, { qual: 'Specialist', m1: '', m2: '' }])}>{Icon.plus({ size: 12 })} Add</button>
         <SaveRow onCancel={saved} onSave={() => commit('qualMods', qm)} />
       </div>
     )

@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/components/HelpView.jsx_
-_Last synced with main at 414a9fe on 2026-10-05 (plus intake booking checks)._
+_Last synced with main at 30a0927 on 2026-10-05 (plus staff education + payer qualification modifiers)._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -55,7 +55,7 @@ Money is held in integer cents inside `paymentLedger.js` (`cents()`); values wit
 
 ### Migrations
 
-`normalizeWorkspace` chains these in order, then `normalizeSecurity`: `normalizePayerCf`, `normalizeAbaHours`, `normalizeApptPcfs`, `normalizeLegacyCustom`, `normalizeBillingV2` (in `master.js`), `normalizeBillingIds`, `normalizeCobLedger`, `normalizeIntake`, `normalizeVerificationForms`, `normalizeSettingsMasters`, `normalizeAuthUnits`, `normalizeUnitNorms` (once, flag `meta.unitNorm15`; moves untouched 30-minute defaults to 15 minutes and never changes claims). A new field on an existing record needs an idempotent migration here that returns the same object when nothing changes. A new durable collection must be added to `WORKSPACE_FIELDS` in `workspaceBackup.js`, validated on import, and given a round-trip test and an Undo test.
+`normalizeWorkspace` chains these in order, then `normalizeSecurity`: `normalizePayerCf`, `normalizeAbaHours`, `normalizeApptPcfs`, `normalizeLegacyCustom`, `normalizeBillingV2` (in `master.js`), `normalizeBillingIds`, `normalizeCobLedger`, `normalizeIntake`, `normalizeVerificationForms`, `normalizeSettingsMasters`, `normalizeAuthUnits`, `normalizeUnitNorms` (once, flag `meta.unitNorm15`; moves untouched 30-minute defaults to 15 minutes and never changes claims), `normalizeStaffEducation` (clears a staff `education` value outside `EDUCATION_LEVELS`; a blank or absent level means "not recorded" and is left alone). A new field on an existing record needs an idempotent migration here that returns the same object when nothing changes. A new durable collection must be added to `WORKSPACE_FIELDS` in `workspaceBackup.js`, validated on import, and given a round-trip test and an Undo test.
 
 ### Testing rules
 

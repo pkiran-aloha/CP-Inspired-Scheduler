@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (B3 Slice1 landed). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-05** (follow-up 4, payer qualification modifiers + staff education, landed). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: `main` green at `4042e77` before B3; Slice1 branch `feat/travel-check` in progress (travel.js pure logic, office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, tests). Next: land Slice1, then B3 Slice2 route view. See "Next" below.
+- State at handoff: `main` green at `30a0927` with B3 complete. Follow-up 4 (payer qualification modifiers + staff education, branch `arena/01a10b07-cp-inspired-scheduler`) lands with this change. Next: pick from "Next" below.
 
 ## How the maintainer works
 
@@ -16,7 +16,8 @@ Last updated **2026-10-05** (B3 Slice1 landed). Any agent resuming work: read th
 
 ## Shipped (newest first)
 
-Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fixes, 3 B3 travel routing).
+Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fixes, 3 B3 travel routing, 4 payer qualification modifiers).
+- **4a, payer qualification modifiers + staff education** (`education` on staff rows and in the staff form, `qualificationModifiersFor` + `staffQualifierTokens` in `claims.js`, `DEFAULT_QM` moved to `model.js`, `EDUCATION_LEVELS`/`QUAL_MODIFIER_KEYS`, `normalizeStaffEducation` in `master.js`, PayerDetail qual panel readiness line, demo staff educated). Cause: the payer's Qualification Modifiers rows are keyed by education level, but staff records carried no education field, so the setting could never apply. Now the first row whose level matches the rendering provider's education — or a "·" part of their role/cert, so Teacher/Therapist/Specialist rows still work — contributes its pair to the line between the credential and the POS modifier; blank modifiers add nothing, duplicates collapse, the four-modifier cap holds, and a rendering provider with no level recorded gets no qualification modifier (the panel says how many staff that is). The default rows were trimmed to the education code alone (the old `U6` first modifier is an hourly code that should not land on every claim because of a degree); saved payer rows are untouched. Tests: `qualificationModifiers.test.js` (11), updated `claimModifiers`/`mastersHub`/`masters` expectations.
 - **1a, demo records** (`src/lib/demoRecords.js`, called by `blankState` and `reseed`). Eight Cabinet documents (one expired, two due within 30 days), eight CEU/PDU entries, five tasks and three messages, built through the real planners and dated relative to today. Tests that need an empty collection now start from `{ ...blankState(), cabinet: {} }` and similar.
 - **1b, team task notifications** (`notificationsFor` in `tasks.js`). The demo admin stays unlinked on purpose: `normalizeSecurity` forces `staffId: null` on the system account. Instead, an account with no staff link is told about the whole team's overdue and due-today tasks ("2 team tasks are overdue"). Linked accounts still see only their own.
 - **1c, demo family balances** (`seedFamilyShares` in `seed.js`, applied in `blankState` and `reseed`). Three paid insurance claims (one per client, clients without secondary coverage) become partially paid: the payer paid 10% less and reported it as coinsurance. `paymentsFromClaims` now carries `remittance.patientResp` and dates an open claim's payment by `remittance.at`. Item 1 (demo seed polish) is complete.
@@ -130,7 +131,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next — after B3
 
-B3 is complete (Slice1 travel check + Slice2 route view, both landed on main). No further follow-ups planned in this doc. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below. Pick one with the maintainer: e.g. Payer Qualification Modifiers keyed by education level (staff have no education field), or intake-to-first-session handoff (D3), or density optimiser (B2).
+B3 and follow-up 4 are complete. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the ``docs/wiki/architecture.md`` mismatch list. Pick one with the maintainer: intake-to-first-session handoff (D3), or density optimiser (B2), or a small correctness batch (Reports > Validations "Auto-fill" ignores the payer unit rule, architecture item 18; generic payer edits take no Undo snapshot; `fileAppeal` sets a status outside `CLAIM_STATUSES`, item 13).
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
@@ -148,7 +149,6 @@ Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §
 
 ## Known issues / backlog (not yet fixed)
 
-- Payer "Qualification Modifiers" rows are keyed by education level, but staff have no education field — modifiers can't be derived per staff yet.
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integrations panel stores API keys in plain local settings (needs the backend).
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).

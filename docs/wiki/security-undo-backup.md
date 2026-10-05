@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced with main at 414a9fe on 2026-10-05 (plus intake booking checks)._
+_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 

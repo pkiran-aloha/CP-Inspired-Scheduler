@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced with main at 414a9fe on 2026-10-05 (plus intake booking checks)._
+_Last synced with main at 30a0927 on 2026-10-05 (staff education + payer qualification modifiers)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
