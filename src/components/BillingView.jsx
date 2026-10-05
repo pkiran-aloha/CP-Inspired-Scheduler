@@ -193,7 +193,7 @@ export default function BillingView({ initialTab }) {
             <button className="btn btn-sm" onClick={() => {
               const ins = list.filter((c) => c.status !== 'void' && c.method !== 'secondary')
               if (!ins.length) { toast({ message: 'No claims in view to export', kind: 'warn' }); return }
-              try { claimsTo1500(state, ins).save(`CMS-1500-batch-${todayISO()}.pdf`) } catch (e) { }
+              try { claimsTo1500(state, ins).save(`CMS-1500-batch-${todayISO()}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
               toast({ message: `CMS-1500 batch — ${ins.length} claims onto one print-ready PDF`, kind: 'ok' })
             }} data-testid="bil-cms1500-batch" style={{ borderRadius: 10 }}>{Icon.print({ size: 13 })} 1500 Batch</button>
             <button className="btn btn-sm" onClick={() => { download(`${(bill.claimPrefix || 'CLM')}-ledger.csv`, claimsCsv(state, list)); toast({ message: `${list.length} claims exported`, kind: 'ok' }) }} data-testid="bil-csv-all" style={{ borderRadius: 10 }}>{Icon.download({ size: 13 })} Ledger</button>

@@ -113,9 +113,9 @@ export default function ProviderIdView() {
       </div>
 
       {open && (
-        <div className="modal-backdrop" data-testid="pi-modal">
-          <div className="modal" style={{ width: 520, borderRadius: 14, border: '1px solid var(--line)' }}>
-            <div className="modal-hd" style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)' }}><b style={{ fontSize: 15 }}>{open === 'new' ? 'Add Provider' : 'Edit Provider'}</b><button className="iconbtn" onClick={() => setOpen(null)} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 12 })}</button></div>
+        <div className="overlay" data-testid="pi-modal" onMouseDown={(e) => e.target === e.currentTarget && setOpen(null)}>
+          <div className="modal" role="dialog" aria-label={open === 'new' ? 'Add Provider' : 'Edit Provider'} style={{ width: 'min(520px, calc(100vw - 32px))', borderRadius: 14 }}>
+            <div className="modal-head" style={{ padding: '16px 20px' }}><b style={{ fontSize: 15 }}>{open === 'new' ? 'Add Provider' : 'Edit Provider'}</b><button className="iconbtn" onClick={() => setOpen(null)} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 12 })}</button></div>
             <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <label className="field"><span>Name</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} data-testid="pi-f-name" style={{ fontSize: 13, borderRadius: 10, padding: '10px 12px' }} /></label>

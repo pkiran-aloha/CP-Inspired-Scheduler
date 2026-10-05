@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Modal overflow and PDF export fixes
+
+Staff and client edit dialogs keep their Save/Cancel footer in view and scroll the form between header and footer. The profile sheet no longer runs off the right edge. Every modal now scrolls rather than clips when its content is taller than the screen. The payroll register and payroll summary PDFs download as real PDFs (they were 15-byte `[object Object]` files). Statement, intake, report and CMS-1500 PDFs map characters the PDF fonts cannot draw instead of printing them as gibberish.
+
 ### Scheduling density optimiser (B2)
 
 Scheduler Insights now has a **Density** tab. It scans the visible range for future, unclaimed clinical sessions that could move earlier or later on the same day into an adjacent idle window, so a clinician gets a tighter block instead of a split day. Each suggestion names the session, the current time, the target time next to an existing block, and the split idle time/day span it would save.

@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced with main at 4375cb1 on 2026-10-05; includes the unified A/R aging engine from this branch._
+_Last synced against main aef21fe plus the fix/modals-pdf-exports branch on 2026-10-05; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 

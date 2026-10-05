@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/components/AppointmentModal.jsx, src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main aef21fe plus the fix/modals-pdf-exports branch on 2026-10-05; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 

@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main aef21fe plus the fix/modals-pdf-exports branch on 2026-10-05; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -75,7 +75,7 @@ These come from the payer's Billing Rules (Masters, Payer, Billing Rules, Claims
 
 ### CMS-1500 PDF
 
-"CMS-1500" on a primary claim downloads a PDF (`<claim no>-1500.pdf`); "1500 Batch" puts many claims on one PDF. A secondary (COB) claim is refused with a caution because its details are not mapped to a compliant form. The PDF is a printable companion. Several boxes now read the payer and client records:
+"CMS-1500" on a primary claim downloads a PDF (`<claim no>-1500.pdf`); "1500 Batch" puts many claims on one PDF. A secondary (COB) claim is refused with a caution because its details are not mapped to a compliant form. If either PDF cannot be built, a caution names the error and no success message shows. The PDF is a printable companion. Several boxes now read the payer and client records:
 
 - Box 1 (program) from the payer's CMS type, with the older name guess only when none is set.
 - Boxes 7a (group number) and 10 (plan ID) from the payer's group and plan identifiers. A blank value prints as a dash, never an invented one.

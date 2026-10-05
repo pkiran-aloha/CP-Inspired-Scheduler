@@ -71,7 +71,7 @@ export function registerSpec(run, state) {
     employee: l.name, payrollId: l.payrollId || '—', office: l.office || '—',
     gross: l.grossCents / 100, preTax: l.preTaxCents / 100, tax: l.taxCents / 100,
     postTax: l.postTaxCents / 100, net: l.netCents / 100, employer: l.employerCents / 100,
-    hours: l.workedHours, ot: l.otHours,
+    hours: Math.round(l.workedHours * 100) / 100, ot: Math.round(l.otHours * 100) / 100,
   }))
   const t = run.totals || {}
   return {
