@@ -458,10 +458,28 @@ export const staffSatisfiesCredentials = (settings, staffMember, requiredCreds =
   return requiredCreds.every((req) => staffSatisfiesQualification(settings, staffMember, req))
 }
 
+// What a staff member holds, as qualification tokens. Staff rows carry free text such as
+// cert "BCBA #5-12-0034" and role "BCBA · Clinical Supervisor", so each value is also read
+// as its "·" parts, each part without its "#number", and each part's matches in a
+// qualification's "Applies to" list (job titles such as "Lead RBT" or "Psychologist").
+function heldQualifications(settings, staffMember) {
+  const raw = [staffMember.cert, staffMember.role, ...arr(staffMember.qualifications), ...arr(staffMember.credentials)].filter(Boolean).map(String)
+  const rows = qualificationList(settings, { activeOnly: false })
+  const out = new Set(raw)
+  for (const value of raw) {
+    for (const part of value.split('·').map((p) => p.trim()).filter(Boolean)) {
+      out.add(part)
+      out.add(part.split('#')[0].trim())
+      for (const q of rows) if (arr(q.appliesTo).includes(part)) out.add(q.id)
+    }
+  }
+  return [...out].filter(Boolean)
+}
+
 export function staffSatisfiesQualification(settings, staffMember, requiredCred) {
   if (!requiredCred) return true
   if (!staffMember) return false
-  const held = [staffMember.cert, staffMember.role, ...arr(staffMember.qualifications), ...arr(staffMember.credentials)].filter(Boolean)
+  const held = heldQualifications(settings, staffMember)
   if (held.includes(requiredCred)) return true
   for (const h of held) {
     const covered = qualificationCoversTransitive(settings, h)

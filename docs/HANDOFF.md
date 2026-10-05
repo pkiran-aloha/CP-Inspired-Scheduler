@@ -20,6 +20,7 @@ Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fix
 - **1a, demo records** (`src/lib/demoRecords.js`, called by `blankState` and `reseed`). Eight Cabinet documents (one expired, two due within 30 days), eight CEU/PDU entries, five tasks and three messages, built through the real planners and dated relative to today. Tests that need an empty collection now start from `{ ...blankState(), cabinet: {} }` and similar.
 - **1b, team task notifications** (`notificationsFor` in `tasks.js`). The demo admin stays unlinked on purpose: `normalizeSecurity` forces `staffId: null` on the system account. Instead, an account with no staff link is told about the whole team's overdue and due-today tasks ("2 team tasks are overdue"). Linked accounts still see only their own.
 - **1c, demo family balances** (`seedFamilyShares` in `seed.js`, applied in `blankState` and `reseed`). Three paid insurance claims (one per client, clients without secondary coverage) become partially paid: the payer paid 10% less and reported it as coinsurance. `paymentsFromClaims` now carries `remittance.patientResp` and dates an open claim's payment by `remittance.at`. Item 1 (demo seed polish) is complete.
+- **2a, staff qualification matching** (`heldQualifications` in `settingsMasters.js`). Cause: held values were compared whole, so cert "BCBA #5-12-0034" and role "BCBA · Clinical Supervisor" never matched the BCBA qualification; every staff member except one whose role was exactly "BCBA" got the Staff Qualification chip, RBTs on 97153 included. Now each value is also read as its "·" parts, without the "#number", and through the qualifications' "Applies to" job titles.
 
 Hackathon wave 6: Integrations, honest partial (#3, #11, #12). This wave is complete.
 - **Slice 1, telehealth room link** (`telehealthRoomFor` and `isWebUrl` in `settingsMasters.js`). Reuses the existing `int-telehealth` integration row's `roomUrl`; `integration.patch` now refuses a non-`https://` link. The booking dialog shows it for POS-10 locations and `buildICS` takes an optional `roomFor` to add it to `.ics` events. One practice-wide room; no per-staff rooms yet.
@@ -137,7 +138,6 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Known issues / backlog (not yet fixed)
 
-- `staffSatisfiesQualification` may flag BCBAs on BCBA-only codes ("Staff Qualification" chip on a BCBA for 97151) — investigate the qualification `covers` matching.
 - Payer "Qualification Modifiers" rows are keyed by education level, but staff have no education field — modifiers can't be derived per staff yet.
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integrations panel stores API keys in plain local settings (needs the backend).

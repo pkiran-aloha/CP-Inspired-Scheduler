@@ -28,6 +28,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Demo family balances.** Three demo families owe a coinsurance share the payer reported, so client statements and the patient A/R bucket have real examples. Clients with secondary coverage are left alone for the COB demo.
 
+### Follow-ups — backlog fixes
+
+**Staff qualification check.** BCBAs (and RBTs on 97153) were wrongly flagged "Staff Qualification" because a cert like "BCBA #5-12-0034" or a role like "BCBA · Clinical Supervisor" was compared as a whole string. The check now reads the credential out of those values and maps job titles through each qualification's "Applies to" list.
+
 ### Hackathon wave 6 — integrations, honest partial
 
 **Telehealth room link.** Settings > Clinical Integrations > Telehealth room link stores the practice's own video room (a full `https://` address; anything else is refused). Telehealth bookings (place of service 10) show the link under Location, and `.ics` exports add it to those events. The app does not host, open or record video.

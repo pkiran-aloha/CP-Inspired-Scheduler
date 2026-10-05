@@ -2,7 +2,7 @@
 
 _Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced with main at c5211e0 on 2026-10-05 (plus demo family balances)._
+_Last synced with main at 8721364 on 2026-10-05 (plus qualification matching fix)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -22,7 +22,7 @@ If your account has view-only access to the Workspace settings area, every panel
 | Data Import | Bring records in from a CSV file |
 | Organization | Practice identity, NPI and tax ID, and the **office and location master** |
 | Payroll | Pay cycle, earning codes, overtime rules (see [Payroll](payroll.md)) |
-| Qualification | Degrees, certifications and licences, and expiry |
+| Qualification | Degrees, certifications and licences, and expiry. "Covers" makes a higher credential satisfy a lower one (BCBA covers BCaBA and RBT). The staff qualification check reads a person's credential from their cert ("BCBA #…" counts as BCBA), from each part of a "Credential · title" role, and from job titles listed in a qualification's "Applies to" (for example "Lead RBT") |
 | Services | Service types, billing codes, unit length (new services default to 15 minutes), rates per unit, rounding, required credentials |
 | Security | Local demo accounts and role-based access (browser-local, not real authentication) |
 | Clinical Integrations | Local export seams: calendar `.ics`, the practice's own telehealth room link (must be a full `https://` address; shown on telehealth appointments and in `.ics` exports by `telehealthRoomFor`), the practice's own online payment link (for example a Stripe Payment Link; printed on client statements by `paymentLinkFor`, never charged or read), a link to the QuickBooks desk, and a record of the last local run. Link-only rows show no API key fields. A workspace saved before a new default row existed still gets it (`integrationsCfg` appends missing defaults) |
