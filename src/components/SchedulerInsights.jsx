@@ -7,6 +7,7 @@ import { DAY_SHORT, addDays, fmtDayLabel, fmtRange, isoDate, parseISO, todayISO 
 import { insightBoard } from '../lib/insights'
 import { AUTH_BANDS } from '../lib/authBudget'
 import { RISK_BANDS } from '../lib/risk'
+import { routeForDay, suggestRouteOrder } from '../lib/travel'
 
 /** Fill shading. 85–95% is the healthy band the operations literature converges on. */
 const fillTone = (p) => (p >= 95 ? 'hot' : p >= 85 ? 'full' : p >= 55 ? 'mid' : p > 0 ? 'idle' : 'none')
@@ -49,6 +50,35 @@ export default function SchedulerInsights({ days, onClose }) {
   const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.settings, key])
   const { coverage, auth, risk } = board
 
+  // ---- travel routes per staff per day ----
+  const travelBoard = useMemo(() => {
+    const apptsByDay = {}
+    for (const ap of Object.values(state.appts || {})) {
+      if (!ap?.date || !days.includes(ap.date)) continue
+      if (ap.status && state.settings?.apptStatuses?.find((s) => s.key === ap.status)?.isCancellation) continue
+      // skip cancelled via isCancelStatus? Use settings resolver quickly: check if status is no-show/cancelled
+      if (['cancelled', 'no-show'].includes(ap.status)) continue
+      for (const sid of ap.staffIds || []) {
+        const key = `${sid}|${ap.date}`
+        if (!apptsByDay[key]) apptsByDay[key] = []
+        apptsByDay[key].push(ap)
+      }
+    }
+    const rows = []
+    for (const [k, list] of Object.entries(apptsByDay)) {
+      const [staffId, date] = k.split('|')
+      const sorted = list.slice().sort((a, b) => a.start - b.start)
+      if (sorted.length < 2) continue
+      const route = routeForDay(state, sorted)
+      if (!route.legs.length) continue
+      const suggestion = suggestRouteOrder(state, sorted)
+      const staff = (state.staff || []).find((s) => s.id === staffId)
+      rows.push({ staffId, staffName: staff?.name || staffId, date, sorted, route, suggestion })
+    }
+    rows.sort((a, b) => a.date.localeCompare(b.date) || a.staffName.localeCompare(b.staffName))
+    return rows
+  }, [state.appts, state.clients, state.staff, state.settings, key])
+
   const goToDay = (date, staffId) => {
     actions.setUI({
       section: 'calendar',
@@ -73,10 +103,13 @@ export default function SchedulerInsights({ days, onClose }) {
   const showGrid = days.length >= 5
   const authRows = scope === 'action' ? auth.rows.filter((r) => ['lapsed', 'over', 'expiring', 'no-auth', 'watch'].includes(r.band)) : auth.rows
 
+  const travelAlert = travelBoard.some((r) => r.route.totals.impossible > 0)
+  const travelBadge = travelBoard.length ? `${travelBoard.length} route${travelBoard.length === 1 ? '' : 's'}` : 'clear'
   const tabs = [
     { id: 'coverage', label: 'Coverage', icon: 'grid', badge: `${coverage.summary.openHours}h open` },
     { id: 'auth', label: 'Authorizations', icon: 'shield', badge: auth.summary.needsAction ? `${auth.summary.needsAction} to action` : 'clear', alert: auth.summary.needsAction > 0 },
     { id: 'risk', label: 'At risk', icon: 'alert', badge: risk.summary.flagged ? `${risk.summary.flagged} flagged` : 'clear', alert: risk.summary.high > 0 },
+    { id: 'travel', label: 'Travel', icon: 'car', badge: travelBadge, alert: travelAlert },
   ]
 
   return (
@@ -346,6 +379,64 @@ export default function SchedulerInsights({ days, onClose }) {
                   records; <i className="si-factor si-src-policy">policy</i> ones are the fixed rules. This is an operations prompt for a human phone call — no reminder is sent, and no
                   clinical judgement is implied.
                 </span>
+              </div>
+            </>
+          )}
+
+          {tab === 'travel' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Travel routes per clinician day</b>
+                  <span className="muted"> — estimated from straight-line distance × 1.3 road factor at 25 mph; not a map route. Client geo + office lat/lng; unknown places skipped.</span>
+                </div>
+              </div>
+
+              {!travelBoard.length && (
+                <div className="si-empty">
+                  {Icon.checkCircle({ size: 16 })} No clinician has 2+ sessions with resolvable locations in this range. Add client geo or office lat/lng in Settings → Organization to see travel.
+                </div>
+              )}
+
+              <div className="si-travel-list">
+                {travelBoard.map((row) => (
+                  <div className="si-travel" key={`${row.staffId}-${row.date}`} data-testid={`si-travel-${row.staffId}-${row.date}`}>
+                    <div className="si-travel-head">
+                      <b>{row.staffName}</b>
+                      <span className="muted">{fmtDayLabel(row.date, 'full')} · {row.sorted.length} sessions · {row.route.totals.distanceMi.toFixed(1)} mi straight · ~{row.route.totals.travelMin} min travel</span>
+                      <span className="spacer f1" />
+                      {row.route.totals.impossible > 0 && <span className="si-chip si-tone-warn">{row.route.totals.impossible} impossible</span>}
+                      {row.route.totals.tight > 0 && <span className="si-chip si-tone-flag">{row.route.totals.tight} tight</span>}
+                      <button className="btn btn-ghost btn-sm" onClick={() => goToDay(row.date, row.staffId)}>Show day</button>
+                    </div>
+                    <div className="si-travel-legs">
+                      {row.route.legs.map((leg, i) => (
+                        <div key={i} className={`si-leg si-sev-${leg.severity}`} data-testid={`si-leg-${row.staffId}-${row.date}-${i}`}>
+                          <span className="si-leg-from">{leg.fromAppt.title || leg.fromLoc.label} <i className="muted">{fmtRange(leg.fromAppt.start, leg.fromAppt.end, settings.h24)}</i></span>
+                          <span className="si-leg-arrow">{leg.severity === 'impossible' ? '✕' : leg.severity === 'tight' ? '⚠' : '→'}</span>
+                          <span className="si-leg-to">{leg.toAppt.title || leg.toLoc.label} <i className="muted">{fmtRange(leg.toAppt.start, leg.toAppt.end, settings.h24)}</i></span>
+                          <span className="si-leg-meta">{leg.distanceMi.toFixed(1)} mi · ~{leg.travelMin} min needed · gap {leg.gapMin} min{leg.severity !== 'ok' ? ` · ${leg.severity}` : ''}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {row.suggestion && (
+                      <div className="si-travel-suggest" data-testid={`si-suggest-${row.staffId}-${row.date}`}>
+                        <b>Suggested re-order (read-only):</b>
+                        <span className="muted"> saves ~{row.suggestion.savedMi.toFixed(1)} mi straight (~{Math.max(0, Math.round(row.suggestion.savedMin))} min). Nothing moves until you move it.</span>
+                        <div className="si-suggest-order">
+                          {row.suggestion.suggestedOrder.map((a, idx) => (
+                            <span key={a.id} className="si-suggest-item">{idx + 1}. {a.title || a.location || 'Session'} <i className="muted">{fmtRange(a.start, a.end, settings.h24)}</i></span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="si-note">
+                {Icon.info({ size: 13 })}
+                <span>Travel is an estimate. Road factor 1.3, 25 mph, 5 min buffer, tight threshold 10 min. No map API, no traffic, no elevation. Skips telehealth and places without coordinates. This view never moves appointments.</span>
               </div>
             </>
           )}
