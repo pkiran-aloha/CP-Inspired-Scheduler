@@ -1,8 +1,8 @@
 # Scheduling
 
-_Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at 4042e77 on 2026-10-05 (B3 Slice1 travel feasibility)._
+_Last synced with main at fdf36f6 on 2026-10-05 (B3 Slice1+2 travel feasibility and route view)._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -90,11 +90,12 @@ The needs-cover inbox lists cancelled sessions in the visible range that a quali
 
 ### Scheduler Insights
 
-Open it from the calendar toolbar or with `I`. It is scoped to the range on screen and has three tabs:
+Open it from the calendar toolbar or with `I`. It is scoped to the range on screen and has four tabs:
 
 - **Coverage.** Four KPIs (schedule fill against a labelled 85-95% band, open capacity, authorizations needing action, at-risk sessions), a weekday-by-hour heat grid, and named idle windows per clinician that click through to that day and person.
 - **Authorizations.** Burn-down per client: committed against authorized hours, this week against the authorized week, days to expiry, projected exhaustion, with a needs-action or all-clients toggle.
 - **At risk.** The riskiest sessions with score, factors, recommended action, **Open** and **Confirm**. Confirm marks the session confirmed locally (one Undo). No reminder is sent to the family.
+- **Travel.** Per-clinician day routes with legs, travel minutes, tight/impossible legs, totals and a read-only suggested re-order with miles saved. Nothing moves.
 
 Risk factors are labelled `history` (learned from this workspace's resolved appointments) or `policy` (a documented rule such as short lead time, unconfirmed, backfilled, first session with a technician).
 
@@ -102,15 +103,20 @@ Risk factors are labelled `history` (learned from this workspace's resolved appo
 
 The ABA Hours checkbox exists on non-service appointments only. It marks behavior-analytic staff time for credential tracking (RBT, BCAT, graduate student, state certification). It has nothing to do with client authorizations. The Appointment Validations group `aba` enforces this (service appointments carrying the flag are a Stop by default).
 
-### Travel feasibility (B3 Slice1)
+### Travel feasibility and routing (B3)
 
-A clinician cannot be in two places at once. When a booking has a previous or next session the same day for the same staff, the Checks rail shows whether there is enough time to get there.
+A clinician cannot be in two places at once. Two slices shipped.
+
+**Slice1 — booking dialog check.** When a booking has a previous or next session the same day for the same staff, the Checks rail shows whether there is enough time to get there.
 
 - **Where coordinates come from:** client `geo` (`[lat,lng]`) for home, school and community sessions, plus optional `lat`/`lng` on Settings > Organization offices for center/clinic sessions (seeded for demo offices). Telehealth and unknown places are skipped, never guessed.
 - **How the estimate is made:** straight-line haversine distance × 1.3 road factor at 25 mph plus a 5 min buffer. Honest copy everywhere: “estimated from straight-line distance × 1.3 road factor at 25 mph; not a map route”. No map API, no network.
 - **What you see:** “Needs about 22 min from previous; gap is 10 min” (severity **impossible** when gap < travel) or “Tight turnaround: about 18 min from X to Y, gap 22 min” (severity **tight** when gap < travel+10). The booking can still be saved — the rule `staff.travel` defaults to **Warn** in Appointment Validations.
 - **Know before you pick:** `candidateVerdicts` calls `evaluateAppointmentValidations`, so adding a staff member who would trigger a travel issue shows a chip in the picker before you add them.
-- **Code:** `src/lib/travel.js` (`haversineMi`, `estimateTravelMinutes`, `resolveApptLocation`, `travelLeg`, `travelChecksForStaffDay`, `routeForDay`, `suggestRouteOrder`, `TRAVEL_DEFAULTS`). Tests: `travel.test.js`. Slice2 (route view with legs and suggested re-order) is next.
+
+**Slice2 — per-clinician day route view.** Scheduler Insights (I) has a **Travel** tab: for each staff per day in the visible range with 2+ sessions that have resolvable locations, it shows legs (from → to, gap, travel needed, distance, severity), totals (straight-line miles, travel minutes, tight/impossible counts), and a read-only suggested re-order (greedy nearest-neighbor) with miles saved. Nothing moves on the calendar.
+
+- **Code:** `src/lib/travel.js` (`haversineMi`, `estimateTravelMinutes`, `resolveApptLocation`, `travelLeg`, `travelChecksForStaffDay`, `routeForDay`, `suggestRouteOrder`, `TRAVEL_DEFAULTS`). `SchedulerInsights.jsx` builds travelBoard per staff per day. Styles in `styles.css` (`si-travel`, `si-leg`). Tests: `travel.test.js`.
 
 ## How it works
 

@@ -44,14 +44,16 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Online payment link.** Settings > Clinical Integrations > Online payment link (Stripe) stores the practice's own payment page (`https://` only). Client statement PDFs with a balance print it under "How to pay". The app never charges a card or reads Stripe; the Payment Center's patient receipt form tells staff to record link payments as Card with the processor's receipt number. Link-only integration rows no longer show API key fields.
 
-### Follow-up 3 — B3 travel feasibility (Slice1)
+### Follow-up 3 — B3 travel feasibility and routing
 
-**Travel check in the booking dialog.** When a clinician has a previous or next session the same day, the Checks rail now shows whether there is enough time to get there. Message like “Needs about 22 min from previous; gap is 10 min” (impossible when gap < travel) or “Tight turnaround: about 18 min from X to Y, gap 22 min” (tight when gap < travel+10 min). The booking can still be saved — `staff.travel` defaults to Warn in Appointment Validations.
+**Slice1 — Travel check in the booking dialog.** When a clinician has a previous or next session the same day, the Checks rail now shows whether there is enough time to get there. Message like “Needs about 22 min from previous; gap is 10 min” (impossible when gap < travel) or “Tight turnaround: about 18 min from X to Y, gap 22 min” (tight when gap < travel+10 min). The booking can still be saved — `staff.travel` defaults to Warn in Appointment Validations.
 
 - **Where coordinates come from:** client `geo` `[lat,lng]` for home/school/community, plus optional `lat`/`lng` on Settings > Organization offices (seeded for demo offices). Telehealth and unknown places are skipped, never guessed. Office editor now has Latitude/Longitude fields with validation.
 - **How it is estimated:** straight-line haversine × 1.3 road factor at 25 mph + 5 min buffer. Honest copy: “estimated from straight-line distance × 1.3 road factor at 25 mph; not a map route”. No map API.
 - **Know before you pick:** `candidateVerdicts` calls `evaluateAppointmentValidations`, so the staff picker shows a travel chip before you add someone.
-- **Pure logic:** `src/lib/travel.js` (`haversineMi`, `estimateTravelMinutes`, `resolveApptLocation`, `travelLeg`, `travelChecksForStaffDay`, `routeForDay`, `suggestRouteOrder`, `TRAVEL_DEFAULTS`). Tests: `travel.test.js`. Slice2 (route view with legs, travel minutes, tight/impossible legs, suggested re-order read-only with miles saved) is next.
+- **Pure logic:** `src/lib/travel.js` (`haversineMi`, `estimateTravelMinutes`, `resolveApptLocation`, `travelLeg`, `travelChecksForStaffDay`, `routeForDay`, `suggestRouteOrder`, `TRAVEL_DEFAULTS`). Tests: `travel.test.js`.
+
+**Slice2 — Per-clinician day route view.** Scheduler Insights (I) has a new **Travel** tab: for each staff member per day in the visible range, it lists legs (from → to with gap, travel needed, distance, severity), totals (straight-line miles, travel minutes, tight/impossible counts), and a read-only suggested re-order that saves miles (greedy nearest-neighbor, shows miles saved, nothing moves). Honest copy throughout, no map API. Code: `SchedulerInsights.jsx` travelBoard using `routeForDay` and `suggestRouteOrder`, styles in `styles.css`.
 
 ### Hackathon wave 5 — inbox
 

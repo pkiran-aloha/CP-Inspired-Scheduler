@@ -61,6 +61,7 @@ The booking dialog shows what a booking will do to the client's authorization, t
 - **Your own telehealth room, one click away.** Save the practice's video room link once and it appears on every telehealth booking and in calendar exports. The app links to your room; it does not host or record video.
 - **Each clinician's schedule in their own calendar.** One click on the staff roster saves that person's next 90 days as a calendar file for Apple or Google Calendar. It is a file, not a live sync, and the app says so.
 - **Travel time check.** When a clinician has a previous or next session the same day, the Checks rail shows “Needs about 22 min from previous; gap is 10 min” or a tight-turnaround warning. Estimated from straight-line distance × 1.3 road factor at 25 mph plus a 5-min buffer; not a map route. Coordinates come from client geo and optional office lat/lng, with unknown places skipped.
+- **Per-clinician day route view.** Scheduler Insights has a Travel tab that lists each clinician's day as legs with travel minutes, tight/impossible flags and totals, plus a read-only suggested re-order that saves miles. Nothing moves on the calendar.
 
 ### Cancellations: know why sessions are lost, not just how many
 
