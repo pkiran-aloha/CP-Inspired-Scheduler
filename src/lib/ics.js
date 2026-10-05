@@ -2,7 +2,8 @@ import { parseISO, minToHM } from './date'
 
 const esc = (s = '') => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 
-export function buildICS(appts, staffById, clientsById, isCancel = (s) => s === 'cancelled' || s === 'no-show') {
+// roomFor(appt) → the practice's video room link for telehealth sessions ('' otherwise)
+export function buildICS(appts, staffById, clientsById, isCancel = (s) => s === 'cancelled' || s === 'no-show', roomFor = () => '') {
   const dt = (iso, min) => {
     const d = parseISO(iso)
     d.setHours(Math.floor(min / 60), min % 60, 0, 0)
@@ -11,6 +12,7 @@ export function buildICS(appts, staffById, clientsById, isCancel = (s) => s === 
   }
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//AlohaABA//Scheduler//EN', 'CALSCALE:GREGORIAN']
   for (const a of appts) {
+    const room = roomFor(a)
     lines.push(
       'BEGIN:VEVENT',
       `UID:${a.id}@pulseaba`,
@@ -19,7 +21,8 @@ export function buildICS(appts, staffById, clientsById, isCancel = (s) => s === 
       `DTEND:${dt(a.date, a.end)}`,
       `SUMMARY:${esc(a.title)}`,
       a.location ? `LOCATION:${esc(a.location)}` : '',
-      `DESCRIPTION:${esc([(a.staffIds || []).map((s) => staffById[s]?.name).filter(Boolean).join(', '), (a.clientIds || []).map((c) => clientsById[c]?.name).filter(Boolean).join(', '), a.notes].filter(Boolean).join(' | '))}`,
+      `DESCRIPTION:${esc([(a.staffIds || []).map((s) => staffById[s]?.name).filter(Boolean).join(', '), (a.clientIds || []).map((c) => clientsById[c]?.name).filter(Boolean).join(', '), a.notes, room && `Video room: ${room}`].filter(Boolean).join(' | '))}`,
+      room ? `URL:${room}` : '',
       isCancel(a.status) ? 'STATUS:CANCELLED' : 'STATUS:CONFIRMED',
       'END:VEVENT'
     )

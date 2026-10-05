@@ -17,7 +17,7 @@ import { EARNING_CODES, EARNING_BY_ID, defaultPayrollSettings, earningCodesFor, 
 import { STATUSES, STATUS_ORDER, BILL_CODES, TYPES, isServiceAppt, uid } from './model'
 import { abaActivityById, abaHoursCfg } from './abaHours'
 import { providerIdIssues } from './providerIds'
-import { planReasonLists } from './claims'
+import { planReasonLists, posFor } from './claims'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -198,7 +198,7 @@ export const DEFAULT_INTEGRATIONS = [
   { id: 'int-clearinghouse', name: 'Claims clearinghouse', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
     detail: 'No 837 transmission exists in this demo. Claims are staged locally and their files recorded in Billed Files.', lastRunAt: null, note: '' },
   { id: 'int-telehealth', name: 'Telehealth room link', vendor: 'Configurable', status: 'local-export', direction: 'Reference data',
-    detail: 'Stores the practice’s telehealth room URL and prints it on documents; it does not open or record a video session.', lastRunAt: null, note: '' },
+    detail: 'Stores the practice’s own video room link, shows it on telehealth appointments and adds it to .ics exports. The app does not host, open or record a video session.', lastRunAt: null, note: '' },
   { id: 'int-eligibility', name: 'Eligibility / benefits check', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
     detail: 'Verification Forms capture what staff were told on the phone. There is no live 270/271 exchange.', lastRunAt: null, note: '' },
 ]
@@ -474,6 +474,14 @@ export function messagesCfg(settings) {
 }
 export const integrationsCfg = (settings) => (arr(settings?.clinicalIntegrations).length ? settings.clinicalIntegrations : DEFAULT_INTEGRATIONS)
 export const integrationById = (settings, id) => integrationsCfg(settings).find((i) => i.id === id) || null
+export const isWebUrl = (s) => /^https:\/\/[^\s/]+\.[^\s]+$/i.test(String(s || '').trim())
+// The practice's own video room for a telehealth session (POS 10), or '' when the integration is off,
+// the room is not set, or the session is not telehealth. The app only links to it; it hosts nothing.
+export function telehealthRoomFor(settings, appt) {
+  const row = integrationById(settings, 'int-telehealth')
+  if (!row || row.status === 'off' || !isWebUrl(row.roomUrl) || posFor(appt) !== '10') return ''
+  return row.roomUrl.trim()
+}
 export const subscriptionCfg = (settings) => ({ ...DEFAULT_SUBSCRIPTION, ...(settings?.subscription || {}) })
 export const notificationsCfg = (settings) => ({ ...DEFAULT_NOTIFICATIONS, ...(settings?.notifications || {}) })
 export const clearinghousesCfg = (settings) => (arr(settings?.clearinghouses).length ? settings.clearinghouses : DEFAULT_CLEARINGHOUSES)
@@ -1157,6 +1165,10 @@ export function planSettingsOp(state, op, payload = {}) {
       if (!row) return fail('That integration no longer exists.')
       const patch = { ...payload.patch }
       if (patch.status && !INTEGRATION_STATUSES[patch.status]) return fail('Unknown integration status.')
+      if ('roomUrl' in patch) {
+        patch.roomUrl = String(patch.roomUrl || '').trim()
+        if (patch.roomUrl && !isWebUrl(patch.roomUrl)) return fail('Enter the room link as a full https:// address.')
+      }
       const next = rows.map((i) => (i.id === row.id ? { ...i, ...patch } : i))
       return done(`${row.name} updated`, { patch: { clinicalIntegrations: next } })
     }

@@ -2,7 +2,7 @@
 
 _Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at b9955db on 2026-10-05 (plus inbox messages)._
+_Last synced with main at caa7fdc on 2026-10-05 (plus telehealth room link)._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -19,6 +19,8 @@ Staff, client and team selectors filter what the calendar shows. They do not cha
 ### Booking an appointment
 
 Open the picker (`N`, the `+` button, or click an empty slot), choose a type (service, evaluation, supervision, drive, break, unavailable), and the booking dialog opens. The left side is the form. The right side is the **Checks rail**, one panel that replaces the old stacked banners. It re-evaluates on every change.
+
+When the location is a telehealth location (place of service 10) and the practice has saved its own video room link in Settings > Clinical Integrations > Telehealth room link, the dialog shows that link under Location. Calendar `.ics` exports put the same link on telehealth events. The app does not host, open or record video; the link is just the practice's own room.
 
 Severity language is shared across the whole app:
 

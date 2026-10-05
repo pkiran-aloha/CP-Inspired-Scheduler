@@ -16,6 +16,9 @@ Last updated **2026-10-03** (end of session). Any agent resuming work: read this
 
 ## Shipped (newest first)
 
+Hackathon wave 6: Integrations, honest partial (#3, #11, #12). In progress.
+- **Slice 1, telehealth room link** (`telehealthRoomFor` and `isWebUrl` in `settingsMasters.js`). Reuses the existing `int-telehealth` integration row's `roomUrl`; `integration.patch` now refuses a non-`https://` link. The booking dialog shows it for POS-10 locations and `buildICS` takes an optional `roomFor` to add it to `.ics` events. One practice-wide room; no per-staff rooms yet.
+
 Hackathon wave 5: Inbox (#1 + #2). This wave is complete.
 - **Slice 2, messages** (`messages.js`, the Inbox's Messages tab).
   - Uses a `messages` collection, keyed by **account** ids rather than staff ids: the demo admin has no `staffId`.

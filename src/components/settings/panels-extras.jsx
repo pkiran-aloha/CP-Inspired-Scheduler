@@ -4,7 +4,7 @@ import { Section, Row, TextField, NumberField, Select, Toggle, Banner, Empty, Da
 import { svcList, cfTypeLabel, CF_SCOPES } from '../../lib/master'
 import {
   integrationsCfg, INTEGRATION_STATUSES, messagesCfg, MESSAGE_CATEGORIES, MERGE_FIELDS,
-  subscriptionCfg, notificationsCfg, settingsOffices, earningCodes, isCancelStatus, listOptions,
+  subscriptionCfg, notificationsCfg, settingsOffices, earningCodes, isCancelStatus, listOptions, telehealthRoomFor,
 } from '../../lib/settingsMasters'
 import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
@@ -252,7 +252,7 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
       const appts = Object.values(state.appts || {}).filter((a) => a.date >= todayISO()).slice(0, 750)
       const staffById = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))
       const clientsById = Object.fromEntries((state.clients || []).map((c) => [c.id, c]))
-      downloadDoc(`aloha-aba-calendar-${todayISO()}.ics`, buildICS(appts, staffById, clientsById, (k) => isCancelStatus(settings, k)), 'text/calendar;charset=utf-8')
+      downloadDoc(`aloha-aba-calendar-${todayISO()}.ics`, buildICS(appts, staffById, clientsById, (k) => isCancelStatus(settings, k), (a) => telehealthRoomFor(settings, a)), 'text/calendar;charset=utf-8')
       const res = actions.settingsOp('integration.ran', { id: row.id, who: state.currentAccount?.name })
       toast({ message: res.msg || `Exported ${appts.length} upcoming events to .ics`, kind: 'ok' })
       return
@@ -295,7 +295,7 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
                 <div className="set-grid2">
                   <Row label="Last local run"><span className="muted" data-testid="set-integration-last">{row.lastRunAt ? new Date(row.lastRunAt).toLocaleString() : 'never'}{row.lastRunBy ? ` · ${row.lastRunBy}` : ''}</span></Row>
                   {row.id === 'int-telehealth' && (
-                    <Row label="Telehealth room URL"><TextField value={row.roomUrl} disabled={readOnly} wide={260} testid="set-integration-room" onCommit={(v) => patch(row.id, { roomUrl: v })} /></Row>
+                    <Row label="Telehealth room URL" hint="Your practice’s own video room (Zoom, Doxy.me, Teams…). Shown on telehealth appointments; the app does not host video."><TextField value={row.roomUrl} disabled={readOnly} wide={260} testid="set-integration-room" placeholder="https://" onCommit={(v) => patch(row.id, { roomUrl: v })} /></Row>
                   )}
                   <Row label="API Key / Token"><TextField value={row.apiKey || ''} disabled={readOnly} wide={240} testid="set-integration-apikey" placeholder="e.g. sk_live_..." onCommit={(v) => patch(row.id, { apiKey: v })} /></Row>
                   <Row label="Client ID / Account ID"><TextField value={row.clientId || ''} disabled={readOnly} wide={200} testid="set-integration-clientid" placeholder="Partner client ID" onCommit={(v) => patch(row.id, { clientId: v })} /></Row>
