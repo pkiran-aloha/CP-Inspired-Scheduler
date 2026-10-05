@@ -113,7 +113,7 @@ Grouped by theme. **Effort** is sized against *this* codebase (S ≈ under a day
 |---|---|---|---|---|
 | D1 | **Caseload ramp forecast.** Project authorized hours demanded 4–12 weeks out from the intake pipeline and each client's authorized week, versus clinician hours available. | [6][12] | M | Not built |
 | D2 | **Hire/contract decision support.** "Before you hire, check whether the gap is demand or schedule shape" — the utilization dashboard literature is explicit that low utilization plus long waits means a template problem, not a capacity problem. | [8][12] | S/M | Not built |
-| D3 | **Intake → first-session handoff.** Turn an approved authorization into a proposed weekly template with the ranked staff suggestions already computed, so a converted referral does not wait on a scheduler's free moment. | [1][6] | M | Not built |
+| D3 | **Intake → first-session handoff.** Turn an approved authorization into a proposed weekly template with ranked staff suggestions. | [1][6] | M | **Shipped in PR #26 (2026-10-05):** reviewed first-week proposal, one slot per selected day; per-session booking with live guards and one Undo. No auto-booking, recurrence or inferred family availability. |
 | D4 | **Scenario planner.** "What if we open Saturdays?" / "What if this client gains 5 h/week?" re-run coverage and authorization burn with hypothetical inputs, without writing them. | [12] | L | Not built |
 
 ---

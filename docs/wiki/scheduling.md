@@ -1,12 +1,17 @@
 # Scheduling
 
-_Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
 ## User guide
+
+### Intake handoff
+
+Converted intake requests and linked client profiles offer **Plan first week**. The [intake guide](intake.md) describes the proposal controls, ranked staff, authorization limits and reviewed booking. A proposal writes nothing. Each session opens the regular booking dialog and saves through a live-revalidated handoff transaction with one Undo; no recurring series or message is created.
+
 
 ### The calendar
 

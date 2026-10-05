@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
+_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 

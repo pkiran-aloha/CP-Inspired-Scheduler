@@ -534,7 +534,7 @@ function areasForUndo(state) {
 
 function actionAreas(state, action) {
   switch (action.type) {
-    case 'upsertMany': case 'patch': case 'deleteMany': case 'relabel': return ['calendar']
+    case 'handoffSessionTx': case 'upsertMany': case 'patch': case 'deleteMany': case 'relabel': return ['calendar']
     case 'claimsTx': case 'secondaryFilingTx': case 'secondarySkipTx': case 'secondaryCancelTx':
     case 'claimPaymentTx': case 'claimVoidPaymentTx': case 'patientReceiptTx': case 'unappliedPaymentTx':
     case 'claimRecoupTx': case 'eraImportTx': case 'eraRetryTx': return ['billing']
@@ -675,6 +675,13 @@ function actionWithinOfficeScope(state, action) {
   }
 
   switch (action.type) {
+    case 'handoffSessionTx': {
+      const client = state.clients.find((c) => c.id === action.clientId)
+      const request = state.intakeRequests?.[client?.intakeId]
+      return canAccess(state, 'clients', 'view') && canAccess(state, 'intake', 'view') &&
+        !!client && !!request && canAccessRecord(state, 'client', client) && canAccessRecord(state, 'intake', request) &&
+        all([action.appt], 'appointment', 'appts')
+    }
     case 'upsertMany': return all(action.appts, 'appointment', 'appts')
     case 'patch': {
       const existing = state.appts?.[action.id]
@@ -857,6 +864,9 @@ function actionWithinOfficeScope(state, action) {
 
 export function authorizeAction(state, action) {
   if (!record(action) || typeof action.type !== 'string') return { ok: false, msg: 'This action is not authorized.' }
+  if (action.type === 'handoffSessionTx' && (!canAccess(state, 'clients', 'view') || !canAccess(state, 'intake', 'view'))) {
+    return { ok: false, msg: 'The intake handoff needs view access to Clients and Intake.' }
+  }
   const areas = actionAreas(state, action)
   if (!Array.isArray(areas)) return { ok: false, msg: 'This action is not authorized.' }
   const needsFull = !['setUI', 'toggleSel'].includes(action.type)

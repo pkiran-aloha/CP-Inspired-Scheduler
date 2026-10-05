@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05; unrelated behavior unchanged._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -33,6 +33,7 @@ Open Settings, Security (also reachable from the nav for accounts with access). 
 ### Undo
 
 - **Press U** (it is ignored while you type in a field or while a dialog is open) or use the Undo button on a toast. The most recent change is reversed and a toast says "Undone".
+- **Intake handoff:** proposing a week changes no durable data. A reviewed session is one `handoffSessionTx` (one appointment, one Undo), requiring Calendar Full and Clients/Intake View plus office scope. Its existing appointment `intakeId` link travels in workspace backups; no new collection is introduced.
 - **One action, one Undo.** A compound change, such as assembling claims with their invoices, posting an ERA, or restoring a backup, is a single step.
 - **Depth.** The last 25 steps, in this browser tab only. Reloading the page or opening another tab starts with an empty Undo.
 - **What Undo covers.** Only the data the change touched is restored. Unrelated edits made afterwards (a theme switch, say) stay. Undo also checks your access: it is refused if reversing the step would touch a record outside your office scope or an area you cannot edit.

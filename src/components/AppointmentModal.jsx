@@ -44,7 +44,7 @@ import { CfPickRow } from './CfPick.jsx'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import SignaturePad from '../ui/SignaturePad'
 
-export default function AppointmentModal({ mode, initial, onClose, onSaved, onBack }) {
+export default function AppointmentModal({ mode, initial, onClose, onSaved, onBack, onCreate }) {
   const state = useStore()
   const { appts, staff, clients, settings, actions } = state
   // chunk-42: the status list (and its colours) is configured in Settings → Appointment Status
@@ -438,6 +438,12 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       toast({ message: 'All occurrences conflict with existing bookings', kind: 'warn' })
       return
     }
+    if (onCreate) {
+      const result = onCreate(created)
+      if (!result.ok) { toast({ message: result.msg, kind: 'warn' }); return }
+      onSaved(result.msg, created[0])
+      return
+    }
     actions.create(created)
     if (andNew) {
       setF(fresh({ id: uid(), date: f.date }))
@@ -628,7 +634,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                             testid="repeat-select"
                             value={f.repeat}
                             onChange={(v) => set({ repeat: v })}
-                            options={RECURRENCES.map((r) => ({ value: r.id, label: r.label }))}
+                            options={RECURRENCES.filter((r) => !onCreate || r.id === 'none').map((r) => ({ value: r.id, label: r.label }))}
                           />
                         </div>
                         {f.repeat !== 'none' ? (
@@ -1079,7 +1085,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                   <button data-testid="save-appt" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: 12 }} onClick={() => save(false)}>
                     {mode === 'edit' ? 'Save Changes' : 'Create Appointment'}
                   </button>
-                  {mode === 'create' && (
+                  {mode === 'create' && !onCreate && (
                     <button className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 6 }} onClick={() => save(true)}>
                       {Icon.plus({ size: 12 })} Save & start another
                     </button>

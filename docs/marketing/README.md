@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
+_Last synced against main d42a2a6 plus the D3 handoff branch on 2026-10-05._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -80,6 +80,7 @@ Intake is a pipeline with gates, not a status field. Each stage asks for exactly
 - **Every blocker has a Fix button** that opens the tab or form where the missing item is recorded, and a first call needs only the essentials (name, date of birth, office, a phone, guardian contact and an owner).
 - **Gates that hold:** screening needs the essentials, benefits needs payer and member details, review needs a completed verification of benefits, scheduling needs a real appointment on the calendar, and conversion needs an authorization decision, documents, consents and a verified guardian.
 - **Conversion creates the chart**, re-points the booked assessment to it and opens the new client's profile; the roster links back to the originating request.
+- **A reviewed first-week handoff.** From the converted chart, propose a week against the authorization on file, see ranked staff and unfilled hours, then review and book each session locally. Family availability still needs confirmation; generating a proposal books nothing and sends nothing. Each saved session is one Undo.
 - **Paperwork in one click.** Download a blank intake packet for families (fill-in fields, the documents to bring, a signature line for each consent) or a PDF summary of any request. Both are generated on your computer; nothing is sent.
 - **Nothing is retyped at conversion.** The chart receives the payer's approved units as its authorization pool, plus the member ID, the authorization number and the diagnosis. Claims then print the real member ID and authorization number.
 - **Referral Sources register** with owner, dormancy threshold and live volume, conversion and days-to-assessment figures.
@@ -217,7 +218,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Positioning, Tagline, Hero | `PRODUCT.md` (Positioning, Product Principles, Capabilities and Constraints), `AGENTS.md` (Non-negotiables) |
 | Scheduling & scheduling intelligence | `src/lib/authBudget.js`, `src/lib/authUnits.js`, `src/lib/bookingChecks.js`, `src/lib/insights.js`, `src/lib/smart.js`, `src/lib/model.js` (unit table, `unitsFor`), `src/lib/travel.js` (travel feasibility), `src/components/AppointmentModal.jsx`, `src/components/QuickAdd.jsx`, `src/components/BookingChecks.jsx`, `src/components/SchedulerInsights.jsx`, `src/components/TimelineView.jsx`, `src/components/MonthView.jsx`, `src/components/AgendaView.jsx`, `src/components/NeedsCover.jsx`, `src/components/CommandPalette.jsx`, `src/lib/settingsMasters.js` (`telehealthRoomFor`, `staff.travel`), `src/lib/ics.js` (`staffCalendar`), `src/components/StaffView.jsx`, `docs/specs/scheduling-intelligence-ideas.md` (status column) |
 | Cancellations | `src/lib/cancelReasons.js`, `src/lib/risk.js`, `src/lib/reports.js` (Cancellation Root Cause), `src/components/SchedulerInsights.jsx` |
-| Intake | `src/lib/intake.js`, `src/lib/intakeDocs.js` (packet and summary PDFs), `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
+| Intake | `src/lib/intakeHandoff.js` (proposal and reviewed booking), `src/lib/intake.js`, `src/lib/intakeDocs.js` (packet and summary PDFs), `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
 | Billing, claims & CMS-1500 | `src/lib/claims.js` (`lineModifiers`, `mergeSameDayLines`, `posFor`), `src/lib/authUnits.js` (`unitRuleFor`), `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |
 | ERA posting, payments & recoupments | `src/lib/era.js`, `src/lib/eraPosting.js`, `src/lib/paymentLedger.js` (`planRecoupment`, patient receipts), `src/components/PaymentCenterView.jsx` |
 | A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/components/DashboardView.jsx` (Billing Health DSO display), `src/lib/claims.js` (AR engine), `src/lib/billingKpis.js` (shared DSO), `src/lib/statements.js` (client statements), `src/lib/settingsMasters.js` (`paymentLinkFor`), `src/lib/billingDocs.js` |
