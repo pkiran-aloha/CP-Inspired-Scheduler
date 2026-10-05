@@ -11,6 +11,7 @@ import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
 import { planCabinetDoc, planCabinetArchive } from '../lib/cabinet'
+import { seedRecords } from '../lib/demoRecords'
 import { planPduEntry } from '../lib/credentials'
 import { planTask, planTaskDone } from '../lib/tasks'
 import { planMessage, readUpdates } from '../lib/messages'
@@ -56,7 +57,7 @@ export function blankState() {
   const clientsWithIntake = clientsWithSec.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
   // chunk-42: a fresh workspace carries the full settings masters (offices, appointment
   // statuses, custom lists, qualifications, messaging & integration records).
-  return normalizeSettingsMasters({
+  const ws = normalizeSettingsMasters({
     appts: apptsWithClaims,
     claims,
     payments: paymentsFromClaims(Object.values(claims), { at: Date.now() }),
@@ -111,6 +112,8 @@ export function blankState() {
       settingsSub: null, // … and which sub-tab inside it
     },
   })
+  // Demo Cabinet documents, CEU log, tasks and messages, built against the finished workspace.
+  return { ...ws, ...seedRecords(ws, todayISO()) }
 }
 
 export function initial() {
@@ -570,7 +573,7 @@ export function reducer(state, action) {
       // requests point at clients that still exist.
       const seedInt = seedIntake({ appts: withClaims, clients: state.clients, staff: state.staff, payers: state.payers })
       const clients = state.clients.map((c) => (seedInt.clientPatches[c.id] ? { ...c, ...seedInt.clientPatches[c.id] } : c))
-      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, cabinet: {}, pdus: {}, tasks: {}, messages: {}, verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements', 'cabinet', 'pdus', 'tasks', 'messages']) }
+      return { ...state, appts: withClaims, claims, payments: paymentsFromClaims(Object.values(claims)), invoices: {}, statements: {}, ...seedRecords({ ...state, claims, intakeRequests: seedInt.intakeRequests }, todayISO()), verificationForms: {}, eraImports: {}, billedFiles: {}, qbo: {}, paySheets: pay.sheets, payRuns: {}, payExports: {}, intakeRequests: seedInt.intakeRequests, referralSources: seedInt.referralSources, clients, history: pushSnap(state, ['appts', 'claims', 'payments', 'invoices', 'verificationForms', 'eraImports', 'billedFiles', 'qbo', 'paySheets', 'payRuns', 'payExports', 'intakeRequests', 'referralSources', 'clients', 'statements', 'cabinet', 'pdus', 'tasks', 'messages']) }
     }
     case 'roster': {
       const list = state[action.list]

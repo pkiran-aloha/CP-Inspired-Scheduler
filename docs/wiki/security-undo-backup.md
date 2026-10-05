@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced with main at b9955db on 2026-10-05 (plus inbox messages)._
+_Last synced with main at 81bb662 on 2026-10-05 (plus demo records)._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -48,7 +48,7 @@ Settings, System, "Data & backup" shows storage use and three actions.
 - **Who can back up.** Export and restore need Full access to every area and all-office scope. Others see a message saying so.
 - **Rejected files.** Wrong format, an unsupported version, a ledger entry whose key differs from its id, an invalid claim, payroll profile, intake request or patient-receipt ledger that does not reconcile, and similar problems all stop the restore with a plain message and leave your data untouched.
 
-**Demo data.** The same screen has "Regenerate demo data" (rebuilds the sample schedule and billing, keeps rosters and masters) and "Clear demo" (clears schedule and ledgers, keeps masters). Both ask you to click twice and are one Undo step.
+**Demo data.** The same screen has "Regenerate demo data" (rebuilds the sample schedule and billing, plus sample Cabinet documents, CEU and PDU entries, tasks and messages from `src/lib/demoRecords.js`; keeps rosters and masters) and "Clear demo" (clears schedule and ledgers, keeps masters). Both ask you to click twice and are one Undo step.
 
 ### Storage-full alert
 

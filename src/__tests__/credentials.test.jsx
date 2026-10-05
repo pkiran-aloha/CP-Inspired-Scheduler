@@ -14,7 +14,7 @@ const saved = () => JSON.parse(localStorage.getItem(KEY))
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
 
-const BASE = blankState()
+const BASE = { ...blankState(), cabinet: {}, pdus: {} } // start from no demo credentials or log entries
 const today = todayISO()
 const day = (n) => isoDate(addDays(parseISO(today), n))
 const RBT = BASE.staff.find((s) => /RBT/.test(s.role))
