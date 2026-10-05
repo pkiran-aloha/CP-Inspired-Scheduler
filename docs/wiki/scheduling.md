@@ -2,7 +2,7 @@
 
 _Sources: src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced with main at eed0a08 on 2026-10-05 (plus per-staff calendar file)._
+_Last synced with main at f1bc3cd on 2026-10-05 (plus online payment link)._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 

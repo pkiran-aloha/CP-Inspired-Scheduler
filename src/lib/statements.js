@@ -5,6 +5,7 @@
 // "mark sent" records how the practice delivered it.
 import { isPrimaryReceivable, patientResponsibilityOf } from './claims'
 import { docToPdf } from './intakeDocs'
+import { paymentLinkFor } from './settingsMasters'
 
 const r2 = (n) => Math.round(n * 100) / 100
 const money = (n) => `$${(Number(n) || 0).toFixed(2)}`
@@ -80,6 +81,7 @@ export function statementDoc(state, st) {
   const org = state.settings?.org || {}
   const client = (state.clients || []).find((c) => c.id === st.clientId) || {}
   const balance = statementBalance(state, st)
+  const payLink = paymentLinkFor(state.settings)
   return {
     title: `${org.name || 'Practice'} · Statement ${st.no}`,
     subtitle: [org.address, org.phone].filter(Boolean).join(' · '),
@@ -91,7 +93,10 @@ export function statementDoc(state, st) {
         ...(st.status === 'void' ? [{ label: 'Status', value: 'VOID' }] : []),
       ] },
       { heading: 'Services', rows: st.lines.map((l) => ({ label: `${l.claimNo} · ${l.dosFrom}${l.dosTo && l.dosTo !== l.dosFrom ? ` → ${l.dosTo}` : ''}`, value: `${l.payer} · charges ${money(l.charges)} · your share ${money(l.due)}` })) },
-      { heading: 'How to pay', rows: [{ label: 'Questions', value: [org.phone, org.email].filter(Boolean).join(' · ') || 'Contact the practice' }] },
+      { heading: 'How to pay', rows: [
+        ...(payLink && st.status !== 'void' && balance > 0 ? [{ label: 'Pay online', value: payLink }] : []),
+        { label: 'Questions', value: [org.phone, org.email].filter(Boolean).join(' · ') || 'Contact the practice' },
+      ] },
     ],
   }
 }

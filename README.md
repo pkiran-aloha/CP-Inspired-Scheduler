@@ -26,6 +26,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 **Per-staff calendar file.** Each Staff Roster card (and expanded table row) has a `.ics` button that saves that person's next 90 days of bookings for Apple or Google Calendar. It is a one-off file, not a subscription; the toast says to download again after changes. Client names are left out for roles without Clients access.
 
+**Online payment link.** Settings > Clinical Integrations > Online payment link (Stripe) stores the practice's own payment page (`https://` only). Client statement PDFs with a balance print it under "How to pay". The app never charges a card or reads Stripe; the Payment Center's patient receipt form tells staff to record link payments as Card with the processor's receipt number. Link-only integration rows no longer show API key fields.
+
 ### Hackathon wave 5 — inbox
 
 **Messages.** The Inbox's third tab holds conversations between signed-in users of the workspace.

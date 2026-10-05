@@ -7,6 +7,7 @@ import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO, todayISO } from '../lib/date'
 import { dueOf, isPrimaryReceivable, patientResponsibilityOf, PATIENT_AR_BUCKET } from '../lib/claims'
 import { parse835 } from '../lib/era'
+import { paymentLinkFor } from '../lib/settingsMasters'
 import { previewEra } from '../lib/eraPosting'
 import { build835ErrorReport } from '../lib/billingDocs'
 import { buildPatientReceiptAudit, RECOUP_REASONS, RECOUP_METHODS } from '../lib/paymentLedger'
@@ -77,6 +78,7 @@ function ManualForm({ state, onSaved, initialApply = 'unapplied' }) {
       </div>
       {selected && apply === 'claim' && <p className="muted" style={{ fontSize: 12 }}>Applying to {selected.no} · {money(dueOf(selected))} open. {selected.method === 'secondary' ? `Linked primary ${claims[selected.secondary]?.no || 'missing'} holds the sole receivable; only payer money reduces it.` : 'If COB is filed, use the linked secondary instead.'}</p>}
       {apply === 'patient' && <p className="muted" data-testid="pc-man-patient-limit" style={{ fontSize: 12 }}>Only documented patient responsibility or self-pay can be collected. {selected ? `${selected.no} has ${money(patientResponsibilityOf(state, selected))} remaining patient share; the payer and secondary cash ledgers will not change.` : eligible.length ? 'Select a primary claim to allocate the receipt.' : 'No eligible claim for this client.'} A reversal here does not issue a refund.</p>}
+      {apply === 'patient' && paymentLinkFor(state.settings) && <p className="muted" data-testid="pc-man-paylink" style={{ fontSize: 12 }}>Paid through your online payment link? Record it here with method Card and the processor’s receipt number as the reference. The app does not read Stripe, so nothing posts by itself.</p>}
       <label className="field"><span>Note</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} data-testid="pc-man-note" /></label>
       {error && <div className="pc-era-error" role="alert" data-testid="pc-man-error">{error}</div>}
       <div className="pc-form-actions"><button className="btn btn-sm btn-primary" data-testid="pc-man-save" onClick={save}>Save {apply === 'patient' ? 'patient receipt' : apply === 'claim' ? 'claim remittance' : 'unapplied receipt'}</button><button className="btn btn-sm" onClick={() => onSaved(null)}>Cancel</button></div>
