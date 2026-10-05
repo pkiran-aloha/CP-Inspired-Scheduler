@@ -159,7 +159,7 @@ Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the r
 From the status column of `docs/specs/scheduling-intelligence-ideas.md`:
 
 - Not built: density optimiser (B2), access holdout (B4), calibrated overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), intake-to-first-session handoff (D3), scenario planner (D4).
-- Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6); travel feasibility check is shipped (B3 Slice1) with route view and suggested re-order as Slice2 next.
+- Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6); travel feasibility and route view are shipped (B3 Slice1+2) with honest straight-line estimates.
 
 Honest limits:
 
