@@ -12,7 +12,7 @@ const saved = () => JSON.parse(localStorage.getItem(KEY))
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
 
-const BASE = blankState()
+const BASE = { ...blankState(), cabinet: {} } // the demo seed's documents would muddy the counts
 const today = todayISO()
 const day = (n) => isoDate(addDays(parseISO(today), n))
 const SID = BASE.staff[0].id

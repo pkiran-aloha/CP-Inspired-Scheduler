@@ -13,7 +13,7 @@ const saved = () => JSON.parse(localStorage.getItem(KEY))
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
 
-const BASE = blankState()
+const BASE = { ...blankState(), tasks: {}, messages: {}, cabinet: {} } // no demo inbox items
 const today = todayISO()
 const day = (n) => isoDate(addDays(parseISO(today), n))
 const ME = currentAccount(BASE)?.staffId || BASE.staff[0].id
