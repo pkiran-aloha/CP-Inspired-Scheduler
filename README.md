@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### A/R DSO consistency
+
+Billing Health now reads "Days in A/R" from the same calculation as the AR Manager: open primary A/R divided by average daily primary charges whose service start falls in the 90-day lookback, with draft charges included. At the same as-of date, the two views produce the same DSO; both show a dash when there are no lookback charges. Covered by `billingKpis.test.js` and the dashboard UI test.
+
 ### Small correctness batch — auto-fill units, appeals, payer Undo
 
 **Report Auto-fill follows the payer's unit rule.** Reports > Validations and the Billing-readiness rows estimated units by dividing the visit by the *code's* unit size and rounding to two decimals, so the same session could get different numbers depending on which button filled it. Both now read `unitRuleFor` (payer override, payer service, service master, then code) and `unitsFor` (the rule's rounding) — the same numbers the booking dialog, Quick Add and the Billing desk write.

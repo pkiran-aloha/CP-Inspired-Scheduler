@@ -51,7 +51,7 @@ The rules for contributors and agents are in [`../../AGENTS.md`](../../AGENTS.md
 - **Patient responsibility.** The part of a charge the payer says the patient owes (copay, coinsurance, deductible), reported as PR adjustments on the remittance.
 - **Recoupment.** A payer taking back money it paid earlier, by offsetting a later payment or by asking for a refund.
 - **Timely filing.** The deadline, counted in days from the date of service, by which a payer will still accept a claim. Set per payer, with a practice default.
-- **DSO.** Days sales outstanding: open A/R divided by average daily charges. The app computes it two different ways; see the [architecture](architecture.md) mismatch list.
+- **DSO.** Days sales outstanding: open A/R divided by average daily charges. The AR Manager and Billing Health use the same formula; see [Accounts receivable](accounts-receivable.md#formulas).
 - **A/R aging.** Open receivables grouped by how long they have been open: current (0 to 30 days), 31 to 60, 61 to 90, 91 to 120, 121 and over.
 - **RBT / BCBA / BCaBA.** Registered Behavior Technician (delivers treatment under supervision), Board Certified Behavior Analyst (designs and supervises treatment), Board Certified Assistant Behavior Analyst (a supervised analyst level between the two).
 

@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced with main at ba86c3d on 2026-10-05 (small correctness batch: auto-fill unit rule, appeals as a marker, payer-edit Undo)._
+_Last synced with main at 22a465a on 2026-10-05; includes the DSO consistency change from this branch._
 
 [Wiki home](README.md)
 
@@ -143,9 +143,9 @@ Open Billing, Secondary Queue. A partially paid primary with a balance and activ
 
 Open primary claims that are not drafts or voids and have a balance: charges less adjustments, payer payments, and secondary and patient receipts. A secondary claim is a filing of the same receivable, so it is never counted twice. [More: Accounts receivable](accounts-receivable.md#ar-manager)
 
-### Why do the dashboard and the AR Manager show different days in A/R?
+### How does the app calculate days in A/R?
 
-They use two different formulas. The AR Manager divides open A/R by charges with a date of service start in the last 90 days, drafts included. The Billing Health tile uses charges whose service end falls in the last 90 days, drafts excluded. [More: Architecture](architecture.md#known-doccode-mismatches)
+The AR Manager and Billing Health use the same formula: open primary A/R divided by average daily charges from primary claims whose service start is within the 90-day lookback. Draft charges are included in that denominator. If no charges are in the lookback, both views show a dash. [More: Accounts receivable](accounts-receivable.md#formulas)
 
 ### How do I give a family a statement?
 

@@ -146,7 +146,7 @@ function KpiRow({ kpis, onPick }) {
         const cls = !k.delta ? 'flat' : k.invert ? (rising ? 'bad' : 'good') : good ? 'good' : 'bad'
         return (
           <button key={k.k} type="button" className={`dw-kpi ${cls}${onPick ? ' pk' : ''}`} data-testid={`dw-kpi-${k.k}`} title={k.help ? `${k.label}: ${k.help}` : `${k.label} vs previous equal window${onPick ? ' · click to see the appointments behind it' : ''}`} onClick={() => onPick?.(k.k)}>
-            <b>{fmtNum(k.value, k.fmt === 'money', k.fmt === 'pct')}</b>
+            <b>{k.value == null ? '—' : fmtNum(k.value, k.fmt === 'money', k.fmt === 'pct')}</b>
             <span>{k.label}</span>
             {k.delta != null && <i>{k.delta > 0 ? '▲' : k.delta < 0 ? '▼' : '•'} {Math.abs(k.delta)}%</i>}
           </button>
