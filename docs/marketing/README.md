@@ -116,6 +116,7 @@ A/R Manager counts each dollar once. Insurance balances and the patient share th
 - **One inbox for what needs you.** Your overdue tasks, expiring documents and authorizations, late intake requests and denied claims are in one list, each one click from where you fix it. Assign tasks to anyone on the team. All in your workspace; nothing is emailed or texted.
 - **Never miss an expiry.** The Cabinet tracks every credential, license, background check, CPR card, insurance policy and consent that expires. Anything expired or due within 30 days shows on the Staff menu. Only the details are recorded; your files stay where you keep them.
 - **Client statements with a history.** Issue a numbered statement, download it as a PDF, and record how you delivered it. Its balance updates as the family pays. You deliver it; the app never mails or emails anything.
+- **Your payment link on every statement.** Save your own online payment link (a Stripe Payment Link, for example) and statements with a balance print it. Families pay through your processor; you record the receipt, and the app never touches a card.
 - CSV export of the aging view.
 
 ### Payroll: pay the way an ABA practice actually works
@@ -216,7 +217,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Intake | `src/lib/intake.js`, `src/lib/intakeDocs.js` (packet and summary PDFs), `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
 | Billing, claims & CMS-1500 | `src/lib/claims.js` (`lineModifiers`, `mergeSameDayLines`, `posFor`), `src/lib/authUnits.js` (`unitRuleFor`), `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |
 | ERA posting, payments & recoupments | `src/lib/era.js`, `src/lib/eraPosting.js`, `src/lib/paymentLedger.js` (`planRecoupment`, patient receipts), `src/components/PaymentCenterView.jsx` |
-| A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/lib/claims.js` (AR engine), `src/lib/statements.js` (client statements), `src/lib/billingDocs.js` |
+| A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/lib/claims.js` (AR engine), `src/lib/statements.js` (client statements), `src/lib/settingsMasters.js` (`paymentLinkFor`), `src/lib/billingDocs.js` |
 | Payroll | `src/lib/payroll.js`, `src/lib/payrollExport.js`, `src/components/payroll/*`, `src/lib/settingsMasters.js` (earning codes, overtime floor) |
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/AnalyticsView.jsx` |
 | Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |

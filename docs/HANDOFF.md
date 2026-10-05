@@ -16,9 +16,10 @@ Last updated **2026-10-03** (end of session). Any agent resuming work: read this
 
 ## Shipped (newest first)
 
-Hackathon wave 6: Integrations, honest partial (#3, #11, #12). In progress.
+Hackathon wave 6: Integrations, honest partial (#3, #11, #12). This wave is complete.
 - **Slice 1, telehealth room link** (`telehealthRoomFor` and `isWebUrl` in `settingsMasters.js`). Reuses the existing `int-telehealth` integration row's `roomUrl`; `integration.patch` now refuses a non-`https://` link. The booking dialog shows it for POS-10 locations and `buildICS` takes an optional `roomFor` to add it to `.ics` events. One practice-wide room; no per-staff rooms yet.
 - **Slice 2, per-staff `.ics`** (`staffCalendar` in `ics.js`, buttons `stf-ics-<id>` in `StaffView.jsx`). Next 90 days, date-ordered, telehealth room included, client names dropped without Clients access. No live feed: a subscribable URL needs a server.
+- **Slice 3, online payment link** (`int-paylink` row, `paymentLinkFor` in `settingsMasters.js`, "Pay online" row in `statementDoc`). `integrationsCfg` now appends default rows missing from a saved list, so older workspaces get the row without a migration. Recording stays the existing patient receipt (method Card); no new payment method. Link-only ("Reference data") rows hide the API key fields.
 
 Hackathon wave 5: Inbox (#1 + #2). This wave is complete.
 - **Slice 2, messages** (`messages.js`, the Inbox's Messages tab).
@@ -125,7 +126,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 | ~~Intake (#5)~~ (shipped 2026-10-04) | Download forms; request → intake → client flow; "make intake easy and convenient UX-wise" | All three slices have shipped (see Shipped above). Still open:<br>• one Convert button instead of two<br>• the assessment visit is booked without a client and bypasses the booking guards<br>• an `impeccable` critique of the intake screens has not been run |
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). Still open: link the demo account to a staff record (see Shipped). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• the demo seed has no family balances, Cabinet documents or CEU entries, so these screens start empty<br>• statements are never delivered by the app, and Cabinet stores no files |
-| **Integrations, honest partial (#3, #11, #12)** | Telehealth link; Apple/Google calendar; Stripe | Store the practice's own video link; per-staff `.ics` download; Stripe *payment link* + manual recording. Real sync/charging needs a backend — say so in the UI. |
+| ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
 | Scheduling idea B3 | Travel feasibility & route sequencing | From `docs/specs/scheduling-intelligence-ideas.md` §6; deferred by the maintainer. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 

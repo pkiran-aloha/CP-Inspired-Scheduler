@@ -1,7 +1,7 @@
 # ERA and payments
 
 _Sources: src/lib/era.js, src/lib/eraPosting.js, src/lib/paymentLedger.js, src/lib/secondaryLedger.js, src/lib/claims.js, src/lib/billingDocs.js, src/components/PaymentCenterView.jsx, src/components/SecondaryBillingView.jsx, src/state/store.jsx, src/__tests__/fixtures/835-full.txt_
-_Last synced with main at b9955db on 2026-10-05 (plus inbox messages)._
+_Last synced with main at f1bc3cd on 2026-10-05 (plus online payment link)._
 
 This page covers how money gets onto claims in this browser: the Payment Center, 835 ERA import, manual remittances, voids, recoupments, patient receipts, and secondary (COB) filings. Claim lifecycle is in [billing-and-claims](billing-and-claims.md); aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -15,6 +15,7 @@ Open Billing, Payment Center. The header has "+ Manual Payment", "+ Patient rece
 
 - **Payments tab.** KPI chips: Total, Check, EFT / ERA, Unapplied receipts (not limited by the range), Patient cash and Recouped. Filters: All, Patient, Check, EFT, ERA, Cash, Recoupments. Columns: date, client, payer, amount (negative in red), method, reference or note, and claim ("Unapplied" if none). The first 100 rows show.
 - **ERAs tab.** One row per import: file, date, trace number, counts and status (posted, partial, parked, legacy). Open one to review each line.
+- **Online payment link.** If the practice saved a payment link (Settings > Clinical Integrations > Online payment link), statements print it. The app never reads Stripe or any processor, so a family's online payment is recorded by hand: "+ Patient receipt", method Card, with the processor's receipt number as the reference. The patient receipt form says so when a link is set.
 - **Void or "Reverse locally"** appears on a row only if it is not itself a reversal, not an ERA-imported payment, not a recoupment and not already reversed.
 
 ### Workflow: record a payer remittance by hand

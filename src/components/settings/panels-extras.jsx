@@ -264,6 +264,10 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
       toast({ message: res.msg || 'Reference card downloaded', kind: 'ok' })
       return
     }
+    if (row.id === 'int-paylink') {
+      toast({ message: 'Nothing to export: the payment link prints on client statements. Record what families pay in the Payment Center.', kind: 'info' })
+      return
+    }
     toast({ message: `${row.name} has no local artifact — it is a documented seam, not a connection.`, kind: 'warn' })
   }
   return (
@@ -297,10 +301,18 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
                   {row.id === 'int-telehealth' && (
                     <Row label="Telehealth room URL" hint="Your practice’s own video room (Zoom, Doxy.me, Teams…). Shown on telehealth appointments; the app does not host video."><TextField value={row.roomUrl} disabled={readOnly} wide={260} testid="set-integration-room" placeholder="https://" onCommit={(v) => patch(row.id, { roomUrl: v })} /></Row>
                   )}
-                  <Row label="API Key / Token"><TextField value={row.apiKey || ''} disabled={readOnly} wide={240} testid="set-integration-apikey" placeholder="e.g. sk_live_..." onCommit={(v) => patch(row.id, { apiKey: v })} /></Row>
-                  <Row label="Client ID / Account ID"><TextField value={row.clientId || ''} disabled={readOnly} wide={200} testid="set-integration-clientid" placeholder="Partner client ID" onCommit={(v) => patch(row.id, { clientId: v })} /></Row>
-                  <Row label="Sandbox mode"><Toggle on={row.sandbox !== false} disabled={readOnly} testid="set-integration-sandbox" onChange={(v) => patch(row.id, { sandbox: v })} /></Row>
-                  <Row label="Auto-sync session notes"><Toggle on={!!row.syncEnabled} disabled={readOnly} testid="set-integration-sync" onChange={(v) => patch(row.id, { syncEnabled: v })} /></Row>
+                  {row.id === 'int-paylink' && (
+                    <Row label="Payment link URL" hint="Your practice’s own payment page, e.g. a Stripe Payment Link. Printed on client statements; the app never charges a card."><TextField value={row.payUrl || ''} disabled={readOnly} wide={260} testid="set-integration-paylink" placeholder="https://" onCommit={(v) => patch(row.id, { payUrl: v })} /></Row>
+                  )}
+                  {/* Reference-data rows are just links: no keys, so nobody pastes a live secret into local storage. */}
+                  {row.direction !== 'Reference data' && (
+                    <>
+                      <Row label="API Key / Token"><TextField value={row.apiKey || ''} disabled={readOnly} wide={240} testid="set-integration-apikey" placeholder="e.g. sk_live_..." onCommit={(v) => patch(row.id, { apiKey: v })} /></Row>
+                      <Row label="Client ID / Account ID"><TextField value={row.clientId || ''} disabled={readOnly} wide={200} testid="set-integration-clientid" placeholder="Partner client ID" onCommit={(v) => patch(row.id, { clientId: v })} /></Row>
+                      <Row label="Sandbox mode"><Toggle on={row.sandbox !== false} disabled={readOnly} testid="set-integration-sandbox" onChange={(v) => patch(row.id, { sandbox: v })} /></Row>
+                      <Row label="Auto-sync session notes"><Toggle on={!!row.syncEnabled} disabled={readOnly} testid="set-integration-sync" onChange={(v) => patch(row.id, { syncEnabled: v })} /></Row>
+                    </>
+                  )}
                   <Row label="Internal note" stack><TextField value={row.note} disabled={readOnly} wide={420} testid="set-integration-note" onCommit={(v) => patch(row.id, { note: v })} /></Row>
                 </div>
               </>

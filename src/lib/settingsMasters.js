@@ -182,7 +182,7 @@ export const INTEGRATION_STATUSES = {
 
 export const DEFAULT_INTEGRATIONS = [
   { id: 'int-calendar', name: 'Calendar feed (ICS)', vendor: 'Local export', status: 'local-export', direction: 'One-way export',
-    detail: 'Exports the visible calendar as an .ics file you can subscribe to in Outlook or Google Calendar. Regenerated on demand — no server push.', lastRunAt: null, note: '' },
+    detail: 'Exports upcoming bookings as an .ics file you can import into Outlook, Apple or Google Calendar. It is a one-off file, not a subscription: nothing syncs.', lastRunAt: null, note: '' },
   { id: 'int-qbo', name: 'QuickBooks (desktop import)', vendor: 'Intuit', status: 'local-export', direction: 'One-way export',
     detail: 'Produces the QBO import CSV and the payroll journal with an import guide. Nothing is posted into QuickBooks from here.', lastRunAt: null, note: '' },
   { id: 'int-ensora', name: 'Ensora Data Collection', vendor: 'Ensora Health', status: 'local-export', direction: 'Clinical data sync',
@@ -199,6 +199,8 @@ export const DEFAULT_INTEGRATIONS = [
     detail: 'No 837 transmission exists in this demo. Claims are staged locally and their files recorded in Billed Files.', lastRunAt: null, note: '' },
   { id: 'int-telehealth', name: 'Telehealth room link', vendor: 'Configurable', status: 'local-export', direction: 'Reference data',
     detail: 'Stores the practice’s own video room link, shows it on telehealth appointments and adds it to .ics exports. The app does not host, open or record a video session.', lastRunAt: null, note: '' },
+  { id: 'int-paylink', name: 'Online payment link (Stripe)', vendor: 'Stripe or any processor', status: 'local-export', direction: 'Reference data',
+    detail: 'Stores the practice’s own payment link (for example a Stripe Payment Link) and prints it on client statements. The app never charges a card or reads Stripe: when a family pays, record it in the Payment Center as a patient receipt.', lastRunAt: null, note: '' },
   { id: 'int-eligibility', name: 'Eligibility / benefits check', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
     detail: 'Verification Forms capture what staff were told on the phone. There is no live 270/271 exchange.', lastRunAt: null, note: '' },
 ]
@@ -472,7 +474,13 @@ export function messagesCfg(settings) {
   const cfg = settings?.textMessaging || {}
   return { ...DEFAULT_TEXT_MESSAGING, ...cfg, templates: arr(cfg.templates).length ? cfg.templates : DEFAULT_MESSAGE_TEMPLATES }
 }
-export const integrationsCfg = (settings) => (arr(settings?.clinicalIntegrations).length ? settings.clinicalIntegrations : DEFAULT_INTEGRATIONS)
+// Saved rows first, then any default row added since the workspace saved its list.
+export const integrationsCfg = (settings) => {
+  const saved = arr(settings?.clinicalIntegrations)
+  if (!saved.length) return DEFAULT_INTEGRATIONS
+  const missing = DEFAULT_INTEGRATIONS.filter((d) => !saved.some((r) => r.id === d.id))
+  return missing.length ? [...saved, ...missing] : saved
+}
 export const integrationById = (settings, id) => integrationsCfg(settings).find((i) => i.id === id) || null
 export const isWebUrl = (s) => /^https:\/\/[^\s/]+\.[^\s]+$/i.test(String(s || '').trim())
 // The practice's own video room for a telehealth session (POS 10), or '' when the integration is off,
@@ -481,6 +489,11 @@ export function telehealthRoomFor(settings, appt) {
   const row = integrationById(settings, 'int-telehealth')
   if (!row || row.status === 'off' || !isWebUrl(row.roomUrl) || posFor(appt) !== '10') return ''
   return row.roomUrl.trim()
+}
+// The practice's own online payment link (e.g. a Stripe Payment Link) for statements, or ''.
+export function paymentLinkFor(settings) {
+  const row = integrationById(settings, 'int-paylink')
+  return row && row.status !== 'off' && isWebUrl(row.payUrl) ? row.payUrl.trim() : ''
 }
 export const subscriptionCfg = (settings) => ({ ...DEFAULT_SUBSCRIPTION, ...(settings?.subscription || {}) })
 export const notificationsCfg = (settings) => ({ ...DEFAULT_NOTIFICATIONS, ...(settings?.notifications || {}) })
@@ -1165,9 +1178,10 @@ export function planSettingsOp(state, op, payload = {}) {
       if (!row) return fail('That integration no longer exists.')
       const patch = { ...payload.patch }
       if (patch.status && !INTEGRATION_STATUSES[patch.status]) return fail('Unknown integration status.')
-      if ('roomUrl' in patch) {
-        patch.roomUrl = String(patch.roomUrl || '').trim()
-        if (patch.roomUrl && !isWebUrl(patch.roomUrl)) return fail('Enter the room link as a full https:// address.')
+      for (const k of ['roomUrl', 'payUrl']) {
+        if (!(k in patch)) continue
+        patch[k] = String(patch[k] || '').trim()
+        if (patch[k] && !isWebUrl(patch[k])) return fail('Enter the link as a full https:// address.')
       }
       const next = rows.map((i) => (i.id === row.id ? { ...i, ...patch } : i))
       return done(`${row.name} updated`, { patch: { clinicalIntegrations: next } })
