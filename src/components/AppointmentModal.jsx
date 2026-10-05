@@ -37,7 +37,7 @@ import {
 import { riskFor } from '../lib/risk'
 import { apptAutoTitle } from '../lib/apptName'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
-import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor } from '../lib/settingsMasters'
+import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, telehealthRoomFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
@@ -139,6 +139,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
 
   // ---------- derived ----------
   const dur = Math.max(0, f.end - f.start)
+  const telehealthRoom = telehealthRoomFor(settings, { location: f.location })
   const autoTitle = apptAutoTitle({ type: f.type, clientIds: f.clientIds, staffIds: f.staffIds, start: f.start, end: f.end, clients: clientsById, staff: Object.fromEntries(staff.map((x) => [x.id, x])), settings, serviceOverride: svcById(state, f.service)?.label || f.service, locationOverride: f.location })
   const title = (titleTouched ? f.title : f.title || autoTitle) || autoTitle
   const unavailTarget = f.unavailTarget || 'staff'
@@ -711,6 +712,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                         <div className="field">
                           <label>Location</label>
                           <Dropdown testid="location-select" searchable creatable value={f.location || ''} onChange={(v) => set({ location: v })} options={locOptions} placeholder="Search or enter your location" />
+                          {telehealthRoom && (
+                            <div className="muted" data-testid="am-telehealth-room" style={{ fontSize: 11.5, marginTop: 4 }}>
+                              Video room: <a href={telehealthRoom} target="_blank" rel="noopener noreferrer">{telehealthRoom}</a> · your practice’s own link; this app does not host video
+                            </div>
+                          )}
                         </div>
                         <div className="field">
                           <label>Service</label>

@@ -58,6 +58,7 @@ The booking dialog shows what a booking will do to the client's authorization, t
 - **Know before you pick.** Every staff member and client in the booking pickers carries a verdict chip, and one Checks panel in the dialog shows every issue in a shared severity language.
 - **Scheduler Insights panel.** Fill against an 85–95% band, a weekday × hour coverage heat grid, named idle windows per clinician, an authorization burn-down and an at-risk session worklist.
 - **Five calendar views:** day, week, month, agenda and timeline, with drag-to-move and resize, a backfill inbox for cancelled sessions a qualified colleague could cover, and a Cmd/Ctrl+K command palette.
+- **Your own telehealth room, one click away.** Save the practice's video room link once and it appears on every telehealth booking and in calendar exports. The app links to your room; it does not host or record video.
 
 ### Cancellations: know why sessions are lost, not just how many
 
@@ -209,7 +210,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Section | Backing files |
 |---|---|
 | Positioning, Tagline, Hero | `PRODUCT.md` (Positioning, Product Principles, Capabilities and Constraints), `AGENTS.md` (Non-negotiables) |
-| Scheduling & scheduling intelligence | `src/lib/authBudget.js`, `src/lib/authUnits.js`, `src/lib/bookingChecks.js`, `src/lib/insights.js`, `src/lib/smart.js`, `src/lib/model.js` (unit table, `unitsFor`), `src/components/AppointmentModal.jsx`, `src/components/QuickAdd.jsx`, `src/components/BookingChecks.jsx`, `src/components/SchedulerInsights.jsx`, `src/components/TimelineView.jsx`, `src/components/MonthView.jsx`, `src/components/AgendaView.jsx`, `src/components/NeedsCover.jsx`, `src/components/CommandPalette.jsx`, `docs/specs/scheduling-intelligence-ideas.md` (status column) |
+| Scheduling & scheduling intelligence | `src/lib/authBudget.js`, `src/lib/authUnits.js`, `src/lib/bookingChecks.js`, `src/lib/insights.js`, `src/lib/smart.js`, `src/lib/model.js` (unit table, `unitsFor`), `src/components/AppointmentModal.jsx`, `src/components/QuickAdd.jsx`, `src/components/BookingChecks.jsx`, `src/components/SchedulerInsights.jsx`, `src/components/TimelineView.jsx`, `src/components/MonthView.jsx`, `src/components/AgendaView.jsx`, `src/components/NeedsCover.jsx`, `src/components/CommandPalette.jsx`, `src/lib/settingsMasters.js` (`telehealthRoomFor`), `src/lib/ics.js`, `docs/specs/scheduling-intelligence-ideas.md` (status column) |
 | Cancellations | `src/lib/cancelReasons.js`, `src/lib/risk.js`, `src/lib/reports.js` (Cancellation Root Cause), `src/components/SchedulerInsights.jsx` |
 | Intake | `src/lib/intake.js`, `src/lib/intakeDocs.js` (packet and summary PDFs), `src/components/intake/*`, `src/lib/dash.js` (Intake Pipeline widget), `src/lib/reports.js` (Intake Pipeline & Referral Conversion) |
 | Billing, claims & CMS-1500 | `src/lib/claims.js` (`lineModifiers`, `mergeSameDayLines`, `posFor`), `src/lib/authUnits.js` (`unitRuleFor`), `src/lib/providerIds.js`, `src/lib/cms1500.js`, `src/components/BillingView.jsx`, `src/components/AppealsView.jsx`, `src/components/SecondaryBillingView.jsx`, `src/lib/secondaryLedger.js`, `src/components/ProviderIdView.jsx` |

@@ -4,7 +4,7 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { todayISO } from '../lib/date'
 import { STATUS_ORDER, STATUSES } from '../lib/model'
-import { apptStatusList, isCancelStatus } from '../lib/settingsMasters'
+import { apptStatusList, isCancelStatus, telehealthRoomFor } from '../lib/settingsMasters'
 import { buildICS, download } from '../lib/ics'
 import { scanNeedsCover } from '../lib/smart'
 import { DEMO_RESET_AREAS, currentAccount, resolveAccount } from '../lib/security'
@@ -50,7 +50,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
     }
     const staffById = Object.fromEntries(state.staff.map((s) => [s.id, s]))
     const clientsById = Object.fromEntries(state.clients.map((c) => [c.id, c]))
-    download('pulse-aba-calendar.ics', buildICS(list, staffById, clientsById, (k) => isCancelStatus(settings, k)))
+    download('pulse-aba-calendar.ics', buildICS(list, staffById, clientsById, (k) => isCancelStatus(settings, k), (a) => telehealthRoomFor(settings, a)))
     toast({ message: `Exported ${list.length} events to .ics`, kind: 'ok' })
   }
 
