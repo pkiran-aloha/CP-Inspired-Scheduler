@@ -10,6 +10,7 @@ import { resolveRange } from '../lib/analytics'
 import { fmtDayLabel, fmtTime, todayISO } from '../lib/date'
 import { overlapsType, uid } from '../lib/model'
 import { abaStaffRows } from '../lib/abaHours'
+import { staffCalendar, download } from '../lib/ics'
 
 const AV_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
 
@@ -151,6 +152,11 @@ export default function StaffView() {
     const mine = Object.values(state.intakeRequests || {}).filter((r) => r.ownerId === staffId)
     return { total: mine.length, open: mine.filter((r) => r.stage !== 'converted' && r.stage !== 'closed').length, pendingAuth: mine.filter((r) => r.stage === 'auth').length }
   }
+  const saveIcs = (staffId) => {
+    const res = staffCalendar(state, staffId, todayISO(), { withClients: state.canAccess('clients', 'view') })
+    if (res.ok) download(res.filename, res.text)
+    toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' })
+  }
   const [expanded, setExpanded] = useState(null)
   const [modal, setModal] = useState(null)
   const [prof, setProf] = useState(null)
@@ -244,6 +250,7 @@ export default function StaffView() {
                   <span className="lk-next">{r.next ? `Next ${fmtDayLabel(r.next.date)}` : 'Free for cover shifts'}</span>
                   <button className="btn btn-sm" data-testid={`stf-open-${r.s.id}`} onClick={(e) => { e.stopPropagation(); setProf(r) }}>{Icon.eye({ size: 12 })} Profile</button>
                   <button className="btn btn-sm" data-testid={`stf-edit-${r.s.id}`} onClick={(e) => { e.stopPropagation(); setModal(r.s) }}>{Icon.edit({ size: 12 })} Edit</button>
+                  <button className="btn btn-sm" data-testid={`stf-ics-${r.s.id}`} title={`Download ${r.s.name}'s next 90 days as an .ics file`} onClick={(e) => { e.stopPropagation(); saveIcs(r.s.id) }}>{Icon.download({ size: 12 })} .ics</button>
                 </div>
               </div>
             ))}
@@ -302,6 +309,7 @@ export default function StaffView() {
                             <div className="dir-actions">
                               <button className="btn btn-sm" onClick={() => { actions.setUI({ section: 'reports', repPreset: 'last4', repDim: 'staff', repKey: r.s.id }); toast({ message: `Reports scoped to ${r.s.name}`, kind: 'info' }) }}>{Icon.file({ size: 12 })} Utilization report</button>
                               <button className="btn btn-sm" onClick={() => actions.setUI({ section: 'calendar', view: 'week', staffSel: [r.s.id], clientSel: [], anchor: todayISO() })}>{Icon.cal({ size: 12 })} In calendar</button>
+                              <button className="btn btn-sm" data-testid={`stf-ics-${r.s.id}`} onClick={() => saveIcs(r.s.id)}>{Icon.download({ size: 12 })} Calendar file (.ics)</button>
                               <button className="btn btn-sm" data-testid={`stf-edit-${r.s.id}`} onClick={() => setModal(r.s)}>{Icon.edit({ size: 12 })} Edit</button>
                             </div>
                           </div>

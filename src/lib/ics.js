@@ -1,4 +1,5 @@
-import { parseISO, minToHM } from './date'
+import { parseISO, minToHM, addDays, isoDate } from './date'
+import { isCancelStatus, telehealthRoomFor } from './settingsMasters'
 
 const esc = (s = '') => String(s).replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 
@@ -29,6 +30,30 @@ export function buildICS(appts, staffById, clientsById, isCancel = (s) => s === 
   }
   lines.push('END:VCALENDAR')
   return lines.filter(Boolean).join('\r\n')
+}
+
+// One staff member's next `days` of bookings as a one-off .ics file for Apple or Google Calendar.
+// It is a file, not a feed: nothing syncs, so the user downloads it again after changes.
+// withClients=false leaves client names out (roles that cannot open Clients).
+export function staffCalendar(state, staffId, today, { days = 90, withClients = true } = {}) {
+  const person = (state.staff || []).find((s) => s.id === staffId)
+  if (!person) return { ok: false, msg: 'That staff member no longer exists.' }
+  const end = isoDate(addDays(parseISO(today), days))
+  const appts = Object.values(state.appts || {})
+    .filter((a) => (a.staffIds || []).includes(staffId) && a.date >= today && a.date < end)
+    .sort((x, y) => (x.date === y.date ? x.start - y.start : x.date < y.date ? -1 : 1))
+  if (!appts.length) return { ok: false, msg: `${person.name} has nothing booked in the next ${days} days.` }
+  const staffById = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))
+  const clientsById = withClients ? Object.fromEntries((state.clients || []).map((c) => [c.id, c])) : {}
+  const text = buildICS(appts, staffById, clientsById, (k) => isCancelStatus(state.settings, k), (a) => telehealthRoomFor(state.settings, a))
+  const slug = person.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return {
+    ok: true,
+    count: appts.length,
+    text,
+    filename: `calendar-${slug}-${today}.ics`,
+    msg: `Saved ${appts.length} bookings for ${person.name} as an .ics file. Import it into Apple or Google Calendar; it does not update itself, so download it again after changes.`,
+  }
 }
 
 export function download(filename, text, mime = 'text/calendar;charset=utf-8') {
