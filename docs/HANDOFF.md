@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (doc mismatches #1–6, `docs/mismatch-nits`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (red-main fix, `fix/family-balances-date`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
@@ -15,6 +15,12 @@ Last updated **2026-10-06** (doc mismatches #1–6, `docs/mismatch-nits`). Any a
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### Fix — date-dependent family-balance test (`fix/family-balances-date`)
+
+- `main` went red on 2026-10-06 (run 37407890514, after a docs-only merge): `familyBalances.test.jsx` expected 3 families with a balance and got 4. Cause: on Tuesdays and Wednesdays the demo seed leaves a self-pay family invoice open (or, before this fix, denied), and an open self-pay invoice is a real family balance. The test meant "families owing a coinsurance share", so it now counts insurance balances only.
+- Also fixed in the seed (`buildDemoClaims` in `seed.js`): the two demo denials (timely filing, verification) are payer reasons, and they could land on a self-pay invoice. Only insurance claims are picked now.
+- Checked with node across 120 consecutive dates: always 3 coinsurance families and 2 insurance denials.
 
 ### Docs — mismatches #1–6 (`docs/mismatch-nits`)
 

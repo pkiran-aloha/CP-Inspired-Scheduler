@@ -657,8 +657,8 @@ export function buildDemoClaims(appts, clients, settings, today) {
       c.submittedAt = stamp(Math.max(3, age - 4))
       c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice marked sent to family; the app sends nothing' : `Marked submitted to ${c.payer}; claim file saved locally, not transmitted` })
       c.status = 'submitted'
-      if (age >= 30) lateSet.push(c)
-      else midSet.push(c)
+      // denial candidates: payer denial reasons never apply to a family's self-pay invoice
+      if (c.mode === 'insurance') (age >= 30 ? lateSet : midSet).push(c)
     }
     for (const id of c.lines.flatMap((l) => l.apptIds || [l.apptId])) {
       const a = out[id]
