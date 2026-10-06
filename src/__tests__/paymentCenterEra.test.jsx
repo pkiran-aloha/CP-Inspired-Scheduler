@@ -8,7 +8,8 @@ import { ToastProvider } from '../ui/Toast'
 import PaymentCenterView from '../components/PaymentCenterView'
 
 const KEY = 'aloha-aba.v3'
-const full = readFileSync(path.join(__dirname, 'fixtures/835-full.txt'), 'utf8')
+// LF on every OS: the edit below searches for '~\n', which a Windows (CRLF) checkout would miss
+const full = readFileSync(path.join(__dirname, 'fixtures/835-full.txt'), 'utf8').replace(/\r\n/g, '\n')
 const correctedFifth = full.replace('CAS*PR*2*50~\nAMT*B6*50', 'CAS*PR*2*50~\nAMT*B6*250')
 const saved = () => JSON.parse(localStorage.getItem(KEY) || '{}')
 const claim = (id, n, amount, status) => ({
