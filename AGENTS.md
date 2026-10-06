@@ -24,7 +24,12 @@ npm run build       # prebuild writes public/version.json, output in dist/
 npm run share       # single-file inline build into share/ (POSIX env syntax: use Git Bash on Windows)
 ```
 
-The maintainer's work PC currently cannot run npm (no execution rights). There, verification is: `node --check` for syntax, pure `src/lib` logic run directly with node (see "Verifying without npm"), then GitHub CI on push to `main`.
+The maintainer's work PC (Windows, Node 25 via nvm4w) runs the suite with three workarounds:
+- **Controlled Folder Access** blocks `node.exe` from writing under `Documents`, so `npm ci` hangs there. Work from a clone outside it: `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`.
+- **`npm` crashes** with `EPERM … systemprofile`, because `C:\nvm4w\nodejs` links into a system folder. Call npm through node: `node --preserve-symlinks --preserve-symlinks-main C:\nvm4w\nodejs\node_modules\npm\bin\npm-cli.js <ci|test>`.
+- **Node 25's built-in `localStorage`** shadows jsdom's and fails about 560 tests (`localStorage.clear is not a function`). Set `$env:NODE_OPTIONS="--no-experimental-webstorage"` first. Add `-- --testTimeout=20000` on a slow machine. CI (Node 22) needs neither.
+
+Where npm cannot run at all, verify with `node --check` for syntax and pure `src/lib` logic run directly with node (see "Verifying without npm"), then GitHub CI on push to `main`.
 
 ## Layout
 

@@ -16,6 +16,12 @@ Last updated **2026-10-06** (D1 caseload ramp built and PR'd; next pick is D2 hi
 
 ## Shipped (newest first)
 
+### Fix — tests pass on a Windows checkout (`fix/crlf-test-fixtures`)
+
+- **Cause.** Git's `core.autocrlf` checks the 835 fixture out with CRLF on Windows. `eraPosting.test.js` and `paymentCenterEra.test.jsx` edit that text with search strings containing `~\n`, which then never match, so 6 tests failed locally (CI on Linux was fine). The parser itself was not at fault: `parse835` trims each segment, and a CRLF file parses identically (now asserted).
+- **Fix.** Both tests normalize the fixture to LF when they read it, and `.gitattributes` keeps `src/__tests__/fixtures/**` LF on checkout. AGENTS.md "Commands" now documents running the suite on the Windows work PC: a clone outside `Documents` (Controlled Folder Access), npm called through node, and `--no-experimental-webstorage` for Node 25.
+- **Verification:** full suite on the work PC (Node 25, Windows) with the fixture forced to CRLF: 910/910 passed.
+
 ### D1 — caseload ramp (PR #28)
 
 - **What.** Scheduler Insights → **Ramp** tab (`si-tab-ramp`): the next 12 practice weeks (`RAMP_WEEKS`, honouring `settings.weekStart`), one row per week. Demand = each active client's `authWeekly` for as long as `authStart → authEnd` runs, plus open intake requests at their requested hours in a separate lighter band from their target date. Supply = each clinician's working day (`settings.workday`) minus blocked-out time — the Coverage tab's denominator — counted Mon–Fri (no practice-days setting exists yet; the panel says so), split RBT vs BCBA vs other clinical by `clinicianGroup` (free-text role/cert, tolerant matching; non-clinical staff excluded). Weeks where demand+intake exceeds supply are flagged; the header names the first short week.
