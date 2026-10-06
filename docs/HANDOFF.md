@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (B4 access holdout, `feat/access-holdout`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (end-of-session sync after B4; next pick is D1, requirements not yet settled). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: D3 (PR #26), B2 density (PR #27), the modal/PDF fix, the honest claim wording fix and the small-mismatch fix (#7, #9) and the doc-mismatch fix (#1–6) are on `main`. A parallel agent is working on the CMS-1500 form layout on the local branch `feat/cms1500-standard`; leave `cms1500.js` to that branch. Confirm the latest main/deploy run before choosing another feature.
+- State at handoff (2026-10-06, end of session): `main` = `951c332`, CI green (run 37451643119). Landed today, newest first: B4 access holdout, `cancelledAt` cancellation time, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. No feature branch is in flight. The maintainer's local checkout sits on `main` at `2568c9c` (behind): run `git pull --ff-only` there before building. `origin/fix/help-route` (ce004e7, 2 days old) is unmerged and looks superseded by the Help & Wiki work on `main`; check before deleting it.
 
 ## How the maintainer works
 
@@ -255,9 +255,21 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. Pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
+**Recommended next: D1 — caseload ramp forecast** (`docs/specs/scheduling-intelligence-ideas.md` §D1, §7 honesty constraints). It is the input D2 (hire/contract decision support) needs. Requirements are **not settled yet**: run the grilling step with the maintainer first. Round 1 as last drafted (recommendations in brackets, none confirmed):
 
-Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
+1. Demand = active clients' authorized weekly hours for as long as each authorization runs, plus open intake requests at their requested hours from their target date, shown as a separate lighter band, never weighted by a conversion rate (that would be a statistical forecast, which §7 forbids). [recommended]
+2. Supply = each active clinician's working day (`settings.workday`) minus blocked time, split RBT vs BCBA, the same denominator the Coverage tab uses. [recommended]
+3. Horizon 12 weeks, weekly grain, table plus simple bars, no curve. [recommended]
+4. An authorization that ends inside the horizon drops to zero and the week is marked "renewal pending"; never assume renewal. [recommended]
+5. A new read-only Scheduler Insights tab "Ramp". [recommended]
+
+Other open items, smaller:
+- C4 follow-ups: a 70/80/90 threshold picker for `settings.risk.overbookSafePct` (the B4 holdout picker in the Coverage tab is the pattern to copy); use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
+- D2 hire/contract decision support (after D1), D4 scenario planner (L).
+- Architecture mismatches still listed in `docs/wiki/architecture.md` (#4 unused `playwright` devDependencies, needs npm; #10; #12 `build*` helpers only tests import; #13 unenforced MFA/lock settings).
+- "Known issues / backlog" below.
+
+**How this session built safely alongside a parallel agent:** every feature was built in a scratch git worktree from `origin/main` (`git worktree add -b feat/x <scratch>/dir origin/main`), never in the shared checkout; before landing, `git merge origin/main` into the branch (README/HANDOFF/wiki "Last synced" lines conflict often: keep both new sections, take the newer sync line), then `git checkout --detach origin/main && git merge --no-ff feat/x && git push origin feat/x HEAD:main`, then poll `actions/runs?head_sha=<sha>` until green. Pure `src/lib` tests can be run with node through a small `vitest` shim (resolve hook maps `vitest` to a file exporting `describe/it/expect`); JSX and store-importing tests only run in CI.
 
 ## Hackathon waves (all shipped)
 
@@ -285,6 +297,10 @@ These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can 
 **Let me pick the next work:**
 
 > Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main`, report anything new). Then list what is left (HANDOFF "Next", the "Still open" notes in the waves table, and "Known issues / backlog"), recommend one item, ask me which to build, and follow the one-feature-at-a-time workflow.
+
+**Continue with D1 (caseload ramp forecast):**
+
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green). Then settle D1's requirements with me first, starting from the round-1 questions in HANDOFF "Next", and only then build it on a `feat/…` branch: tests, wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
 
 **Status check only (no code changes):**
 
