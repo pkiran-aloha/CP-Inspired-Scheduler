@@ -527,8 +527,9 @@ export default function SchedulerInsights({ days, onClose }) {
                 {Icon.info({ size: 13 })}
                 <span>
                   Advisory only: nothing is booked, moved or sent. An extra session belongs on a clinician who is free in that block (a floater or an open hour), never as a second client on
-                  the same clinician — 97153 is one client face to face, and overlapping sessions by one provider are not billable. Guidance is per block, never per family. Cancellation
-                  timing is not recorded, so family cancellations of any notice count as lost; the no-show share is the floor.
+                  the same clinician — 97153 is one client face to face, and overlapping sessions by one provider are not billable. Guidance is per block, never per family. A family
+                  cancellation made more than {overbook.cfg.lateHours}h ahead is left out once its time is recorded; cancellations from before that was recorded
+                  {overbook.summary.undated ? ` (${overbook.summary.undated} in this window)` : ''} still count as lost, so the no-show share is the floor.
                 </span>
               </div>
             </>

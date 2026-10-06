@@ -12,7 +12,7 @@
 //
 // Pure: no React, no store, no network.
 
-import { listOptions } from './settingsMasters'
+import { isCancelStatus, listOptions } from './settingsMasters'
 import { parseISO } from './date'
 
 export const CANCEL_LIST_ID = 'cancel-reasons'
@@ -26,6 +26,29 @@ export const cancelReasonOptions = (settings) => listOptions(settings, CANCEL_LI
 const PRACTICE_WORDS = /\b(staff|clinician|therapist|technician|rbt|bcba|provider|scheduling|practice|office|clinic closed)\b/i
 export const cancelSide = (label) => (!label ? 'unknown' : PRACTICE_WORDS.test(label) ? 'practice' : 'client')
 export const isPracticeCancel = (a) => cancelSide(a?.cancelReason) === 'practice'
+
+// When a session was cancelled: `cancelledAt` (ISO time) is stamped by the reducer the
+// moment an appointment enters a cancellation status, and dropped when it leaves one.
+// A no-show is not a cancellation, so it never carries one. Sessions cancelled before
+// this field existed have none: their notice is unknown, never guessed.
+const isCancelled = (settings, status) => status !== 'no-show' && isCancelStatus(settings, status)
+
+/** `next` with `cancelledAt` set, kept or cleared against `prev` (undefined for a new record). */
+export function stampCancelledAt(prev, next, settings, now = new Date().toISOString()) {
+  if (!isCancelled(settings, next.status)) return next.cancelledAt === undefined ? next : { ...next, cancelledAt: undefined }
+  // already cancelled (a reason edit, a move): keep what was known, even when that is nothing
+  if (prev && isCancelled(settings, prev.status)) return next.cancelledAt === prev.cancelledAt ? next : { ...next, cancelledAt: prev.cancelledAt }
+  return next.cancelledAt ? next : { ...next, cancelledAt: now }
+}
+
+/** Hours of notice a cancellation gave (session start minus cancelledAt), or null when not recorded. */
+export function cancelLeadHours(a) {
+  if (!a?.cancelledAt || !a.date) return null
+  const at = Date.parse(a.cancelledAt)
+  if (!Number.isFinite(at)) return null
+  const start = parseISO(a.date).getTime() + (a.start || 0) * 60000
+  return (start - at) / 3600000
+}
 
 /** The appointment patch for a picked reason (or the clearing patch when there is none). */
 // (undefined, not null, so a cleared reason vanishes from storage instead of lingering as a key)

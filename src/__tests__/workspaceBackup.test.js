@@ -110,6 +110,9 @@ describe('complete, versioned local workspace backup', () => {
     expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, payments: [] } }, base)).toThrow(/invalid payments/)
     expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, appts: { a: { id: 'wrong' } } } }, base)).toThrow(/invalid appts/)
     expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, reports: {} } }, base)).toThrow(/invalid saved reports/)
+    expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, appts: { ...valid.data.appts, 'backup-a': { ...tinyAppointment, status: 'cancelled', cancelledAt: 'yesterday-ish' } } } }, base)).toThrow(/invalid appointments/)
+    const timed = { ...tinyAppointment, status: 'cancelled', cancelledAt: '2026-09-20T09:00:00.000Z' }
+    expect(readWorkspaceBackup({ ...valid, data: { ...valid.data, appts: { ...valid.data.appts, 'backup-a': timed } } }, base).data.appts['backup-a'].cancelledAt).toBe(timed.cancelledAt)
     expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, clients: null } }, base)).toThrow(/invalid clients/)
     expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, claims: { broken: { id: 'broken', lines: [null] } } } }, base)).toThrow(/invalid claims/)
     expect(() => readWorkspaceBackup({ ...valid, data: { ...valid.data, payments: { bad: { id: 'bad', amount: 'oops' } } } }, base)).toThrow(/invalid financial/)

@@ -10,6 +10,7 @@ import { normalizePayerCf, normalizeApptPcfs, normalizeLegacyCustom, normalizeBi
 import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
 import { planHandoffSession } from '../lib/intakeHandoff'
+import { stampCancelledAt } from '../lib/cancelReasons'
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
 import { planCabinetDoc, planCabinetArchive } from '../lib/cabinet'
 import { seedRecords } from '../lib/demoRecords'
@@ -192,13 +193,13 @@ export function reducer(state, action) {
   switch (action.type) {
     case 'upsertMany': {
       const appts = { ...state.appts }
-      for (const a of action.appts) appts[a.id] = { ...appts[a.id], ...a }
+      for (const a of action.appts) appts[a.id] = stampCancelledAt(appts[a.id], { ...appts[a.id], ...a }, state.settings)
       return { ...state, appts, history: pushSnap(state, ['appts']) }
     }
     case 'patch': {
       const cur = state.appts[action.id]
       if (!cur) return state
-      return { ...state, appts: { ...state.appts, [action.id]: { ...cur, ...action.patch, updatedAt: Date.now() } }, history: action.noSnap ? state.history : pushSnap(state, ['appts']) }
+      return { ...state, appts: { ...state.appts, [action.id]: stampCancelledAt(cur, { ...cur, ...action.patch, updatedAt: Date.now() }, state.settings) }, history: action.noSnap ? state.history : pushSnap(state, ['appts']) }
     }
     case 'deleteMany': {
       const appts = { ...state.appts }

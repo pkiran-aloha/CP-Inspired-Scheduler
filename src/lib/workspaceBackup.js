@@ -64,7 +64,8 @@ function validate(data, fields) {
   if (fields.includes('security')) validateSecurityConfig(data.security, data.staff, data.settings)
   if (Object.values(data.appts).some((a) => typeof a.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(a.date) ||
       !Number.isFinite(a.start) || !Number.isFinite(a.end) || !Array.isArray(a.clientIds) || !Array.isArray(a.staffIds) ||
-      typeof a.type !== 'string' || typeof a.status !== 'string')) {
+      typeof a.type !== 'string' || typeof a.status !== 'string' ||
+      (a.cancelledAt !== undefined && !Number.isFinite(Date.parse(a.cancelledAt))))) {
     throw new Error('Backup has invalid appointments')
   }
   if (Object.values(data.claims).some((c) => !Array.isArray(c.lines) || c.lines.some((l) => !record(l) || typeof l.apptId !== 'string') ||
