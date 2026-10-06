@@ -6,7 +6,8 @@ import { previewEra, planEraImport, planParkedEraPost } from '../lib/eraPosting'
 import { build835ErrorReport } from '../lib/billingDocs'
 import { reducer } from '../state/store'
 
-const full = readFileSync(path.join(__dirname, 'fixtures/835-full.txt'), 'utf8')
+// LF on every OS: the fixture edits below search for '~\n', which a Windows (CRLF) checkout would miss
+const full = readFileSync(path.join(__dirname, 'fixtures/835-full.txt'), 'utf8').replace(/\r\n/g, '\n')
 const claims = Object.fromEntries([300, 200, 150, 400, 250].map((amount, i) => {
   const id = `c${i + 1}`
   return [id, {
@@ -36,6 +37,11 @@ describe('claim-level 835 safety planner', () => {
     expect(parsed.lines[0]).toMatchObject({ dosFrom: '2026-09-01', dosTo: '2026-09-01', patientResp: 60, allowed: 60, plb: null })
     expect(parsed.lines[4].plb).toBeNull()
     expect(parsed.fingerprint).toBe(parse835(full).fingerprint)
+    // payer files often break lines after each segment with CRLF; that must read the same
+    const crlf = parse835(full.replace(/\n/g, '\r\n'))
+    expect(crlf.errors).toEqual([])
+    expect(crlf.lines).toEqual(parsed.lines)
+    expect(crlf.fingerprint).toBe(parsed.fingerprint)
     const withWrongCtrl = [{ claimNo: 'unrelated', payerClaimCtrl: claims.c4.no }]
     expect(matchEraLines(withWrongCtrl, claims).matched).toHaveLength(0)
     expect(matchEraLines([{ claimNo: claims.c4.no }], { ...claims, duplicate: { ...claims.c4, id: 'duplicate' } }).matched).toHaveLength(0)

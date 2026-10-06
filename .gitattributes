@@ -1,0 +1,2 @@
+# Test fixtures are byte-exact inputs (835 files): keep them LF on every checkout
+src/__tests__/fixtures/** text eol=lf

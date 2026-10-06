@@ -23,6 +23,11 @@ Last updated **2026-10-06** (D2 hire/contract verdict built on the Ramp tab; nex
 - **Honesty.** Demand is not split by RBT vs BCBA, so it names hours, never a headcount. Intake is never weighted by a conversion rate. Renewals are never assumed. Fill unknown when the on-screen range has no bookable hours. Advisory: nothing hired, contracted, booked or sent. Supply on the ramp is still Mon–Fri.
 - **Code.** `src/lib/hire.js`: `hireBoard({ ramp, coverage })`, `HIRE_HIGH_UTIL`. `insightBoard` returns it as `hire`. `SchedulerInsights.jsx` renders the strip.
 - **Verification.** `hire.test.js` (neither / hire at high fill / reshape at low fill / thin / no clinical bench / intake unweighted / insightBoard wiring) plus the Ramp UI test asserts the strip.
+### Fix — tests pass on a Windows checkout (`fix/crlf-test-fixtures`)
+
+- **Cause.** Git's `core.autocrlf` checks the 835 fixture out with CRLF on Windows. `eraPosting.test.js` and `paymentCenterEra.test.jsx` edit that text with search strings containing `~\n`, which then never match, so 6 tests failed locally (CI on Linux was fine). The parser itself was not at fault: `parse835` trims each segment, and a CRLF file parses identically (now asserted).
+- **Fix.** Both tests normalize the fixture to LF when they read it, and `.gitattributes` keeps `src/__tests__/fixtures/**` LF on checkout. AGENTS.md "Commands" now documents running the suite on the Windows work PC: a clone outside `Documents` (Controlled Folder Access), npm called through node, and `--no-experimental-webstorage` for Node 25.
+- **Verification:** full suite on the work PC (Node 25, Windows) with the fixture forced to CRLF: 910/910 passed.
 
 ### D1 — caseload ramp (PR #28)
 
