@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-05** (small mismatches #7 and #9, `fix/small-mismatches`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (doc mismatches #1–6, `docs/mismatch-nits`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff: D3 (PR #26), B2 density (PR #27), the modal/PDF fix, the honest claim wording fix and the small-mismatch fix (#7, #9) are on `main`. A parallel agent is working on the CMS-1500 form layout on the local branch `feat/cms1500-standard`; leave `cms1500.js` to that branch. Confirm the latest main/deploy run before choosing another feature.
+- State at handoff: D3 (PR #26), B2 density (PR #27), the modal/PDF fix, the honest claim wording fix and the small-mismatch fix (#7, #9) and the doc-mismatch fix (#1–6) are on `main`. A parallel agent is working on the CMS-1500 form layout on the local branch `feat/cms1500-standard`; leave `cms1500.js` to that branch. Confirm the latest main/deploy run before choosing another feature.
 
 ## How the maintainer works
 
@@ -16,11 +16,16 @@ Last updated **2026-10-05** (small mismatches #7 and #9, `fix/small-mismatches`)
 
 ## Shipped (newest first)
 
+### Docs — mismatches #1–6 (`docs/mismatch-nits`)
+
+- `AGENTS.md` names the real Python history files (`c33-*` to `c37-*`) and the two live scripts; the README says backup v3 (v2 still imports) at Settings → System → Data & backup; `docs/wiki/architecture.md` documents the `deploy.yml` legacy install fallback and the redundant `--run` flag. Docs only, no code or CI change.
+- Still open from that list: #4 (unused `playwright` devDependencies; removal needs npm to regenerate the lock file), #8 (stored keys only), #10, #12, #13.
+
 ### Fix — small mismatches #7 and #9 (`fix/small-mismatches`)
 
 - #7: `SecondaryBillingView.jsx`'s title read "Secondary Billing" while the nav, the Billing desk and the README say "Secondary Queue". The title and the Process gate message (`submitClaims` in `store.jsx`) now say "Secondary Queue". The `bil-secondary` route and `sb-` test ids are unchanged.
 - #9: `ArManagerView.jsx` held a `clientPick` filter nothing ever set, so its "Clear filter" button (`ar-clear-filter`) could never show. Removed; no test referenced it.
-- Remaining architecture mismatches: #1–6 (doc nits), #8 (stored keys only), #10, #12 (`build*` helpers only tests import), #13 (unenforced MFA/lock settings).
+- Remaining architecture mismatches after this and the docs fix: #4, #8 (stored keys only), #10, #12 (`build*` helpers only tests import), #13 (unenforced MFA/lock settings).
 
 ### Fix — honest claim wording (`fix/honest-claim-wording`)
 

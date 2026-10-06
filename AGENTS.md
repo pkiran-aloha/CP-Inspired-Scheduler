@@ -42,7 +42,7 @@ The maintainer's work PC currently cannot run npm (no execution rights). There, 
 - `src/__tests__/`: `*.test.js` (pure) and `*.test.jsx` (Testing Library UI flows).
 - `docs/specs/`: design briefs. `scheduling-intelligence-ideas.md` tracks what is shipped vs not. Billing specs are historical, not a statement of what exists.
 - `docs/wiki/`: the platform wiki (per area: user guide + how it works). `docs/marketing/README.md`: marketing copy. Each wiki page names its backing files in a `_Sources:_` line; the marketing copy does so in its Source map table.
-- `scripts/c3x-*.py`: one-off history. Don't run or extend.
+- `scripts/c33-*.py` … `scripts/c37-*.py`: one-off history. Don't run or extend. (`scripts/write-version.cjs` and `build-share.mjs` are live: `prebuild` and `npm run share`.)
 
 ## Architecture rules
 
