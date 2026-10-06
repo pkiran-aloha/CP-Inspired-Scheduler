@@ -32,6 +32,10 @@ Scheduler Insights has an **Overbooking** tab. For each weekday and time band (p
 
 Scheduler Insights has a **Ramp** tab: the next 12 practice weeks, one row per week. Demand is the authorized weekly hours on each active client's chart for as long as the authorization window runs, plus open intake requests at their requested hours in a lighter band from their target date — never weighted by a conversion rate, so it is a ramp from known work, not a forecast of referrals. Supply is each clinician's working day (`settings.workday`) minus blocked-out time, Mon–Fri, split RBT vs BCBA vs other clinical, the same denominator the Coverage tab uses. An authorization that ends inside the horizon drops to zero and the week is marked **renewal pending**; a renewal is never assumed. Weeks where known demand exceeds supply are flagged, and the header names the first one. Read-only: nothing is booked, moved or sent. Code: `src/lib/ramp.js`; tests `ramp.test.js` and `schedulerInsights.test.jsx`.
 
+### Hire / contract decision (D2)
+
+The Ramp tab also carries a read-only verdict strip: **hours gap (hire/contract)**, **template problem (do not hire)**, **do not hire**, or **not enough on-screen hours to tell**. It uses the ramp’s short weeks plus Coverage fill of the range on screen (bar 85%, the same full-day mark Coverage already uses). Low fill with a short week is a schedule-shape problem, not a capacity problem. Demand is not split by credential, so it names hours, never a headcount. Intake is never weighted by a conversion rate; renewals are never assumed; nothing is hired, contracted, booked or sent. Code: `src/lib/hire.js`; tests `hire.test.js` and `schedulerInsights.test.jsx`.
+
 ### Good Faith Estimate (No Surprises Act)
 
 Client profile > **Good Faith Estimate** prepares the written estimate an uninsured or self-pay family is owed under 45 CFR 149.610. It is prefilled from the calendar, editable, and covers up to 12 months of recurring care. It carries the rule's required content and the CMS model disclaimer. The app downloads it and does not keep or send it.
