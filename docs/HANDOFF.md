@@ -1,13 +1,13 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06**, end of session (D2 landed via PR #30; the test suite now runs on the work PC; next pick is the small C4 70/80/90 threshold picker, or D4). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (C4 confidence-threshold picker landed via PR #31; D2 landed via PR #30; the test suite now runs on the work PC). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
   - `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`: the main checkout. Git works there, but node/npm cannot write under `Documents` (see below).
   - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
-- State at handoff (2026-10-06, end of session): `origin/main` = `3940947` (PR #30 D2 hire/contract merged), CI green (run 37478896893). Earlier today, newest first: Windows test fix, D2, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
+- State at handoff (2026-10-06): `origin/main` was `e37d97c` when PR #31 (C4 confidence-threshold picker) was opened; PR #30 (D2 hire/contract) merged at `3940947`, CI green (run 37478896893). Earlier today, newest first: Windows test fix, D2, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
 
 ## How the maintainer works
 
@@ -23,6 +23,13 @@ Last updated **2026-10-06**, end of session (D2 landed via PR #30; the test suit
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### C4 — confidence-threshold picker (PR #31)
+
+- **What.** Scheduler Insights → Overbooking has a **Confidence threshold** row (`si-ob-threshold`): 70 / 80 / 90 (default 80). Both C4 checks — the weekly backtest and the binomial odds — must clear the chosen bar. The copy names the trade: 70 marks more blocks on weaker evidence, 90 only very reliable ones, 80 is the cost-ratio default (turning a family away costs about 4× an idle hour).
+- **Setting.** `settings.risk.overbookSafePct`, one `setSettings` write like the B4 holdout picker on Coverage; no migration (missing means 80). `overbookSafePctOf` (in `overbook.js`) sanitizes: only 70/80/90 are honored, anything else falls back to 80, so a hand-edited workspace cannot smuggle in an off-menu bar.
+- **Honest limits.** Advisory only: nothing booked, moved or sent; the picker changes which blocks are marked, never the ledger.
+- **Verification.** `overbook.test.js` +2 (sanitization incl. the board's `cfg.safePct`; a 75%-lossy block marked at 70 and left out at 80 on the same ledger) and one UI case in `schedulerInsights.test.jsx` (picker persists and re-renders). Full local suite 89 files / 920 tests green; `npm run build` passed (chunk-size warning only).
 
 ### D2 — hire/contract decision support
 
@@ -61,7 +68,7 @@ Last updated **2026-10-06**, end of session (D2 landed via PR #30; the test suit
 - **Verification:** `overbook.test.js` (11) passed in node through a small vitest shim; `schedulerInsights.test.jsx` gained 3 UI tests (tab, empty state, Show), run in CI.
 - **Booking-dialog hint (`feat/overbook-booking-hint`).** A new clinical booking whose weekday × time band is marked gets a `flag` group in the Checks rail (`appt-overbook`, built in `AppointmentModal.jsx` from `overbookBlockFor`): the backtest line plus "never as a second client on the same clinician". Create mode only; never blocks. Tests: one pure case in `overbook.test.js`, two UI cases in `schedulerInsights.test.jsx`.
 - **Cancellation time (`feat/cancelled-at`).** `stampCancelledAt` in `cancelReasons.js` runs inside the `patch` and `upsertMany` reducer cases: entering a cancellation status (not no-show) stamps `cancelledAt` (ISO), leaving one clears it, staying cancelled keeps what was known (nothing, for an old cancellation). Other appointment writers (claims, settings cascades, data import) do not stamp: they are not a cancellation by a person. Deliberately **no migration**: backfilling would invent a time. Restore refuses a non-date `cancelledAt`. `overbook.js` leaves out family cancellations with `cancelLeadHours` > `overbookLateHours` (24) and counts the undated ones it still includes. Tests: `cancelReasons.test.js`, `store.test.js`, `workspaceBackup.test.js`, `overbook.test.js`.
-- **Not done:** a 70/80/90 threshold picker; using `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
+- **Not done:** using `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist. (The 70/80/90 threshold picker has since shipped — PR #31.)
 
 ### Good Faith Estimate (`feat/good-faith-estimate`)
 
@@ -284,7 +291,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-**Recommended next: C4 threshold picker** for `settings.risk.overbookSafePct` (70/80/90). Fully specified; copy the B4 holdout picker on Coverage. D2 has shipped (this session). D4 scenario planner is large.
+The C4 threshold picker has shipped (PR #31). **Recommended next:** the smallest C4/D1 follow-ups below, or a billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
 - C4: use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
@@ -311,7 +318,7 @@ Other open items, smaller:
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• demo family balances, Cabinet and CEU data shipped 2026-10-05 (follow-ups 1a, 1c)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
-| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint and cancellation time shipped too. Still open: threshold picker. |
+| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint, cancellation time and the 70/80/90 confidence-threshold picker (PR #31) shipped too. Still open: the late-cancel rate from `cancelledAt`. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
 | ~~Scheduling idea D1~~ (built 2026-10-06, PR #28) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
 | ~~Scheduling idea D2~~ (built 2026-10-06) | Hire/contract decision support | Read-only verdict strip on the Ramp tab: hours gap vs template problem from short weeks + Coverage fill (85%). Hours, never a headcount. Thin data named, never invented. |
@@ -331,9 +338,9 @@ These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can 
 
 > Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main`, report anything new). Then list what is left (HANDOFF "Next", the "Still open" notes in the waves table, and "Known issues / backlog"), recommend one item, ask me which to build, and follow the one-feature-at-a-time workflow.
 
-**Continue with the C4 threshold picker (recommended next):**
+**Continue with the next item in the queue:**
 
-> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green). Then build the C4 70/80/90 picker for `settings.risk.overbookSafePct`, copying the B4 holdout picker on Coverage, on a `feat/…` branch: tests (run the full suite locally in the `dev` clone first), wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green). Then take the next item from HANDOFF "Next" and build it on a `feat/…` branch: settle requirements first, tests (run the full suite locally in the `dev` clone first), wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
 
 **Status check only (no code changes):**
 

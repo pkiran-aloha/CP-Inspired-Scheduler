@@ -250,6 +250,20 @@ describe('overbooking guidance', () => {
     fireEvent.click(within(row).getByRole('button', { name: /Show/ }))
     await waitFor(() => expect(screen.queryByTestId('scheduler-insights')).toBe(null))
   })
+
+  it('lets the scheduler choose the confidence threshold and saves it', async () => {
+    seedOverbook()
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-overbook'))
+    const row = await screen.findByTestId('si-ob-threshold')
+    expect(row.textContent).toMatch(/must clear 80%/)
+    expect(screen.getByTestId('si-ob-threshold-80').className).toBe('on')
+    fireEvent.click(screen.getByTestId('si-ob-threshold-70'))
+    await waitFor(() => expect(stored().settings.risk.overbookSafePct).toBe(70))
+    expect(screen.getByTestId('si-ob-threshold').textContent).toMatch(/must clear 70%/)
+    expect(screen.getByTestId('si-ob-threshold-70').className).toBe('on')
+    expect(screen.getByTestId('si-ob-threshold-80').className).toBe('')
+  })
 })
 
 describe('caseload ramp (D1)', () => {

@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main e37d97c plus the C4 confidence-threshold picker on 2026-10-06; unrelated behavior unchanged._
 
 [Wiki home](README.md)
 
@@ -49,7 +49,7 @@ Use Cancel (or Skip occurrence for a series) on the session's detail card, then 
 
 ### Can Aloha tell me where to overbook?
 
-Scheduler Insights → Overbooking shows the weekday time blocks that lost a session in at least 80% of the last 12 weeks, where the sessions already booked make another loss likely. One extra session booked there, on a clinician who is free then, would usually have been absorbed. It never suggests two clients on one clinician, never scores a family, and books nothing. Cancellations made more than 24 hours ahead are left out once the app has recorded when they happened. In a small practice most blocks show "Not yet" with the number of sessions they would need. [More: Scheduling](scheduling.md#scheduler-insights)
+Scheduler Insights → Overbooking shows the weekday time blocks that lost a session in at least the practice's confidence threshold (70/80/90, default 80) of the last 12 weeks, where the sessions already booked make another loss likely. One extra session booked there, on a clinician who is free then, would usually have been absorbed. It never suggests two clients on one clinician, never scores a family, and books nothing. Cancellations made more than 24 hours ahead are left out once the app has recorded when they happened. In a small practice most blocks show "Not yet" with the number of sessions they would need. [More: Scheduling](scheduling.md#scheduler-insights)
 
 ### Does Aloha send reminders to families?
 

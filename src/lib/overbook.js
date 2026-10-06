@@ -12,7 +12,8 @@
 //     to overbook the families who already have the hardest time getting to sessions.
 //   · advisory only. Nothing is booked, moved or sent.
 //
-// Two checks must both clear the threshold (default 80%, `settings.risk.overbookSafePct`):
+// Two checks must both clear the threshold — the tab's 70/80/90 confidence picker,
+// default 80, stored as `settings.risk.overbookSafePct`:
 //   1. backtest — share of rated weeks in which the block lost at least k sessions;
 //   2. this week — binomial P(at least k lost | sessions booked on the next such day,
 //      block loss rate shrunk toward the practice rate). The binomial assumes losses are
@@ -28,6 +29,12 @@ import { authBurn } from './authBudget'
 import { riskCfg, riskTimeBand } from './risk'
 
 export const OVERBOOK_DEFAULTS = { overbookSafePct: 80, overbookWeeks: 12, overbookMinWeeks: 8, overbookLateHours: 24 }
+/** The Overbooking tab's picker offers exactly these; anything else stored falls back to the default. */
+export const OVERBOOK_SAFE_PCTS = [70, 80, 90]
+export const overbookSafePctOf = (settings) => {
+  const v = Number(settings?.risk?.overbookSafePct)
+  return OVERBOOK_SAFE_PCTS.includes(v) ? v : OVERBOOK_DEFAULTS.overbookSafePct
+}
 const CLINICAL = ['service', 'evaluation', 'supervision']
 const BANDS = ['early', 'morning', 'midday', 'afternoon', 'evening']
 const round2 = (n) => Math.round(n * 100) / 100
@@ -76,7 +83,7 @@ export function overbookBlockFor(board, draft, office = '', { today = todayISO()
  */
 export function overbookBoard(state, { today = todayISO() } = {}) {
   const settings = state.settings
-  const cfg = { ...OVERBOOK_DEFAULTS, ...riskCfg(settings) }
+  const cfg = { ...OVERBOOK_DEFAULTS, ...riskCfg(settings), overbookSafePct: overbookSafePctOf(settings) }
   const safe = cfg.overbookSafePct / 100
   const from = isoDate(addDays(parseISO(today), -7 * cfg.overbookWeeks))
   const clientOffice = Object.fromEntries((state.clients || []).map((c) => [c.id, c.office || '']))
