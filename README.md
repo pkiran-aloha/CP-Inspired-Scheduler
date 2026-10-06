@@ -23,6 +23,9 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 ### Overbooking guidance (C4)
 
 Scheduler Insights has an **Overbooking** tab. For each weekday and time band (per office when there are several) it looks back 12 weeks and marks a block **Room for one extra** only when a session was lost there in at least 80% of its weeks and the sessions booked on its next day give at least 80% odds of a loss. Blocks with under 8 weeks of history say so; blocks that fall short say how many sessions a week they would need. Marked blocks list up to three standby families who are behind their authorized pace. It is read-only and never suggests a second client on the same clinician (97153 is one client face to face). Practice cancellations are left out; family cancellations of any notice count, because cancellation timing is not recorded. Code: `src/lib/overbook.js`; tests `overbook.test.js` and `schedulerInsights.test.jsx`.
+### Good Faith Estimate (No Surprises Act)
+
+Client profile > **Good Faith Estimate** prepares the written estimate an uninsured or self-pay family is owed under 45 CFR 149.610. It is prefilled from the calendar, editable, and covers up to 12 months of recurring care. It carries the rule's required content and the CMS model disclaimer. The app downloads it and does not keep or send it.
 
 ### Superbill for out-of-network families
 

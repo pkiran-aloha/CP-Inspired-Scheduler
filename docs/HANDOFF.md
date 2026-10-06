@@ -24,6 +24,29 @@ Last updated **2026-10-06** (C4 overbooking guidance, `feat/overbooking-guidance
 - **Demo data.** The demo seed has about 3 sessions per block per week, so no block clears 80% (it would need about 10–18). The tab says so per block; the tests use a dense fixture instead of changing the seed.
 - **Verification:** `overbook.test.js` (11) passed in node through a small vitest shim; `schedulerInsights.test.jsx` gained 3 UI tests (tab, empty state, Show), run in CI.
 - **Not done:** recording `cancelledAt` so only late cancellations count (needs a field + migration); a 70/80/90 threshold picker; a Checks-rail hint in the booking dialog (cheap: one `flag` group in `AppointmentModal.jsx`).
+### Good Faith Estimate (`feat/good-faith-estimate`)
+
+- **What.** A No Surprises Act Good Faith Estimate for uninsured or self-pay families, opened from the client profile (**Good Faith Estimate**, `pf-gfe`). `src/lib/gfe.js` provides:
+  - `suggestGfeRows`: units per week per code from the client's sessions booked in the 4 weeks from the start date, falling back to the 4 weeks before.
+  - `planGfe` (pure): validates the start date, 1 to 12 months, rows and 2-decimal rates.
+  - `gfePdf`.
+  - `GFE_DISCLAIMER` and `GFE_SEPARATE_DISCLAIMER`.
+  `src/components/GfeDialog.jsx` holds the editable rows, live total and download.
+- **Rule check (45 CFR 149.610(c)(1), eCFR 2026-09-01 snapshot, and the CMS standard form OMB 0938-1433):**
+  - patient name/DOB
+  - primary service in plain language with the date
+  - itemized services with diagnosis code, service code, quantity and expected cost
+  - provider name, NPI, TIN, location and state
+  - the separately-scheduled list with its boxed disclaimer
+  - the recurring scope (frequency, period, count; at most 12 months, "valid for 12 months")
+  - the model disclaimer verbatim, plus the (c)(1)(viii) and (c)(1)(x) statements the model page omits
+  - $25 is the latest published PPDR fee (CY2023 guidance; no newer guidance found); co-provider estimates are still under enforcement discretion
+- **Not done:**
+  - no stored GFE record: the practice saves the PDF, and the 6-year production duty sits with the practice
+  - no comparison of statements to an issued GFE (the $400 dispute threshold)
+  - no "right to receive a GFE" notice page for the practice's website and office
+  - no language-assistance taglines
+- **Verification:** demo estimates were rendered with node + jsPDF and viewed in the browser pane. The pure assertions pass in node. `gfe.test.jsx` (pure + profile-dialog download) runs in CI.
 
 ### Superbill for out-of-network families (`feat/superbill`)
 
