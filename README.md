@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Access holdout (B4)
+
+Scheduler Insights → Coverage keeps a share of each hour's bookable staff time (Off, 10%, 15% or 20%; default 10%) for new starts and same-day needs, from today on. It says how many hours that holds back in the range and how many are already booked, and outlines the weekday hours where bookings eat into it. The share is saved for the practice (`settings.risk.holdoutPct`). It never blocks a booking. Code: `coverageBoard` in `src/lib/insights.js`.
+
 ### Overbooking guidance (C4)
 
 Scheduler Insights has an **Overbooking** tab. For each weekday and time band (per office when there are several) it looks back 12 weeks and marks a block **Room for one extra** only when a session was lost there in at least 80% of its weeks and the sessions booked on its next day give at least 80% odds of a loss. Blocks with under 8 weeks of history say so; blocks that fall short say how many sessions a week they would need. Marked blocks list up to three standby families who are behind their authorized pace. It is read-only and never suggests a second client on the same clinician (97153 is one client face to face). A new clinical booking that lands in a marked block gets a flag in the booking dialog's Checks rail saying so; it never blocks the save. Practice cancellations are left out, and so are family cancellations made more than 24 hours ahead: the app now records when a session is cancelled (`cancelledAt`). Older cancellations have no time and still count. Code: `src/lib/overbook.js`; tests `overbook.test.js` and `schedulerInsights.test.jsx`.

@@ -50,6 +50,16 @@ function idleWindows(date, staff, list, { wdStart, span, minHours = 1 }) {
   return out
 }
 
+// B4 access holdout: the share of each hour's sellable staff time the practice keeps for
+// new starts and same-day needs. Standard templates fill 85–90% a week out and hold
+// 10–15% back (NAM scheduling review). Stored as `settings.risk.holdoutPct` because that
+// block is already the scheduler's (calendar permission); 0 turns it off.
+export const HOLDOUT_DEFAULT = 10
+export const holdoutPctOf = (settings) => {
+  const v = Number(settings?.risk?.holdoutPct)
+  return Number.isFinite(v) && v >= 0 && v <= 50 ? v : HOLDOUT_DEFAULT
+}
+
 /**
  * Capacity truth for a range: staff-minutes sold vs staff-minutes that existed.
  *
@@ -59,9 +69,11 @@ function idleWindows(date, staff, list, { wdStart, span, minHours = 1 }) {
  * a clinician just as firmly as a session does.
  */
 export function coverageBoard(state, days, { today = todayISO(), minGapHours = 1, gapLimit = 12 } = {}) {
-  void today
   const [wdStart, wdEnd] = state.settings?.workday || [8, 18]
   const span = Math.max(1, wdEnd - wdStart)
+  const hold = holdoutPctOf(state.settings) / 100
+  let reserved = 0
+  let eatenAll = 0
   const staff = (state.staff || []).filter((s) => s.status !== 'inactive')
   const byDate = {}
   for (const a of Object.values(state.appts || {})) {
@@ -70,7 +82,7 @@ export function coverageBoard(state, days, { today = todayISO(), minGapHours = 1
     byDate[a.date].push(a)
   }
 
-  const grid = Array.from({ length: 7 }, () => Array.from({ length: span }, () => ({ booked: 0, available: 0, sessions: 0 })))
+  const grid = Array.from({ length: 7 }, () => Array.from({ length: span }, () => ({ booked: 0, available: 0, sessions: 0, eaten: 0 })))
   const perDay = []
   const gaps = []
 
@@ -95,6 +107,14 @@ export function coverageBoard(state, days, { today = todayISO(), minGapHours = 1
       const cell = grid[dow][h - wdStart]
       cell.booked += booked
       cell.available += available
+      // booked past the bookable share of this hour eats the holdout
+      // (past hours can no longer be held back, so only today onward counts)
+      if (date >= today) {
+        const eaten = hold ? Math.max(0, booked - available * (1 - hold)) : 0
+        cell.eaten += eaten
+        eatenAll += eaten
+        reserved += available * hold
+      }
       cell.sessions += list.filter((a) => CLINICAL.includes(a.type) && overlapsHour(a, h)).length
       dayBooked += booked
       dayAvailable += available
@@ -119,7 +139,7 @@ export function coverageBoard(state, days, { today = todayISO(), minGapHours = 1
   const cellFill = (c) => (c.available ? Math.round((c.booked / c.available) * 100) : 0)
 
   return {
-    grid: grid.map((row) => row.map((c) => ({ ...c, bookedHours: round1(c.booked / 60), availableHours: round1(c.available / 60), fillPct: cellFill(c) }))),
+    grid: grid.map((row) => row.map((c) => ({ ...c, bookedHours: round1(c.booked / 60), availableHours: round1(c.available / 60), fillPct: cellFill(c), eatenHours: round1(c.eaten / 60) }))),
     hourStart: wdStart,
     hourSpan: span,
     hourLabel: HOUR_LABEL,
@@ -134,6 +154,13 @@ export function coverageBoard(state, days, { today = todayISO(), minGapHours = 1
       fullDays: perDay.filter((d) => d.fillPct >= 85).length,
       idleWindows: ranked.length,
       idleStaff: new Set(ranked.map((g) => g.staffId)).size,
+      holdout: {
+        pct: Math.round(hold * 100),
+        reservedHours: round1(reserved / 60),
+        eatenHours: round1(eatenAll / 60),
+        keptPct: reserved ? Math.round(((reserved - eatenAll) / reserved) * 100) : 100,
+        eatenCells: grid.flat().filter((c) => c.eaten > 0).length,
+      },
     },
   }
 }

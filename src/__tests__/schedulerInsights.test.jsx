@@ -95,6 +95,19 @@ describe('scheduler insights panel', () => {
     expect(screen.getByTestId('si-range').textContent).toMatch(/days/)
   })
 
+  it('lets the scheduler choose the access holdout and saves it', async () => {
+    seed()
+    await openPanel()
+    const row = screen.getByTestId('si-holdout')
+    expect(row.textContent).toMatch(/10% of each hour from today on is kept for new starts and same-day needs/)
+    fireEvent.click(screen.getByTestId('si-holdout-20'))
+    await waitFor(() => expect(stored().settings.risk.holdoutPct).toBe(20))
+    expect(screen.getByTestId('si-holdout').textContent).toMatch(/20% of each hour/)
+    fireEvent.click(screen.getByTestId('si-holdout-0'))
+    await waitFor(() => expect(stored().settings.risk.holdoutPct).toBe(0))
+    expect(screen.getByTestId('si-holdout').textContent).toMatch(/off/)
+  })
+
   it('shades the week and names the clinicians who are free', async () => {
     seed()
     await openPanel()

@@ -50,6 +50,9 @@ export default function SchedulerInsights({ days, onClose }) {
   const key = days.join(',')
   const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.teams, state.svcs, state.payers, state.payProfiles, state.settings, key])
   const { coverage, density, auth, risk, overbook } = board
+  const holdout = coverage.summary.holdout
+  // a scheduler's choice, saved like the other calendar-owned risk settings (one setSettings write)
+  const setHoldout = (pct) => actions.setSettings({ risk: { ...(settings.risk || {}), holdoutPct: pct } })
 
   // ---- travel routes per staff per day ----
   const travelBoard = useMemo(() => {
@@ -197,8 +200,9 @@ export default function SchedulerInsights({ days, onClose }) {
                         {row.map((cell, i) => (
                           <span
                             key={i}
-                            className={`si-cell si-fill-${fillTone(cell.fillPct)}`}
-                            title={`${DAY_SHORT[dow]} ${coverage.hourLabel(coverage.hourStart + i)} — ${cell.bookedHours}h booked of ${cell.availableHours}h available (${cell.fillPct}%), ${cell.sessions} session${cell.sessions === 1 ? '' : 's'}`}
+                            className={`si-cell si-fill-${fillTone(cell.fillPct)}${cell.eatenHours > 0 ? ' si-cell-eaten' : ''}`}
+                            data-testid={cell.eatenHours > 0 ? `si-eaten-${dow}-${coverage.hourStart + i}` : undefined}
+                            title={`${DAY_SHORT[dow]} ${coverage.hourLabel(coverage.hourStart + i)} — ${cell.bookedHours}h booked of ${cell.availableHours}h available (${cell.fillPct}%), ${cell.sessions} session${cell.sessions === 1 ? '' : 's'}${cell.eatenHours > 0 ? `; ${cell.eatenHours}h of the access holdout booked` : ''}`}
                           >
                             {cell.fillPct > 0 ? cell.fillPct : ''}
                           </span>
@@ -212,6 +216,7 @@ export default function SchedulerInsights({ days, onClose }) {
                     <span><i className="si-swatch si-fill-mid" /> 55–85%</span>
                     <span><i className="si-swatch si-fill-full" /> 85–95%</span>
                     <span><i className="si-swatch si-fill-hot" /> &gt;95%</span>
+                    {holdout.pct > 0 && <span><i className="si-swatch si-cell-eaten" /> holdout booked</span>}
                   </div>
                 </div>
               ) : (
@@ -228,6 +233,25 @@ export default function SchedulerInsights({ days, onClose }) {
                   ))}
                 </div>
               )}
+
+              <div className="si-head-row" data-testid="si-holdout">
+                <div>
+                  <b>Access holdout</b>
+                  <span className="muted">
+                    {' '}
+                    {holdout.pct
+                      ? `— ${holdout.pct}% of each hour from today on is kept for new starts and same-day needs: ${holdout.reservedHours}h in this range, ${holdout.eatenHours}h of it already booked${holdout.eatenCells ? ` across ${holdout.eatenCells} weekday-hour${holdout.eatenCells === 1 ? '' : 's'} (outlined above)` : ''}.`
+                      : '— off. Every hour can be booked to the full.'}
+                  </span>
+                </div>
+                <div className="viewseg" role="group" aria-label="Access holdout share">
+                  {[0, 10, 15, 20].map((p) => (
+                    <button key={p} className={holdout.pct === p ? 'on' : ''} data-testid={`si-holdout-${p}`} onClick={() => setHoldout(p)}>
+                      {p ? `${p}%` : 'Off'}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="si-head-row">
                 <b>Bookable windows</b>

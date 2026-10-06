@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { coverageBoard, forwardDays, insightBoard } from '../lib/insights'
+import { coverageBoard, forwardDays, holdoutPctOf, insightBoard } from '../lib/insights'
 import { densityBoard, planDensityMove } from '../lib/density'
 
 const TODAY = '2026-06-15' // a Monday
@@ -74,6 +74,31 @@ describe('capacity coverage', () => {
     expect(c.hourStart).toBe(8)
     expect(c.grid[1][1]).toMatchObject({ bookedHours: 1, fillPct: 50 }) // Monday 09:00, 1 of 2 clinicians
     expect(c.perDay.length).toBe(7)
+  })
+})
+
+describe('access holdout', () => {
+  // both clinicians booked 9–10 on Monday: that hour has no room left for a same-day need
+  const full = () => state([appt('a', { staffIds: ['s1', 's2'] })])
+
+  it('keeps 10% of each hour back by default and says how much of it is already booked', () => {
+    const c = coverageBoard(full(), [MON], { today: TODAY })
+    expect(c.summary.holdout).toMatchObject({ pct: 10, reservedHours: 2, eatenHours: 0.2, keptPct: 90, eatenCells: 1 })
+    expect(c.grid[1][1].eatenHours).toBe(0.2) // Monday, 09:00 (the working day starts at 8)
+    expect(c.grid[1][2].eatenHours).toBe(0)
+  })
+
+  it('follows the practice’s share and can be turned off', () => {
+    const s = full()
+    expect(coverageBoard({ ...s, settings: { ...s.settings, risk: { holdoutPct: 20 } } }, [MON], { today: TODAY }).summary.holdout).toMatchObject({ pct: 20, eatenHours: 0.4 })
+    expect(coverageBoard({ ...s, settings: { ...s.settings, risk: { holdoutPct: 0 } } }, [MON], { today: TODAY }).summary.holdout).toMatchObject({ pct: 0, eatenHours: 0, eatenCells: 0 })
+    expect(holdoutPctOf({ risk: { holdoutPct: 'lots' } })).toBe(10)
+    expect(holdoutPctOf({ risk: { holdoutPct: 90 } })).toBe(10)
+  })
+
+  it('does not count hours that have already passed', () => {
+    const c = coverageBoard(full(), [MON], { today: '2026-06-16' })
+    expect(c.summary.holdout).toMatchObject({ reservedHours: 0, eatenHours: 0, keptPct: 100 })
   })
 })
 
