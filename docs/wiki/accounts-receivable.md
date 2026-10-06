@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 4b850b4 plus the feat/cms1500-standard branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 46b43aa plus the feat/family-statement branch on 2026-10-06; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -52,12 +52,28 @@ Open Billing, Generate Invoice. The page title reads "Invoices, draft patient sh
 For a numbered statement with history, press **Issue statement** on a client in the preview. The button appears when the family owes something: self-pay charges, or a patient share the payer reported.
 
 The statement is numbered `STM-<year><month>-<nnn>`. It freezes one line per claim with what the family owed that day. It then appears under **Statements** at the bottom of the page, where each row offers four things:
-- **PDF** downloads a printable statement.
+- **PDF** downloads the printed statement (below).
 - **Its balance is live.** Patient receipts recorded in the Payment Center reduce it, and it reads *Paid* once nothing on its claims is owed.
 - **Mark sent** records how you delivered it: mailed, handed over, emailed from your own email, or posted to your own portal. The app sends nothing.
 - **Void** needs a reason and leaves the claims unchanged.
 
-If the practice saved an online payment link (for example a Stripe Payment Link) in Settings > Clinical Integrations, the PDF prints it under "How to pay" while the statement has a balance and is not void (`paymentLinkFor`). Paying online changes nothing here until someone records the receipt in the Payment Center.
+#### The printed statement
+
+The PDF follows HFMA's patient-friendly billing guidance: plain language, the amount and due date at a glance, proof that insurance paid its part, whom to call, and a remittance stub. Letter size, top to bottom:
+
+1. **Header.** The practice name and return address on the left; on the right, "STATEMENT", the statement date, the account number (the client id) and the statement number.
+2. **Address block**, placed for a #10 window envelope. It carries only the guardian's name and the client chart's home address, so nothing else shows through the window.
+3. **Amount due panel.** The amount, "Please pay by" (statement date plus the practice's due days, 30 by default) and how to pay: the practice's payment link if one is saved, otherwise "mail a check with the stub".
+4. **Patient and questions.** The patient's name and the practice phone and email.
+5. **Account summary.** Your share of these services, payments and credits since the statement, amount due.
+6. **Activity**, one row per claim: dates of service, a plain description ("Therapy services, 8 visits") with the claim number and CPT codes in small type, who it was billed to, charges, insurance paid, adjustments, your share and what is still owed.
+7. **How long this has been owed:** current, 31-60, 61-90 and over 90 days, aged from each claim's last date of service.
+8. **Messages.** What "your share" means. When a line is self-pay, the No Surprises Act notice of the right to a Good Faith Estimate and to dispute a bill $400 or more above it within 120 days.
+9. **Remittance stub** at the foot of page 1, below a dashed tear line. It carries the remit-to address, "Make checks payable to", the guardian's address, account number, statement date, due date, amount due and an "Amount enclosed" box. There are no card fields: the app never collects payment details.
+
+It never prints a diagnosis, member ID or birth date. Longer statements continue the activity on page 2 and keep the stub on page 1; every page is numbered. A void statement is stamped VOID and shows nothing owed. `statementView` computes everything the PDF shows (pure, tested); `statementPdf` draws it.
+
+If the practice saved an online payment link (for example a Stripe Payment Link) in Settings > Clinical Integrations, the amount due panel prints it while the statement has a balance and is not void (`paymentLinkFor`). Paying online changes nothing here until someone records the receipt in the Payment Center.
 
 Issuing, marking sent and voiding are each one Undo. Statements are in workspace backups. The demo data leaves three families owing a payer-reported coinsurance share (`seedFamilyShares` in `src/lib/seed.js`), so statements can be issued straight away; clients with secondary coverage are skipped so the COB demo is unchanged. `src/lib/statements.js`; tests: `statements.test.jsx`.
 

@@ -4,7 +4,7 @@ import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-li
 import App from '../App'
 import { blankState } from '../state/store'
 import { paymentLinkFor, integrationsCfg, DEFAULT_INTEGRATIONS } from '../lib/settingsMasters'
-import { planStatement, planStatementVoid, statementDoc } from '../lib/statements'
+import { planStatement, planStatementVoid, statementView } from '../lib/statements'
 
 const KEY = 'aloha-aba.v3'
 const saved = () => JSON.parse(localStorage.getItem(KEY))
@@ -24,7 +24,7 @@ const withLink = (payUrl = PAY, status = 'local-export') => ({
   claims: { ...BASE.claims, sp1: SP },
   settings: { ...BASE.settings, clinicalIntegrations: [...OLD_ROWS, { ...DEFAULT_INTEGRATIONS.find((r) => r.id === 'int-paylink'), payUrl, status }] },
 })
-const payRow = (doc) => doc.sections.find((s) => s.heading === 'How to pay').rows.find((r) => r.label === 'Pay online')
+const payLink = (S, st) => statementView(S, st).payLink
 
 describe('online payment link', () => {
   it('an older saved integration list still offers the payment-link row', () => {
@@ -37,11 +37,11 @@ describe('online payment link', () => {
     const S = withLink()
     expect(paymentLinkFor(S.settings)).toBe(PAY)
     const st = planStatement(S, CID, { id: 's1' }).item
-    expect(payRow(statementDoc(S, st)).value).toBe(PAY)
+    expect(payLink(S, st)).toBe(PAY)
     const voided = planStatementVoid({ ...S, statements: { s1: st } }, 's1', { reason: 'Issued in error' }).item
-    expect(payRow(statementDoc(S, voided))).toBeUndefined()
-    expect(payRow(statementDoc(withLink(PAY, 'off'), st))).toBeUndefined()
-    expect(payRow(statementDoc(withLink(''), st))).toBeUndefined()
+    expect(payLink(S, voided)).toBe('')
+    expect(payLink(withLink(PAY, 'off'), st)).toBe('')
+    expect(payLink(withLink(''), st)).toBe('')
   })
 
   it('Settings saves the link, refuses a non-https one, and shows no API key field for it', async () => {

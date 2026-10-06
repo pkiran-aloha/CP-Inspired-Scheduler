@@ -3,7 +3,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState, StoreProvider, useStore } from '../state/store'
-import { planStatement, planStatementSent, planStatementVoid, statementBalance, statementStatus, statementLines, statementDoc } from '../lib/statements'
+import { planStatement, planStatementSent, planStatementVoid, statementBalance, statementStatus, statementLines, statementView, statementPdf, longDate } from '../lib/statements'
 import { createWorkspaceBackup, readWorkspaceBackup } from '../lib/workspaceBackup'
 
 const KEY = 'aloha-aba.v3'
@@ -23,6 +23,7 @@ const SP = { id: 'sp1', no: 'CLM-SP-1', clientId: CID, payer: 'Self-pay', mode: 
   lines: [{ apptId: 'sp-appt', dos: '2026-09-02', code: '97153', units: 8, rate: 15, charge: 120, kind: 'session', t0: 540, t1: 660 }] }
 const WITH_SP = { ...BASE, claims: { ...BASE.claims, sp1: SP } }
 const AT = Date.parse('2026-10-04T10:00:00Z')
+const r2sum = (xs) => Math.round(xs.reduce((a, b) => a + b, 0) * 100) / 100
 
 describe('statements — engine', () => {
   it('issues a numbered statement for what the family owes, and refuses when nothing is owed', () => {
@@ -52,7 +53,31 @@ describe('statements — engine', () => {
     const voided = planStatementVoid(state, 's1', { reason: 'Issued to the wrong family' }).item
     expect(statementStatus(state, voided)).toBe('void')
     expect(voided.history.map((h) => h.ev).join(' | ')).toMatch(/Issued .* \| Marked sent: Mailed \| Voided: Issued to the wrong family/)
-    expect(statementDoc(state, voided).sections[0].rows.find((r) => r.label === 'Status').value).toBe('VOID')
+    const vv = statementView(state, voided)
+    expect([vv.void, vv.summary.due, vv.payLink]).toEqual([true, 0, ''])
+    expect(vv.lines.every((l) => l.owe === 0)).toBe(true)
+  })
+
+  it('the printed statement: window-safe guarantor block, amount due, due date, aging and no clinical or insurance identifiers', () => {
+    const st0 = planStatement(WITH_SP, CID, { id: 's1', at: AT }).item
+    const client = WITH_SP.clients.find((c) => c.id === CID)
+    const v = statementView(WITH_SP, st0)
+    expect(v.guarantor.name).toBe(client.guardian)
+    expect(v.guarantor.street).toBe(client.street)
+    expect(v.dueDate).toBe('2026-11-03') // statement date + the practice's 30 due days
+    expect(v.summary.due).toBe(r2sum(v.lines.map((l) => l.owe)))
+    expect(Object.values(v.aging).reduce((a, b) => a + b, 0)).toBeCloseTo(v.summary.due)
+    const sp = v.lines.find((l) => l.claimNo === 'CLM-SP-1')
+    expect(sp).toMatchObject({ billedTo: 'Self-pay', selfPay: true, insPaid: 0, share: 120, owe: 120, bucket: 'd31' }) // Sep 2 → Oct 4
+    expect(v.notices.join(' ')).toMatch(/Good Faith Estimate/) // self-pay lines carry the No Surprises Act notice
+    const printed = JSON.stringify(v)
+    expect(printed).not.toMatch(/F84|diagnos/i)
+    if (client.memberId) expect(printed).not.toContain(client.memberId)
+    if (client.dob) expect(printed).not.toContain(client.dob)
+    expect(longDate('2026-10-04')).toBe('Oct 4, 2026')
+    const raw = Buffer.from(statementPdf(WITH_SP, st0).output('arraybuffer')).toString('latin1')
+    expect(raw.startsWith('%PDF-')).toBe(true)
+    expect(raw).toContain('Please detach and return this portion with your payment.')
   })
 
   it('travels in workspace backups; an older backup without statements imports with none', () => {
