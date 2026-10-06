@@ -58,6 +58,17 @@ const nextOn = (dow, today) => {
 }
 
 /**
+ * The marked block a draft booking falls in, or null — the booking dialog's hint.
+ * Only future clinical sessions; the client's office picks the block when the board splits.
+ */
+export function overbookBlockFor(board, draft, office = '', { today = todayISO() } = {}) {
+  if (!board || !draft?.date || draft.date < today || !CLINICAL.includes(draft.type)) return null
+  const dow = parseISO(draft.date).getDay()
+  const band = riskTimeBand(draft.start)
+  return board.blocks.find((b) => b.safeK && b.dow === dow && b.band === band && (!board.split || b.office === office)) || null
+}
+
+/**
  * Overbooking guidance for the whole practice.
  * Returns `{ blocks, split, summary, cfg, note }`; each block carries its own evidence.
  */

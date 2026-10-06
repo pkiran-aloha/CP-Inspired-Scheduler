@@ -171,13 +171,13 @@ describe('scheduler insights panel', () => {
 
 // Twelve weeks of the same weekday afternoon, twelve sessions each, at least one lost every
 // week; twelve more booked today. Dates are relative to today, so any weekday works.
-function seedOverbook() {
+function seedOverbook(start = 15 * 60) {
   const s = blankState()
   const date = today
   const appts = {}
   const mk = (id, d, i, status) => ({
     id, date: d, type: 'service', status, title: 'ABA session',
-    clientIds: [s.clients[i % s.clients.length].id], staffIds: [s.staff[i % s.staff.length].id], start: 15 * 60, end: 17 * 60,
+    clientIds: [s.clients[i % s.clients.length].id], staffIds: [s.staff[i % s.staff.length].id], start, end: start + 120,
     location: 'Main Center', service: 'dtt', notes: '', custom: {}, documents: [], verification: null,
     billing: { code: '97153', unitMins: 15, units: 8, rate: 9, mileage: false },
   })
@@ -208,6 +208,25 @@ describe('overbooking guidance', () => {
     await openPanel()
     fireEvent.click(screen.getByTestId('si-tab-overbook'))
     expect(await screen.findByTestId('si-ob-empty')).toBeTruthy()
+  })
+
+  it('flags a new clinical booking that lands in a marked block, in the booking dialog', async () => {
+    seedOverbook(9 * 60) // the new-appointment dialog starts at 09:00 on the calendar's day
+    R(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    const box = await screen.findByTestId('appt-overbook')
+    expect(box.textContent).toMatch(/In 12 of the last 12 weeks at least one session was lost here/)
+    expect(box.textContent).toMatch(/never as a second client on the same clinician/)
+  })
+
+  it('stays quiet in the booking dialog when no block is marked', async () => {
+    seed()
+    R(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    await screen.findByTestId('booking-checks')
+    expect(screen.queryByTestId('appt-overbook')).toBe(null)
   })
 
   it('jumps to the block’s next day on the calendar', async () => {

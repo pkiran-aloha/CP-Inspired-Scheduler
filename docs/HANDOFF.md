@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (C4 overbooking guidance, `feat/overbooking-guidance`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (C4 booking-dialog hint, `feat/overbook-booking-hint`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
@@ -23,7 +23,8 @@ Last updated **2026-10-06** (C4 overbooking guidance, `feat/overbooking-guidance
 - **UI.** Scheduler Insights → **Overbooking** tab (`si-tab-overbook`, rows `si-ob-[office-]<dow>-<band>`, empty state `si-ob-empty`): weeks, sessions, % lost and % no-shows per block, a status chip, the reason in words, standby names, and **Show** to open the block's next day. Read-only: no new action, field, collection or migration.
 - **Demo data.** The demo seed has about 3 sessions per block per week, so no block clears 80% (it would need about 10–18). The tab says so per block; the tests use a dense fixture instead of changing the seed.
 - **Verification:** `overbook.test.js` (11) passed in node through a small vitest shim; `schedulerInsights.test.jsx` gained 3 UI tests (tab, empty state, Show), run in CI.
-- **Not done:** recording `cancelledAt` so only late cancellations count (needs a field + migration); a 70/80/90 threshold picker; a Checks-rail hint in the booking dialog (cheap: one `flag` group in `AppointmentModal.jsx`).
+- **Booking-dialog hint (`feat/overbook-booking-hint`).** A new clinical booking whose weekday × time band is marked gets a `flag` group in the Checks rail (`appt-overbook`, built in `AppointmentModal.jsx` from `overbookBlockFor`): the backtest line plus "never as a second client on the same clinician". Create mode only; never blocks. Tests: one pure case in `overbook.test.js`, two UI cases in `schedulerInsights.test.jsx`.
+- **Not done:** recording `cancelledAt` so only late cancellations count (needs a field + migration); a 70/80/90 threshold picker.
 
 ### Good Faith Estimate (`feat/good-faith-estimate`)
 
@@ -259,7 +260,7 @@ Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• demo family balances, Cabinet and CEU data shipped 2026-10-05 (follow-ups 1a, 1c)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
-| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Still open: `cancelledAt`, threshold picker, booking-dialog hint. |
+| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint shipped too. Still open: `cancelledAt`, threshold picker. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 

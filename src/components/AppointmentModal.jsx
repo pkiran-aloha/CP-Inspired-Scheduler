@@ -6,7 +6,7 @@ import { useStore } from '../state/store'
 import { useToast } from '../ui/Toast'
 import { Icon, TypeGlyph } from '../ui/Icons'
 import { PeoplePicker, Dropdown, MultiSelect } from './fields'
-import { fmtDur, fmtTime, hmToMin, minToHM, startOfWeek, addDays, isoDate, parseISO, todayISO } from '../lib/date'
+import { DAY_SHORT, fmtDur, fmtTime, hmToMin, minToHM, startOfWeek, addDays, isoDate, parseISO, todayISO } from '../lib/date'
 import {
   BILL_CODES,
   MILEAGE_RATE,
@@ -34,7 +34,8 @@ import {
   ABA_QUALIFYING_ACTIVITIES, ABA_NON_QUALIFYING_ACTIVITIES,
   abaActivityById, abaHoursCfg, abaTrackFor,
 } from '../lib/abaHours'
-import { riskFor } from '../lib/risk'
+import { riskFor, RISK_TIME_LABEL } from '../lib/risk'
+import { overbookBoard, overbookBlockFor } from '../lib/overbook'
 import { apptAutoTitle } from '../lib/apptName'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
 import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, telehealthRoomFor } from '../lib/settingsMasters'
@@ -244,6 +245,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     return riskFor(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' })
   }, [state, f.clientIds, f.date, f.start, f.end, f.status, f.type, f.id, mode, showClinic])
 
+  // C4: a new clinical booking that lands in a block which usually loses a session
+  const obBoard = useMemo(() => (showClinic && mode !== 'edit' ? overbookBoard(state) : null), [state.appts, state.clients, state.settings, showClinic, mode])
+  const obBlock = overbookBlockFor(obBoard, f, clientsById[(f.clientIds || [])[0]]?.office || '')
+
   // ---------- the rail's Checks panel: one calm list instead of stacked banners ----------
   // Required fields read as a quiet to-do until a save is attempted, then as must-fix.
   const toneOf = (sev) => (sev === 'stop' ? 'stop' : sev === 'warn' ? 'warn' : 'flag')
@@ -304,6 +309,15 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       title: `Cancellation risk ${riskVerdict.score}/100`, sub: riskVerdict.action,
       lines: riskVerdict.factors.slice(0, 3).map((x) => ({ text: x.detail })),
       foot: `Modelled locally from this workspace's own history (practice rate ${Math.round(riskVerdict.model.base * 100)}%) — a prompt to confirm, never a reminder sent for you.`,
+    })
+  }
+  if (obBlock) {
+    const c = obBlock.checks[obBlock.safeK - 1]
+    checkGroups.push({
+      key: 'overbook', tone: 'flag', icon: 'users', testid: 'appt-overbook',
+      title: 'This block usually loses a session', sub: `${DAY_SHORT[obBlock.dow]} · ${RISK_TIME_LABEL[obBlock.band]}`,
+      lines: [{ text: `In ${c.hit} of the last ${obBlock.weeks} weeks at least ${obBlock.safeK === 1 ? 'one session was' : 'two sessions were'} lost here (${Math.round((obBlock.lost / Math.max(1, obBlock.sessions)) * 100)}% lost, ${Math.round(obBlock.rateNoShow * 100)}% no-shows).` }],
+      foot: 'An extra session here belongs on a clinician who is free then, never as a second client on the same clinician. Advisory only; see Scheduler Insights → Overbooking.',
     })
   }
   if (valReport.items.length) {
