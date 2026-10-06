@@ -4088,3 +4088,6 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 
 /* C4 overbooking guidance */
 .si-ob-list { display: flex; flex-direction: column; gap: 10px; }
+
+/* B4 access holdout: an hour where the reserve is already booked */
+.si-cell.si-cell-eaten, .si-swatch.si-cell-eaten { outline: 2px dashed var(--warn); outline-offset: -2px; }

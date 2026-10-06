@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (cancellation time, `feat/cancelled-at`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (B4 access holdout, `feat/access-holdout`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
@@ -15,6 +15,13 @@ Last updated **2026-10-06** (cancellation time, `feat/cancelled-at`). Any agent 
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### B4 — access holdout (`feat/access-holdout`)
+
+- **What.** Scheduler Insights → Coverage has an **Access holdout** row with Off / 10% / 15% / 20% (default 10%, the 10–15% the NAM scheduling review describes). `coverageBoard` keeps that share of each hour's bookable staff time, from today on, and counts booked time past the remaining share as the holdout eaten: `summary.holdout` `{pct, reservedHours, eatenHours, keptPct, eatenCells}` and per-cell `eatenHours`. Eaten weekday-hours are outlined (dashed warn outline) on the heat grid, with a legend entry and the hours in the cell tooltip.
+- **Setting.** `settings.risk.holdoutPct` (0–50; anything else falls back to 10 via `holdoutPctOf`). It lives in `settings.risk` because that block already routes to the calendar permission, so a scheduler can change it without the Settings desk. One `setSettings` write; no migration (missing means 10).
+- **Honest limits.** Advisory only: it never refuses a booking and is not a booking-dialog check. Past hours are not counted. It is practice-wide per hour, not per clinician or office, and does not tell new starts apart from other bookings.
+- **Tests.** `schedulerInsights.test.js` (3: default share, chosen share and off, past hours) passed in node; `schedulerInsights.test.jsx` (picker persists) runs in CI.
 
 ### C4 — calibrated overbooking guidance (`feat/overbooking-guidance`)
 
@@ -248,7 +255,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. Pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), access holdout (B4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
+B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. Pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
