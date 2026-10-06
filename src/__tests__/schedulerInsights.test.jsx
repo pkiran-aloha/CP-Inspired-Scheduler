@@ -252,6 +252,37 @@ describe('overbooking guidance', () => {
   })
 })
 
+describe('caseload ramp (D1)', () => {
+  it('shows the 12-week ramp of known demand against supply, read-only', async () => {
+    seed()
+    const before = JSON.stringify(stored().appts)
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-ramp'))
+    const list = await screen.findByTestId('si-ramp-list')
+    expect(within(list).getAllByTestId(/^si-ramp-w-/).length).toBe(12)
+    expect(screen.getByTestId('si-ramp-summary')).toBeTruthy()
+    // honest copy: a ramp from known work, never a forecast, renewals never assumed
+    expect(list.parentElement.textContent).toMatch(/not a forecast/)
+    expect(list.parentElement.textContent).toMatch(/never assumed/)
+    expect(list.parentElement.textContent).toMatch(/Nothing here is booked, moved or sent/)
+    expect(JSON.stringify(stored().appts)).toBe(before)
+  })
+
+  it('says when there is no known demand to ramp', async () => {
+    const s = blankState()
+    localStorage.setItem(KEY, JSON.stringify({
+      ...s,
+      clients: [],
+      intakeRequests: {},
+      ui: { ...s.ui, section: 'calendar', view: 'month', anchor: day(2), insights: false },
+      history: [],
+    }))
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-ramp'))
+    expect(await screen.findByTestId('si-ramp-empty')).toBeTruthy()
+  })
+})
+
 describe('the authorization guard inside the booking dialog', () => {
   /** Book a service session for the client whose authorization has already lapsed. */
   const bookForLapsedClient = async () => {

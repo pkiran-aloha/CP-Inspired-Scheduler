@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (end-of-session sync after B4; next pick is D1, requirements not yet settled). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (D1 caseload ramp built and PR'd; next pick is D2 hire/contract support, requirements not yet settled — or the small C4 threshold picker). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff (2026-10-06, end of session): `main` = `951c332`, CI green (run 37451643119). Landed today, newest first: B4 access holdout, `cancelledAt` cancellation time, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. No feature branch is in flight. The maintainer's local checkout sits on `main` at `2568c9c` (behind): run `git pull --ff-only` there before building. `origin/fix/help-route` (ce004e7, 2 days old) is unmerged and looks superseded by the Help & Wiki work on `main`; check before deleting it.
+- State at handoff (2026-10-06, end of session): `main` = `824b086`, CI green (run 37456730963). **D1 caseload ramp**: PR #28 open from `arena/94a775aa-cp-inspired-scheduler`, CI green on the branch (run 37469217264); merge it to land, then confirm the `main` run. Earlier today, newest first: B4 access holdout, `cancelledAt` cancellation time, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. The maintainer's local checkout sits on `main` at `2568c9c` (behind): run `git pull --ff-only` there before building. `origin/fix/help-route` is no longer on the remote (was flagged superseded by the Help & Wiki work); `fix/help-route-and-wiki-test` still is.
 
 ## How the maintainer works
 
@@ -15,6 +15,14 @@ Last updated **2026-10-06** (end-of-session sync after B4; next pick is D1, requ
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### D1 — caseload ramp (PR #28)
+
+- **What.** Scheduler Insights → **Ramp** tab (`si-tab-ramp`): the next 12 practice weeks (`RAMP_WEEKS`, honouring `settings.weekStart`), one row per week. Demand = each active client's `authWeekly` for as long as `authStart → authEnd` runs, plus open intake requests at their requested hours in a separate lighter band from their target date. Supply = each clinician's working day (`settings.workday`) minus blocked-out time — the Coverage tab's denominator — counted Mon–Fri (no practice-days setting exists yet; the panel says so), split RBT vs BCBA vs other clinical by `clinicianGroup` (free-text role/cert, tolerant matching; non-clinical staff excluded). Weeks where demand+intake exceeds supply are flagged; the header names the first short week.
+- **Requirements were settled with the maintainer first** (round-1 grilling): demand definition incl. the intake band, supply definition, 12-week horizon with table + simple bars, expiry handling, read-only Insights tab — all five as recommended in the draft.
+- **Honesty (§7).** A ramp from known work, never a statistical forecast: intake is never weighted by a conversion rate; requests without recorded hours are counted as such; an authorization ending inside the horizon drops to zero and the week is marked "renewal pending" — renewals are never assumed; already-lapsed clients contribute nothing. Read-only: no action, field, collection or migration; nothing booked, moved or sent.
+- **Code.** `src/lib/ramp.js`: `rampBoard(state, {today, weeks})`, `intakeWeeklyHours` (recommended hours, else requested units over their window, 80 h/week cap like conversion), `clinicianGroup`, `RAMP_OPEN_DOWS`. `insightBoard` returns it as `ramp`; `SchedulerInsights.jsx` renders the tab (rows `si-ramp-w-<start>`, `si-ramp-summary`, `si-ramp-empty`, `si-ramp-renewal-<start>`, `si-ramp-short-<start>`). Styles appended to `styles.css`.
+- **Verification.** `ramp.test.js` (14 tests: demand windows, expiry marking, lapsed/discharged exclusion, intake band dates/units/undated/no-hours, terminal stages left out, supply blocking + tier split + non-clinical exclusion, week-start, short weeks, `insightBoard` wiring, grouping) and two UI cases in `schedulerInsights.test.jsx` (12 rows + honest copy, empty state). Full local suite: 88 files / 910 tests green; `npm run build` passed.
 
 ### B4 — access holdout (`feat/access-holdout`)
 
@@ -255,17 +263,12 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-**Recommended next: D1 — caseload ramp forecast** (`docs/specs/scheduling-intelligence-ideas.md` §D1, §7 honesty constraints). It is the input D2 (hire/contract decision support) needs. Requirements are **not settled yet**: run the grilling step with the maintainer first. Round 1 as last drafted (recommendations in brackets, none confirmed):
-
-1. Demand = active clients' authorized weekly hours for as long as each authorization runs, plus open intake requests at their requested hours from their target date, shown as a separate lighter band, never weighted by a conversion rate (that would be a statistical forecast, which §7 forbids). [recommended]
-2. Supply = each active clinician's working day (`settings.workday`) minus blocked time, split RBT vs BCBA, the same denominator the Coverage tab uses. [recommended]
-3. Horizon 12 weeks, weekly grain, table plus simple bars, no curve. [recommended]
-4. An authorization that ends inside the horizon drops to zero and the week is marked "renewal pending"; never assume renewal. [recommended]
-5. A new read-only Scheduler Insights tab "Ramp". [recommended]
+**Recommended next: D2 — hire/contract decision support** (`docs/specs/scheduling-intelligence-ideas.md` §D2). Its input — the D1 caseload ramp — shipped (below). "Before you hire, check whether the gap is demand or schedule shape": low utilization plus long waits is a template problem, not a capacity problem. Requirements are **not settled yet**: run the grilling step with the maintainer first (round 1 candidates: what the decision question is, which ramp/coverage numbers it rests on, where the answer lives — ramp tab, own tab or report — and what honest copy looks like when the data is thin).
 
 Other open items, smaller:
-- C4 follow-ups: a 70/80/90 threshold picker for `settings.risk.overbookSafePct` (the B4 holdout picker in the Coverage tab is the pattern to copy); use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
-- D2 hire/contract decision support (after D1), D4 scenario planner (L).
+- C4 follow-ups: a 70/80/90 threshold picker for `settings.risk.overbookSafePct` (the B4 holdout picker in the Coverage tab is the pattern to copy — fully specified, smallest item); use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
+- D1 follow-ups (only if the ramp proves out): a practice-days setting so supply stops assuming Mon–Fri; intake conversion tracking once enough history exists (still never a forecast knob).
+- D4 scenario planner (L).
 - Architecture mismatches still listed in `docs/wiki/architecture.md` (#4 unused `playwright` devDependencies, needs npm; #10; #12 `build*` helpers only tests import; #13 unenforced MFA/lock settings).
 - "Known issues / backlog" below.
 
@@ -282,6 +285,7 @@ Other open items, smaller:
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
 | ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint and cancellation time shipped too. Still open: threshold picker. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
+| ~~Scheduling idea D1~~ (built 2026-10-06, PR #28) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 
 ## Known issues / backlog (not yet fixed)
@@ -298,9 +302,9 @@ These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can 
 
 > Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main`, report anything new). Then list what is left (HANDOFF "Next", the "Still open" notes in the waves table, and "Known issues / backlog"), recommend one item, ask me which to build, and follow the one-feature-at-a-time workflow.
 
-**Continue with D1 (caseload ramp forecast):**
+**Continue with D2 (hire/contract decision support):**
 
-> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green). Then settle D1's requirements with me first, starting from the round-1 questions in HANDOFF "Next", and only then build it on a `feat/…` branch: tests, wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green; merge the D1 ramp PR if it is still open). Then settle D2's requirements with me first, starting from the round-1 candidates in HANDOFF "Next", and only then build it on a `feat/…` branch: tests, wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
 
 **Status check only (no code changes):**
 

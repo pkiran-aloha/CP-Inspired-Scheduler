@@ -6,6 +6,7 @@
 //   3. Which clients are about to run out of authorized hours or lose a renewal? → auth
 //   4. Which of these sessions is most likely to evaporate?                      → risk
 //   5. Which blocks usually lose a session, so one extra booking would be absorbed? → overbook
+//   6. Does the demand we already know about fit the clinical hours we have?     → ramp
 //
 // Pure and deterministic: the panel renders it, the tests assert on it, and no number
 // here is invented — every figure traces to an appointment, an authorization or staff
@@ -16,6 +17,7 @@ import { authBoard } from './authBudget'
 import { densityBoard } from './density'
 import { riskQueue, riskHourOf } from './risk'
 import { overbookBoard } from './overbook'
+import { rampBoard } from './ramp'
 
 const round1 = (n) => Math.round(n * 10) / 10
 const HOUR_LABEL = (h) => `${String(h % 24).padStart(2, '0')}:00`
@@ -175,6 +177,7 @@ export function insightBoard(state, days, { today = todayISO() } = {}) {
   const auth = authBoard(state, { today })
   const risk = riskQueue(state, days, { today })
   const overbook = overbookBoard(state, { today })
+  const ramp = rampBoard(state, { today })
   const list = Object.values(state.appts || {}).filter((a) => days.includes(a.date) && a.status !== 'cancelled')
   const charge = list.filter((a) => TYPES[a.type]?.billable).reduce((t, a) => t + computeBilling(a), 0)
   const staffedHours = list.filter(overlapsType).reduce((t, a) => t + riskHourOf(a) * Math.max(1, (a.staffIds || []).length), 0)
@@ -187,6 +190,7 @@ export function insightBoard(state, days, { today = todayISO() } = {}) {
     auth,
     risk,
     overbook,
+    ramp,
     kpis: [
       { id: 'fill', label: 'Schedule fill', value: `${coverage.summary.fillPct}%`, sub: `${coverage.summary.bookedHours} of ${coverage.summary.availableHours} staff-hours`, tone: coverage.summary.fillPct >= 85 ? 'warn' : coverage.summary.fillPct < 40 ? 'info' : 'ok' },
       { id: 'open', label: 'Open capacity', value: `${coverage.summary.openHours}h`, sub: `${coverage.summary.idleWindows} bookable window${coverage.summary.idleWindows === 1 ? '' : 's'} across ${coverage.summary.idleStaff} staff`, tone: 'info' },
