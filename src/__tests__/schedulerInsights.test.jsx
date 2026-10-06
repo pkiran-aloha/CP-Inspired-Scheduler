@@ -266,6 +266,11 @@ describe('caseload ramp (D1)', () => {
     expect(list.parentElement.textContent).toMatch(/never assumed/)
     expect(list.parentElement.textContent).toMatch(/Nothing here is booked, moved or sent/)
     expect(JSON.stringify(stored().appts)).toBe(before)
+    const hire = screen.getByTestId('si-hire-verdict')
+    expect(hire).toBeTruthy()
+    expect(hire.getAttribute('data-verdict')).toMatch(/neither|hire|reshape|thin/)
+    expect(screen.getByTestId('si-hire-reason').textContent.length).toBeGreaterThan(20)
+    expect(list.parentElement.textContent).toMatch(/Before you hire|Do not hire|template|hours gap|not enough/i)
   })
 
   it('says when there is no known demand to ramp', async () => {

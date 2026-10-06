@@ -4112,3 +4112,11 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .si-ramp-bars { grid-column: 1 / -1; }
   .si-ramp-chips { justify-content: flex-start; }
 }
+
+/* D2 hire/contract: verdict strip on the Ramp tab */
+.si-hire { margin: 8px 0 12px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel-2); }
+.si-hire-hire { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.si-hire-reshape { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.si-hire-thin { border-style: dashed; }
+.si-hire-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
+.si-hire-reason { margin: 6px 0 0; font-size: 12px; }

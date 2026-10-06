@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 458fac7 plus the D2 hire/contract verdict on 2026-10-06; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 
@@ -94,4 +94,4 @@ Catalogue (19 reports):
 - The XLS export is an HTML table that opens in Excel; it is not a native .xlsx workbook.
 - Reports rely on what the workspace stores: for example there is no booked-at stamp, so lead-time is policy in the cancellation-risk model (see [Scheduling](scheduling.md)).
 - The older Authorization Burn-down is hours-based; the unit-level view is Authorization Utilization.
-- Per the scheduling research brief, forecasts (caseload ramp, hire/contract support, scenario planning) are not built.
+- Per the scheduling research brief, a statistical forecast is not built. The caseload ramp (D1) and hire/contract strip (D2) are ramps from known work, not forecasts; scenario planning (D4) is not built.

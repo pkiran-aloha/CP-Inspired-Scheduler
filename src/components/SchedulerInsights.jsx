@@ -49,7 +49,7 @@ export default function SchedulerInsights({ days, onClose }) {
   const [scope, setScope] = useState('action') // auth tab: 'action' | 'all'
   const key = days.join(',')
   const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.teams, state.svcs, state.payers, state.payProfiles, state.settings, state.intakeRequests, key])
-  const { coverage, density, auth, risk, overbook, ramp } = board
+  const { coverage, density, auth, risk, overbook, ramp, hire } = board
   const holdout = coverage.summary.holdout
   // a scheduler's choice, saved like the other calendar-owned risk settings (one setSettings write)
   const setHoldout = (pct) => actions.setSettings({ risk: { ...(settings.risk || {}), holdoutPct: pct } })
@@ -578,6 +578,26 @@ export default function SchedulerInsights({ days, onClose }) {
                     : 'Supply covers the known demand in every week'}
                 </span>
               </div>
+
+              {hire && (
+                <div
+                  className={`si-hire si-hire-${hire.verdict}`}
+                  data-testid="si-hire-verdict"
+                  data-verdict={hire.verdict}
+                >
+                  <div className="si-hire-head">
+                    <b data-testid="si-hire-headline">{hire.headline}</b>
+                    <span className="muted">
+                      {hire.utilKnown
+                        ? `Fill on screen ${hire.fillPct}% (bar ${hire.highBar}%) · ${hire.bookedHours} of ${hire.availableHours} staff-h`
+                        : 'Fill on screen unknown — no bookable hours in this range'}
+                      {hire.shortHours ? ` · first short week ${hire.shortHours}h` : ''}
+                      {hire.peakShortHours && hire.peakShortHours !== hire.shortHours ? ` · peak ${hire.peakShortHours}h` : ''}
+                    </span>
+                  </div>
+                  <p className="si-hire-reason" data-testid="si-hire-reason">{hire.reason}</p>
+                </div>
+              )}
 
               {ramp.summary.clients === 0 && ramp.summary.intakeCounted === 0 && (
                 <div className="si-empty" data-testid="si-ramp-empty">

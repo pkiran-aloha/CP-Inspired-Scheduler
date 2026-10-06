@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (D1 caseload ramp built and PR'd; next pick is D2 hire/contract support, requirements not yet settled — or the small C4 threshold picker). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (D2 hire/contract verdict built on the Ramp tab; next pick is the small C4 70/80/90 threshold picker, or D4). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff (2026-10-06, end of session): `main` = `824b086`, CI green (run 37456730963). **D1 caseload ramp**: PR #28 open from `arena/94a775aa-cp-inspired-scheduler`, CI green on the branch (run 37469217264); merge it to land, then confirm the `main` run. Earlier today, newest first: B4 access holdout, `cancelledAt` cancellation time, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. The maintainer's local checkout sits on `main` at `2568c9c` (behind): run `git pull --ff-only` there before building. `origin/fix/help-route` is no longer on the remote (was flagged superseded by the Help & Wiki work); `fix/help-route-and-wiki-test` still is.
+- State at handoff (2026-10-06): `origin/main` = `458fac7` (PR #28 D1 ramp merged), CI green (run 37471361122). **D2 hire/contract** is on this session branch, not yet on `main`. Earlier today, newest first: D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. The maintainer's local checkout may sit behind: run `git pull --ff-only` there before building.
 
 ## How the maintainer works
 
@@ -15,6 +15,14 @@ Last updated **2026-10-06** (D1 caseload ramp built and PR'd; next pick is D2 hi
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### D2 — hire/contract decision support
+
+- **What.** A read-only verdict strip on Scheduler Insights → Ramp (`si-hire-verdict`): **hours gap (hire/contract)**, **template problem (do not hire yet)**, **do not hire on this number**, or **not enough on-screen hours to tell**.
+- **Requirements settled with the maintainer first:** decision question = demand vs schedule shape; numbers = ramp short weeks + Coverage fill of the range on screen (85% bar, same as Coverage’s full-day mark); lives on the Ramp tab, not its own tab or a report; thin data is named, never invented.
+- **Honesty.** Demand is not split by RBT vs BCBA, so it names hours, never a headcount. Intake is never weighted by a conversion rate. Renewals are never assumed. Fill unknown when the on-screen range has no bookable hours. Advisory: nothing hired, contracted, booked or sent. Supply on the ramp is still Mon–Fri.
+- **Code.** `src/lib/hire.js`: `hireBoard({ ramp, coverage })`, `HIRE_HIGH_UTIL`. `insightBoard` returns it as `hire`. `SchedulerInsights.jsx` renders the strip.
+- **Verification.** `hire.test.js` (neither / hire at high fill / reshape at low fill / thin / no clinical bench / intake unweighted / insightBoard wiring) plus the Ramp UI test asserts the strip.
 
 ### D1 — caseload ramp (PR #28)
 
@@ -263,10 +271,10 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-**Recommended next: D2 — hire/contract decision support** (`docs/specs/scheduling-intelligence-ideas.md` §D2). Its input — the D1 caseload ramp — shipped (below). "Before you hire, check whether the gap is demand or schedule shape": low utilization plus long waits is a template problem, not a capacity problem. Requirements are **not settled yet**: run the grilling step with the maintainer first (round 1 candidates: what the decision question is, which ramp/coverage numbers it rests on, where the answer lives — ramp tab, own tab or report — and what honest copy looks like when the data is thin).
+**Recommended next: C4 threshold picker** for `settings.risk.overbookSafePct` (70/80/90). Fully specified; copy the B4 holdout picker on Coverage. D2 has shipped (this session). D4 scenario planner is large.
 
 Other open items, smaller:
-- C4 follow-ups: a 70/80/90 threshold picker for `settings.risk.overbookSafePct` (the B4 holdout picker in the Coverage tab is the pattern to copy — fully specified, smallest item); use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
+- C4: use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
 - D1 follow-ups (only if the ramp proves out): a practice-days setting so supply stops assuming Mon–Fri; intake conversion tracking once enough history exists (still never a forecast knob).
 - D4 scenario planner (L).
 - Architecture mismatches still listed in `docs/wiki/architecture.md` (#4 unused `playwright` devDependencies, needs npm; #10; #12 `build*` helpers only tests import; #13 unenforced MFA/lock settings).
@@ -286,6 +294,7 @@ Other open items, smaller:
 | ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint and cancellation time shipped too. Still open: threshold picker. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
 | ~~Scheduling idea D1~~ (built 2026-10-06, PR #28) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
+| ~~Scheduling idea D2~~ (built 2026-10-06) | Hire/contract decision support | Read-only verdict strip on the Ramp tab: hours gap vs template problem from short weeks + Coverage fill (85%). Hours, never a headcount. Thin data named, never invented. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 
 ## Known issues / backlog (not yet fixed)
