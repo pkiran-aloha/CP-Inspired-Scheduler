@@ -1,4 +1,5 @@
 import IntakeHandoff from './intake/IntakeHandoff'
+import GfeDialog from './GfeDialog'
 import React, { useEffect, useMemo, useState } from 'react'
 import { PersonAvatar, AVATARS, AVATAR_KEYS, shuffleAvatar, avatarKeyFor } from '../ui/avatars'
 import { ProfileModal } from './ProfileModal'
@@ -269,6 +270,7 @@ export default function ClientsView() {
   const [handoff, setHandoff] = useState(null)
   const canHandoff = state.canAccess('calendar', 'full') && state.canAccess('clients', 'view') && state.canAccess('intake', 'view')
   const [prof, setProf] = useState(null) // row object → profile sheet
+  const [gfe, setGfe] = useState(null) // client → Good Faith Estimate dialog
   const [dup, setDup] = useState(null) // client to copy into a new record
   const [mode, setMode] = useState('cards') // people cards ⇄ dir-tables
   useEffect(() => {
@@ -518,6 +520,7 @@ export default function ClientsView() {
               ...(canHandoff && c.intakeId && state.intakeRequests?.[c.intakeId]?.stage === 'converted' ? [{ id: 'iq-handoff-open', icon: 'cal', label: 'Plan first week', run: () => { setProf(null); setHandoff(c.id) } }] : []),
               { id: 'pf-cal', icon: 'cal', label: 'In calendar', run: () => { actions.setUI({ section: 'calendar', view: 'week', clientSel: [c.id], staffSel: [], teamSel: [], anchor: todayISO() }); setProf(null) } },
               { id: 'pf-billing', icon: 'dollar', label: 'Open in Billing', run: () => { actions.setUI({ section: 'billing', bilPreset:'last4' }); setProf(null) } },
+              { id: 'pf-gfe', icon: 'dollar', label: 'Good Faith Estimate', run: () => { setGfe(c); setProf(null) } },
               { id: 'pf-report', icon: 'file', label: 'Auth report', run: () => { actions.setUI({ section: 'reports', repPreset: 'last4', repDim: 'client', repKey: c.id }); setProf(null) } },
               ...(c.intakeId ? [{ id: 'pf-intake', icon: 'zap', label: 'Intake request', run: () => { actions.setUI({ section: 'intake', intakeSel: c.intakeId }); setProf(null) } }] : []),
             ]}
@@ -527,6 +530,7 @@ export default function ClientsView() {
           />
         )
       })()}
+      {gfe && <GfeDialog client={gfe} onClose={() => setGfe(null)} />}
       {canHandoff && handoff && <IntakeHandoff key={`${handoff}-${state.currentAccount?.id}`} clientId={handoff} onClose={() => setHandoff(null)} />}
       {(modal || dup) && <ClientModal client={modal === 'new' ? null : modal} dup={dup} onClose={() => { setModal(null); setDup(null) }} />}
     </div>

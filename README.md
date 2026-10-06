@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Good Faith Estimate (No Surprises Act)
+
+Client profile > **Good Faith Estimate** prepares the written estimate an uninsured or self-pay family is owed under 45 CFR 149.610. It is prefilled from the calendar, editable, and covers up to 12 months of recurring care. It carries the rule's required content and the CMS model disclaimer. The app downloads it and does not keep or send it.
+
 ### Superbill for out-of-network families
 
 Generate Invoice > select a client > **Superbill** downloads an itemized superbill of the family's self-pay services in the page's date range, for the family to send to its own insurer. It carries the provider tax ID and NPIs, the rendering clinicians and credentials, ICD-10 diagnoses, and CPT codes with modifiers, units, place of service and charges. Services already billed to an insurer never appear on it.
