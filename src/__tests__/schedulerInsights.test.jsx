@@ -169,6 +169,57 @@ describe('scheduler insights panel', () => {
   })
 })
 
+// Twelve weeks of the same weekday afternoon, twelve sessions each, at least one lost every
+// week; twelve more booked today. Dates are relative to today, so any weekday works.
+function seedOverbook() {
+  const s = blankState()
+  const date = today
+  const appts = {}
+  const mk = (id, d, i, status) => ({
+    id, date: d, type: 'service', status, title: 'ABA session',
+    clientIds: [s.clients[i % s.clients.length].id], staffIds: [s.staff[i % s.staff.length].id], start: 15 * 60, end: 17 * 60,
+    location: 'Main Center', service: 'dtt', notes: '', custom: {}, documents: [], verification: null,
+    billing: { code: '97153', unitMins: 15, units: 8, rate: 9, mileage: false },
+  })
+  for (let w = 1; w <= 12; w++) for (let i = 0; i < 12; i++) appts[`ob-${w}-${i}`] = mk(`ob-${w}-${i}`, day(-7 * w), i, i < (w <= 10 ? 2 : 1) ? 'no-show' : 'completed')
+  for (let i = 0; i < 12; i++) appts[`ob-t-${i}`] = mk(`ob-t-${i}`, date, i, 'active')
+  const clients = s.clients.map((c) => ({ ...c, office: 'Main Center' }))
+  const out = { ...s, appts, clients, ui: { ...s.ui, section: 'calendar', view: 'week', anchor: date, insights: false }, history: [] }
+  localStorage.setItem(KEY, JSON.stringify(out))
+  return out
+}
+
+describe('overbooking guidance', () => {
+  it('marks the block that loses a session every week, explains why, and writes nothing', async () => {
+    seedOverbook()
+    const before = JSON.stringify(stored().appts)
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-overbook'))
+    const row = await screen.findByTestId(`si-ob-${parseISO(today).getDay()}-afternoon`)
+    expect(row.textContent).toMatch(/Room for one extra/)
+    expect(row.textContent).toMatch(/In 12 of the last 12 weeks at least one session was lost here/)
+    expect(screen.getByText(/never as a second client on the same clinician/)).toBeTruthy()
+    expect(screen.queryByTestId('si-ob-empty')).toBe(null)
+    expect(JSON.stringify(stored().appts)).toBe(before)
+  })
+
+  it('says why nothing qualifies when the history is thin', async () => {
+    seed()
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-overbook'))
+    expect(await screen.findByTestId('si-ob-empty')).toBeTruthy()
+  })
+
+  it('jumps to the block’s next day on the calendar', async () => {
+    seedOverbook()
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-overbook'))
+    const row = await screen.findByTestId(`si-ob-${parseISO(today).getDay()}-afternoon`)
+    fireEvent.click(within(row).getByRole('button', { name: /Show/ }))
+    await waitFor(() => expect(screen.queryByTestId('scheduler-insights')).toBe(null))
+  })
+})
+
 describe('the authorization guard inside the booking dialog', () => {
   /** Book a service session for the client whose authorization has already lapsed. */
   const bookForLapsedClient = async () => {

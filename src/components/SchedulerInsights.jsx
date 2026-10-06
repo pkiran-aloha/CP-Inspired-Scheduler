@@ -7,7 +7,7 @@ import { DAY_SHORT, addDays, fmtDayLabel, fmtRange, isoDate, parseISO, todayISO 
 import { insightBoard } from '../lib/insights'
 import { planDensityMove } from '../lib/density'
 import { AUTH_BANDS } from '../lib/authBudget'
-import { RISK_BANDS } from '../lib/risk'
+import { RISK_BANDS, RISK_TIME_LABEL } from '../lib/risk'
 import { routeForDay, suggestRouteOrder } from '../lib/travel'
 
 /** Fill shading. 85–95% is the healthy band the operations literature converges on. */
@@ -49,7 +49,7 @@ export default function SchedulerInsights({ days, onClose }) {
   const [scope, setScope] = useState('action') // auth tab: 'action' | 'all'
   const key = days.join(',')
   const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.teams, state.svcs, state.payers, state.payProfiles, state.settings, key])
-  const { coverage, density, auth, risk } = board
+  const { coverage, density, auth, risk, overbook } = board
 
   // ---- travel routes per staff per day ----
   const travelBoard = useMemo(() => {
@@ -128,6 +128,7 @@ export default function SchedulerInsights({ days, onClose }) {
     { id: 'auth', label: 'Authorizations', icon: 'shield', badge: auth.summary.needsAction ? `${auth.summary.needsAction} to action` : 'clear', alert: auth.summary.needsAction > 0 },
     { id: 'risk', label: 'At risk', icon: 'alert', badge: risk.summary.flagged ? `${risk.summary.flagged} flagged` : 'clear', alert: risk.summary.high > 0 },
     { id: 'travel', label: 'Travel', icon: 'car', badge: travelBadge, alert: travelAlert },
+    { id: 'overbook', label: 'Overbooking', icon: 'users', badge: overbook.summary.safe ? `${overbook.summary.safe} block${overbook.summary.safe === 1 ? '' : 's'}` : 'none yet' },
   ]
 
   return (
@@ -469,6 +470,65 @@ export default function SchedulerInsights({ days, onClose }) {
                   unconfirmed slot, a backfilled or rescheduled session, a first session with a technician). Factors marked <i className="si-factor si-src-model">history</i> come from your
                   records; <i className="si-factor si-src-policy">policy</i> ones are the fixed rules. This is an operations prompt for a human phone call — no reminder is sent, and no
                   clinical judgement is implied.
+                </span>
+              </div>
+            </>
+          )}
+
+          {tab === 'overbook' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Blocks that usually lose a session</b>
+                  <span className="muted">
+                    {' '}
+                    — {overbook.note} A block is marked when, in at least {overbook.cfg.safePct}% of its last {overbook.cfg.weeks} weeks, a session was lost there, and the sessions
+                    already booked on its next day give at least {overbook.cfg.safePct}% odds of the same.
+                  </span>
+                </div>
+              </div>
+
+              {!overbook.summary.safe && (
+                <div className="si-empty" data-testid="si-ob-empty">
+                  {Icon.info({ size: 16 })} No block clears {overbook.cfg.safePct}% yet. Small blocks rarely do: each line below says how many sessions a week its block has and how many it would need.
+                </div>
+              )}
+
+              <div className="si-ob-list">
+                {overbook.blocks.map((b) => (
+                  <div className="si-travel" key={b.key} data-testid={`si-ob-${b.office ? `${b.office}-` : ''}${b.dow}-${b.band}`}>
+                    <div className="si-travel-head">
+                      <b>
+                        {b.office ? `${b.office} · ` : ''}
+                        {DAY_SHORT[b.dow]} · {RISK_TIME_LABEL[b.band]}
+                      </b>
+                      <span className="muted">
+                        {b.weeks} week{b.weeks === 1 ? '' : 's'} · {b.sessions} sessions · {Math.round((b.lost / Math.max(1, b.sessions)) * 100)}% lost, {Math.round(b.rateNoShow * 100)}% no-shows
+                      </span>
+                      <span className="spacer f1" />
+                      <span className={`si-chip ${b.status === 'safe' ? 'si-tone-ok' : ''}`}>
+                        {b.status === 'safe' ? (b.safeK === 1 ? 'Room for one extra' : 'Room for two extra') : b.status === 'thin' ? 'Not enough history' : 'Not yet'}
+                      </span>
+                      <button className="btn btn-ghost btn-sm" onClick={() => goToDay(b.next.date)}>
+                        Show {fmtDayLabel(b.next.date)}
+                      </button>
+                    </div>
+                    <span className="muted si-reason">{b.why}</span>
+                    {b.standby.length > 0 && (
+                      <span className="si-reason" data-testid={`si-ob-standby-${b.key}`}>
+                        <b>Standby first</b> (behind their authorized pace): {b.standby.map((c) => `${c.name} (${c.weekPct}% of this week)`).join(', ')}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="si-note">
+                {Icon.info({ size: 13 })}
+                <span>
+                  Advisory only: nothing is booked, moved or sent. An extra session belongs on a clinician who is free in that block (a floater or an open hour), never as a second client on
+                  the same clinician — 97153 is one client face to face, and overlapping sessions by one provider are not billable. Guidance is per block, never per family. Cancellation
+                  timing is not recorded, so family cancellations of any notice count as lost; the no-show share is the floor.
                 </span>
               </div>
             </>
