@@ -4091,3 +4091,24 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 
 /* B4 access holdout: an hour where the reserve is already booked */
 .si-cell.si-cell-eaten, .si-swatch.si-cell-eaten { outline: 2px dashed var(--warn); outline-offset: -2px; }
+
+/* D1 caseload ramp: known demand vs clinical supply, week by week */
+.si-ramp-list { display: flex; flex-direction: column; gap: 6px; }
+.si-ramp-row { display: grid; grid-template-columns: 148px minmax(120px, 1fr) auto auto; gap: 6px 12px; align-items: center; padding: 7px 10px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); font-size: 11.8px; }
+.si-ramp-row:nth-child(even) { background: var(--panel-2); }
+.si-ramp-week b { font-size: 12px; }
+.si-ramp-week i { font-style: normal; }
+.si-ramp-bars { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.si-ramp-track { display: flex; height: 8px; border-radius: 99px; background: var(--panel-3); overflow: hidden; }
+.si-ramp-track-supply { height: 5px; }
+.si-ramp-seg { background: var(--accent); }
+.si-ramp-seg-intake { background: color-mix(in srgb, var(--accent) 42%, var(--panel-3)); }
+.si-ramp-supply { background: color-mix(in srgb, var(--ok) 55%, var(--panel-3)); }
+.si-ramp-nums { white-space: nowrap; }
+.si-ramp-nums .si-neg { color: var(--danger); font-weight: 700; }
+.si-ramp-chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+@media (max-width: 900px) {
+  .si-ramp-row { grid-template-columns: 1fr auto; }
+  .si-ramp-bars { grid-column: 1 / -1; }
+  .si-ramp-chips { justify-content: flex-start; }
+}

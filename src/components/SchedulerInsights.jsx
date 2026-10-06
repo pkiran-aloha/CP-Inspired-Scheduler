@@ -48,8 +48,8 @@ export default function SchedulerInsights({ days, onClose }) {
   const [tab, setTab] = useState('coverage')
   const [scope, setScope] = useState('action') // auth tab: 'action' | 'all'
   const key = days.join(',')
-  const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.teams, state.svcs, state.payers, state.payProfiles, state.settings, key])
-  const { coverage, density, auth, risk, overbook } = board
+  const board = useMemo(() => insightBoard(state, days), [state.appts, state.clients, state.staff, state.teams, state.svcs, state.payers, state.payProfiles, state.settings, state.intakeRequests, key])
+  const { coverage, density, auth, risk, overbook, ramp } = board
   const holdout = coverage.summary.holdout
   // a scheduler's choice, saved like the other calendar-owned risk settings (one setSettings write)
   const setHoldout = (pct) => actions.setSettings({ risk: { ...(settings.risk || {}), holdoutPct: pct } })
@@ -132,6 +132,7 @@ export default function SchedulerInsights({ days, onClose }) {
     { id: 'risk', label: 'At risk', icon: 'alert', badge: risk.summary.flagged ? `${risk.summary.flagged} flagged` : 'clear', alert: risk.summary.high > 0 },
     { id: 'travel', label: 'Travel', icon: 'car', badge: travelBadge, alert: travelAlert },
     { id: 'overbook', label: 'Overbooking', icon: 'users', badge: overbook.summary.safe ? `${overbook.summary.safe} block${overbook.summary.safe === 1 ? '' : 's'}` : 'none yet' },
+    { id: 'ramp', label: 'Ramp', icon: 'pulse', badge: ramp.summary.shortWeeks ? `${ramp.summary.shortWeeks} short week${ramp.summary.shortWeeks === 1 ? '' : 's'}` : 'supplied', alert: ramp.summary.shortWeeks > 0 },
   ]
 
   return (
@@ -554,6 +555,95 @@ export default function SchedulerInsights({ days, onClose }) {
                   the same clinician — 97153 is one client face to face, and overlapping sessions by one provider are not billable. Guidance is per block, never per family. A family
                   cancellation made more than {overbook.cfg.lateHours}h ahead is left out once its time is recorded; cancellations from before that was recorded
                   {overbook.summary.undated ? ` (${overbook.summary.undated} in this window)` : ''} still count as lost, so the no-show share is the floor.
+                </span>
+              </div>
+            </>
+          )}
+
+          {tab === 'ramp' && (
+            <>
+              <div className="si-head-row">
+                <div>
+                  <b>Caseload ramp — next {ramp.horizonWeeks} weeks</b>
+                  <span className="muted">
+                    {' '}
+                    — authorized hours on file plus open intake requests at their requested hours, against clinician supply (working day {ramp.workday.start}:00–{ramp.workday.end}:00 minus
+                    blocked time, Mon–Fri). {ramp.summary.clients} client{ramp.summary.clients === 1 ? '' : 's'} authorized · {ramp.summary.intakeCounted} intake request
+                    {ramp.summary.intakeCounted === 1 ? '' : 's'} with hours{ramp.summary.intakeNoHours ? ` · ${ramp.summary.intakeNoHours} open without hours recorded` : ''}.
+                  </span>
+                </div>
+                <span className={`si-band ${ramp.summary.shortWeeks ? 'si-tone-warn' : 'si-tone-ok'}`} data-testid="si-ramp-summary">
+                  {ramp.summary.shortWeeks
+                    ? `${ramp.summary.shortWeeks} week${ramp.summary.shortWeeks === 1 ? '' : 's'} where known demand exceeds supply — first: ${fmtDayLabel(ramp.summary.firstShort)}`
+                    : 'Supply covers the known demand in every week'}
+                </span>
+              </div>
+
+              {ramp.summary.clients === 0 && ramp.summary.intakeCounted === 0 && (
+                <div className="si-empty" data-testid="si-ramp-empty">
+                  {Icon.info({ size: 16 })} No active authorization or open intake request carries weekly hours yet, so there is no known demand to ramp. Add an authorization window on a
+                  client chart or record recommended hours on an intake request.
+                </div>
+              )}
+
+              <div className="si-ramp-list" data-testid="si-ramp-list">
+                {(() => {
+                  const scale = Math.max(...ramp.weeks.map((x) => Math.max(x.totalHours, x.supplyHours)), 1)
+                  return ramp.weeks.map((w, i) => {
+                  return (
+                    <div className="si-ramp-row" key={w.start} data-testid={`si-ramp-w-${w.start}`}>
+                      <span className="si-ramp-week">
+                        <b>{i === 0 ? 'This week' : fmtDayLabel(w.start)}</b>
+                        <i className="muted"> → {fmtDayLabel(w.end)}</i>
+                      </span>
+                      <div className="si-ramp-bars">
+                        <span className="si-ramp-track" title={`Demand ${w.demandHours}h${w.intakeHours ? ` + ${w.intakeHours}h intake` : ''} · supply ${w.supplyHours}h`}>
+                          <i className="si-ramp-seg" style={{ width: `${(w.demandHours / scale) * 100}%` }} />
+                          {w.intakeHours > 0 && <i className="si-ramp-seg si-ramp-seg-intake" style={{ width: `${(w.intakeHours / scale) * 100}%` }} />}
+                        </span>
+                        <span className="si-ramp-track si-ramp-track-supply" title={`Clinical supply ${w.supplyHours}h (RBT ${w.supply.rbt} · BCBA ${w.supply.bcba} · other ${w.supply.other})`}>
+                          <i className="si-ramp-supply" style={{ width: `${(w.supplyHours / scale) * 100}%` }} />
+                        </span>
+                      </div>
+                      <span className="si-ramp-nums">
+                        <b>{w.totalHours}h</b>
+                        {w.intakeHours > 0 ? <i className="muted"> incl. {w.intakeHours}h intake</i> : null}
+                        <span className="muted"> · {w.supplyHours}h supply · </span>
+                        <span className={w.balanceHours < 0 ? 'si-neg' : 'muted'}>
+                          {w.balanceHours < 0 ? `${Math.abs(w.balanceHours)}h short` : `${w.balanceHours}h free`}
+                        </span>
+                      </span>
+                      <span className="si-ramp-chips">
+                        {w.renewalPending && (
+                          <span
+                            className="si-chip si-tone-flag"
+                            data-testid={`si-ramp-renewal-${w.start}`}
+                            title={`Authorization ends this week and is never assumed to renew: ${w.renewals.map((r) => `${r.name} (${r.weekly}h/wk)`).join(', ')}`}
+                          >
+                            {w.renewals.length} renewal{w.renewals.length === 1 ? '' : 's'} pending
+                          </span>
+                        )}
+                        {w.balanceHours < 0 && (
+                          <span className="si-chip si-tone-warn" data-testid={`si-ramp-short-${w.start}`}>
+                            demand &gt; supply
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  )
+                  })
+                })()}
+              </div>
+
+              <div className="si-note">
+                {Icon.info({ size: 13 })}
+                <span>
+                  A ramp from known work, not a forecast: demand is the authorized weekly hours on each chart for as long as its window runs, plus open intake requests at their requested
+                  hours in a lighter band{ramp.summary.intakeUndated ? ` (${ramp.summary.intakeUndated} of them have no target date yet and count from this week)` : ''} — never weighted by a
+                  conversion rate. An authorization that ends inside the horizon drops to zero there and the week is marked “renewal pending”; renewals are never assumed
+                  {ramp.summary.lapsed ? ` (${ramp.summary.lapsed} client${ramp.summary.lapsed === 1 ? ' has' : 's have'} already lapsed and contribute nothing)` : ''}. Supply counts each
+                  clinician’s working day minus blocked-out time on Mon–Fri, split RBT ({ramp.summary.staff.rbt}) vs BCBA ({ramp.summary.staff.bcba}) vs other clinical (
+                  {ramp.summary.staff.other}). Nothing here is booked, moved or sent.
                 </span>
               </div>
             </>
