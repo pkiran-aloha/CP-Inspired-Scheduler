@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { blankState } from '../state/store'
-import { cancelLeadHours, stampCancelledAt, cancelSide, isPracticeCancel, reasonPatch, cancelReasonOptions, cancelReasonRows, seedCancelReason, NOT_RECORDED } from '../lib/cancelReasons'
+import { cancelLeadHours, cancelNoticeHoursOf, cancelledEarly, stampCancelledAt, cancelSide, isPracticeCancel, reasonPatch, cancelReasonOptions, cancelReasonRows, seedCancelNotice, seedCancelReason, NOT_RECORDED } from '../lib/cancelReasons'
+import { parseISO } from '../lib/date'
 import { runReport } from '../lib/reports'
 import { riskModel } from '../lib/risk'
 import { isCancelStatus } from '../lib/settingsMasters'
@@ -113,5 +114,48 @@ describe('when a session was cancelled', () => {
     expect(cancelLeadHours(a)).toBeCloseTo(24, 6)
     expect(cancelLeadHours({ ...a, cancelledAt: undefined })).toBe(null)
     expect(cancelLeadHours({ ...a, cancelledAt: 'not a date' })).toBe(null)
+  })
+})
+
+// One notice rule, read by the risk model and the Overbooking backtest alike:
+// `settings.billing.lateCancelHours`, 24 h by default.
+describe('the practice’s late-cancel notice threshold', () => {
+  it('takes the stored setting, and refuses an off-menu number', () => {
+    expect(cancelNoticeHoursOf({})).toBe(24)
+    expect(cancelNoticeHoursOf({ billing: { lateCancelHours: 12 } })).toBe(12)
+    expect(cancelNoticeHoursOf({ billing: { lateCancelHours: 0 } })).toBe(0)
+    for (const bad of [-5, 169, 999, 'soon', null, '', NaN]) expect(cancelNoticeHoursOf({ billing: { lateCancelHours: bad } })).toBe(24)
+    // a caller with its own fallback keeps it when the setting is unusable
+    expect(cancelNoticeHoursOf({ billing: { lateCancelHours: 999 } }, 48)).toBe(48)
+  })
+
+  it('calls only a recorded, refillable cancellation early', () => {
+    const a = { date: '2026-09-18', start: 540, end: 660, status: 'cancelled' }
+    const at = (h) => new Date(parseISO('2026-09-18').getTime() + (540 - h * 60) * 60000).toISOString()
+    expect(cancelledEarly({ ...a, cancelledAt: at(30) }, 24)).toBe(true)
+    expect(cancelledEarly({ ...a, cancelledAt: at(24) }, 24)).toBe(false) // exactly the threshold is not more
+    expect(cancelledEarly({ ...a }, 24)).toBe(false) // no time recorded: never guessed
+    expect(cancelledEarly({ ...a, cancelledAt: 'not a date' }, 24)).toBe(false)
+    expect(cancelledEarly({ ...a, status: 'no-show', cancelledAt: at(48) }, 24)).toBe(false)
+  })
+
+  it('gives the demo a deterministic spread of notice, and leaves some of it unknown', () => {
+    expect(seedCancelNotice('no-show', 'c1', '2026-09-18', 540)).toBe(undefined)
+    expect(seedCancelNotice('cancelled', 'c1', '2026-09-18', 540)).toBe(seedCancelNotice('cancelled', 'c1', '2026-09-18', 540))
+    const notices = Array.from({ length: 40 }, (_, i) => seedCancelNotice('cancelled', `c${i}`, '2026-09-18', 540))
+    expect(notices.filter(Boolean).length).toBeGreaterThan(0)
+    expect(notices.some((n) => n === undefined)).toBe(true)
+    const leads = notices.filter(Boolean).map((n) => cancelLeadHours({ date: '2026-09-18', start: 540, cancelledAt: n }))
+    expect(leads.some((h) => h > 24)).toBe(true) // refillable
+    expect(leads.some((h) => h < 24)).toBe(true) // too late to refill
+    // and the seeded workspace carries both, with the honest unknown case kept
+    const s = blankState()
+    const cancelled = Object.values(s.appts).filter((a) => a.type === 'service' && a.status === 'cancelled')
+    const withTime = cancelled.filter((a) => a.cancelledAt)
+    expect(withTime.length).toBeGreaterThan(0)
+    expect(cancelled.some((a) => !a.cancelledAt)).toBe(true)
+    expect(withTime.some((a) => cancelLeadHours(a) > 24)).toBe(true)
+    expect(withTime.some((a) => cancelLeadHours(a) < 24)).toBe(true)
+    expect(Object.values(s.appts).some((a) => a.status !== 'cancelled' && a.cancelledAt)).toBe(false)
   })
 })

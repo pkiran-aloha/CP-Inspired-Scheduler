@@ -438,6 +438,14 @@ export default function SchedulerInsights({ days, onClose }) {
                 </div>
               </div>
 
+              <div className="si-note" data-testid="si-risk-notice">
+                {Icon.info({ size: 13 })}
+                <span>
+                  {risk.summary.noticeNote} The threshold ({risk.summary.notice.hours}h) is the practice's own — Billing → Setup, Rate &amp; Numbering Policy — and it is
+                  the same rule the Overbooking backtest uses.
+                </span>
+              </div>
+
               {!risk.rows.length && (
                 <div className="si-empty">{Icon.checkCircle({ size: 16 })} Nothing in this range looks likely to be missed. The reminder policy alone is enough.</div>
               )}

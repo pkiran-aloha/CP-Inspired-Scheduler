@@ -437,6 +437,13 @@ export default function BillingView({ initialTab }) {
                   <label key={k} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{l}</span><input className="input" style={{ borderRadius: 10, height: 40 }} data-testid={`bi-${k}`} type={text ? 'text' : 'number'} step={k === 'mileageRate' ? 0.05 : 1} value={k === 'invoicePrefix' ? bill.invoicePrefix || '' : settings[k]} onChange={(e) => (k === 'invoicePrefix' ? setBill({ invoicePrefix: e.target.value }) : actions.setSettings({ [k]: Number(e.target.value) || 0 }))} /></label>
                 ))}
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}><span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>Claim prefix</span><input className="input" style={{ borderRadius: 10, height: 40 }} data-testid="bi-claimPrefix" value={bill.claimPrefix || 'CLM'} onChange={(e) => setBill({ claimPrefix: e.target.value.toUpperCase() || 'CLM' })} /></label>
+                {/* One notice rule practice-wide: the risk model and the Overbooking backtest both
+                    read this. A well-noticed family cancellation stops counting as a lost slot. */}
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }} title="Hours of notice a cancellation must give before the practice is treated as able to refill the slot. Read by the no-show risk model and the Overbooking backtest.">Late-cancel notice (h)</span>
+                  <input className="input" style={{ borderRadius: 10, height: 40 }} data-testid="bi-latecancel" type="number" min={0} max={168} step={1} value={bill.lateCancelHours ?? 24}
+                    onChange={(e) => setBill({ lateCancelHours: Math.max(0, Math.min(168, e.target.value === '' ? 24 : Number(e.target.value))) })} />
+                </label>
               </div>
             </div>
             <div className="panel" style={{ borderRadius: 14, padding: 20, border: '1px solid var(--line)' }}>

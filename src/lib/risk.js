@@ -11,6 +11,9 @@
 //   · a smoothed, explainable model fitted on THIS practice's own appointment ledger
 //   · plus a small set of policy factors the ledger cannot learn (unconfirmed booking,
 //     backfilled slot, rescheduled slot, first session with the assigned technician)
+//   · a family cancellation that gave the practice more notice than its own threshold
+//     (`settings.billing.lateCancelHours`) is the practice getting told in time, so it is
+//     not counted against the family; an unknown notice time still is
 //   · NOT machine learning, NOT a clinical judgement, and it never sends anything.
 //
 // Nothing leaves the browser and no message is transmitted: a "risk" here is a prompt
@@ -18,7 +21,7 @@
 import { parseISO, todayISO } from './date'
 import { computeBilling, TYPES } from './model'
 import { isCancelStatus } from './settingsMasters'
-import { isPracticeCancel } from './cancelReasons'
+import { cancelLeadHours, cancelNoticeHoursOf, cancelSide, cancelledEarly, isPracticeCancel } from './cancelReasons'
 
 export const RISK_DEFAULTS = {
   enabled: true,
@@ -43,12 +46,45 @@ export const RISK_BANDS = {
 const isResolved = (a, settings, today) =>
   a.date < today && (a.status === 'completed' || a.status === 'no-show' || a.status === 'cancelled' || isCancelStatus(settings, a.status))
 
-const badOf = (a) => a.status === 'no-show' || a.status === 'cancelled'
+const isLost = (a, settings) => a.status === 'no-show' || isCancelStatus(settings, a.status)
 const logit = (p) => Math.log(p / (1 - p))
 const sigmoid = (x) => 1 / (1 + Math.exp(-x))
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v))
 const round2 = (n) => Math.round(n * 100) / 100
 const daysOutOf = (dateISO, today) => Math.round((parseISO(dateISO) - parseISO(today)) / 86400000)
+
+// A family cancellation that gave the practice more notice than its threshold is not
+// evidence that the family misses sessions — the slot could be refilled — so it stops
+// counting against the client's own rate and the practice-wide base alike. Practice-side
+// cancellations are never a family signal, and a cancellation whose reason is missing or
+// unrecorded keeps counting: the side is read, never assumed.
+const gaveNotice = (a, noticeHours) => cancelSide(a?.cancelReason) === 'client' && cancelledEarly(a, noticeHours)
+const badOf = (a, settings, noticeHours) => isLost(a, settings) && !gaveNotice(a, noticeHours)
+
+/**
+ * How much notice the ledger actually records, so the panel can say how far the rule
+ * bites instead of implying it is applying data it does not have.
+ */
+const noticeCoverage = (done, settings, noticeHours) => {
+  const clientCancels = done.filter((a) => a.status !== 'no-show' && isCancelStatus(settings, a.status) && !isPracticeCancel(a))
+  const dated = clientCancels.filter((a) => cancelLeadHours(a) != null)
+  return {
+    hours: noticeHours,
+    cancellations: clientCancels.length,
+    dated: dated.length,
+    early: dated.filter((a) => gaveNotice(a, noticeHours)).length,
+  }
+}
+
+const noticeCopy = ({ hours, cancellations, dated, early }) => {
+  if (!cancellations) return 'No family cancellation is on file yet, so the notice rule has nothing to weigh.'
+  const n = (v) => `${v} family cancellation${v === 1 ? '' : 's'}`
+  if (!dated) return `${n(cancellations)} on file, none recording how much notice it gave — an unknown time still counts as lost, never guessed.`
+  const earlyPart = early
+    ? `${early} gave more than ${hours}h notice and ${early === 1 ? 'is' : 'are'} not counted against the family (the slot could be refilled).`
+    : `None gave more than ${hours}h notice.`
+  return `${dated} of ${cancellations} family cancellations record their notice. ${earlyPart} No-shows, and cancellations with no time recorded, still count.`
+}
 
 export const riskTimeBand = (startMin) => {
   const h = Math.floor((startMin || 0) / 60)
@@ -78,8 +114,10 @@ export const RISK_LEAD_LABEL = { same: 'next day', soon: '2–3 days out', week:
  */
 export function riskModel(state, { today = todayISO() } = {}) {
   const cfg = riskCfg(state.settings)
+  const noticeHours = cancelNoticeHoursOf(state.settings)
+  const isBad = (a) => badOf(a, state.settings, noticeHours)
   const done = Object.values(state.appts || {}).filter((a) => isResolved(a, state.settings, today))
-  const bad = done.filter(badOf).length
+  const bad = done.filter(isBad).length
   const base = clamp((bad + 1) / (done.length + 2), 0.03, 0.55)
 
   const cohort = (keyOf) => {
@@ -89,7 +127,7 @@ export function riskModel(state, { today = todayISO() } = {}) {
       if (k == null) continue
       const g = (acc[k] = acc[k] || { n: 0, bad: 0 })
       g.n++
-      if (badOf(a)) g.bad++
+      if (isBad(a)) g.bad++
     }
     const out = {}
     for (const [k, g] of Object.entries(acc)) out[k] = { n: g.n, rate: (g.bad + cfg.shrinkCohort * base) / (g.n + cfg.shrinkCohort) }
@@ -104,7 +142,7 @@ export function riskModel(state, { today = todayISO() } = {}) {
     for (const cid of a.clientIds || []) {
       const g = (byClient[cid] = byClient[cid] || { n: 0, bad: 0, staff: new Set(), last: '' })
       g.n++
-      if (badOf(a)) g.bad++
+      if (isBad(a)) g.bad++
       for (const sid of a.staffIds || []) g.staff.add(sid)
       if (!g.last || a.date > g.last) g.last = a.date
     }
@@ -123,13 +161,17 @@ export function riskModel(state, { today = todayISO() } = {}) {
   const streak = {}
   for (const [cid, list] of Object.entries(recentByClient)) {
     const last2 = list.sort((x, y) => (x.date < y.date ? 1 : -1)).slice(0, 2)
-    streak[cid] = { misses: last2.filter(badOf).length, seen: last2.length }
+    streak[cid] = { misses: last2.filter(isBad).length, seen: last2.length }
   }
+
+  const notice = noticeCoverage(done, state.settings, noticeHours)
 
   return {
     base: round2(base),
     sample: done.length,
     events: bad,
+    notice,
+    noticeNote: noticeCopy(notice),
     cohort: { dow: cohort((a) => String(parseISO(a.date).getDay())), time: cohort((a) => riskTimeBand(a.start)) },
     clientRate,
     history: byClient,
@@ -265,6 +307,8 @@ export function riskQueue(state, days, { today = todayISO(), limit = 25 } = {}) 
       base: model.base,
       sample: model.sample,
       note: model.note,
+      notice: model.notice,
+      noticeNote: model.noticeNote,
     },
     model,
   }

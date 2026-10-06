@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { RISK_DEFAULTS, riskCfg, riskFor, riskModel, riskQueue, riskTimeBand, riskLeadBand } from '../lib/risk'
+import { parseISO } from '../lib/date'
 
 const TODAY = '2026-06-15'
 const appt = (id, date, status, extra = {}) => ({
@@ -104,6 +105,84 @@ describe('scoring one appointment', () => {
     const off = state(ledger(), { settings: { risk: { enabled: false } } })
     const r = riskFor(off, { ...slot, id: 'f1', clientIds: ['c1'] }, null, { today: TODAY })
     expect(r).toMatchObject({ score: 0, band: 'low', factors: [] })
+  })
+})
+
+// A family cancellation is the practice being told in time, not a family that evaporates:
+// one that gave more notice than `settings.billing.lateCancelHours` stops counting against
+// the client and the practice base. Unknown notice is never guessed, and practice-side
+// cancellations keep behaving exactly as they did.
+describe('notice on a family cancellation', () => {
+  const at = (a, hours) => new Date(parseISO(a.date).getTime() + (a.start - hours * 60) * 60000).toISOString()
+  // the same eight resolved sessions for c1 (four missed, four completed), with the four
+  // misses expressed as no-shows, as well-noticed family cancellations, or as late ones
+  const asCancelled = (hours, reason = 'Client ill') =>
+    ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'cancelled', cancelReason: reason, cancelledAt: at(a, hours) } : a))
+
+  it('stops counting a family cancellation that gave the practice notice', () => {
+    const noShows = riskModel(state(ledger()), { today: TODAY })
+    expect(noShows.events).toBe(4)
+    const noticed = riskModel(state(asCancelled(72)), { today: TODAY })
+    expect(noticed.events).toBe(0)
+    expect(noticed.history.c1.bad).toBe(0)
+    expect(noticed.streak.c1.misses).toBe(0)
+    expect(noticed.clientRate.c1.rate).toBeLessThan(noShows.clientRate.c1.rate)
+  })
+
+  it('still counts a cancellation that came too late, and one with no time on file', () => {
+    expect(riskModel(state(asCancelled(2)), { today: TODAY }).events).toBe(4)
+    const undated = ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'cancelled', cancelReason: 'Client ill' } : a))
+    expect(riskModel(state(undated), { today: TODAY }).events).toBe(4)
+  })
+
+  it('reads the threshold from the practice’s own late-cancel setting', () => {
+    const twenty = asCancelled(20)
+    expect(riskModel(state(twenty, { settings: { billing: { lateCancelHours: 12 } } }), { today: TODAY }).events).toBe(0)
+    expect(riskModel(state(twenty, { settings: { billing: { lateCancelHours: 48 } } }), { today: TODAY }).events).toBe(4)
+    // an off-menu value falls back to 24 rather than blinding the model
+    expect(riskModel(state(twenty, { settings: { billing: { lateCancelHours: 999 } } }), { today: TODAY }).events).toBe(4)
+  })
+
+  it('does not assume a side for a cancellation whose reason is missing or practice-side', () => {
+    const practice = ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'cancelled', cancelReason: 'Staff illness', cancelledAt: at(a, 72) } : a))
+    expect(riskModel(state(practice), { today: TODAY }).events).toBe(4)
+    const noReason = ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'cancelled', cancelledAt: at(a, 72) } : a))
+    expect(riskModel(state(noReason), { today: TODAY }).events).toBe(4)
+  })
+
+  it('counts every cancellation status the practice defines, like the overbooking backtest does', () => {
+    const settings = { apptStatuses: [{ key: 'family-out', label: 'Family out', cancelBand: true, active: true, order: 1 }] }
+    const rows = ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'family-out', cancelReason: 'Client ill', cancelledAt: at(a, 72) } : a))
+    expect(riskModel(state(rows, { settings }), { today: TODAY }).events).toBe(0)
+    const late = ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'family-out', cancelReason: 'Client ill', cancelledAt: at(a, 2) } : a))
+    expect(riskModel(state(late, { settings }), { today: TODAY }).events).toBe(4)
+  })
+
+  it('says how much notice is on file instead of implying it has data it does not', () => {
+    const none = riskModel(state(ledger()), { today: TODAY })
+    expect(none.notice).toMatchObject({ hours: 24, cancellations: 0, dated: 0, early: 0 })
+    expect(none.noticeNote).toMatch(/nothing to weigh/)
+
+    const undated = ledger().map((a) => (a.clientIds[0] === 'c1' && a.status === 'no-show' ? { ...a, status: 'cancelled', cancelReason: 'Client ill' } : a))
+    const quiet = riskModel(state(undated), { today: TODAY })
+    expect(quiet.notice).toMatchObject({ cancellations: 4, dated: 0, early: 0 })
+    expect(quiet.noticeNote).toMatch(/none recording how much notice it gave/)
+    expect(quiet.noticeNote).toMatch(/still counts as lost, never guessed/)
+
+    // two of the four carry their notice; one of them is refillable at 12 h, one is not
+    let n = 0
+    const mixed = ledger().map((a) => {
+      if (a.clientIds[0] !== 'c1' || a.status !== 'no-show') return a
+      n += 1
+      const patch = { status: 'cancelled', cancelReason: 'Client ill' }
+      const hours = n === 1 ? 30 : n === 2 ? 6 : null
+      return hours ? { ...a, ...patch, cancelledAt: at(a, hours) } : { ...a, ...patch }
+    })
+    const m = riskModel(state(mixed, { settings: { billing: { lateCancelHours: 12 } } }), { today: TODAY })
+    expect(m.notice).toMatchObject({ hours: 12, cancellations: 4, dated: 2, early: 1 })
+    expect(m.noticeNote).toMatch(/2 of 4 family cancellations record their notice/)
+    expect(m.noticeNote).toMatch(/1 gave more than 12h notice/)
+    expect(m.noticeNote).toMatch(/cancellations with no time recorded, still count/)
   })
 })
 

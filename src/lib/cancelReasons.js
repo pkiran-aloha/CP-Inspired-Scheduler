@@ -50,6 +50,29 @@ export function cancelLeadHours(a) {
   return (start - at) / 3600000
 }
 
+// ---- Notice: how long before the session the family told us ------------------------
+//
+// The practice's threshold is `settings.billing.lateCancelHours` (24 by default): the
+// notice a cancellation needs to give before the slot could realistically be refilled.
+// It is read from one place here so the risk model and the Overbooking backtest share a
+// single definition of "late" instead of drifting apart. Anything that is not a sane
+// 0–168 h (a week) falls back to the caller's default, so a hand-edited workspace cannot
+// smuggle in an off-menu number.
+export const LATE_CANCEL_HOURS = 24
+export const cancelNoticeHoursOf = (settings, fallback = LATE_CANCEL_HOURS) => {
+  const raw = settings?.billing?.lateCancelHours
+  if (raw === null || raw === undefined || raw === '') return fallback // missing means the default, not zero
+  const v = Number(raw)
+  return Number.isFinite(v) && v >= 0 && v <= 168 ? v : fallback
+}
+
+/**
+ * More notice than the threshold means the practice could refill the slot, so the
+ * cancellation is not evidence that the session simply evaporated. A no-show never
+ * counts, and neither does a cancellation with no time recorded — unknown is not guessed.
+ */
+export const cancelledEarly = (a, hours) => a?.status !== 'no-show' && (cancelLeadHours(a) ?? -Infinity) > hours
+
 /** The appointment patch for a picked reason (or the clearing patch when there is none). */
 // (undefined, not null, so a cleared reason vanishes from storage instead of lingering as a key)
 export const reasonPatch = (opt) => (opt ? { cancelReasonId: opt.id, cancelReason: opt.label } : { cancelReasonId: undefined, cancelReason: undefined })
@@ -105,4 +128,26 @@ export function seedCancelReason(status, clientId, dateISO) {
   for (const ch of `${clientId}|${dateISO}`) h = (h * 31 + ch.charCodeAt(0)) >>> 0
   const [id, label] = pool[h % pool.length]
   return { cancelReasonId: id, cancelReason: label }
+}
+
+// Demo notice spreads across both sides of the default 24 h line — some refillable, some
+// too late — and leaves roughly one cancellation in ten with no time at all, because a
+// saved workspace can hold those and the model must not guess for them either.
+const SEED_EARLY_NOTICE_H = [30, 48, 72, 120]
+const SEED_LATE_NOTICE_H = [1, 3, 8, 20]
+
+/**
+ * Deterministic demo notice for a seeded cancellation: the same `cancelledAt` instant
+ * `stampCancelledAt` writes, set `hours` before the session. No RNG, so the seed stream is
+ * untouched (the reason helper above relies on the same property). Returns undefined for
+ * the sessions that carry no recorded time.
+ */
+export function seedCancelNotice(status, clientId, dateISO, startMin) {
+  if (status !== 'cancelled') return undefined
+  let h = 0
+  for (const ch of `${clientId}|${dateISO}|notice`) h = (h * 31 + ch.charCodeAt(0)) >>> 0
+  const bucket = h % 10
+  if (bucket === 0) return undefined
+  const hours = bucket <= 4 ? SEED_EARLY_NOTICE_H[h % 4] : SEED_LATE_NOTICE_H[h % 4]
+  return new Date(parseISO(dateISO).getTime() + (startMin - hours * 60) * 60000).toISOString()
 }

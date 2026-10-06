@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 8a352cc plus the cancellation-notice branch on 2026-10-06; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -23,7 +23,7 @@ The desk has a range picker, a payer filter, KPI cards (In Staging, Drafts, Awai
 | Claim Desk | Every claim, with a status filter, search and sort (date, dollars, aging); the selected claim opens as a form |
 | Secondary | Claims eligible for a secondary (COB) draft; the work itself is in the Secondary Queue |
 | Blocked | Sessions that cannot be staged yet, with the reason and a link to the appointment |
-| Setup | Practice identity printed on forms, rate and numbering policy, and the claim gates |
+| Setup | Practice identity printed on forms, rate and numbering policy (including the **late-cancel notice** hours the risk model and overbooking backtest both read), and the claim gates |
 
 ### Workflow: from sessions to a submitted claim
 

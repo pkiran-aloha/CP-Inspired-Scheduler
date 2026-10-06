@@ -166,6 +166,18 @@ describe('scheduler insights panel', () => {
     expect(await screen.findByText(/no reminder was sent to the family/i)).toBeTruthy()
   })
 
+  it('says which cancellations the score spares, and how much notice the ledger holds', async () => {
+    seed()
+    await openPanel()
+    fireEvent.click(screen.getByTestId('si-tab-risk'))
+    const line = await screen.findByTestId('si-risk-notice')
+    expect(line.textContent).toMatch(/family cancellation/)
+    expect(line.textContent).toMatch(/not counted against the family|None gave more than/)
+    expect(line.textContent).toMatch(/24h/)
+    expect(line.textContent).toMatch(/Billing → Setup/)
+    expect(line.textContent).toMatch(/Overbooking backtest/)
+  })
+
   it('states plainly that nothing is transmitted and that the score is not clinical judgement', async () => {
     seed()
     await openPanel()
