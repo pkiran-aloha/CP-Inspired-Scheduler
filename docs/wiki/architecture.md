@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 3940947 on 2026-10-06; unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -68,7 +68,7 @@ Money is held in integer cents inside `paymentLedger.js` (`cents()`); values wit
 - When a change alters behaviour on purpose, search the tests for the old assumption in the same change, with `grep -rn "<old text or id>" src/__tests__`.
 - Exact-text queries throw on duplicates; panels that echo a message must not render the identical string twice.
 - Test setup: Vitest with the jsdom environment, files matching `src/**/*.test.{js,jsx}`, mocks restored between tests (`vite.config.js`). `npm test` runs `vitest run`.
-- Without npm (the maintainer's work PC): `node --check` for syntax, pure `src/lib` logic run directly with node through a resolve hook, then CI. JSX is verified only by CI.
+- The maintainer's work PC (Windows, Node 25) runs the full suite with three workarounds listed in `AGENTS.md` → "Commands": a clone outside `Documents`, npm started through node with `--preserve-symlinks`, and `NODE_OPTIONS=--no-experimental-webstorage`. Where npm cannot run at all, the fallback is `node --check` for syntax, pure `src/lib` logic run with node through a resolve hook, then CI.
 
 ### CI and deploy
 
