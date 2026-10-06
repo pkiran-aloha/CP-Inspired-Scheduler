@@ -1,10 +1,10 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (D1 caseload ramp built and PR'd; next pick is D2 hire/contract support, requirements not yet settled — or the small C4 threshold picker). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (end-of-session sync after D1 landed; next pick is D2 hire/contract support, requirements not yet settled — or the small C4 threshold picker). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff (2026-10-06, end of session): `main` = `824b086`, CI green (run 37456730963). **D1 caseload ramp**: PR #28 open from `arena/94a775aa-cp-inspired-scheduler`, CI green on the branch (run 37469217264); merge it to land, then confirm the `main` run. Earlier today, newest first: B4 access holdout, `cancelledAt` cancellation time, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. The maintainer's local checkout sits on `main` at `2568c9c` (behind): run `git pull --ff-only` there before building. `origin/fix/help-route` is no longer on the remote (was flagged superseded by the Help & Wiki work); `fix/help-route-and-wiki-test` still is.
+- State at handoff (2026-10-06, end of session): `main` = `458fac7`, CI green (run 37471361122), deployed to Pages. Landed today, newest first: **D1 caseload ramp (PR #28)**, B4 access holdout, `cancelledAt` cancellation time, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. No feature branch is in flight. The maintainer's local checkout is behind: run `git pull --ff-only` there before building. `origin/fix/help-route` is no longer on the remote (was flagged superseded by the Help & Wiki work); `fix/help-route-and-wiki-test` still is.
 
 ## How the maintainer works
 
@@ -16,7 +16,7 @@ Last updated **2026-10-06** (D1 caseload ramp built and PR'd; next pick is D2 hi
 
 ## Shipped (newest first)
 
-### D1 — caseload ramp (PR #28)
+### D1 — caseload ramp (PR #28, landed)
 
 - **What.** Scheduler Insights → **Ramp** tab (`si-tab-ramp`): the next 12 practice weeks (`RAMP_WEEKS`, honouring `settings.weekStart`), one row per week. Demand = each active client's `authWeekly` for as long as `authStart → authEnd` runs, plus open intake requests at their requested hours in a separate lighter band from their target date. Supply = each clinician's working day (`settings.workday`) minus blocked-out time — the Coverage tab's denominator — counted Mon–Fri (no practice-days setting exists yet; the panel says so), split RBT vs BCBA vs other clinical by `clinicianGroup` (free-text role/cert, tolerant matching; non-clinical staff excluded). Weeks where demand+intake exceeds supply are flagged; the header names the first short week.
 - **Requirements were settled with the maintainer first** (round-1 grilling): demand definition incl. the intake band, supply definition, 12-week horizon with table + simple bars, expiry handling, read-only Insights tab — all five as recommended in the draft.
@@ -285,7 +285,7 @@ Other open items, smaller:
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
 | ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint and cancellation time shipped too. Still open: threshold picker. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
-| ~~Scheduling idea D1~~ (built 2026-10-06, PR #28) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
+| ~~Scheduling idea D1~~ (shipped 2026-10-06) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 
 ## Known issues / backlog (not yet fixed)
@@ -304,7 +304,7 @@ These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can 
 
 **Continue with D2 (hire/contract decision support):**
 
-> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green; merge the D1 ramp PR if it is still open). Then settle D2's requirements with me first, starting from the round-1 candidates in HANDOFF "Next", and only then build it on a `feat/…` branch: tests, wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green). Then settle D2's requirements with me first, starting from the round-1 candidates in HANDOFF "Next", and only then build it on a `feat/…` branch: tests, wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
 
 **Status check only (no code changes):**
 
