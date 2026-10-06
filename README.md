@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Family statement to HFMA guidance
+
+The statement PDF is rebuilt to HFMA's patient-friendly billing guidance. It puts the amount due and due date at the top and the guardian's address in the envelope window. Each claim shows what insurance paid and what is the family's share, followed by aging and a tear-off remittance stub. It prints no diagnosis, member ID or birth date. Self-pay lines carry the No Surprises Act Good Faith Estimate notice.
+
 ### CMS-1500 to the NUCC / CMS standard
 
 The CMS-1500 (02/12) now follows the NUCC instruction manual item by item and prints every character on the form's 10-per-inch, 6-lines-per-inch grid. **Red form print** produces the data only, for genuine red-ink forms, which is the paper claim scanning payers accept. The **CMS-1500** download adds the drawn form and is marked as a review copy. Clients > Edit now records the home address the form needs in item 5.

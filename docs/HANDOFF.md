@@ -16,6 +16,13 @@ Last updated **2026-10-06** (red-main fix, `fix/family-balances-date`). Any agen
 
 ## Shipped (newest first)
 
+### Family statement to HFMA guidance (`feat/family-statement`)
+
+- **Why.** The old statement PDF was a generic key/value document (via `docToPdf`): no due date, no proof of what insurance paid, no envelope-window layout, no remittance stub. Research basis: HFMA patient-friendly billing ("clear, concise, correct"; see at a glance what the plan paid and what you owe; whom to call), HIPAA practice for mailed bills (only the addressee shows through the window; no diagnosis), the No Surprises Act GFE / patient-provider dispute rules (45 CFR 149.610: $400 threshold, 120 days from the bill) for self-pay lines.
+- **`src/lib/statements.js`.** `statementDoc` was replaced by `statementView` (pure: guarantor block, due date = statement date + `settings.billing.dueDays`, per-claim charges / insurance paid / adjustments / your share / paid since / you owe, aging buckets from each claim's last DOS, payment link, notices) and `statementPdf`, which draws it with jsPDF (letter; header, #10 window address block at 0.875in, amount-due panel, account summary, activity table, aging, messages, dashed tear line and remittance stub on page 1, continuation pages, page numbers, VOID stamp). It prints no diagnosis, member ID or DOB. A void statement shows nothing owed.
+- **Verification:** rendered sample statements with node + jsPDF 4.2.1 and viewed them with pdf.js in the browser pane (1-claim, 4-claim with self-pay notice, 18-claim two-page, void). New assertions run in node; `statements.test.jsx` and `paymentLink.test.jsx` were updated and run in CI.
+- **Not done:** Section 1557 language-assistance taglines (needed when the practice takes federal funds; would be a settings block with a per-family opt-out); a per-guarantor "send to" override for confidential communications (45 CFR 164.522(b)); previous-balance carry-forward between statements; a definitions page on the back.
+
 ### Fix — date-dependent family-balance test (`fix/family-balances-date`)
 
 - `main` went red on 2026-10-06 (run 37407890514, after a docs-only merge): `familyBalances.test.jsx` expected 3 families with a balance and got 4. Cause: on Tuesdays and Wednesdays the demo seed leaves a self-pay family invoice open (or, before this fix, denied), and an open self-pay invoice is a real family balance. The test meant "families owing a coinsurance share", so it now counts insurance balances only.
