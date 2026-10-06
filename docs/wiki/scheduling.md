@@ -1,8 +1,8 @@
 # Scheduling
 
-_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main 4b850b4 plus the feat/cms1500-standard branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 957dbf1 plus the feat/overbooking-guidance branch on 2026-10-06; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -95,13 +95,16 @@ The needs-cover inbox lists cancelled sessions in the visible range that a quali
 
 ### Scheduler Insights
 
-Open it from the calendar toolbar or with `I`. It is scoped to the range on screen and has five tabs:
+Open it from the calendar toolbar or with `I`. It is scoped to the range on screen and has six tabs:
 
 - **Coverage.** Four KPIs (schedule fill against a labelled 85-95% band, open capacity, authorizations needing action, at-risk sessions), a weekday-by-hour heat grid, and named idle windows per clinician that click through to that day and person.
 - **Density.** Same-day optimisation suggestions for future, unclaimed clinical sessions. A row says what to move, where it would land next to an existing block, how much split idle time or day span it saves, and whether any review warnings remain. **Move here** rechecks live staff/client conflicts plus Stop-level overlap/travel rules, then moves that one appointment locally with one Undo. It keeps the same staff, clients and length; it does not move separate Drive Time blocks, send messages, edit a series or call a map service.
 - **Authorizations.** Burn-down per client: committed against authorized hours, this week against the authorized week, days to expiry, projected exhaustion, with a needs-action or all-clients toggle.
 - **At risk.** The riskiest sessions with score, factors, recommended action, **Open** and **Confirm**. Confirm marks the session confirmed locally (one Undo). No reminder is sent to the family.
 - **Travel.** Per-clinician day routes with legs, travel minutes, tight/impossible legs, totals and a read-only suggested re-order with miles saved. Nothing moves.
+- **Overbooking.** Each weekday × time band (split by office when the practice has more than one) with its last 12 weeks: how many weeks had sessions, sessions, the share lost and the no-show share. A block reads **Room for one extra** (or two) only when both checks clear 80%: at least that many sessions were lost there in 80% of its weeks, and the sessions already booked on its next day give 80% odds of the same. A block with fewer than 8 weeks of history reads **Not enough history**; one that falls short says how many sessions a week it has and how many it would need. A marked block lists up to three **standby** families who are behind their authorized pace and have nothing in that block yet. **Show** opens the block's next day. Read-only: nothing is booked, moved or sent.
+
+Overbooking guidance never suggests a second client on the same clinician: 97153 is one client face to face, and overlapping sessions by one provider are not billable. An extra session belongs on a clinician who is free in that block. Guidance is per block, never a score for a family. Practice cancellations (staff illness and the like) are left out. Cancellation timing is not recorded, so family cancellations of any notice count as lost; the no-show share is the floor.
 
 Risk factors are labelled `history` (learned from this workspace's resolved appointments) or `policy` (a documented rule such as short lead time, unconfirmed, backfilled, first session with a technician).
 
@@ -140,7 +143,8 @@ The Density tab is the exception that adds a pure preflight before using the nor
 - [authUnits.js](../../src/lib/authUnits.js): per-code unit ledger and payer rule pack. `unitRuleFor` (payer service override, then payer service, then service master, then code default; AMA default), `unitsFor` (rounding; the function lives in `model.js` and is re-exported here), `apptUnits`, `unitLedger`, `unitCheckFor`, `mergeAuthChecks(hours, units, settings)` (folds both verdicts under the same mode cap), `normalizeAuthUnits`, `normalizeUnitNorms` (one-time move of untouched 30-minute defaults to 15 minutes), `seedAuthUnits`, `poolFromWeeklyHours`. Kept separate from `authBudget.js` to avoid an import cycle through `master.js`.
 - [bookingChecks.js](../../src/lib/bookingChecks.js): `candidateVerdicts(state, draft, kind, opts)` returns `{personId: {tone, label, detail, count}}`; `authChip`, `TONE_RANK`.
 - [risk.js](../../src/lib/risk.js): `riskModel`, `riskFor`, `riskQueue`, `riskOf`, `riskCfg`, `RISK_BANDS`. Settings key `settings.risk`; no Settings panel edits it, so defaults apply.
-- [insights.js](../../src/lib/insights.js): `coverageBoard`, `insightBoard`, `forwardDays`; it also pulls in the density board for the Scheduler Insights tabs.
+- [insights.js](../../src/lib/insights.js): `coverageBoard`, `insightBoard`, `forwardDays`; it also pulls in the density and overbooking boards for the Scheduler Insights tabs.
+- [overbook.js](../../src/lib/overbook.js): C4 overbooking guidance. `overbookBoard(state, {today})` backtests each office × weekday × time band over the last 12 weeks (`overbookWeeks`), rates blocks with at least 8 weeks (`overbookMinWeeks`), and marks k = 1 or 2 when both the weekly backtest and the binomial odds (`atLeast(k, n, p)`, block rate shrunk toward the practice rate) reach `overbookSafePct` (80). Standby families come from `authBurn` band `under`. Settings live in `settings.risk` with no Settings UI. `sessionsNeeded(p, safe)` gives the block size a loss rate needs.
 - [density.js](../../src/lib/density.js): B2 density optimiser. `densityBoard(state, days)` ranks same-day moves that pull future unclaimed clinical sessions next to an existing block and reports split idle/span savings; `planDensityMove` rechecks one move before the UI writes it.
 - [cancelReasons.js](../../src/lib/cancelReasons.js): `cancelReasonOptions`, `cancelSide`, `isPracticeCancel`, `reasonPatch`, `cancelReasonRows`, `seedCancelReason`. Appointments store `cancelReasonId` and `cancelReason`.
 - [smart.js](../../src/lib/smart.js): `suggestStaff`, `scanNeedsCover`, `backfillFor`, `smartCfg` (weights for team, history, fit, load under Settings > System Settings > Smart scheduling).
@@ -161,14 +165,14 @@ The Density tab is the exception that adds a pure preflight before using the nor
 
 ### Tests
 
-`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js` (coverage + density), `schedulerInsights.test.jsx` (Insights tabs + density move), `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
+`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js` (coverage + density), `schedulerInsights.test.jsx` (Insights tabs, density move, overbooking tab), `overbook.test.js`, `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
 
 ## Not yet built
 
 From the status column of `docs/specs/scheduling-intelligence-ideas.md`:
 
-- Not built: access holdout (B4), calibrated overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4).
-- Shipped from the catalogue: density optimiser (B2), travel feasibility and route view (B3 Slice1+2), and intake-to-first-week handoff (D3).
+- Not built: access holdout (B4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4).
+- Shipped from the catalogue: density optimiser (B2), calibrated overbooking guidance (C4, read-only), travel feasibility and route view (B3 Slice1+2), and intake-to-first-week handoff (D3).
 - Partly built: renewal watchlist has alerts and projected exhaustion but no packet builder (A3); credential check at booking exists but is not credential-aware density (B5); continuity exists only as a risk factor (C2); supervision ratio is a report, not a booking guard (C5); re-assessment is a report (C6).
 
 Honest limits:

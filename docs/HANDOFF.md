@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (red-main fix, `fix/family-balances-date`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (C4 overbooking guidance, `feat/overbooking-guidance`). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
@@ -15,6 +15,15 @@ Last updated **2026-10-06** (red-main fix, `fix/family-balances-date`). Any agen
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### C4 — calibrated overbooking guidance (`feat/overbooking-guidance`)
+
+- **Research basis (settled with the maintainer before building).** 97153 is one patient face to face; one technician billing two clients for the same minutes is the "overlapping service times" finding in the OIG ABA Medicaid audits (Indiana, Wisconsin, Colorado), and payers such as Anthem Indiana Medicaid refuse it. ABA practices handle losses with floaters, cross-training and waitlist backfill, not clinician double-booking. Overbooking literature (LaGanga & Lawrence; Zeng et al.; NAM *Getting to Now*) treats losses as binomial and sets the threshold as a cost ratio: 80% means turning a family away costs about 4× an idle hour. Scoring families for overbooking overbooks disadvantaged families (Samorani et al.), so guidance is per block only.
+- **`src/lib/overbook.js`.** `overbookBoard(state, {today})` groups resolved clinical sessions from the last 12 weeks by office (only when there are several) × weekday × time band (`riskTimeBand`). Lost = no-show or family cancellation; practice cancellations (`isPracticeCancel`) are left out. A block needs 8 weeks with sessions to be rated. It is marked for k = 1 or 2 extra sessions only when both the weekly backtest (lost ≥ k in ≥ 80% of its weeks) and the binomial odds for the sessions booked on its next day (`atLeast`, block rate shrunk toward the practice rate with `shrinkCohort`) reach `settings.risk.overbookSafePct` (80, no Settings UI). Marked blocks list up to three standby clients whose `authBurn` band is `under` and who have nothing in that block. `insightBoard` returns it as `overbook`.
+- **UI.** Scheduler Insights → **Overbooking** tab (`si-tab-overbook`, rows `si-ob-[office-]<dow>-<band>`, empty state `si-ob-empty`): weeks, sessions, % lost and % no-shows per block, a status chip, the reason in words, standby names, and **Show** to open the block's next day. Read-only: no new action, field, collection or migration.
+- **Demo data.** The demo seed has about 3 sessions per block per week, so no block clears 80% (it would need about 10–18). The tab says so per block; the tests use a dense fixture instead of changing the seed.
+- **Verification:** `overbook.test.js` (11) passed in node through a small vitest shim; `schedulerInsights.test.jsx` gained 3 UI tests (tab, empty state, Show), run in CI.
+- **Not done:** recording `cancelledAt` so only late cancellations count (needs a field + migration); a 70/80/90 threshold picker; a Checks-rail hint in the booking dialog (cheap: one `flag` group in `AppointmentModal.jsx`).
 
 ### Superbill for out-of-network families (`feat/superbill`)
 
@@ -213,7 +222,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. Pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), access holdout (B4), overbooking guidance (C4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
+B2 density, B3 travel, follow-up 4, the small correctness batch, DSO consistency and the unified A/R aging engine are complete or in the current branch as noted above. Remaining open items are in the waves table "Still open" notes and "Known issues / backlog" below, plus the `docs/wiki/architecture.md` mismatch list. D3 is implemented above, not a new selection. Pick one with the maintainer: one of the smaller architecture mismatches (the `build*` document helpers only tests import, or any of the remaining doc/code items), access holdout (B4), caseload ramp forecast (D1), hire/contract decision support (D2), scenario planner (D4), or a backlog item. The DSO formula and both aging-engine mismatches are resolved.
 
 Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §6 item 2, §7 honesty constraints). Shipped: travel.js pure engine (1.3× road factor at 25 mph +5 buffer, honest copy), office lat/lng, staff.travel Warn, booking dialog Checks rail, candidate verdicts, Scheduler Insights Travel tab with legs and suggested re-order read-only.
 
@@ -226,6 +235,7 @@ Spec reference for B3: `docs/specs/scheduling-intelligence-ideas.md` (§4 B3, §
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• demo family balances, Cabinet and CEU data shipped 2026-10-05 (follow-ups 1a, 1c)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
+| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Still open: `cancelledAt`, threshold picker, booking-dialog hint. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 

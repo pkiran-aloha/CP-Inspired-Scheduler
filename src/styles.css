@@ -4085,3 +4085,6 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .pf-tiles { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); }
 @media (max-width: 640px) { .pf-chips { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 420px) { .pf-chips { grid-template-columns: minmax(0, 1fr); } }
+
+/* C4 overbooking guidance */
+.si-ob-list { display: flex; flex-direction: column; gap: 10px; }

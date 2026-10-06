@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced against main 4b850b4 plus the feat/cms1500-standard branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 957dbf1 plus the feat/overbooking-guidance branch on 2026-10-06; unrelated behavior unchanged._
 
 [Wiki home](README.md)
 
@@ -46,6 +46,10 @@ It uses the payer's unit size and rounding for that service, then the service ma
 ### How do I cancel a session?
 
 Use Cancel (or Skip occurrence for a series) on the session's detail card, then pick a reason from the practice's cancellation reasons list. The reason is required, and it feeds the Cancellation Root Cause report. Practice-side reasons, such as staff illness, are kept out of the family's risk history. [More: Scheduling](scheduling.md#cancelling-and-skipping)
+
+### Can Aloha tell me where to overbook?
+
+Scheduler Insights → Overbooking shows the weekday time blocks that lost a session in at least 80% of the last 12 weeks, where the sessions already booked make another loss likely. One extra session booked there, on a clinician who is free then, would usually have been absorbed. It never suggests two clients on one clinician, never scores a family, and books nothing. In a small practice most blocks show "Not yet" with the number of sessions they would need. [More: Scheduling](scheduling.md#scheduler-insights)
 
 ### Does Aloha send reminders to families?
 

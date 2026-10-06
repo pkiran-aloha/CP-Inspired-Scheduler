@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Overbooking guidance (C4)
+
+Scheduler Insights has an **Overbooking** tab. For each weekday and time band (per office when there are several) it looks back 12 weeks and marks a block **Room for one extra** only when a session was lost there in at least 80% of its weeks and the sessions booked on its next day give at least 80% odds of a loss. Blocks with under 8 weeks of history say so; blocks that fall short say how many sessions a week they would need. Marked blocks list up to three standby families who are behind their authorized pace. It is read-only and never suggests a second client on the same clinician (97153 is one client face to face). Practice cancellations are left out; family cancellations of any notice count, because cancellation timing is not recorded. Code: `src/lib/overbook.js`; tests `overbook.test.js` and `schedulerInsights.test.jsx`.
+
 ### Superbill for out-of-network families
 
 Generate Invoice > select a client > **Superbill** downloads an itemized superbill of the family's self-pay services in the page's date range, for the family to send to its own insurer. It carries the provider tax ID and NPIs, the rendering clinicians and credentials, ICD-10 diagnoses, and CPT codes with modifiers, units, place of service and charges. Services already billed to an insurer never appear on it.
