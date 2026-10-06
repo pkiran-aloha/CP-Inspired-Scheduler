@@ -1,13 +1,13 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (C4 confidence-threshold picker landed via PR #31; D2 landed via PR #30; the test suite now runs on the work PC). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06** (cancellation notice in the risk model opened — C4's last open item; C4 confidence-threshold picker landed via PR #31; D2 landed via PR #30; the test suite now runs on the work PC). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
   - `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`: the main checkout. Git works there, but node/npm cannot write under `Documents` (see below).
   - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
-- State at handoff (2026-10-06): `origin/main` was `e37d97c` when PR #31 (C4 confidence-threshold picker) was opened; PR #30 (D2 hire/contract) merged at `3940947`, CI green (run 37478896893). Earlier today, newest first: Windows test fix, D2, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
+- State at handoff (2026-10-06): `origin/main` is `8a352cc` — PR #31 (C4 confidence-threshold picker) merged, CI green (run 37485478015, deployed) — and the cancellation-notice follow-up is on `arena/…` awaiting its PR. Newest first today: cancellation notice (this branch), C4 confidence-threshold picker, Windows test fix, D2 hire/contract, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
 
 ## How the maintainer works
 
@@ -23,6 +23,15 @@ Last updated **2026-10-06** (C4 confidence-threshold picker landed via PR #31; D
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### C4 follow-up — cancellation notice in the risk model (`arena/…`, PR #NN)
+
+- **What.** The at-risk worklist now honours the practice's late-cancel notice threshold: a **family-side** cancellation that gave more notice than `settings.billing.lateCancelHours` (24 h by default) stops counting as a lost slot — in the client's own attendance rate, the missed-session streak and the practice-wide base rate alike. No-shows, cancellations under the threshold, cancellations with no time recorded, and cancellations whose reason is missing or practice-side count exactly as before.
+- **One threshold, two engines.** `cancelNoticeHoursOf(settings, fallback)` and `cancelledEarly(a, hours)` in `cancelReasons.js` own the rule; `risk.js` reads them, and `overbook.js` now reads the same setting instead of its own `overbookLateHours` constant (the constant stays as the fallback, `cfg.lateHours` reports the effective value). The Billing desk's Setup tab got the row that was missing (`bi-latecancel`, clamped 0–168 h): the setting was stored but editable nowhere before.
+- **Honesty.** The Risk tab adds a line (`si-risk-notice`) saying how many family cancellations record their notice and how many were spared; when none carry a time it says the rule has nothing to weigh instead of implying it applied data it does not have. A cancellation's side is read from its reason, never assumed. The model's loss check now uses `isCancelStatus`, matching the backtest, so a practice-defined cancellation status counts.
+- **Demo data.** Seeded cancellations get a deterministic notice spread across the 24 h line (hash-based, so the seed RNG stream is untouched) and about one in ten keeps no time at all, so the honest "notice unknown" case stays visible.
+- **Verification.** `schedulingRisk.test.js` +6 (neutral / late + undated / the setting and its fallback / practice-side + reason-less / custom cancel status / notice coverage and copy), `cancelReasons.test.js` +3 (sanitized threshold, `cancelledEarly` edges, deterministic seed notice), `overbook.test.js` +1 (12 h vs 48 h moves the line; off-menu falls back), `sections.test.jsx` +1 (the Billing row persists and clamps), `schedulerInsights.test.jsx` +1 (the notice line names the threshold and where it lives). Full local suite 89 files / 932 tests green; `npm run build` passed (chunk-size warning only).
+- Closes the "Not done: using `cancelledAt` in the risk model" note and the waves-table C4 "still open"; `settings.billing.lateCancelHours` comes off the "Stored but read by nothing" list in `docs/specs/configurable-billing.md`.
 
 ### C4 — confidence-threshold picker (PR #31)
 
@@ -68,7 +77,7 @@ Last updated **2026-10-06** (C4 confidence-threshold picker landed via PR #31; D
 - **Verification:** `overbook.test.js` (11) passed in node through a small vitest shim; `schedulerInsights.test.jsx` gained 3 UI tests (tab, empty state, Show), run in CI.
 - **Booking-dialog hint (`feat/overbook-booking-hint`).** A new clinical booking whose weekday × time band is marked gets a `flag` group in the Checks rail (`appt-overbook`, built in `AppointmentModal.jsx` from `overbookBlockFor`): the backtest line plus "never as a second client on the same clinician". Create mode only; never blocks. Tests: one pure case in `overbook.test.js`, two UI cases in `schedulerInsights.test.jsx`.
 - **Cancellation time (`feat/cancelled-at`).** `stampCancelledAt` in `cancelReasons.js` runs inside the `patch` and `upsertMany` reducer cases: entering a cancellation status (not no-show) stamps `cancelledAt` (ISO), leaving one clears it, staying cancelled keeps what was known (nothing, for an old cancellation). Other appointment writers (claims, settings cascades, data import) do not stamp: they are not a cancellation by a person. Deliberately **no migration**: backfilling would invent a time. Restore refuses a non-date `cancelledAt`. `overbook.js` leaves out family cancellations with `cancelLeadHours` > `overbookLateHours` (24) and counts the undated ones it still includes. Tests: `cancelReasons.test.js`, `store.test.js`, `workspaceBackup.test.js`, `overbook.test.js`.
-- **Not done:** using `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist. (The 70/80/90 threshold picker has since shipped — PR #31.)
+- **Not done:** nothing outstanding from this slice. (The 70/80/90 threshold picker has since shipped — PR #31 — and the `cancelledAt` notice rate in the risk model shipped after it: see the entry above.)
 
 ### Good Faith Estimate (`feat/good-faith-estimate`)
 
@@ -291,10 +300,9 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker has shipped (PR #31). **Recommended next:** the smallest C4/D1 follow-ups below, or a billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. **Recommended next:** the D1 practice-days follow-up, the `14220` mileage-code fix, or a billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
-- C4: use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
 - D1 follow-ups (only if the ramp proves out): a practice-days setting so supply stops assuming Mon–Fri; intake conversion tracking once enough history exists (still never a forecast knob).
 - D4 scenario planner (L).
 - Billing-form follow-ups (each "Not done" in the CMS-1500, statement and GFE entries above):
@@ -318,7 +326,7 @@ Other open items, smaller:
 | ~~Inbox, tasks, notifications (#1 + #2)~~ (shipped 2026-10-05) | Message center + task assignment + notifications | Tasks, notifications and messages have shipped. Local, in-workspace only (no delivery off-device, no client portal). The demo admin's missing staff link is handled by team-wide task notifications (follow-up 1b). |
 | ~~Records (#4, #10, #13)~~ (shipped 2026-10-04) | Client statements; Cabinet expirations; RBT PDU report | All three slices have shipped (see Shipped above). Still open:<br>• demo family balances, Cabinet and CEU data shipped 2026-10-05 (follow-ups 1a, 1c)<br>• statements are never delivered by the app, and Cabinet stores no files |
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
-| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint, cancellation time and the 70/80/90 confidence-threshold picker (PR #31) shipped too. Still open: the late-cancel rate from `cancelledAt`. |
+| ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint, cancellation time, the 70/80/90 confidence-threshold picker (PR #31) and the late-cancel notice rate in the risk model (2026-10-06, one threshold shared with the backtest) shipped too. Still open: nothing. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
 | ~~Scheduling idea D1~~ (built 2026-10-06, PR #28) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
 | ~~Scheduling idea D2~~ (built 2026-10-06) | Hire/contract decision support | Read-only verdict strip on the Ramp tab: hours gap vs template problem from short weeks + Coverage fill (85%). Hours, never a headcount. Thin data named, never invented. |

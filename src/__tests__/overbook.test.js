@@ -77,6 +77,29 @@ describe('overbooking guidance', () => {
     expect(overbookBoard(dense({ lostStatus: 'cancelled', lostExtra: { cancelReason: 'Transportation' } }), { today: TODAY }).summary.undated).toBe(22)
   })
 
+  it('reads the practice’s late-cancel notice setting — the same one the risk model uses', () => {
+    const at = (hoursAhead) => (a) => new Date(parseISO(a.date).getTime() + (a.start - hoursAhead * 60) * 60000).toISOString()
+    const build = (lateCancelHours, hoursAhead) => {
+      const s = dense({ lostStatus: 'cancelled', lostExtra: { cancelReason: 'Transportation' }, settings: { billing: { lateCancelHours } } })
+      for (const a of Object.values(s.appts)) if (a.status === 'cancelled') a.cancelledAt = at(hoursAhead)(a)
+      return overbookBoard(s, { today: TODAY })
+    }
+    // 20 h of notice refills the slot at a 12 h threshold, and comes too late at 48 h
+    const tight = build(12, 20)
+    expect(tight.cfg.lateHours).toBe(12)
+    expect(tight.summary.early).toBe(22)
+    expect(mondayAfternoon(tight).lost).toBe(0)
+    expect(tight.note).toMatch(/22 cancelled more than 12h ahead/)
+    const loose = build(48, 20)
+    expect(loose.cfg.lateHours).toBe(48)
+    expect(loose.summary.early).toBe(0)
+    expect(mondayAfternoon(loose).lost).toBe(22)
+    // an off-menu number falls back to the default rather than changing the backtest
+    const odd = build(999, 20)
+    expect(odd.cfg.lateHours).toBe(24)
+    expect(odd.summary.early).toBe(0)
+  })
+
   it('refuses to rate a block with too few weeks of history', () => {
     const b = mondayAfternoon(overbookBoard(dense({ weeks: 5 }), { today: TODAY }))
     expect(b.status).toBe('thin')

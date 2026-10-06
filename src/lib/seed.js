@@ -3,7 +3,7 @@ import { addDays, isoDate, pad, parseISO, todayISO } from './date'
 import { uid, autoBilling, VERIFY_CHECKS, SERVICES, BILL_CODES } from './model'
 import { SMART_DEFAULTS } from './smart'
 import { AUTH_GUARD_DEFAULTS } from './authBudget'
-import { seedCancelReason } from './cancelReasons'
+import { seedCancelNotice, seedCancelReason } from './cancelReasons'
 import { stagedAppts, planClaims, assembleClaims, PAYER_POLICY, DENIAL_REASONS, nextClaimSeq, npiOf } from './claims'
 import { defaultPayrollSettings, seedPayProfiles, periodsFor, sheetKey, periodFor } from './payroll'
 
@@ -422,6 +422,9 @@ export function buildSeed(todayISO) {
                 },
               }
             : null
+        // when the family told us (deterministic, like the reason): some cancellations
+        // carry no time at all, and the engines must not guess for those
+        const notice = seedCancelNotice(status, c.id, di, start)
         push({
           type: 'service',
           date: di,
@@ -432,6 +435,7 @@ export function buildSeed(todayISO) {
           clientIds: [c.id],
           status,
           ...(status === 'cancelled' || status === 'no-show' ? seedCancelReason(status, c.id, di) : {}),
+          ...(notice ? { cancelledAt: notice } : {}),
           location: c.home === 'Main Center' && rnd() < 0.15 ? 'Clinic Room 2' : c.home,
           service: s.svc,
           notes,

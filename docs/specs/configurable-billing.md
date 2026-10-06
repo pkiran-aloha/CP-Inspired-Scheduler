@@ -60,5 +60,6 @@ Medicaid is the largest payer, so its norms are the default. A payer's own contr
 - `rules.claims.file`, `apptTime`, and the taxonomy flags
 - `ext.requiresSecondaryBox18`
 - `payer.format`, `clearingHouse`, `payerId`
-- `settings.billing.lateCancelHours`
 - `TAXONOMIES`, `PAYER_ID_TABS`
+
+`settings.billing.lateCancelHours` came off this list: it is now the practice's late-cancel notice threshold, read by the risk model and the Overbooking backtest and editable in Billing → Setup.

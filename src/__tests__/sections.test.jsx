@@ -345,6 +345,19 @@ describe('billing workspace', () => {
     await waitFor(() => expect(stored().settings.billing.requireVerification).toBe(false))
   })
 
+  it('the late-cancel notice threshold is a practice setting, clamped to a sane range', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-billing'))
+    await screen.findByTestId('bil-tab-setup')
+    fireEvent.click(screen.getByTestId('bil-tab-setup'))
+    expect(screen.getByTestId('bi-latecancel').value).toBe('24')
+    fireEvent.change(screen.getByTestId('bi-latecancel'), { target: { value: '12' } })
+    await waitFor(() => expect(stored().settings.billing.lateCancelHours).toBe(12))
+    // an off-menu number is clamped here, so the engines never see it
+    fireEvent.change(screen.getByTestId('bi-latecancel'), { target: { value: '999' } })
+    await waitFor(() => expect(stored().settings.billing.lateCancelHours).toBe(168))
+  })
+
   it('blocked lines get auto-fixed from the code table (billing completeness gate)', async () => {
     // inject a completed session with 0 units — exactly what the blocked-claims validation targets
     const { blankState } = await import('../state/store')
