@@ -1,7 +1,7 @@
 # Accounts receivable
 
-_Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main f06022d plus the feat/superbill branch on 2026-10-06; unrelated behavior unchanged._
+_Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/gfe.js, src/components/GfeDialog.jsx, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
+_Last synced against main 957dbf1 plus the feat/good-faith-estimate branch on 2026-10-06; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -91,6 +91,22 @@ It carries what payers ask for on member claims (Cigna's behavioral-health membe
 - **Totals:** total charges, paid by the patient, balance (or "Paid in full"), an attestation and a provider signature and date line.
 
 Only self-pay claims are listed (not draft or void), so services the practice already billed to an insurer can never be submitted twice. `src/lib/superbill.js` (`superbillClaims`, `superbillView`, `superbillPdf`); tests: `superbill.test.jsx`.
+
+### Good Faith Estimate (uninsured or self-pay families)
+
+Under the No Surprises Act (45 CFR 149.610), a practice must give an uninsured or self-pay family a written Good Faith Estimate of expected charges. It is due within 1 business day of scheduling (3 business days when care is scheduled 10 or more business days out), and within 3 business days when the family asks. Open the client's profile and press **Good Faith Estimate**.
+
+- **Prefilled from the calendar.** Each billing code's units per week come from the client's sessions booked in the four weeks from the start date (or the four weeks before, when nothing is booked yet), at the rate those sessions carry. Change the start date, the period (1 to 12 months: one estimate may cover recurring care for up to a year), the codes, units and rates, and note any items expected to be scheduled separately.
+- **The PDF follows the rule and the CMS model notice:**
+  - patient name and birth date, diagnosis codes, the primary service in plain language and the period
+  - the provider's name, NPI, tax ID, location and state
+  - an itemized estimate per service with service code, diagnosis code, units, rate and expected cost, plus the scope of each recurring service ("40 units a week, about 10 hours, for 26 weeks")
+  - the total, and that the estimate is valid for 12 months
+  - the boxed separately-scheduled disclaimer and list
+  - the model notice's disclaimer word for word ($400 or more above the estimate, 120 calendar days, the $25 fee, 1-800-985-3059, not a contract, keep a copy), plus the two statements the rule requires that the model page leaves out (additional separately scheduled services; disputing does not affect care)
+- **Nothing is kept or sent.** The app does not store issued estimates or deliver them. Give the PDF to the family and save it with the client's record: a copy of any estimate from the last 6 years must be produced on request.
+
+`src/lib/gfe.js` (`suggestGfeRows`, `planGfe`, `gfePdf`, `GFE_DISCLAIMER`) and `src/components/GfeDialog.jsx`; tests: `gfe.test.jsx`.
 
 ### The desk's aging indicators
 
