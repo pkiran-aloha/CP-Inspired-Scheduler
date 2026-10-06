@@ -16,6 +16,18 @@ Last updated **2026-10-06** (doc mismatches #1–6, `docs/mismatch-nits`). Any a
 
 ## Shipped (newest first)
 
+### CMS-1500 to the NUCC / CMS standard (`feat/cms1500-standard`)
+
+- **Research basis.** NUCC 1500 Reference Instruction Manual v13.0 (07/25) for item content and formats; CMS Pub 100-04 ch. 26 §30 for the print spec (10-pitch pica: 10 characters per inch × 6 lines per inch, column 1 at 0.35 in, first print line 1.33 in down); field positions measured from the CMS 02/12 sample PDF and cross-checked against the CMS print-file table and OpenEMR's 02/12 generator. CMS, NUCC and the MACs accept paper claims only on forms printed in Flint J-6983 red dropout ink; photocopies and black-and-white prints are returned.
+- **`src/lib/cms1500.js` rewritten in three layers.** `cms1500Data` returns NUCC item values (`items` keyed by item number). `layout1500` returns `{line, col, text}` on the grid. `claimTo1500` / `claimsTo1500` take `{ mode: 'copy' | 'data' }`. Data prints in black Courier 10 pt with 1.2 pt character spacing, so each character advances exactly 7.2 pt.
+- **What was wrong before.** Boxes were misnumbered: timely filing days in "10", balance due in 30 (reserved since 02/12), account subdivision in 29, and the payer's own payment in 29 (it means patient and other payers). Retired qualifier 1D was used (now G2). Rendering IDs went in 33b (billing provider). Dates and money carried punctuation, ICD codes kept the dot, and diagnosis pointers cycled through numbers.
+- **Both modes were verified visually.** The data-only print was overlaid on the official CMS sample form (pdf.js in the browser pane): every field and X mark landed inside its box.
+- **UI.** The claim header has CMS-1500 (review copy) and Red form print (data only); Claims has 1500 Batch and Batch · red forms. Toasts say which is which and that nothing was sent.
+- **Data.** Clients > Edit has Home address / City / State / ZIP (item 5; intake already carried them). The demo clients got fictional addresses. Provider-ID hint says G2.
+- **Research also covered other forms:** UB-04, ADA and state Medicaid forms do not apply to ABA (all states sampled use the 1500/837P). Candidates for next slices: a family statement laid out per HFMA guidance (window-safe address, amount-due panel, account summary, aging, tear-off stub, no diagnosis codes), an out-of-network superbill (Cigna's required elements), a No Surprises Act Good Faith Estimate for self-pay families, and a secondary (COB) 1500 profile.
+- **Not done:** printer X/Y calibration for the red-form print; per-payer page totals (total prints on the last page only); item 17 (no referring/supervising data); payer claim control number for item 22 (ERA CLP07 is not stored on the claim). The mileage line's code `14220` is a CPT surgery code, not a mileage HCPCS. It needs a payer-specific code, and is flagged for follow-up rather than changed.
+- **Verification:** node run of the new assertions with jsPDF 4.2.1 (all pass). `cms1500.test.js` was rewritten, and `providerIds`/`payerTerms` tests were updated; these run in CI.
+
 ### Docs — mismatches #1–6 (`docs/mismatch-nits`)
 
 - `AGENTS.md` names the real Python history files (`c33-*` to `c37-*`) and the two live scripts; the README says backup v3 (v2 still imports) at Settings → System → Data & backup; `docs/wiki/architecture.md` documents the `deploy.yml` legacy install fallback and the redundant `--run` flag. Docs only, no code or CI change.

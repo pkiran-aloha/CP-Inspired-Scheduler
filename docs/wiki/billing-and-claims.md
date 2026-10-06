@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main a272ecd plus the fix/small-mismatches branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main 4b850b4 plus the feat/cms1500-standard branch on 2026-10-06; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -75,16 +75,31 @@ These come from the payer's Billing Rules (Masters, Payer, Billing Rules, Claims
 
 ### CMS-1500 PDF
 
-"CMS-1500" on a primary claim downloads a PDF (`<claim no>-1500.pdf`); "1500 Batch" puts many claims on one PDF. A secondary (COB) claim is refused with a caution because its details are not mapped to a compliant form. If either PDF cannot be built, a caution names the error and no success message shows. The PDF is a printable companion. Several boxes now read the payer and client records:
+The form follows the NUCC 1500 Claim Form Reference Instruction Manual (v13.0, 07/25) for what goes in each item, and the CMS print grid (Pub 100-04 ch. 26 §30) for where it goes. The 02/12 form is laid out for 10-pitch pica type: 10 characters per inch across, 6 lines per inch down. Every value prints in black Courier at 10 pt on that grid, so it lands inside the boxes of a genuine form.
 
-- Box 1 (program) from the payer's CMS type, with the older name guess only when none is set.
-- Boxes 7a (group number) and 10 (plan ID) from the payer's group and plan identifiers. A blank value prints as a dash, never an invented one.
-- Box 6 prints YES when the client has a secondary payer, otherwise NO.
-- Box 32 follows the payer's box 32 rule. The default leaves it blank because the practice is also the billing provider.
-- Boxes 32 and 33 print a dash in place of the practice NPI, never a made-up number, when none is on file.
-- Box 24D prints the line's modifiers.
+Two downloads, on a claim and for the claims in view:
 
-Some boxes are still derived placeholders rather than stored data; see "Not yet built".
+- **CMS-1500** / **1500 Batch**: a review copy. It is the red form drawn from the CMS 02/12 geometry with the data on it, marked "REVIEW COPY - NOT FOR OCR SUBMISSION". Payers that scan paper claims accept only originals printed in Flint J-6983 red dropout ink and return photocopies and black-and-white prints, so a laser-printed replica is for checking and filing, or for a payer that takes images.
+- **Red form print** / **Batch · red forms**: the data only (`<claim no>-1500-red-form.pdf`). Load genuine red CMS-1500 (02/12) forms in the printer and print at actual size (100%). This is the paper claim.
+
+A secondary (COB) claim is refused with a caution because its service lines are not allocated for a compliant secondary claim. If a PDF cannot be built, a caution names the error and no success message shows.
+
+What prints, item by item (NUCC formats: uppercase, no punctuation, no `$` or decimal point, dates in their `MM DD YY` sub-fields):
+
+- **Carrier block:** the payer's name and mailing address from the payer master.
+- **1 / 1a:** the program box from the payer's CMS type; the member ID with no hyphens or spaces.
+- **2-7:** patient and insured names as `LAST, FIRST, M` (accents folded, e.g. BERGSTROM); birth date `MM DD YYYY` and sex; the patient's home address from the client chart (Clients > Edit > Home address, or carried from intake); ZIP without the hyphen. A client with a guardian is insured under the guardian's policy: item 4 is the guardian, item 6 is Child, item 7 repeats the home address.
+- **9 / 9a / 9d and 11d:** filled only when the client has secondary coverage (11d YES): the other plan's insured, policy number and plan name.
+- **10a-c:** NO. **11 / 11c:** the payer's group number and plan name.
+- **12 / 13 / 31:** SIGNATURE ON FILE; item 31 also carries the date.
+- **21:** ICD indicator 0 and up to 12 ICD-10-CM codes without the decimal point (F84.0 prints as F840). Every service line points at A, the primary diagnosis.
+- **22:** a replacement claim prints frequency code 7 and the original reference number.
+- **23:** the prior authorization number, no hyphens or spaces.
+- **24, six lines a page:** dates of service, place of service, CPT/HCPCS and up to four modifiers in their own slots, pointer, charges split into dollars and cents, units, and the rendering provider. 24J carries the rendering NPI and the shaded 24I/24J the qualifier G2 plus the Medicaid ID, as the payer's provider-ID rule asks. Both are left blank when they match the billing provider (NUCC). Qualifier 1D no longer exists on the 02/12 form.
+- **25-30:** tax ID with EIN marked, the patient account number, accept assignment YES, total charge, and in 29 what the patient or other payers paid. A claim's own payer payment never goes in 29. Item 30 is reserved and stays blank.
+- **32:** follows the payer's box 32 rule; the default leaves it blank because the practice is also the billing provider.
+- **33 / 33a / 33b:** the billing provider's name, street and `CITY ST ZIP`, the phone in the parentheses, its NPI, and G2 plus its Medicaid ID under a Medicaid ID rule.
+- **More than six lines:** each page repeats the claim data and prints `PAGE 1 OF 2` on line 8; the total charge prints on the last page only, so the pages read as one claim.
 
 ### Billed files
 
@@ -112,7 +127,6 @@ Masters, Payer, Billing Rules, Payment Terms sets, per payer: kind (commercial, 
 - the "late" flag on Submitted claims (older than 1.6 times the expected days)
 - copay estimates and the quick-post presets in the payment dialog
 - the timely-filing date on new claims and on secondary drafts
-- CMS-1500 box 7b
 
 Filing days resolve in one order everywhere: the payer record, then the practice default (Setup tab), then the payer kind's built-in default.
 
@@ -121,7 +135,7 @@ Filing days resolve in one order everywhere: the payer record, then the practice
 ### Modules
 
 - [`claims.js`](../../src/lib/claims.js) is the pure lifecycle engine. Staging and assembly: `stagedAppts`, `planClaims`, `lineFor`, `nextClaimSeq`, `claimNoAt`, `assembleClaims`, plus `posFor`, `lineModifiers`, `mergeSameDayLines` and `lineApptIds`. Gate: `claimGate`. Transitions return patches: `submitPatch`, `denyPatch`, `releasePatch`, `dropLinePatch`, `rebillPatch`. Money helpers and aging live here too and are documented in [accounts-receivable](accounts-receivable.md) and [era-and-payments](era-and-payments.md). Provider helpers: `npiCheck`, `validNpi`, `resolveProviders`, `credentialIssue`. Payer terms: `payerPolicy`, `filingDaysOf`, `PAYER_KINDS`, `planPayerTerms`. Exports: `claimCsv`, `claimsCsv`.
-- [`cms1500.js`](../../src/lib/cms1500.js): `cms1500Data` is a pure field mapping, `claimTo1500` and `claimsTo1500` draw the PDF with jsPDF. Six service rows per page (`LINES_PER_PAGE`). `posFor` is re-exported from `claims.js`.
+- [`cms1500.js`](../../src/lib/cms1500.js): three layers. `cms1500Data` returns the NUCC item values (`items`, keyed by item number) and the service lines in pages of six (`LINES_PER_PAGE`). `layout1500` turns them into `{ line, col, text }` placements on the pica grid (`colX`, `lineY`). `claimTo1500` / `claimsTo1500` draw the PDF with jsPDF, with `{ mode: 'copy' | 'data' }`. The NUCC format helpers (`nameLFM`, `plain`, `compact`, `moneyParts`, `splitAddress`) are exported for tests. `posFor` is re-exported from `claims.js`.
 - [`providerIds.js`](../../src/lib/providerIds.js): `providerIdRule`, `providerFor`, `providerIdsFor`, `providerIdIssues`, `PROVIDER_ID_RULES`. It reads the rule from `payer.rules.providerId`.
 - [`billingDocs.js`](../../src/lib/billingDocs.js): `buildInvoices`, `buildQboCsv`, `buildVerificationForm`, `buildAppealLetter`, `build835ErrorReport`. These are pure builders that return file name and content. Only `build835ErrorReport` is called from a screen (the Payment Center); the other four are imported only by tests, so no screen calls them today.
 - Screens: [`BillingView.jsx`](../../src/components/BillingView.jsx), [`BilledFilesView.jsx`](../../src/components/BilledFilesView.jsx), [`AppealsView.jsx`](../../src/components/AppealsView.jsx), [`ProviderIdView.jsx`](../../src/components/ProviderIdView.jsx). Payment Terms is a tab inside [`PayerDetail.jsx`](../../src/components/PayerDetail.jsx).
@@ -156,9 +170,11 @@ Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary d
 ## Not yet built
 
 - No transmission of any kind: no 837P X12, no clearinghouse, no payer portal, no eligibility check. The "837P" billed file is a pipe-delimited summary.
-- The CMS-1500 PDF still fills some boxes with derived values.
-  - **Member ID and authorization number:** box 1a (`memberIdOf`) and boxes 11, 17 and 23 (`authNoOf`) print the client chart's own member ID and authorization number. Intake conversion carries them, or you enter them under Clients > Edit. A secondary filing prints the secondary coverage's values. A hash-derived demo placeholder is printed only when the chart has none.
-  - **Other derived values:** the diagnosis comes from the client's program (`dxFor`); the patient account number (box 26) and box 29 are built from the client id; and the rendering NPI falls back to a derived `npiOf` value when the provider has none. Box 17 waits on referring-provider data. The PDF's own note line still says "e-file via ANSI 837P", which the app does not do.
+- The CMS-1500 still has derived or missing values.
+  - **Member ID and authorization number:** item 1a (`memberIdOf`) and item 23 (`authNoOf`) print the client chart's own values. Intake conversion carries them, or you enter them under Clients > Edit. A hash-derived demo placeholder prints only when the chart has none.
+  - **Diagnosis** comes from the client's program (`dxFor`), not a clinical record. **Item 26** is the client id. Items 12, 13 and 31 assume signatures are on file. Item 17 (referring or supervising provider) is blank: there is no referring-provider data, and sessions record no supervisor. Item 22's original reference is the prior claim number, because the payer's claim control number from an ERA is not stored on the claim.
+  - **No print calibration:** the red-form print has no X/Y offset setting yet; a printer that shifts the page needs its own margin adjustment.
+  - **Per-payer page rules:** the total always prints on the last page; a payer that wants each page totalled on its own (or no more than six lines per claim) is not configurable yet.
 - Modifiers: a rendering provider whose staff record has no education level recorded gets no qualification modifier from the payer's Qualification Modifiers rows — the panel in Payer > Billing Rules says how many staff that is. Saved payer place-of-service rows keyed `06` (the old home code) need re-picking as `12`; default qualification rows are the education code alone, so a saved workspace keeps whatever rows it had.
 - "Separate Claim By: Supervising Provider" has no effect because sessions record no supervisor. A merged line takes the first listed staff member of its sessions as the rendering provider.
 - The unit migration scales a pool per code, not per payer, so a client whose payer sets its own unit size for that code keeps a pool in the wrong unit; fix it in Clients, Edit.

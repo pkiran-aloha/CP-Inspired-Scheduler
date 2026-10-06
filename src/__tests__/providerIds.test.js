@@ -17,7 +17,7 @@ function world(rule, mcd = '') {
   const providers = s.settings.providers.map((x) => ({ ...x, payerIds: { ...(x.payerIds || {}), medicaid: mcd } }))
   return { s: { ...s, payers, settings: { ...s.settings, providers } }, claim }
 }
-const box = (d, id) => d.boxes.find((b) => b.id === id).value
+const line = (d) => d.pages[0][0]
 
 describe('payer provider-ID rule: NPI, Medicaid ID or both', () => {
   it('defaults to NPI and says when a payer chose its own rule', () => {
@@ -47,19 +47,19 @@ describe('payer provider-ID rule: NPI, Medicaid ID or both', () => {
   })
 
   it('prints the identifiers the rule asks for on the CMS-1500', () => {
+    // 24J unshaded = rendering NPI; 24I/24J shaded = qualifier G2 + Medicaid ID; 33b = the billing provider's G2 ID
     const npi = world('npi', 'MCD-9')
     const d1 = cms1500Data(npi.s, npi.claim)
-    expect(box(d1, '33a').some((v) => /^NPI \d{10}$/.test(v))).toBe(true)
-    expect(box(d1, '33b')).toEqual(['—'])
+    expect(line(d1).npi).toMatch(/^\d{10}$/)
+    expect([line(d1).qual, line(d1).otherId, d1.items['33b']]).toEqual(['', '', ''])
     const mcd = world('medicaid', 'MCD-9')
     const d2 = cms1500Data(mcd.s, mcd.claim)
-    expect(box(d2, '23b')).toEqual(['1D MCD-9'])
-    expect(box(d2, '33a').some((v) => /^NPI/.test(v))).toBe(false)
-    expect(d2.renderNpi).toBe('')
+    expect([line(d2).qual, line(d2).otherId, line(d2).npi]).toEqual(['G2', 'MCD9', ''])
+    expect(d2.items['33b']).toBe('G2MCD9')
     const both = world('both', 'MCD-9')
     const d3 = cms1500Data(both.s, both.claim)
-    expect(box(d3, '33a').some((v) => /^NPI/.test(v)) && box(d3, '33a').includes('1D MCD-9')).toBe(true)
-    expect(box(d3, '33b')).toEqual(['1D MCD-9'])
+    expect(line(d3).npi).toMatch(/^\d{10}$/)
+    expect([line(d3).qual, line(d3).otherId, d3.items['33b']]).toEqual(['G2', 'MCD9', 'G2MCD9'])
   })
 
   it('stops the false "Missing NPI" flag for staff whose provider record has an NPI', () => {

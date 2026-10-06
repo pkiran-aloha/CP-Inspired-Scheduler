@@ -17,7 +17,11 @@ import {
 } from '../lib/claims'
 import { claimTo1500, claimsTo1500, cms1500Data } from '../lib/cms1500'
 
-const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
+// Payers that scan paper claims accept only genuine red-ink forms, so the two exports say what each is for.
+const cms1500Toast = (mode, what) => (mode === 'data'
+  ? `CMS-1500 data for ${what} downloaded. Print at actual size (100%) onto genuine red 02/12 forms. Nothing was sent.`
+  : `CMS-1500 review copy for ${what} downloaded. It is not for OCR submission; use "Red form print" for a paper claim. Nothing was sent.`)
+const money = (n) =>`$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 const AGING_DOT = { current: '#10b981', '31-60': '#f5990b', '61-90': '#f97316', '91-120': '#ef4444', '121+': '#b91c1c' }
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 const relDay = (ts) => {
@@ -190,12 +194,14 @@ export default function BillingView({ initialTab }) {
         )}
         {tab === 'claims' && (
           <>
-            <button className="btn btn-sm" onClick={() => {
-              const ins = list.filter((c) => c.status !== 'void' && c.method !== 'secondary')
-              if (!ins.length) { toast({ message: 'No claims in view to export', kind: 'warn' }); return }
-              try { claimsTo1500(state, ins).save(`CMS-1500-batch-${todayISO()}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
-              toast({ message: `CMS-1500 batch — ${ins.length} claims onto one print-ready PDF`, kind: 'ok' })
-            }} data-testid="bil-cms1500-batch" style={{ borderRadius: 10 }}>{Icon.print({ size: 13 })} 1500 Batch</button>
+            {[['copy', 'bil-cms1500-batch', '1500 Batch', 'Review copies: the form and the data, one PDF'], ['data', 'bil-cms1500-batch-data', 'Batch · red forms', 'Data only, to print onto genuine red CMS-1500 (02/12) forms']].map(([mode, testid, label, title]) => (
+              <button key={mode} className="btn btn-sm" title={title} onClick={() => {
+                const ins = list.filter((c) => c.status !== 'void' && c.method !== 'secondary')
+                if (!ins.length) { toast({ message: 'No claims in view to export', kind: 'warn' }); return }
+                try { claimsTo1500(state, ins, { mode }).save(`CMS-1500-batch-${mode === 'data' ? 'red-form-' : ''}${todayISO()}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
+                toast({ message: cms1500Toast(mode, `${ins.length} claims`), kind: 'ok' })
+              }} data-testid={testid} style={{ borderRadius: 10 }}>{Icon.print({ size: 13 })} {label}</button>
+            ))}
             <button className="btn btn-sm" onClick={() => { download(`${(bill.claimPrefix || 'CLM')}-ledger.csv`, claimsCsv(state, list)); toast({ message: `${list.length} claims exported`, kind: 'ok' }) }} data-testid="bil-csv-all" style={{ borderRadius: 10 }}>{Icon.download({ size: 13 })} Ledger</button>
             <button className="btn btn-sm btn-primary" disabled={!stats.drafts.n} onClick={submitAllDrafts} data-testid="bil-submit-all" style={{ borderRadius: 10 }}>{Icon.check({ size: 12 })} Submit {Object.keys(claims).filter((id) => claims[id].status === 'draft' && claims[id].method !== 'secondary' && !gatedIds[id]).length} ready</button>
           </>
@@ -482,10 +488,10 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
 
   const editable = claim.method !== 'secondary' && !claim.secondary && (claim.status === 'draft' || claim.status === 'denied')
   const toggleDispute = (aid) => setDisputed((s) => { const n = new Set(s); n.has(aid) ? n.delete(aid) : n.add(aid); return n })
-  const export1500 = () => {
+  const export1500 = (mode) => {
     if (claim.method === 'secondary') { toast({ message: 'Secondary COB details are not mapped to a compliant CMS-1500. Verify and file externally.', kind: 'warn' }); return }
-    try { claimTo1500(state, claim).save(`${claim.no}-1500.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
-    toast({ message: `Primary CMS-1500 exported — ${claim.no}`, kind: 'ok' })
+    try { claimTo1500(state, claim, { mode }).save(`${claim.no}-1500${mode === 'data' ? '-red-form' : ''}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
+    toast({ message: cms1500Toast(mode, claim.no), kind: 'ok' })
   }
 
   return (
@@ -507,7 +513,8 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
           {claim.status === 'partially_paid' && (claim.method === 'secondary' || !claim.secondary) && <button className="btn btn-sm btn-primary" data-testid="clm-pay" onClick={() => setPayOpen(true)} style={{ borderRadius: 9 }}>{Icon.dollar({ size: 12 })} More remittance</button>}
           {claim.status === 'denied' && claim.method !== 'secondary' && !claim.secondary && (<><button className="btn btn-sm btn-primary" data-testid="clm-rebill" onClick={onRebill} style={{ borderRadius: 9 }}>{Icon.repeat({ size: 12 })} Rebill{disputed.size ? ` (${disputed.size})` : ''}</button><button className="btn btn-sm" data-testid="clm-writeoff" onClick={onWriteOff} style={{ borderRadius: 9 }}>Write off</button></>)}
           {(claim.status === 'draft' || claim.status === 'submitted') && claim.method !== 'secondary' && !claim.secondary && <button className="btn btn-sm" data-testid="clm-void" onClick={onVoid} style={{ borderRadius: 9 }}>{Icon.trash({ size: 12 })} Void</button>}
-          <button className="btn btn-sm" data-testid="clm-cms1500" disabled={claim.method === 'secondary'} title={claim.method === 'secondary' ? 'Secondary COB PDF is not mapped; verify externally' : 'Print primary CMS-1500'} onClick={export1500} style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} CMS-1500</button>
+          <button className="btn btn-sm" data-testid="clm-cms1500" disabled={claim.method === 'secondary'} title={claim.method === 'secondary' ? 'Secondary COB PDF is not mapped; verify externally' : 'Print primary CMS-1500'} onClick={() => export1500('copy')} style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} CMS-1500</button>
+          <button className="btn btn-sm" data-testid="clm-cms1500-data" disabled={claim.method === 'secondary'} title="Data only, to print onto genuine red CMS-1500 (02/12) forms" onClick={() => export1500('data')} style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} Red form print</button>
           <span style={{ width: 1, height: 20, background: 'var(--line)', margin: '0 4px' }} />
           <button className="btn btn-sm" onClick={() => { download(`${claim.no}.csv`, claimCsv(state, claim)); toast({ message: `${claim.no} exported`, kind: 'ok' }) }} data-testid="clm-csv" style={{ borderRadius: 9 }}>{Icon.download({ size: 12 })} CSV</button>
           <button className="btn btn-sm" onClick={() => window.print()} data-testid="clm-print" style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} Print</button>
