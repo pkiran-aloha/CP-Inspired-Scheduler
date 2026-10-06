@@ -10,6 +10,7 @@ import { dueOf, isPrimaryReceivable, patientResponsibilityOf } from '../lib/clai
 import { PersonAvatar } from '../ui/avatars'
 import { downloadDoc } from '../lib/exportKit'
 import { SEND_METHODS, statementBalance, statementStatus, statementPdf } from '../lib/statements'
+import { superbillClaims, superbillPdf } from '../lib/superbill'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -19,6 +20,7 @@ export default function GenerateInvoiceView() {
   const toast = useToast()
   const preset = ui.invPreset || 'last4'
   const range = useMemo(() => resolveRange(preset, ui.anchor, settings.weekStart), [preset, ui.anchor, settings.weekStart])
+  const sbRange = { from: range.days[0], to: range.days[range.days.length - 1] }
   const [q, setQ] = useState('')
   const [clientIds, setClientIds] = useState(ui.invPrefill?.clientIds || [])
   const [balanceOnly, setBalanceOnly] = useState(ui.invPrefill?.balanceOnly || false)
@@ -145,6 +147,10 @@ export default function GenerateInvoiceView() {
                       <PersonAvatar p={r.client} size={28} />
                       <b style={{ fontSize: 14 }}>{r.client?.name}</b>
                       <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700 }}>{money(r.due)} reported share · {money(r.total)} charges</span>
+                      {superbillClaims(state, r.client.id, sbRange).length > 0 && <button className="btn btn-xs" data-testid={`gi-superbill-${r.client.id}`} title="Itemized self-pay services for the family to send to their own insurer" onClick={() => {
+                        try { downloadDoc(`Superbill-${r.client.name.replace(/[^A-Za-z0-9]+/g, '_')}-${sbRange.from}-to-${sbRange.to}.pdf`, superbillPdf(state, r.client.id, sbRange), 'application/pdf') } catch (e) { toast({ message: e.message, kind: 'warn' }); return }
+                        toast({ message: `Superbill for ${r.client.name} downloaded (self-pay services ${sbRange.from} to ${sbRange.to}). Nothing was sent.`, kind: 'ok' })
+                      }}>{Icon.download({ size: 11 })} Superbill</button>}
                       {r.due > 0 && <button className="btn btn-xs btn-primary" data-testid={`gi-issue-${r.client?.id}`} onClick={() => { const res = actions.issueStatement(r.client.id); toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' }) }}>Issue statement</button>}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

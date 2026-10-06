@@ -1,7 +1,7 @@
 # Accounts receivable
 
-_Sources: src/lib/claims.js, src/lib/statements.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 46b43aa plus the feat/family-statement branch on 2026-10-06; unrelated behavior unchanged._
+_Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
+_Last synced against main f06022d plus the feat/superbill branch on 2026-10-06; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -76,6 +76,21 @@ It never prints a diagnosis, member ID or birth date. Longer statements continue
 If the practice saved an online payment link (for example a Stripe Payment Link) in Settings > Clinical Integrations, the amount due panel prints it while the statement has a balance and is not void (`paymentLinkFor`). Paying online changes nothing here until someone records the receipt in the Payment Center.
 
 Issuing, marking sent and voiding are each one Undo. Statements are in workspace backups. The demo data leaves three families owing a payer-reported coinsurance share (`seedFamilyShares` in `src/lib/seed.js`), so statements can be issued straight away; clients with secondary coverage are skipped so the COB demo is unchanged. `src/lib/statements.js`; tests: `statements.test.jsx`.
+
+### Superbill (out-of-network reimbursement)
+
+A superbill is an itemized statement a family sends to its own insurer to ask for reimbursement of services it paid for itself. On a selected client in Generate Invoice, **Superbill** appears when the client has self-pay services in the page's date range, and downloads `Superbill-<client>-<from>-to-<to>.pdf`. It is not a bill, and nothing is sent.
+
+It carries what payers ask for on member claims (Cigna's behavioral-health member claim form lists subscriber and patient, provider name and credentials, provider address and tax ID, dates of service, ICD-10 diagnosis, procedure codes and charges), plus the NPI, place of service, units and modifiers plans also expect:
+
+- **Provider:** practice name, address and phone, tax ID (EIN) and billing NPI.
+- **Patient and subscriber:** patient name, date of birth and home address, the account number, the guardian as subscriber (relationship Child), and the insurance plan and member ID. The plan and member ID print only when the client chart has real ones, otherwise blank lines for the family to fill in.
+- **Diagnosis:** the ICD-10-CM codes, lettered A, B, …
+- **Rendering providers:** each clinician's name, certification and NPI.
+- **Services:** one row per session line: date, place of service, CPT/HCPCS, modifiers, units, diagnosis pointer, rendering provider and charge.
+- **Totals:** total charges, paid by the patient, balance (or "Paid in full"), an attestation and a provider signature and date line.
+
+Only self-pay claims are listed (not draft or void), so services the practice already billed to an insurer can never be submitted twice. `src/lib/superbill.js` (`superbillClaims`, `superbillView`, `superbillPdf`); tests: `superbill.test.jsx`.
 
 ### The desk's aging indicators
 
