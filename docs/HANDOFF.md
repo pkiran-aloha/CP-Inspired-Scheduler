@@ -24,6 +24,7 @@ Last updated **2026-10-06** (C4 overbooking guidance, `feat/overbooking-guidance
 - **Demo data.** The demo seed has about 3 sessions per block per week, so no block clears 80% (it would need about 10–18). The tab says so per block; the tests use a dense fixture instead of changing the seed.
 - **Verification:** `overbook.test.js` (11) passed in node through a small vitest shim; `schedulerInsights.test.jsx` gained 3 UI tests (tab, empty state, Show), run in CI.
 - **Not done:** recording `cancelledAt` so only late cancellations count (needs a field + migration); a 70/80/90 threshold picker; a Checks-rail hint in the booking dialog (cheap: one `flag` group in `AppointmentModal.jsx`).
+
 ### Good Faith Estimate (`feat/good-faith-estimate`)
 
 - **What.** A No Surprises Act Good Faith Estimate for uninsured or self-pay families, opened from the client profile (**Good Faith Estimate**, `pf-gfe`). `src/lib/gfe.js` provides:
