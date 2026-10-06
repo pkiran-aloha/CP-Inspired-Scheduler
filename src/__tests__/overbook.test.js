@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { atLeast, overbookBoard, sessionsNeeded } from '../lib/overbook'
+import { atLeast, overbookBlockFor, overbookBoard, sessionsNeeded } from '../lib/overbook'
 import { insightBoard } from '../lib/insights'
 import { addDays, isoDate, parseISO } from '../lib/date'
 
@@ -86,6 +86,15 @@ describe('overbooking guidance', () => {
     expect(b.standby.map((x) => x.clientId)).toEqual(['cu'])
     s.appts.booked = { id: 'booked', date: TODAY, type: 'service', status: 'active', start: AFTERNOON + 60, end: AFTERNOON + 120, staffIds: ['sx'], clientIds: ['cu'] }
     expect(mondayAfternoon(overbookBoard(s, { today: TODAY })).standby).toEqual([])
+  })
+
+  it('finds the marked block a draft booking falls in, for the booking dialog', () => {
+    const board = overbookBoard(dense(), { today: TODAY })
+    const draft = { date: day(7), start: 16 * 60, type: 'service' }
+    expect(overbookBlockFor(board, draft, '', { today: TODAY })?.band).toBe('afternoon')
+    expect(overbookBlockFor(board, { ...draft, start: 9 * 60 }, '', { today: TODAY })).toBe(null)
+    expect(overbookBlockFor(board, { ...draft, type: 'drive' }, '', { today: TODAY })).toBe(null)
+    expect(overbookBlockFor(board, { ...draft, date: day(-7) }, '', { today: TODAY })).toBe(null)
   })
 
   it('rides along on the insight board', () => {
