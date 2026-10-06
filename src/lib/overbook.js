@@ -17,15 +17,17 @@
 //   2. this week — binomial P(at least k lost | sessions booked on the next such day,
 //      block loss rate shrunk toward the practice rate). The binomial assumes losses are
 //      independent, the backtest does not, so each guards the other.
-// Cancellation timing is not recorded, so family cancellations of any notice count as
-// lost: the rate with them is an upper bound, and the no-show-only rate is shown beside it.
+// A family cancellation made more than `overbookLateHours` (24) before the session gave
+// the practice time to refill the slot, so it is left out once its `cancelledAt` is
+// recorded. Older cancellations carry no time; they still count as lost, so the rate is
+// an upper bound while they remain in the window, and the no-show-only rate sits beside it.
 import { addDays, isoDate, parseISO, todayISO } from './date'
 import { isCancelStatus } from './settingsMasters'
-import { isPracticeCancel } from './cancelReasons'
+import { cancelLeadHours, isPracticeCancel } from './cancelReasons'
 import { authBurn } from './authBudget'
 import { riskCfg, riskTimeBand } from './risk'
 
-export const OVERBOOK_DEFAULTS = { overbookSafePct: 80, overbookWeeks: 12, overbookMinWeeks: 8 }
+export const OVERBOOK_DEFAULTS = { overbookSafePct: 80, overbookWeeks: 12, overbookMinWeeks: 8, overbookLateHours: 24 }
 const CLINICAL = ['service', 'evaluation', 'supervision']
 const BANDS = ['early', 'morning', 'midday', 'afternoon', 'evening']
 const round2 = (n) => Math.round(n * 100) / 100
@@ -82,7 +84,11 @@ export function overbookBoard(state, { today = todayISO() } = {}) {
   const appts = Object.values(state.appts || {})
 
   // practice cancellations (staff illness, scheduling error) say nothing about how often families miss
-  const history = appts.filter((a) => a.date >= from && a.date < today && isSession(a) && isResolved(a, settings) && !isPracticeCancel(a))
+  const inWindow = appts.filter((a) => a.date >= from && a.date < today && isSession(a) && isResolved(a, settings) && !isPracticeCancel(a))
+  // an early cancellation freed the slot in time to refill it: not a surprise gap
+  const early = (a) => a.status !== 'no-show' && (cancelLeadHours(a) ?? -Infinity) > cfg.overbookLateHours
+  const history = inWindow.filter((a) => !early(a))
+  const undated = history.filter((a) => a.status !== 'no-show' && isLost(a, settings) && cancelLeadHours(a) == null).length
   const split = new Set(history.map(officeOf)).size > 1
   const lostAll = history.filter((a) => isLost(a, settings)).length
   const base = (lostAll + 1) / (history.length + 2)
@@ -168,8 +174,8 @@ export function overbookBoard(state, { today = todayISO() } = {}) {
   return {
     blocks,
     split,
-    summary: { safe: safeBlocks.length, rated: blocks.filter((b) => b.rated).length, thin: blocks.filter((b) => !b.rated).length, sessions: history.length, lost: lostAll, base: round2(base) },
-    cfg: { safePct: cfg.overbookSafePct, weeks: cfg.overbookWeeks, minWeeks: cfg.overbookMinWeeks },
-    note: `Backtest over ${history.length} resolved sessions in the last ${cfg.overbookWeeks} weeks (practice cancellations left out).`,
+    summary: { safe: safeBlocks.length, rated: blocks.filter((b) => b.rated).length, thin: blocks.filter((b) => !b.rated).length, sessions: history.length, lost: lostAll, base: round2(base), early: inWindow.length - history.length, undated },
+    cfg: { safePct: cfg.overbookSafePct, weeks: cfg.overbookWeeks, minWeeks: cfg.overbookMinWeeks, lateHours: cfg.overbookLateHours },
+    note: `Backtest over ${history.length} resolved sessions in the last ${cfg.overbookWeeks} weeks (practice cancellations${inWindow.length > history.length ? ` and ${inWindow.length - history.length} cancelled more than ${cfg.overbookLateHours}h ahead` : ''} left out).`,
   }
 }

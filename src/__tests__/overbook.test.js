@@ -60,6 +60,23 @@ describe('overbooking guidance', () => {
     expect(b.safeK).toBe(1)
   })
 
+  it('leaves out family cancellations made more than 24h ahead, once their time is recorded', () => {
+    const at = (hoursAhead) => (a) => new Date(parseISO(a.date).getTime() + (a.start - hoursAhead * 60) * 60000).toISOString()
+    const withTimes = (hoursAhead) => {
+      const s = dense({ lostStatus: 'cancelled', lostExtra: { cancelReason: 'Transportation' } })
+      for (const a of Object.values(s.appts)) if (a.status === 'cancelled') a.cancelledAt = at(hoursAhead)(a)
+      return overbookBoard(s, { today: TODAY })
+    }
+    const early = withTimes(72)
+    expect(mondayAfternoon(early).lost).toBe(0)
+    expect(early.summary.early).toBe(22)
+    expect(early.note).toMatch(/22 cancelled more than 24h ahead/)
+    const late = withTimes(2)
+    expect(mondayAfternoon(late).lost).toBe(22)
+    expect(late.summary.undated).toBe(0)
+    expect(overbookBoard(dense({ lostStatus: 'cancelled', lostExtra: { cancelReason: 'Transportation' } }), { today: TODAY }).summary.undated).toBe(22)
+  })
+
   it('refuses to rate a block with too few weeks of history', () => {
     const b = mondayAfternoon(overbookBoard(dense({ weeks: 5 }), { today: TODAY }))
     expect(b.status).toBe('thin')

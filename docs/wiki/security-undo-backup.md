@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced against main a272ecd plus the fix/small-mismatches branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -47,7 +47,7 @@ Settings, System, "Data & backup" shows storage use and three actions.
 - **Restore backup...** reads a file (50 MB limit), validates it, and shows a preview of counts. Nothing changes until you press "Replace workspace". Cancel leaves the workspace alone. A successful restore is one Undo step, with an Undo button on the toast.
 - **Older files.** A version 2 file is accepted and gets the current demo security defaults. The oldest seven-field export (appointments, claims, staff, clients, teams, settings, reports) is accepted with a warning: it never contained masters or billing ledgers, so those start empty.
 - **Who can back up.** Export and restore need Full access to every area and all-office scope. Others see a message saying so.
-- **Rejected files.** Wrong format, an unsupported version, a ledger entry whose key differs from its id, an invalid claim, payroll profile, intake request or patient-receipt ledger that does not reconcile, and similar problems all stop the restore with a plain message and leave your data untouched.
+- **Rejected files.** Wrong format, an unsupported version, a ledger entry whose key differs from its id, an invalid claim, an appointment whose cancellation time is not a date, payroll profile, intake request or patient-receipt ledger that does not reconcile, and similar problems all stop the restore with a plain message and leave your data untouched.
 
 **Demo data.** The same screen has "Regenerate demo data" (rebuilds the sample schedule and billing, plus sample Cabinet documents, CEU and PDU entries, tasks and messages from `src/lib/demoRecords.js`; keeps rosters and masters) and "Clear demo" (clears schedule and ledgers, keeps masters). Both ask you to click twice and are one Undo step.
 

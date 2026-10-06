@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { blankState } from '../state/store'
-import { cancelSide, isPracticeCancel, reasonPatch, cancelReasonOptions, cancelReasonRows, seedCancelReason, NOT_RECORDED } from '../lib/cancelReasons'
+import { cancelLeadHours, stampCancelledAt, cancelSide, isPracticeCancel, reasonPatch, cancelReasonOptions, cancelReasonRows, seedCancelReason, NOT_RECORDED } from '../lib/cancelReasons'
 import { runReport } from '../lib/reports'
 import { riskModel } from '../lib/risk'
 import { isCancelStatus } from '../lib/settingsMasters'
@@ -80,5 +80,38 @@ describe('cancellation reasons', () => {
     expect(cancelled.length).toBeGreaterThan(0)
     expect(cancelled.every((a) => a.cancelReason && a.cancelReasonId)).toBe(true)
     expect(Object.values(s.appts).some((a) => !isCancelStatus(s.settings, a.status) && a.cancelReason)).toBe(false)
+  })
+})
+
+describe('when a session was cancelled', () => {
+  const settings = {}
+  const NOW = '2026-09-14T10:00:00.000Z'
+  const live = appt('a1', '2026-09-18', 'active')
+
+  it('stamps the moment a session enters a cancellation status', () => {
+    expect(stampCancelledAt(live, { ...live, status: 'cancelled' }, settings, NOW).cancelledAt).toBe(NOW)
+    expect(stampCancelledAt(undefined, { ...live, status: 'cancelled' }, settings, NOW).cancelledAt).toBe(NOW)
+  })
+
+  it('keeps what was known while it stays cancelled, and never invents a time for an old cancellation', () => {
+    const stamped = { ...live, status: 'cancelled', cancelledAt: NOW }
+    expect(stampCancelledAt(stamped, { ...stamped, cancelReason: 'Transportation' }, settings, '2026-09-15T00:00:00.000Z').cancelledAt).toBe(NOW)
+    const legacy = { ...live, status: 'cancelled' }
+    expect(stampCancelledAt(legacy, { ...legacy, cancelReason: 'Transportation' }, settings, NOW).cancelledAt).toBe(undefined)
+  })
+
+  it('clears it when the session is reinstated, and never stamps a no-show', () => {
+    const stamped = { ...live, status: 'cancelled', cancelledAt: NOW }
+    const back = stampCancelledAt(stamped, { ...stamped, status: 'active' }, settings, NOW)
+    expect(back.cancelledAt).toBe(undefined)
+    expect(JSON.parse(JSON.stringify(back))).not.toHaveProperty('cancelledAt')
+    expect(stampCancelledAt(live, { ...live, status: 'no-show' }, settings, NOW).cancelledAt).toBe(undefined)
+  })
+
+  it('measures the notice a cancellation gave', () => {
+    const a = { ...live, start: 9 * 60, status: 'cancelled', cancelledAt: new Date(2026, 8, 17, 9, 0).toISOString() }
+    expect(cancelLeadHours(a)).toBeCloseTo(24, 6)
+    expect(cancelLeadHours({ ...a, cancelledAt: undefined })).toBe(null)
+    expect(cancelLeadHours({ ...a, cancelledAt: 'not a date' })).toBe(null)
   })
 })

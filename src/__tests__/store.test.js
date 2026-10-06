@@ -264,3 +264,15 @@ describe('date utils', () => {
     expect(fmtDur(95)).toBe('1h 35m')
   })
 })
+
+describe('cancellation time', () => {
+  it('the reducer stamps cancelledAt on cancel and drops it on reinstatement, in one Undo step', () => {
+    const s = initial()
+    const a = Object.values(s.appts).find((x) => x.status !== 'cancelled' && x.status !== 'no-show')
+    const cancelled = reducer(s, { type: 'patch', id: a.id, patch: { status: 'cancelled' } })
+    expect(Number.isFinite(Date.parse(cancelled.appts[a.id].cancelledAt))).toBe(true)
+    expect(reducer(cancelled, { type: 'undo' }).appts[a.id].cancelledAt).toBe(undefined)
+    const back = reducer(cancelled, { type: 'upsertMany', appts: [{ ...cancelled.appts[a.id], status: 'active' }] })
+    expect(back.appts[a.id].cancelledAt).toBe(undefined)
+  })
+})
