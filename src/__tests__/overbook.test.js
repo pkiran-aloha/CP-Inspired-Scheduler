@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { atLeast, overbookBlockFor, overbookBoard, sessionsNeeded } from '../lib/overbook'
+import { atLeast, overbookBlockFor, overbookBoard, overbookSafePctOf, sessionsNeeded } from '../lib/overbook'
 import { insightBoard } from '../lib/insights'
 import { addDays, isoDate, parseISO } from '../lib/date'
 
@@ -10,14 +10,14 @@ const AFTERNOON = 15 * 60
 // Twelve Mondays of history in the afternoon band, twelve sessions each, each on its own
 // clinician. Ten weeks lost two sessions, two weeks lost one: ~15% loss, every week lost
 // at least one. Twelve more are booked today (the next Monday).
-function dense({ lostStatus = 'no-show', lostExtra = {}, weeks = 12, settings = {}, officeOf = () => 'Main Center' } = {}) {
+function dense({ lostStatus = 'no-show', lostExtra = {}, weeks = 12, lostIn = (w) => (w <= 10 ? 2 : 1), settings = {}, officeOf = () => 'Main Center' } = {}) {
   const appts = {}
   const roster = Array.from({ length: 12 }, (_, i) => ({ id: `c${i}`, name: `Client ${i}`, office: officeOf(i) }))
   const add = (id, date, i, status, extra = {}) => {
     appts[id] = { id, date, type: 'service', status, start: AFTERNOON, end: AFTERNOON + 120, staffIds: [`s${i}`], clientIds: [roster[i].id], ...extra }
   }
   for (let w = 1; w <= weeks; w++) {
-    const lost = w <= 10 ? 2 : 1
+    const lost = lostIn(w)
     for (let i = 0; i < 12; i++) add(`h${w}-${i}`, day(-7 * w), i, i < lost ? lostStatus : 'completed', i < lost ? lostExtra : {})
   }
   for (let i = 0; i < 12; i++) add(`t-${i}`, TODAY, i, 'active')
@@ -88,6 +88,28 @@ describe('overbooking guidance', () => {
     const b = mondayAfternoon(overbookBoard(dense({ settings: { risk: { overbookSafePct: 90 } } }), { today: TODAY }))
     expect(b.status).toBe('not')
     expect(b.why).toMatch(/needs about \d+ for 90% confidence/)
+  })
+
+  it('keeps only the picker’s 70/80/90 as the threshold, defaulting to 80', () => {
+    expect(overbookSafePctOf(undefined)).toBe(80)
+    expect(overbookSafePctOf({ risk: {} })).toBe(80)
+    expect(overbookSafePctOf({ risk: { overbookSafePct: 70 } })).toBe(70)
+    expect(overbookSafePctOf({ risk: { overbookSafePct: 90 } })).toBe(90)
+    expect(overbookSafePctOf({ risk: { overbookSafePct: 75 } })).toBe(80)
+    expect(overbookSafePctOf({ risk: { overbookSafePct: 'high' } })).toBe(80)
+    // a hand-edited workspace cannot smuggle in an off-menu value
+    expect(overbookBoard(dense({ settings: { risk: { overbookSafePct: 75 } } }), { today: TODAY }).cfg.safePct).toBe(80)
+  })
+
+  it('marks at 70% a block that 80% leaves out — the picker moves the line, not the evidence', () => {
+    const lostIn = (w) => (w <= 9 ? 2 : 0) // 9 of 12 weeks lost sessions: 75% of weeks
+    const at80 = mondayAfternoon(overbookBoard(dense({ lostIn }), { today: TODAY }))
+    expect(at80.checks[0].histPct).toBe(0.75)
+    expect(at80.status).toBe('not')
+    const at70 = mondayAfternoon(overbookBoard(dense({ lostIn, settings: { risk: { overbookSafePct: 70 } } }), { today: TODAY }))
+    expect(at70.status).toBe('safe')
+    expect(at70.safeK).toBe(1)
+    expect(at70.lost).toBe(at80.lost) // same ledger, different threshold
   })
 
   it('splits by office when the practice has more than one', () => {

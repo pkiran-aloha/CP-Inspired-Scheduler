@@ -6,6 +6,7 @@ import { PersonAvatar } from '../ui/avatars'
 import { DAY_SHORT, addDays, fmtDayLabel, fmtRange, isoDate, parseISO, todayISO } from '../lib/date'
 import { insightBoard } from '../lib/insights'
 import { planDensityMove } from '../lib/density'
+import { OVERBOOK_SAFE_PCTS } from '../lib/overbook'
 import { AUTH_BANDS } from '../lib/authBudget'
 import { RISK_BANDS, RISK_TIME_LABEL } from '../lib/risk'
 import { routeForDay, suggestRouteOrder } from '../lib/travel'
@@ -53,6 +54,7 @@ export default function SchedulerInsights({ days, onClose }) {
   const holdout = coverage.summary.holdout
   // a scheduler's choice, saved like the other calendar-owned risk settings (one setSettings write)
   const setHoldout = (pct) => actions.setSettings({ risk: { ...(settings.risk || {}), holdoutPct: pct } })
+  const setSafePct = (pct) => actions.setSettings({ risk: { ...(settings.risk || {}), overbookSafePct: pct } })
 
   // ---- travel routes per staff per day ----
   const travelBoard = useMemo(() => {
@@ -502,6 +504,29 @@ export default function SchedulerInsights({ days, onClose }) {
 
           {tab === 'overbook' && (
             <>
+              <div className="si-head-row" data-testid="si-ob-threshold">
+                <div>
+                  <b>Confidence threshold</b>
+                  <span className="muted">
+                    {' '}
+                    — both checks below must clear {overbook.cfg.safePct}% before a block is marked.{' '}
+                    {overbook.cfg.safePct === 90
+                      ? 'The strictest setting: only blocks with very reliable losses qualify.'
+                      : overbook.cfg.safePct === 70
+                        ? 'The most sensitive setting: more blocks qualify, on weaker evidence.'
+                        : 'The balanced default: turning a family away costs about four times an idle hour.'}{' '}
+                    Advisory only; nothing is booked, moved or sent.
+                  </span>
+                </div>
+                <div className="viewseg" role="group" aria-label="Overbooking confidence threshold">
+                  {OVERBOOK_SAFE_PCTS.map((p) => (
+                    <button key={p} className={overbook.cfg.safePct === p ? 'on' : ''} data-testid={`si-ob-threshold-${p}`} onClick={() => setSafePct(p)}>
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="si-head-row">
                 <div>
                   <b>Blocks that usually lose a session</b>
