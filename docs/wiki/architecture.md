@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main a272ecd plus the fix/small-mismatches branch on 2026-10-05; unrelated behavior unchanged._
+_Last synced against main 09dc973 plus the docs/mismatch-nits branch on 2026-10-06; unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -74,7 +74,7 @@ Money is held in integer cents inside `paymentLedger.js` (`cents()`); values wit
 
 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) runs on pushes to `main`, pull requests to `main`, and manual dispatch, on `ubuntu-24.04` with Node 22 and the npm cache.
 
-1. **build job:** install dependencies (`npm ci` when a lock file exists), run the full test suite, then `npm run build`. The `prebuild` script runs `scripts/write-version.cjs`, which stamps `public/version.json` with a build id that the app embeds and compares at runtime. Vite builds into `dist/` with `base: './'`, so the site works on a GitHub Pages sub-path.
+1. **build job:** install dependencies with `npm ci` (a legacy fallback, kept from an older repo layout, moves a nested `CP-Inspired-Scheduler/` or `aba-scheduler/` folder up and runs `npm install` when no root `package-lock.json` exists; it never fires today), run the full test suite (`npm test -- --run`; the extra flag is redundant with `vitest run` and harmless), then `npm run build`. The `prebuild` script runs `scripts/write-version.cjs`, which stamps `public/version.json` with a build id that the app embeds and compares at runtime. Vite builds into `dist/` with `base: './'`, so the site works on a GitHub Pages sub-path.
 2. **Pages artifact:** uploaded only on non-PR events.
 3. **deploy job:** needs the build job, runs only on non-PR events, and publishes to GitHub Pages (environment `github-pages`).
 
@@ -88,12 +88,12 @@ Each item below was checked against the code at the sync commit. Items fixed on 
 
 Docs versus repo:
 
-1. `AGENTS.md` says `scripts/c3x-*.py`. No file matches that name. The Python files are `c33-*` through `c37-*` (for example `c33-cfpage.py`, `c37-core.py`), and `scripts/` also holds `build-share.mjs` and `write-version.cjs`.
-2. `deploy.yml` has an undocumented fallback in its install step: when no `package-lock.json` is at the root, it looks for a nested `CP-Inspired-Scheduler/` or `aba-scheduler/` folder, moves its contents up, and runs `npm install`. This is leftover handling for an older repo layout and is not mentioned in `AGENTS.md` or the README.
-3. CI runs `npm test -- --run` while the `test` script is already `vitest run`. The extra flag is harmless.
-4. `playwright` and `playwright-core` are devDependencies but nothing in the repository imports them, and `AGENTS.md` and the README do not mention them.
-5. `BACKUP_VERSION` is 3 (`workspaceBackup.js`), and version 2 files are still accepted, but the README describes the backup as "v2 JSON".
-6. The README points to "Settings → Data & backup", but the section lives in Settings, System (a panel titled "Data & backup").
+1. Resolved: `AGENTS.md` now names the Python history files `c33-*` to `c37-*` and the two live scripts.
+2. Resolved (documented): the `deploy.yml` legacy install fallback is described under "CI and deploy" above.
+3. Resolved (documented): the redundant `--run` flag is noted under "CI and deploy" above.
+4. `playwright` and `playwright-core` are devDependencies but nothing in the repository imports them. Removing them needs a regenerated `package-lock.json`, so do it from a machine that can run npm.
+5. Resolved: the README now says v3 JSON (v2 files still import).
+6. Resolved: the README now says Settings → System → Data & backup.
 
 Billing and A/R behaviour (ERA, payments, secondary, A/R):
 
