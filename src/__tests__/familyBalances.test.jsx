@@ -16,7 +16,9 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 const BASE = blankState()
-const owing = (state) => state.clients.filter((c) => statementLines(state, c.id).length)
+// families owing a coinsurance share on an insurance claim; an open self-pay invoice also
+// owes, and whether one is open depends on today's weekday, so it is not counted here
+const owing = (state) => state.clients.filter((c) => statementLines(state, c.id).some((l) => state.claims[l.claimId].mode === 'insurance'))
 
 describe('demo family balances', () => {
   it('three families owe a payer-reported coinsurance share; the COB clients are left alone', () => {
