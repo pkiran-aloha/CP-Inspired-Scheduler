@@ -4,7 +4,6 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import App from '../App'
 import { blankState, StoreProvider, useStore } from '../state/store'
 import { payerPolicy, filingDaysOf, planPayerTerms, copayOf, agingOf, quickPosts, PAYER_POLICY } from '../lib/claims'
-import { cms1500Data } from '../lib/cms1500'
 import { addDays, isoDate } from '../lib/date'
 
 const KEY = 'aloha-aba.v3'
@@ -45,8 +44,7 @@ describe('payer payment terms — engine', () => {
     const aged = { ...claim, status: 'submitted', submittedAt: addDays(new Date(), -5).getTime(), paid: 0, adj: 0, secondaryPaid: 0, patientPaid: 0 }
     expect(agingOf(aged, isoDate(new Date()), st).late).toBe(true) // 5 days > 1.6 × 1
     expect(quickPosts(st, claim, null).find((q) => q.id === 'contract').label).toBe('Estimate 50%')
-    const box = (d, id) => d.boxes.find((b) => b.id === id)
-    expect(box(cms1500Data(st, claim), '7b').value[0]).toBe('33')
+    expect(filingDaysOf(st, claim.payer)).toBe(33) // the filing deadline drives A/R, not a CMS-1500 box
   })
 
   it('planPayerTerms validates and builds one patch', () => {

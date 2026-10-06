@@ -1,541 +1,449 @@
-// ---- CMS-1500 (02/12) claim form: field mapping + PDF rendering ----
-// The mapping is a pure function (unit-testable); the renderer draws the genuine 02/12
-// facsimile on letter portrait: everything pre-printed (rules, box captions, side bands,
-// the PLEASE PRINT OR TYPE footer) renders in the light red "drop-out" ink of the real
-// form, while data entered on the claim prints in black — exactly the convention OCR
-// scanners rely on (never fill a paper 1500 in red). Boxes follow the NUCC 02/12
-// numbering: 21 diagnosis A–L, 24 service grid A–J, 25 fed tax ID, 27 accept
-// assignment, 28 total charge, 29 amount paid, 31/32/33 signature–facility–provider.
-// The electronic standard is ANSI 837P — this PDF is the printable companion using the
-// same derivations.
+// ---- CMS-1500 (02/12) claim form: NUCC field mapping + print-grid PDF ----
+// Sources: NUCC 1500 Claim Form Reference Instruction Manual v13.0 (07/25) for what goes
+// in each item and how it is formatted, and CMS Pub 100-04 ch. 26 §30 for the print
+// grid: the form is laid out for 10-pitch pica type, 10 characters per inch across and
+// 6 lines per inch down, so every field has a line (1-66) and a column (1-85).
+//
+// Three layers, each testable on its own:
+//   cms1500Data  — the NUCC item values for one claim, already in NUCC format
+//                  (uppercase, no punctuation, dates split MM DD YY, money in dollars
+//                  and cents with no $ or decimal point, ICD-10 codes without dots)
+//   layout1500   — where those values print: [{ line, col, text }] on the pica grid
+//   claimTo1500  — the PDF. mode 'data' prints only the black data, to run through a
+//                  printer loaded with genuine red-ink 02/12 forms (the only paper copy
+//                  payers that scan claims will accept). mode 'copy' (the default) also
+//                  draws the red form so the PDF reads on its own; it is marked as a
+//                  review copy because a laser-printed replica is not OCR dropout ink.
+// The electronic standard is ANSI 837P; nothing here transmits anything.
 import { jsPDF } from 'jspdf'
 import { winAnsi } from './exportKit'
-import { payerPolicy, filingDaysOf, posFor, memberIdOf, authNoOf, dxFor, npiOf, dueOf } from './claims'
-import { providerIdRule, providerIdsFor } from './providerIds'
+import { posFor, memberIdOf, authNoOf, dxFor, lineApptIds } from './claims'
+import { providerIdRule } from './providerIds'
 
-export const LINES_PER_PAGE = 6 // the paper grid carries six service rows
-
-export const usDate = (iso) => (iso ? `${iso.slice(5, 7)}/${iso.slice(8, 10)}/${iso.slice(2, 4)}` : '')
-export const usDateTs = (ts) => (ts ? usDate(new Date(ts).toISOString().slice(0, 10)) : '')
-export const lastFirst = (name = '') => {
-  const parts = String(name).trim().split(/\s+/)
-  if (parts.length < 2) return String(name).toUpperCase()
-  const last = parts.pop()
-  return `${last.toUpperCase()}, ${parts.join(' ').toUpperCase()}`
-}
-export const money2 = (n) => (n == null || Number.isNaN(Number(n)) ? '' : Number(n).toFixed(2))
+export const LINES_PER_PAGE = 6 // the paper grid carries six service lines
 
 export { posFor } // place of service lives in claims.js: claim-line modifiers key off it too
 
-// ---------- pure mapping (everything the renderer prints, decided in one testable pass) ----------
-// Box ids here are data keys; the renderer decides which *printed* box each feeds,
-// following the 02/12 captions.
-export function cms1500Data(state, claim) {
-  const org = state.settings.org || {}
-  const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
-  const staff = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))
-  const pol = payerPolicy(claim.payer, state)
-  const first = state.appts[claim.lines[0]?.apptId] || {}
-  const renderStaff = staff[first.staffIds?.[0]]
-  const dx = dxFor(client)
-  const authNo = authNoOf(claim.method === 'secondary' ? { ...client, authNo: client.secondary?.authNo } : client)
-  // a secondary filing prints the secondary member ID, never the primary's
-  const member = memberIdOf(claim.method === 'secondary' ? { id: client.id, insurer: claim.payer, memberId: client.secondary?.memberId } : { ...client, insurer: claim.payer })
-  // the payer's provider-ID rule decides NPI, Medicaid ID (qualifier 1D) or both
-  const idPayer = (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
-  const idRule = providerIdRule(idPayer).id
-  const idsOf = (sid) => {
-    const x = providerIdsFor(state, idPayer, sid)
-    return { npi: x.npi || npiOf(sid || 's12'), medicaid: x.medicaid }
-  }
-  const rIds = idsOf(first.staffIds?.[0])
-  const showNpi = idRule !== 'medicaid'
-  const showMcd = idRule !== 'npi'
-  const today = usDateTs(Date.now())
-  // box 1 program: the payer record's CMS type; the name/kind guess only when none is set
-  const CMS_BOX1 = { Medicaid: 'MEDICAID', Medicare: 'MEDICARE', TRICARE: 'TRICARE', 'Group Health Plan': 'GROUP HEALTH PLAN', Commercial: 'GROUP HEALTH PLAN', 'Blue Cross/Blue Shield': 'GROUP HEALTH PLAN', 'Feeding Program': 'OTHER', Other: 'OTHER' }
-  const posKind = (name) => {
-    if (claim.mode === 'selfpay') return 'OTHER'
-    if (CMS_BOX1[idPayer?.cmsType]) return CMS_BOX1[idPayer.cmsType]
-    const p = String(name || '').toLowerCase()
-    if (pol.kind === 'medicaid' || /medicaid/.test(p)) return 'MEDICAID'
-    if (/self/.test(p)) return 'OTHER'
-    if (/tricare|va\b/.test(p)) return 'TRICARE'
-    return 'GROUP HEALTH PLAN'
-  }
-  // box 32 follows the payer's Claims Settings rule. The service facility is the practice
-  // itself here, so the default ("leave blank if same as billing NPI") leaves it blank.
-  const box32Rule = String(idPayer?.rules?.claims?.box32 || 'Auto-populate')
-  const showBox32 = /^Always/.test(box32Rule)
-  const b = (id, col, label, value, span = 1) => ({ id, col, span, label, value })
-  return {
-    boxes: [
-      b('1a', 0, "Insured's I.D. number", [member]),
-      b('2', 0, "Insured's / patient's name — last, first, M.I.", [lastFirst(client.name)]),
-      b('2a', 0, "Patient's address", [client.home || '—']),
-      b('2b', 0, "Patient's birth date", [usDate(client.dob)]), // printed in box 3 with sex
-      b('2c', 0, 'Sex', [client.sex || '—']),
-      b('3', 0, "Patient's birth date · sex", [usDate(client.dob), client.sex || '—']),
-      b('4', 0, "Insured's name (if other than patient)", [client.guardian ? `${lastFirst(client.guardian)} (guardian)` : 'SAME AS PATIENT']),
-      b('4b', 0, 'Patient relationship to insured', [client.guardian ? '05' : '01']),
-      b('5', 0, "Insured's address", [client.home || '—']),
-      b('6', 0, 'Other health benefits?', [client.secondary?.payerId ? 'YES' : 'NO']),
-      b('9', 0, 'Referral · records', [dx.length > 1 ? `Records support ${dx.length} diagnoses` : 'Records not required']),
-      b('10', 0, 'Insurance plan ID', [idPayer?.ext?.plan || '—']),
-      b('7a', 0, 'Group / FEIN number', [idPayer?.ext?.group || '—']),
-      b('7b', 0, 'Timely filing days', [String(filingDaysOf(state, claim.payer))]),
-      b('10d', 0, 'Accept assignment', ['YES']),
-      b('11', 0, 'Authorization number', [authNo]),
-      b('12', 0, 'Claim codes', [claim.version > 1 ? 'REPLACEMENT' : '—']),
-      b('14', 0, 'Diagnosis A–L', [dx.join(' ')]), // printed in 21
-      b('15', 0, 'Onset / first symptom date', [usDate(claim.dosFrom)]),
-      b('16', 0, 'Original reference number', [claim.parentNo || '—']),
-      b('17', 0, 'Prior auth number', [authNo]), // printed in 23
-      b('18', 0, 'Hospitalization related', ['NO']),
-      b('19', 0, 'Additional claim info', [`Plan of care: ${renderStaff?.cert || 'BCBA'} · ${client.school ? `school ${client.school}` : 'clinic/home services'}`]),
-      b('20', 0, 'Outside lab?', ['NO']),
-      b('21', 0, 'Authorized by — signature', ['BCBA plan of care']),
-      b('22', 0, 'Resubmission code', [claim.version > 1 ? '7' : '—']),
-      b('23', 0, 'Prior authorization number', [authNo]),
-      b('23a', 0, 'Service dates', [`${usDate(claim.dosFrom)} – ${usDate(claim.dosTo)}`]),
-      b('23b', 0, showNpi ? 'Rendering NPI' : 'Rendering Medicaid ID (1D)', [showNpi ? rIds.npi : `1D ${rIds.medicaid || '—'}`]),
-      b('23c', 0, 'Total charge', [`$ ${money2(claim.charges)}`]),
-      b('25', 0, 'Federal tax ID', [org.taxId || '—']),
-      b('26', 0, "Patient's account number", [`PULSE-${(client.id || 'c').toUpperCase()}`]),
-      b('27', 0, 'Accept assignment', ['YES']),
-      b('28', 0, 'Signature date', [today]),
-      b('29', 0, 'Account subdivision', [`PULSE-${(client.id || 'c').toUpperCase()}`]),
-      b('30', 0, 'Balance due', [`due $ ${money2(dueOf(claim))}`]),
-      b('31', 0, 'Signature on file', [`X ${today}`]),
-      b('32', 0, 'Service facility — name, address, NPI', showBox32 ? [`${org.name || 'Practice'} · ${org.address || ''}`, `NPI ${org.npi || '—'}`] : ['—'], 3),
-      b('33', 0, 'Billing provider — name, address, phone', [org.name || 'Practice', `${org.address || ''} · ph ${org.phone || '—'}`, `NPI ${org.npi || '—'}`], 2),
-      b('33a', 0, 'Rendering provider', [renderStaff?.name || '—', ...(showNpi ? [`NPI ${rIds.npi}`] : []), ...(showMcd ? [`1D ${rIds.medicaid || '—'}`] : [])]),
-      b('33b', 0, 'Other ID (qualifier 1D · Medicaid)', [showMcd ? `1D ${rIds.medicaid || '—'}` : '—']),
-    ],
-    providerIdRule: idRule,
-    typeOfService: posKind(claim.payer),
-    claimNo: claim.no,
-    mode: claim.mode,
-    payer: claim.payer,
-    patientName: client.name || '',
-    totalCharge: money2(claim.charges),
-    amountPaid: claim.status === 'paid' ? money2(claim.paid) : '',
-    adjustments: claim.adj ? money2(claim.adj) : '',
-    due: money2(dueOf(claim)),
-    renderNpi: showNpi ? rIds.npi : '',
-    pages: chunkLines(claim, dx, state, (sid) => { const x = idsOf(sid); return showNpi ? x.npi : `1D ${x.medicaid || '—'}` }),
-    note: `${claim.no} · ${claim.mode === 'selfpay' ? 'family invoice (courtesy copy)' : 'insurer claim'} · generated ${new Date().toISOString().slice(0, 10)} — printable companion; e-file via ANSI 837P`,
-  }
+// ---------- NUCC formatting helpers ----------
+// accents fold to plain letters first (Bergström → BERGSTROM): the form is ASCII OCR data
+const up = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
+/** Addresses and names: no punctuation or symbols, single spaces, uppercase. */
+export const plain = (s) => up(s).replace(/[^A-Z0-9 \-]/g, ' ').replace(/\s+/g, ' ').trim()
+/** IDs, account and authorization numbers: no hyphens or spaces. */
+export const compact = (s) => up(s).replace(/[^A-Z0-9]/g, '')
+/** Items 2, 4, 9: LAST, FIRST, MIDDLE INITIAL with commas and no periods. */
+export function nameLFM(name, middle = '') {
+  const parts = plain(String(name || '').replace(/\./g, '')).split(' ').filter(Boolean)
+  if (!parts.length) return ''
+  if (parts.length === 1) return parts[0]
+  const last = parts.pop()
+  const first = parts.shift()
+  const mi = (plain(middle)[0] || parts[0]?.[0] || '')
+  return [last, first, mi].filter(Boolean).join(', ')
 }
-function chunkLines(claim, dx, state, lineId = (sid) => npiOf(sid || 's12')) {
-  const rows = claim.lines.map((l, i) => {
-    const appt = state?.appts?.[l.apptId] || {}
+/** ISO date → { mm, dd, yy, yyyy } for the dotted date sub-fields. */
+export const dateParts = (iso) => (iso ? { mm: iso.slice(5, 7), dd: iso.slice(8, 10), yy: iso.slice(2, 4), yyyy: iso.slice(0, 4) } : null)
+/** Money → dollars and cents strings, as items 24F, 28 and 29 print them ("1234" "00"). */
+export function moneyParts(n) {
+  const c = Math.max(0, Math.round(Number(n || 0) * 100))
+  return { dollars: String(Math.floor(c / 100)), cents: String(c % 100).padStart(2, '0') }
+}
+/** ICD-10-CM codes print without the decimal point (F84.0 → F840). */
+export const icdPlain = (code) => compact(code)
+/** "1140 Sunset Crest Way, San Jose, CA 95124" → street / city / state / zip. */
+export function splitAddress(s) {
+  const parts = String(s || '').split(',').map((p) => p.trim()).filter(Boolean)
+  if (parts.length < 2) return { street: parts[0] || '', city: '', state: '', zip: '' }
+  const m = /^([A-Za-z]{2})\s*([\d-]*)$/.exec(parts[parts.length - 1]) || []
+  return { street: parts[0], city: parts.length > 2 ? parts[parts.length - 2] : '', state: m[1] || '', zip: m[2] || '' }
+}
+const phoneParts = (s) => {
+  const d = String(s || '').replace(/\D/g, '').slice(-10)
+  return d.length === 10 ? { area: d.slice(0, 3), num: d.slice(3) } : null
+}
+
+// item 1 program boxes, keyed by the payer master's CMS type
+const PROGRAM = { Medicare: 'MEDICARE', Medicaid: 'MEDICAID', TRICARE: 'TRICARE', CHAMPVA: 'CHAMPVA', 'Group Health Plan': 'GROUP', Commercial: 'GROUP', 'Blue Cross/Blue Shield': 'GROUP', FECA: 'FECA', Other: 'OTHER', 'Feeding Program': 'OTHER' }
+
+// ---------- 1. NUCC item values ----------
+export function cms1500Data(state, claim) {
+  const org = state.settings?.org || {}
+  const providers = (state.settings?.providers || []).filter((p) => p.active !== false)
+  const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
+  const payerRec = (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
+  const secondaryFiling = claim.method === 'secondary'
+  const rule = providerIdRule(payerRec).id
+  const wantNpi = rule !== 'medicaid'
+  const wantMcd = rule !== 'npi'
+
+  // item 1: the payer master's CMS type decides; a name guess only when none is set
+  const program = claim.mode === 'selfpay' ? 'OTHER'
+    : PROGRAM[payerRec?.cmsType] || (/medicaid/i.test(claim.payer || '') ? 'MEDICAID' : /tricare/i.test(claim.payer || '') ? 'TRICARE' : 'GROUP')
+
+  // patient (5) and insured (4, 7): a child is insured under the guardian's policy
+  const addr = { street: plain(client.street), city: plain(client.city), state: up(client.state).slice(0, 2), zip: String(client.zip || '').replace(/\D/g, '').slice(0, 9) }
+  const insuredName = client.guardian ? nameLFM(client.guardian) : nameLFM(client.name, client.middleName)
+  const memberFor = (insurer, memberId) => compact(memberIdOf({ id: client.id, insurer, memberId }))
+
+  // other coverage: on a primary claim the secondary plan, on a secondary claim the primary
+  const secondaryPayer = (state.payers || []).find((p) => p.id === client.secondary?.payerId) || null
+  const other = secondaryFiling
+    ? { name: insuredName, policy: memberFor(client.insurer, client.memberId), plan: plain(client.insurer).slice(0, 28) }
+    : secondaryPayer ? { name: insuredName, policy: compact(client.secondary?.memberId), plan: plain(secondaryPayer.name).slice(0, 28) } : null
+
+  // providers: billing (33), service facility (32), rendering per line (24J)
+  const office = providers.find((p) => p.kind === 'office') || null
+  const billing = providers.find((p) => p.id === state.settings?.billing?.defaultBilling) || office
+  const facility = providers.find((p) => p.id === state.settings?.billing?.defaultFacility) || office
+  const orgAddr = splitAddress(org.address)
+  const cityLine = (a) => plain(`${a.city} ${a.state} ${String(a.zip || '').replace(/\D/g, '')}`)
+  const box32Rule = String(payerRec?.rules?.claims?.box32 || 'Auto-populate')
+  const billNpi = String(billing?.npi || org.npi || '')
+  const billOther = wantMcd && billing?.payerIds?.medicaid ? `G2${compact(billing.payerIds.medicaid)}` : ''
+
+  const lineRows = claim.lines.map((l) => {
+    const appt = state.appts?.[lineApptIds(l)[0]] || {}
+    const sid = appt.staffIds?.[0]
+    const prov = providers.find((p) => p.kind === 'staff' && p.refId === sid) || null
+    const npi = wantNpi ? String(prov?.npi || '') : ''
+    const mcd = wantMcd ? compact(prov?.payerIds?.medicaid) : ''
+    // 24I/24J only when different from 33a/33b (NUCC)
+    const sameAsBilling = npi === billNpi && (!mcd || `G2${mcd}` === billOther)
+    const d = dateParts(l.dos)
     return {
-      seq: i + 1,
-      from: usDate(l.dos), through: usDate(l.dos),
-      pos: posFor(appt),
-      cpt: l.code || '', mod: l.mod || '',
-      npi: lineId(l.staffIds?.[0] || appt.staffIds?.[0] || 's12'),
-      ptr: String((i % Math.max(1, dx.length)) + 1), // cycle through dx codes as 24E pointers
-      units: String(l.units ?? ''),
-      dayUnits: l.kind === 'mileage' ? 'MI' : '',
-      rate: money2(l.rate), charge: money2(l.charge),
+      from: d, to: d, pos: posFor(appt), emg: '',
+      cpt: up(l.code).slice(0, 6),
+      mods: String(l.mod || '').split(/\s+/).map(up).filter(Boolean).slice(0, 4),
+      ptr: 'A', // primary diagnosis first; ABA lines support the primary (autism) code
+      charge: Number(l.charge || 0),
+      units: String(Math.round(Number(l.units || 0) * 1000) / 1000),
+      qual: sameAsBilling || !mcd ? '' : 'G2', otherId: sameAsBilling ? '' : mcd.slice(0, 11),
+      npi: sameAsBilling ? '' : npi,
     }
   })
+  const pages = []
+  for (let i = 0; i < Math.max(1, lineRows.length); i += LINES_PER_PAGE) pages.push(lineRows.slice(i, i + LINES_PER_PAGE))
+
+  const paidByOthers = secondaryFiling
+    ? Number(Object.values(state.claims || {}).find((c) => c.no === claim.parentNo)?.paid || 0)
+    : Number(claim.patientPaid || 0)
+  const today = new Date().toISOString().slice(0, 10)
+  const authNo = authNoOf(secondaryFiling ? { ...client, authNo: client.secondary?.authNo } : client)
+
+  return {
+    claimNo: claim.no,
+    mode: claim.mode,
+    providerIdRule: rule,
+    items: {
+      carrier: payerRec ? [plain(payerRec.name), plain(payerRec.street), cityLine(payerRec)].filter(Boolean) : [plain(claim.payer)],
+      1: program,
+      '1a': secondaryFiling ? memberFor(claim.payer, client.secondary?.memberId) : memberFor(claim.payer, client.memberId),
+      2: nameLFM(client.name, client.middleName),
+      3: { dob: dateParts(client.dob), sex: client.sex === 'F' ? 'F' : client.sex === 'M' ? 'M' : '' },
+      4: insuredName,
+      5: addr,
+      6: client.guardian ? 'CHILD' : 'SELF',
+      7: addr,
+      9: other?.name || '', '9a': other?.policy || '', '9d': other?.plan || '',
+      '10a': false, '10b': false, '10c': false, '10d': '',
+      11: compact(payerRec?.ext?.group),
+      '11c': plain(payerRec?.ext?.plan || payerRec?.name || claim.payer).slice(0, 29),
+      '11d': Boolean(other),
+      12: 'SIGNATURE ON FILE', 13: 'SIGNATURE ON FILE',
+      19: '', 20: false,
+      21: { ind: '0', codes: dxFor(client).map(icdPlain).slice(0, 12) },
+      22: claim.version > 1 ? { code: '7', ref: compact(claim.payerClaimCtrl || claim.parentNo).slice(0, 17) } : null,
+      23: compact(authNo).slice(0, 29),
+      25: { tin: String(org.taxId || '').replace(/\D/g, ''), ein: true },
+      26: compact(client.accountNo || client.id).slice(0, 14),
+      27: true,
+      28: Number(claim.charges || 0),
+      29: paidByOthers > 0 ? paidByOthers : null,
+      31: { sig: 'SIGNATURE ON FILE', date: dateParts(today) },
+      32: /^Always/.test(box32Rule) && facility ? [plain(facility.name || org.name), plain(orgAddr.street), cityLine(orgAddr)] : null,
+      '32a': /^Always/.test(box32Rule) && facility ? String(facility.npi || '') : '',
+      33: [plain(billing?.name || org.name), plain(orgAddr.street), cityLine(orgAddr)],
+      '33phone': phoneParts(org.phone),
+      '33a': wantNpi || !billOther ? billNpi : '',
+      '33b': billOther,
+    },
+    pages,
+  }
+}
+
+// ---------- 2. where each value prints (line 1-66, column 1-85) ----------
+// Positions measured from the CMS 02/12 sample and cross-checked with the CMS print-file
+// table; `end` right-justifies a value so it finishes in that column.
+const PROGRAM_COL = { MEDICARE: 1, MEDICAID: 8, TRICARE: 15, CHAMPVA: 24, GROUP: 31, FECA: 39, OTHER: 45 }
+
+export function layout1500(d, pageIndex = 0) {
+  const it = d.items
   const out = []
-  for (let i = 0; i < Math.max(1, rows.length); i += LINES_PER_PAGE) out.push(rows.slice(i, i + LINES_PER_PAGE))
+  const at = (line, col, text, len) => { const t = String(text ?? ''); if (t) out.push({ line, col, text: len ? t.slice(0, len) : t }) }
+  const end = (line, endCol, text) => { const t = String(text ?? ''); if (t) out.push({ line, col: endCol - t.length + 1, text: t }) }
+  const X = (line, col) => out.push({ line, col, text: 'X' })
+  const date8 = (line, c, p) => { if (p) { at(line, c, p.mm); at(line, c + 3, p.dd); at(line, c + 6, p.yyyy) } }
+  const date6 = (line, c, p) => { if (p) { at(line, c, p.mm); at(line, c + 3, p.dd); at(line, c + 6, p.yy) } }
+  const pages = d.pages.length
+  const last = pageIndex === pages - 1
+
+  // carrier block, lines 4-7 (3-line address: line 6 stays blank)
+  const [cn, cs, cc] = it.carrier
+  at(4, 38, cn, 41); at(5, 38, cs, 41); at(7, 38, cc, 41)
+  if (pages > 1) at(8, 32, `PAGE ${pageIndex + 1} OF ${pages}`)
+
+  X(10, PROGRAM_COL[it[1]] || PROGRAM_COL.OTHER)
+  at(10, 50, it['1a'], 29)
+  at(12, 1, it[2], 28)
+  date8(12, 31, it[3].dob)
+  if (it[3].sex) X(12, it[3].sex === 'M' ? 42 : 47)
+  at(12, 50, it[4], 29)
+  at(14, 1, it[5].street, 28)
+  X(14, { SELF: 33, SPOUSE: 38, CHILD: 42, OTHER: 47 }[it[6]])
+  at(14, 50, it[7].street, 29)
+  at(16, 1, it[5].city, 24); at(16, 26, it[5].state, 3)
+  at(16, 50, it[7].city, 23); at(16, 74, it[7].state, 4)
+  at(18, 1, it[5].zip, 12)
+  at(18, 50, it[7].zip, 12)
+  at(20, 1, it[9], 28)
+  at(20, 50, it[11], 29)
+  at(22, 1, it['9a'], 28)
+  X(22, it['10a'] ? 35 : 41)
+  X(24, it['10b'] ? 35 : 41)
+  X(26, it['10c'] ? 35 : 41)
+  at(26, 50, it['11c'], 29)
+  at(28, 1, it['9d'], 28)
+  at(28, 30, it['10d'], 19)
+  X(28, it['11d'] ? 52 : 57)
+  at(32, 7, it[12], 25)
+  at(32, 56, it[13], 23)
+
+  at(38, 1, it[19], 48)
+  X(38, it[20] ? 52 : 57)
+  at(39, 42, it[21].ind)
+  it[21].codes.forEach((code, i) => at(40 + Math.floor(i / 4), [3, 16, 29, 42][i % 4], code, 7))
+  if (it[22]) { at(40, 50, it[22].code, 11); at(40, 62, it[22].ref, 17) }
+  at(42, 50, it[23], 29)
+
+  ;(d.pages[pageIndex] || []).forEach((r, k) => {
+    const shaded = 45 + 2 * k
+    const line = 46 + 2 * k
+    if (r.qual) at(shaded, 65, r.qual)
+    at(shaded, 68, r.otherId, 11)
+    date6(line, 1, r.from); date6(line, 10, r.to)
+    at(line, 19, r.pos, 2)
+    at(line, 22, r.emg, 2)
+    at(line, 25, r.cpt, 6)
+    r.mods.forEach((m, i) => at(line, [33, 36, 39, 42][i], m, 2))
+    at(line, 45, r.ptr, 4)
+    const m = moneyParts(r.charge)
+    end(line, 55, m.dollars); at(line, 56, m.cents)
+    at(line, 59, r.units, 3)
+    at(line, 68, r.npi, 10)
+  })
+
+  at(58, 1, it[25].tin, 15)
+  X(58, it[25].ein ? 19 : 17)
+  at(58, 23, it[26], 14)
+  X(58, it[27] ? 38 : 43)
+  // multi-page claims: the total goes on the last page only, so the pages read as one claim
+  if (last) {
+    const t = moneyParts(it[28]); end(58, 57, t.dollars); at(58, 58, t.cents)
+    if (it[29] != null) { const p = moneyParts(it[29]); end(58, 67, p.dollars); at(58, 68, p.cents) }
+  }
+  if (it['33phone']) { at(59, 66, it['33phone'].area); at(59, 70, it['33phone'].num, 9) }
+  ;(it[32] || []).forEach((t, i) => at(60 + i, 23, t, 26))
+  it[33].forEach((t, i) => at(60 + i, 50, t, 29))
+  at(62, 1, it[31].sig, 22)
+  date6(63, 6, it[31].date)
+  at(63, 24, it['32a'], 10)
+  at(63, 51, it['33a'], 10)
+  at(63, 62, it['33b'], 17)
   return out
 }
 
-// ---------- renderer ----------
-const PW = 612
-const PH = 792
-const L = 24 // left margin of the form
-const R = 584 // right margin (band occupies 586..600)
-const CW = R - L
-// the print colors of the real form: light red "drop-out" ink on white bond
-const RED = [197, 113, 124] // rules + pre-printed captions
-const BAND = [201, 101, 115] // solid side bands / footer band
-const TINT = [238, 214, 218] // shaded service rows
-const WASH = [247, 239, 241] // very light cell wash
-const BLACK = [26, 26, 26] // what a provider would type on the form
+// ---------- 3. PDF ----------
+export const colX = (c) => 25.2 + (c - 1) * 7.2 // left edge of print column c
+export const lineY = (n) => 12 * n - 2.5 // text baseline of print line n
+const INK = [0, 0, 0] // data prints in true black
+const RED = [205, 72, 82] // the form's red, as close as a screen gets to OCR dropout ink
+const TINT = [248, 225, 227] // the shaded half of each service line
 
 const newDoc = () => winAnsi(new jsPDF({ unit: 'pt', format: 'letter', compress: true }))
 
-export function claimTo1500(state, claim) {
-  const doc = newDoc()
-  const d = cms1500Data(state, claim)
-  d.pages.forEach((pageLines, pi) => {
-    if (pi > 0) doc.addPage()
-    drawPage(doc, state, claim, d, pageLines, pi)
-  })
-  return doc
+/** One claim → one PDF. opts.mode: 'copy' (form + data, the default) or 'data' (data only, for red stock). */
+export function claimTo1500(state, claim, opts = {}) {
+  return claimsTo1500(state, [claim], opts)
 }
-export function claimsTo1500(state, claims) {
+export function claimsTo1500(state, claims, { mode = 'copy' } = {}) {
   const doc = newDoc()
   let started = false
   for (const claim of claims) {
     const d = cms1500Data(state, claim)
-    for (let pi = 0; pi < d.pages.length; pi++) {
+    d.pages.forEach((_, pi) => {
       if (started) doc.addPage()
       started = true
-      drawPage(doc, state, claim, d, d.pages[pi], pi)
-    }
+      if (mode !== 'data') drawForm(doc, d, pi)
+      printData(doc, layout1500(d, pi))
+    })
   }
   return doc
 }
 
-const clip = (s, wPt, size) => {
-  s = String(s ?? '')
-  const max = Math.max(6, Math.floor(wPt / (size * 0.5)))
-  return s.length > max ? s.slice(0, max - 1) + '…' : s
+function printData(doc, fields) {
+  doc.setTextColor(...INK)
+  doc.setFont('courier', 'normal')
+  doc.setFontSize(10) // NUCC's recommended size; 1.2pt character spacing keeps it on the 10-cpi grid
+  for (const f of fields) doc.text(f.text, colX(f.col) + 0.6, lineY(f.line), { charSpace: 1.2 })
 }
-const val = (d, id) => d.boxes.find((b) => b.id === id)?.value || []
 
-// one pre-printed cell: red rule + red caption strip + black entered values
-function cell(doc, x, y, w, h, { num = '', label = '', sub = '', lines = [], tint = null, ticks = 0 } = {}) {
-  if (tint) { doc.setFillColor(...tint); doc.rect(x, y, w, h, 'F') }
-  doc.setDrawColor(...RED); doc.setLineWidth(0.5)
-  doc.setFillColor(255, 255, 255)
-  doc.rect(x, y, w, h, 'S')
-  let ty = y + 5.2
-  if (num || label) {
-    doc.setTextColor(...RED)
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(4.4)
-    doc.text(num, x + 2.6, ty)
-    const nw = doc.getTextWidth(num)
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(3.9)
-    doc.text(clip(String(label).toUpperCase(), w - nw - 10, 3.9), x + 3.4 + nw + 2.2, ty)
-    if (sub) { doc.setFontSize(3.4); doc.text(clip(sub, w - 8, 3.4), x + 2.6, ty + 4.6) }
-    ty += sub ? 9.8 : 5.6
+// The red form, drawn from the CMS 02/12 geometry (points from the top-left of the sheet).
+const LX = 24.6
+const RX = 593.05
+const M1 = 230.9 // left | middle column, items 2-11
+const M2 = 375.6 // middle | right column
+function drawForm(doc, d, pageIndex) {
+  const line = (x1, y1, x2, y2, w = 0.5) => { doc.setLineWidth(w); doc.line(x1, y1, x2, y2) }
+  const cap = (x, y, t, size = 4.6, style = 'normal') => { doc.setFont('helvetica', style); doc.setFontSize(size); doc.text(t, x, y) }
+  const box = (line_, col, label) => {
+    const cx = colX(col) + 3.6
+    const cy = 12 * line_ - 6
+    doc.setLineWidth(0.6); doc.rect(cx - 4.5, cy - 4.5, 9, 9)
+    if (label) cap(cx + 6, cy + 2, label, 4.4)
   }
-  doc.setTextColor(...BLACK)
-  for (const v of lines) {
-    if (ty > y + h - 1.5) break
-    if (!v || !v.text) continue
-    doc.setTextColor(...(v.red ? RED : BLACK))
-    doc.setFont('helvetica', v.style === 'i' ? 'italic' : v.style === 'n' ? 'normal' : 'bold')
-    const size = v.size || 6.4
-    let s = String(v.text)
-    doc.setFontSize(size)
-    while (doc.getTextWidth(s) > w - 5.2 && doc.getFontSize() > 3.4) doc.setFontSize(doc.getFontSize() - 0.4)
-    const ax = v.align === 'right' ? x + w - 2.6 : x + 2.6
-    doc.text(clip(s, w - 5.2, doc.getFontSize()), ax, ty + size * 0.86, v.align === 'right' ? { align: 'right' } : undefined)
-    ty += v.gap ?? Math.max(6.4, size * 1.16)
-    doc.setTextColor(...BLACK)
-  }
-  if (ticks > 0) {
-    // MM/DD/YY tick marks along the bottom of a date cell
-    const tw = w - 8; const step = tw / 3
-    doc.setLineWidth(0.4)
-    for (let i = 1; i < 3; i++) doc.line(x + 4 + step * i - 4 * i / 3, y + h - 5.5, x + 4 + step * i - 4 * i / 3, y + h - 2.5)
-    doc.setFontSize(3); doc.setTextColor(...RED)
-    doc.text('MM      DD      YY', x + w / 2, y + h - 6.4, { align: 'center' })
-    doc.setTextColor(...BLACK)
-  }
-}
-function opts(doc, x, y, items, size = 3.9) {
-  let ox = x
+  // text colour and fill colour share one PDF operator, so every fill sets its tint again
+  const shade = (x, y, w, h) => { doc.setFillColor(...TINT); doc.rect(x, y, w, h, 'F') }
+  doc.setDrawColor(...RED); doc.setTextColor(...RED)
+
+  // header
+  cap(colX(1), 30, 'HEALTH INSURANCE CLAIM FORM', 11, 'bold')
+  doc.setTextColor(...INK)
+  cap(colX(1), 40, 'APPROVED BY NATIONAL UNIFORM CLAIM COMMITTEE (NUCC) 02/12', 5.2)
   doc.setTextColor(...RED)
-  for (const [t, on] of items) {
-    doc.setLineWidth(0.5); doc.rect(ox, y - 3.3, 4.2, 4.2, 'S')
-    if (on) {
-      doc.setTextColor(...BLACK); doc.setFont('helvetica', 'bold'); doc.setFontSize(3.8)
-      doc.text('X', ox + 0.75, y); doc.setTextColor(...RED)
-    }
-    ox += 5.6
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(size)
-    const parts = t.split('\n')
-    parts.forEach((p, i) => doc.text(p, ox, y + i * (size + 0.6)))
-    ox += Math.max(...parts.map((p) => doc.getTextWidth(p))) + 4.4
-  }
-  doc.setTextColor(...BLACK)
-  return ox
-}
+  cap(colX(1), 92, 'PICA', 5); cap(colX(74), 92, 'PICA', 5)
+  doc.setLineWidth(0.6); doc.rect(colX(4) + 4, 86.7, 7, 7); doc.rect(colX(79) - 2, 86.7, 7, 7)
 
-function drawPage(doc, state, claim, d, lines, pageNo) {
-  doc.setFont('helvetica', 'normal')
-  // ================= header =================
-  doc.setTextColor(...BLACK)
-  const qr = [[1,1,1,1,1],[1,0,1,0,1],[1,1,1,0,1],[0,1,0,0,0],[1,1,1,0,1]]
-  for (let i = 0; i < 5; i++) for (let j = 0; j < 5; j++) if (qr[i][j]) { doc.rect(L + j * 3.4, 18 + i * 3.4, 2.6, 2.6, 'F') }
-  doc.setLineWidth(0.4); doc.rect(L, 16.5, 17.4, 17.4)
-  doc.setTextColor(...RED)
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5)
-  doc.text('HEALTH INSURANCE CLAIM FORM', L + 22, 26)
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(4.6)
-  doc.text('APPROVED BY NATIONAL UNIFORM CLAIM COMMITTEE (NUCC) 02/12', L + 22, 32)
-  doc.setFontSize(3.9)
-  doc.text('TYPE IN 2D BAR CODE', L, 38.5)
-  doc.setLineWidth(0.5); doc.setDrawColor(...RED); doc.rect(R - 112, 14, 112, 27)
-  doc.setFontSize(4); doc.text('FORM APPROVED', R - 56, 20, { align: 'center' })
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(13); doc.text('1500', R - 78, 33, { align: 'center' })
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(3.8)
-  doc.text('OMB No. 0938-1197   Exp. Date 04-30-2015', R - 40, 28, { align: 'center' })
-  doc.text('PICA   [  ]  [  ]  [  ]', R - 40, 37, { align: 'center' })
-  if (d.pages.length > 1) {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(8)
-    doc.text(pageNo === 0 ? '· S U B S T I T U T E ·' : '· C O N T I N U E D ·', (L + R) / 2, 26, { align: 'center' })
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(4.2)
-    doc.text(`page ${pageNo + 1} of ${d.pages.length} for ${d.claimNo}`, (L + R) / 2, 32, { align: 'center' })
-  }
-  doc.setTextColor(...BLACK)
+  // frame and section bars
+  line(LX, 96.5, RX, 96.5, 2); line(LX, 384.5, RX, 384.5, 2); line(LX, 756.5, RX, 756.5, 2)
+  line(LX, 96.5, LX, 756.5); line(RX, 96.5, RX, 756.5)
 
-  // ================= box grid (stretched to fill the sheet like the paper form) =================
-  const FF = 1.6 // row-height fill factor
-  const y0 = 44
-  const rows = [
-    { h: 22, cells: [
-      { f: 0.615, num: '1.', label: 'Type of service', optsRow: 1 },
-      { f: 0.385, num: '1a.', label: "Insured's I.D. number", sub: '(For Program in Item 1)', lines: [{ text: val(d, '1a')[0] }] },
-    ] },
-    { h: 22, cells: [
-      { f: 0.40, num: '2.', label: "Insured's or patient's name — last, first, middle initial", lines: [{ text: val(d, '2')[0], size: 7 }] },
-      { f: 0.235, num: '3.', label: "Patient's birth date · sex", dobSex: 1, lines: [{ text: val(d, '3')[0], size: 6.4 }] },
-      { f: 0.365, num: '4.', label: "Insured's name (last, first, middle initial)", lines: [{ text: val(d, '4')[0], size: 6.4 }] },
-    ] },
-    { h: 22, cells: [
-      { f: 0.265, num: '2a.', label: "Patient's address (No., Street)", lines: [{ text: val(d, '2a')[0], style: 'n', size: 6 }] },
-      { f: 0.145, num: '6.', label: 'Patient relationship to insured', relBox: 1 },
-      { f: 0.265, num: '5.', label: "Insured's address", lines: [{ text: val(d, '5')[0], style: 'n', size: 6 }] },
-      { f: 0.325, num: '1b.', label: "Insured's policy number or social security number", lines: [{ text: val(d, '1a')[0] }] },
-    ] },
-    { h: 21, cells: [
-      { f: 0.41, num: '2b.', label: "Patient's city, state, ZIP code", lines: [] },
-      { f: 0.24, num: '8.', label: 'Reserved for NUCC use', blank: 1 },
-      { f: 0.12, num: '2c.', label: 'Patient phone', phoneBox: 1 },
-      { f: 0.22, num: '1c.', label: 'Group or FEIN number', lines: [{ text: val(d, '7a')[0] }] },
-    ] },
-    { h: 26, cells: [
-      { f: 0.47, num: '9.', label: "Is the patient's condition related to?", condRow: 1 },
-      { f: 0.30, num: '10.', label: 'Insurance plan ID', sub: '10d. Claim codes (Designated by NUCC)', lines: [{ text: `${val(d, '10')[0]}   ·   ${val(d, '7b')[0]}-day timely filing`, size: 5.8 }, { text: val(d, '12')[0], red: true }] },
-      { f: 0.23, num: '11.', label: 'Authorization number', lines: [{ text: val(d, '11')[0], size: 6.4 }, { text: `referral: ${val(d, '9')[0]}`, style: 'i', size: 4 }] },
-    ] },
-    { h: 26, cells: [
-      { f: 0.60, num: '12.', label: "Patient's or authorized person's signature", readback: 1, lines: [{ text: 'ON FILE · electronic signature retained in the practice record', style: 'i', size: 4.4 }, { text: `SIGNED  X          DATE  ${val(d, '28')[0]}`, size: 5.6 }] },
-      { f: 0.40, num: '13.', label: "Insured's or authorized person's signature", lines: [{ text: 'ON FILE · assignment of benefits accepted', style: 'i', size: 4.4 }, { text: `SIGNED  X          DATE  ${val(d, '28')[0]}`, size: 5.6 }] },
-    ] },
-    { h: 21, cells: [
-      { f: 0.36, num: '14.', label: 'Date of current illness, injury, or pregnancy (LMP)', lines: [{ text: val(d, '15')[0], size: 6.4 }], ticks: 1 },
-      { f: 0.20, num: '15.', label: 'Other date · qual.', lines: [{ text: '—   25 (onset)', size: 6 }], ticks: 1 },
-      { f: 0.44, num: '16.', label: 'Dates patient unable to work in current occupation', lines: [{ text: `${val(d, '23a')[0]}`, size: 6 }], ticks: 1 },
-    ] },
-    { h: 21, cells: [
-      { f: 0.47, num: '17.', label: 'Name of referring provider or other source', lines: [{ text: '17a. NPI  —        17b.  —', size: 5.6 }] },
-      { f: 0.53, num: '18.', label: 'Hospitalization dates related to current services', lines: [{ text: `${val(d, '18')[0]} — outpatient ABA services`, style: 'n', size: 5.8 }], ticks: 1 },
-    ] },
-    { h: 23, cells: [
-      { f: 0.44, num: '19.', label: 'Additional claim information (Designated by NUCC)', lines: [{ text: val(d, '19')[0], style: 'n', size: 4.8 }] },
-      { f: 0.30, num: '20.', label: 'Outside lab?', outsideLab: 1 },
-      { f: 0.26, num: '21.', label: 'Diagnosis or nature of illness or injury', dxStrip: 1 },
-    ] },
-    { h: 20, cells: [
-      { f: 0.42, num: '22.', label: 'Resubmission code', sub: 'original reference number', lines: [{ text: `${val(d, '22')[0] || '—'}   ·   ${val(d, '16')[0]}`, size: 5.6 }] },
-      { f: 0.34, num: '23.', label: 'Prior authorization number', lines: [{ text: val(d, '23')[0], size: 6.2 }] },
-      { f: 0.24, num: '10e.', label: 'Clinical trial?', trialBox: 1 },
-    ] },
-  ]
-  let y = y0
-  for (const row of rows) {
-    const H = row.h * FF
-    let x = L
-    for (const c of row.cells) {
-      const w = c.f * CW
-      const spec = { num: c.num, label: c.label, sub: c.sub, lines: c.lines }
-      if (c.blank) spec.lines = [{ text: ' ', size: 1 }]
-      cell(doc, x, y, w, H, spec)
-      if (c.optsRow) {
-        opts(doc, x + 13, y + H * 0.52, [['MEDICARE\n(Medicare #)', d.typeOfService === 'MEDICARE'], ['MEDICAID\n(Medicaid #)', d.typeOfService === 'MEDICAID'], ['TRICARE\n(ID#/DoD#)', d.typeOfService === 'TRICARE'], ['CHAMPVA\n(Member ID#)', false], ['GROUP HEALTH PLAN\n(ID#)', d.typeOfService === 'GROUP HEALTH PLAN'], ['FECA', false], ['BLK LUNG', false], ['OTHER\n(ID#)', d.typeOfService === 'OTHER']])
-      }
-      if (c.dobSex) {
-        opts(doc, x + w - 40, y + H * 0.62, [['M', val(d, '3')[1] === 'M'], ['F', val(d, '3')[1] === 'F']])
-        doc.setTextColor(...RED); doc.setFontSize(3.4); doc.text('SEX', x + w - 42, y + H * 0.35)
-        doc.setTextColor(...BLACK)
-      }
-      if (c.relBox) {
-        const rel = val(d, '4b')[0] === '05' ? 'OTHER' : 'SELF'
-        opts(doc, x + 4, y + H - 8, rel === 'SELF' ? [['SELF', true], ['SPOUSE', false], ['CHILD', false], ['OTHER', false]] : [['SELF', false], ['SPOUSE', false], ['CHILD', false], ['OTHER', true]], 3.4)
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.4); doc.setTextColor(...BLACK)
-        doc.text(rel === 'SELF' ? 'SELF (01)' : 'OTHER — guardian (05)', x + w - 3, y + 16, { align: 'right' })
-        doc.setFont('helvetica', 'normal')
-      }
-      if (c.phoneBox) {
-        doc.setTextColor(...RED); doc.setLineWidth(0.5)
-        doc.rect(x + 4, y + H * 0.45, 34, 9); doc.rect(x + 41, y + H * 0.45, 18, 9); doc.rect(x + 62, y + H * 0.45, 12, 9)
-        doc.setFontSize(3.2); doc.text('(   )  —  [   ]', x + 4, y + H * 0.45 - 1.5)
-        doc.setTextColor(...BLACK)
-      }
-      if (c.condRow) {
-        opts(doc, x + 4, y + H * 0.38, [['a. EMPLOYMENT?', false], ['Y', false], ['N', true]])
-        opts(doc, x + 4, y + H * 0.82, [['b. AUTO ACCIDENT?', false], ['Y', false], ['N', true]])
-        opts(doc, x + w * 0.60, y + H * 0.38, [['c. OTHER ACCIDENT?', false], ['N', true]])
-        doc.setFontSize(3.6); doc.setTextColor(...RED)
-        doc.text('PLACE (STATE) ____        PLACE (STATE) ____', x + w - 3, y + H * 0.62, { align: 'right' })
-        doc.setTextColor(...BLACK)
-      }
-      if (c.readback) {
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(5.6); doc.setTextColor(...RED)
-        doc.text('READ BACK OF FORM BEFORE COMPLETING & SIGNING THIS FORM.', x + 3, y + 11)
-        doc.setTextColor(...BLACK); doc.setFont('helvetica', 'normal')
-      }
-      if (c.outsideLab) opts(doc, x + 4, y + H * 0.62, [['YES', false], ['NO', true]])
-      if (c.trialBox) opts(doc, x + 4, y + H * 0.62, [['YES', false], ['NO', false]])
-      if (c.dxStrip) {
-        const dxl = val(d, '14')[0].split(/\s+/).filter(Boolean)
-        doc.setFontSize(5.8); doc.setTextColor(...BLACK); doc.setFont('helvetica', 'bold')
-        dxl.slice(0, 4).forEach((v, i) => doc.text(`${'ABCDEFGHIJKL'[i]}. ${v}`, x + 4 + i * ((w - 8) / 4), y + H * 0.72))
-        doc.setFont('helvetica', 'normal')
-      }
-      x += w
-    }
-    y += H
-  }
+  // patient and insured section (items 1-13)
+  for (const y of [121.3, 143.8, 168.8, 217.3, 239.8, 263.2, 288.8, 312.8, 336.8]) line(LX, y, RX, y)
+  line(LX, 191.8, M1, 191.8); line(M2, 191.8, RX, 191.8)
+  line(M1, 121.3, M1, 336.8); line(M2, 96.5, M2, 384.5)
+  cap(LX + 2, 102, '1.')
+  ;[[1, 'MEDICARE'], [8, 'MEDICAID'], [15, 'TRICARE'], [24, 'CHAMPVA'], [31, 'GROUP HEALTH PLAN'], [39, 'FECA BLK LUNG'], [45, 'OTHER']].forEach(([c, l]) => box(10, c, l))
+  cap(M2 + 2, 102, "1a. INSURED'S I.D. NUMBER                    (For Program in Item 1)")
+  cap(LX + 2, 126.5, "2. PATIENT'S NAME (Last Name, First Name, Middle Initial)")
+  cap(M1 + 2, 126.5, "3. PATIENT'S BIRTH DATE           SEX"); cap(M1 + 18, 133, 'MM     DD     YY', 3.8)
+  box(12, 42, 'M'); box(12, 47, 'F')
+  cap(M2 + 2, 126.5, "4. INSURED'S NAME (Last Name, First Name, Middle Initial)")
+  cap(LX + 2, 149, "5. PATIENT'S ADDRESS (No., Street)")
+  cap(M1 + 2, 149, '6. PATIENT RELATIONSHIP TO INSURED')
+  box(14, 33, 'Self'); box(14, 38, 'Spouse'); box(14, 42, 'Child'); box(14, 47, 'Other')
+  cap(M2 + 2, 149, "7. INSURED'S ADDRESS (No., Street)")
+  cap(LX + 2, 174, 'CITY'); cap(colX(25), 174, 'STATE'); line(colX(25) - 2, 168.8, colX(25) - 2, 191.8)
+  cap(M1 + 2, 174, '8. RESERVED FOR NUCC USE')
+  cap(M2 + 2, 174, 'CITY'); cap(colX(73), 174, 'STATE'); line(colX(73) - 2, 168.8, colX(73) - 2, 191.8)
+  cap(LX + 2, 197, 'ZIP CODE'); cap(colX(14), 197, 'TELEPHONE (Include Area Code)'); line(colX(14) - 2, 191.8, colX(14) - 2, 217.3)
+  cap(M2 + 2, 197, 'ZIP CODE'); cap(colX(64), 197, 'TELEPHONE (Include Area Code)'); line(colX(64) - 2, 191.8, colX(64) - 2, 217.3)
+  cap(LX + 2, 222.5, "9. OTHER INSURED'S NAME (Last Name, First Name, Middle Initial)")
+  cap(M1 + 2, 222.5, "10. IS PATIENT'S CONDITION RELATED TO:")
+  cap(M2 + 2, 222.5, "11. INSURED'S POLICY GROUP OR FECA NUMBER")
+  cap(LX + 2, 245, "a. OTHER INSURED'S POLICY OR GROUP NUMBER")
+  cap(M1 + 2, 245, 'a. EMPLOYMENT? (Current or Previous)'); box(22, 35, 'YES'); box(22, 41, 'NO')
+  cap(M2 + 2, 245, "a. INSURED'S DATE OF BIRTH                      SEX"); box(22, 68, 'M'); box(22, 75, 'F')
+  cap(LX + 2, 268.5, 'b. RESERVED FOR NUCC USE')
+  cap(M1 + 2, 268.5, 'b. AUTO ACCIDENT?                PLACE (State)'); box(24, 35, 'YES'); box(24, 41, 'NO')
+  cap(M2 + 2, 268.5, 'b. OTHER CLAIM ID (Designated by NUCC)')
+  cap(LX + 2, 294, 'c. RESERVED FOR NUCC USE')
+  cap(M1 + 2, 294, 'c. OTHER ACCIDENT?'); box(26, 35, 'YES'); box(26, 41, 'NO')
+  cap(M2 + 2, 294, 'c. INSURANCE PLAN NAME OR PROGRAM NAME')
+  cap(LX + 2, 318, 'd. INSURANCE PLAN NAME OR PROGRAM NAME')
+  cap(M1 + 2, 318, '10d. CLAIM CODES (Designated by NUCC)')
+  cap(M2 + 2, 318, 'd. IS THERE ANOTHER HEALTH BENEFIT PLAN?'); box(28, 52, 'YES'); box(28, 57, 'NO')
+  cap(LX + 2, 343, "READ BACK OF FORM BEFORE COMPLETING & SIGNING THIS FORM.", 5, 'bold')
+  cap(LX + 2, 350, "12. PATIENT'S OR AUTHORIZED PERSON'S SIGNATURE I authorize the release of any medical or other information necessary", 4.2)
+  cap(LX + 2, 355, 'to process this claim. I also request payment of government benefits either to myself or to the party who accepts assignment below.', 4.2)
+  cap(M2 + 2, 343, "13. INSURED'S OR AUTHORIZED PERSON'S SIGNATURE I authorize", 4.2)
+  cap(M2 + 2, 348, 'payment of medical benefits to the undersigned physician or supplier for', 4.2)
+  cap(M2 + 2, 353, 'services described below.', 4.2)
+  cap(LX + 2, 380, 'SIGNED', 5); cap(colX(33), 380, 'DATE', 5); cap(M2 + 2, 380, 'SIGNED', 5)
+  line(60.75, 381, 240.75, 381); line(276.75, 381, M2, 381); line(417.15, 381, RX - 0.4, 381)
 
-  // ================= service block (box 24) + right column 25/26/27 =================
-  const tW = CW * 0.655
-  const rX = L + tW
-  const cols = [
-    { k: 'seq', w: 0.042, h1: '24', h2: '' },
-    { k: 'from', w: 0.148, h1: 'A. DATE(S) OF SERVICE', h2: 'MM  DD  YY' },
-    { k: 'pos', w: 0.058, h1: 'B. PLACE OF SERVICE', h2: '' },
-    { k: 'emg', w: 0.044, h1: 'C. EMG', h2: '' },
-    { k: 'cpt', w: 0.238, h1: 'D. PROCEDURES, SERVICES, OR SUPPLIES', h2: 'CPT/HCPCS   MODIFIER' },
-    { k: 'ptr', w: 0.07, h1: 'E. DX POINTER', h2: '' },
-    { k: 'charge', w: 0.104, h1: 'F. $ CHARGES', h2: '' },
-    { k: 'units', w: 0.08, h1: 'G. DAYS OR UNITS', h2: '' },
-    { k: 'epsdt', w: 0.055, h1: 'H. EPSDT', h2: '' },
-    { k: 'qual', w: 0.052, h1: 'I. ID QUAL', h2: '' },
-    { k: 'npi', w: 0.109, h1: 'J. RENDERING NPI', h2: '' },
-  ]
-  const hh = 21
-  doc.setFillColor(...WASH); doc.rect(L, y, tW, hh, 'F')
-  doc.setDrawColor(...RED); doc.setLineWidth(0.5)
-  let cx = L
-  for (const c of cols) {
-    const w = c.w * tW
-    doc.rect(cx, y, w, hh)
-    doc.setTextColor(...RED); doc.setFont('helvetica', 'bold'); doc.setFontSize(3.8)
-    const label = c.k === 'seq' ? '24' : c.h1
-    doc.text(clip(label, w - 3, 3.8), cx + 2, y + 5.4)
-    if (c.h2) { doc.setFont('helvetica', 'normal'); doc.setFontSize(3.2); doc.text(clip(c.h2, w - 3, 3.2), cx + 2, y + 10) }
-    doc.setTextColor(...BLACK)
-    cx += w
-  }
-  const RH = 16.5
-  const rH = (hh + 6 * RH) / 3
-  const rh = y
-  cell(doc, rX, rh, CW - tW, rH, { num: '25.', label: 'Federal tax I.D. number', sub: 'SSN / EIN', lines: [{ text: val(d, '25')[0], size: 7.4 }] })
-  cell(doc, rX, rh + rH, CW - tW, rH, { num: '26.', label: "Patient's account number", lines: [{ text: val(d, '26')[0], size: 7.4 }] })
-  cell(doc, rX, rh + 2 * rH, CW - tW, rH, { num: '27.', label: 'Accept assignment?', sub: '(For govt. claims, see back)', lines: [] })
-  opts(doc, rX + 6, rh + 2 * rH + rH - 11, [['YES', val(d, '27')[0] === 'YES'], ['NO', val(d, '27')[0] !== 'YES']], 4.4)
-  y += hh
-  for (let i = 0; i < LINES_PER_PAGE; i++) {
-    const ln = lines[i]
-    if (i % 2 === 0) { doc.setFillColor(...TINT); doc.rect(L, y, tW, RH, 'F') }
-    doc.setDrawColor(...RED); doc.setLineWidth(0.5)
-    cx = L
-    for (const c of cols) {
-      const w = c.w * tW
-      doc.rect(cx, y, w, RH)
-      if (ln) {
-        let v = ln[c.k]
-        if (c.k === 'seq') v = String(ln.seq)
-        if (c.k === 'from' && ln.through && ln.through !== ln.from) v = `${ln.from}–${ln.through}`
-        if (c.k === 'cpt') v = `${ln.cpt}${ln.mod ? `  ${ln.mod}` : ''}`
-        if (c.k === 'units') v = ln.dayUnits ? `${ln.units} ${ln.dayUnits}` : ln.units
-        if (c.k === 'epsdt' || c.k === 'qual' || c.k === 'emg') v = ''
-        if (v) {
-          const right = c.k === 'charge'
-          doc.setTextColor(...BLACK)
-          doc.setFont('helvetica', c.k === 'charge' || c.k === 'seq' ? 'bold' : 'normal')
-          const size = c.k === 'npi' ? 5 : 6
-          doc.setFontSize(size)
-          const s = clip(String(v), w - 3.5, size)
-          doc.text(s, right ? cx + w - 2 : cx + 2, y + RH - 5, right ? { align: 'right' } : undefined)
-        }
-      }
-      cx += w
-    }
-    y += RH
-  }
-  // ================= totals band: 28 / 29 / 30 =================
-  doc.setFillColor(...WASH); doc.rect(L, y, CW, 20, 'F')
-  doc.setDrawColor(...RED)
-  doc.rect(L, y, CW, 20)
-  doc.rect(rX, y, CW - tW, 20)
-  doc.rect(rX + (CW - tW) * 0.62, y, (CW - tW) * 0.38, 20)
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(4.6); doc.setTextColor(...RED)
-  doc.text('28. TOTAL CHARGE $', L + 3, y + 7)
-  doc.text('29. AMOUNT PAID $', rX + 3, y + 7)
-  doc.setFontSize(4)
-  doc.text('30. RESERVED FOR NUCC USE', rX + (CW - tW) * 0.62 + 3, y + 7)
-  doc.setTextColor(...BLACK); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.6)
-  doc.text(clip(d.totalCharge, (rX - L) / 2, 7.6), rX - 4, y + 15, { align: 'right' })
-  doc.setFont('helvetica', 'normal'); doc.setFontSize(5)
-  doc.text(`due $ ${d.due}${d.adjustments ? ` · adjustment $ ${d.adjustments}` : ''}`, L + 3, y + 15)
-  doc.setFont('helvetica', 'bold'); doc.setFontSize(7.6)
-  doc.text(clip(d.amountPaid || '—', (CW - tW) * 0.5, 7.6), rX + (CW - tW) * 0.62 - 4, y + 15, { align: 'right' })
-  y += 20
+  // physician or supplier section (items 14-23)
+  const P1 = 216.99
+  for (const y of [407.8, 431.8, 456.3, 504.8]) line(LX, y, RX, y)
+  line(M2, 480.1, RX, 480.1)
+  line(P1, 384.5, P1, 431.8); line(M2, 384.5, M2, 504.8)
+  shade(P1, 407.83, M2 - P1, 11.9); line(P1, 419.75, M2, 419.75); line(233.4, 407.8, 233.4, 419.75); line(248.9, 407.8, 248.9, 431.8)
+  cap(LX + 2, 389.5, '14. DATE OF CURRENT ILLNESS, INJURY, or PREGNANCY (LMP)'); cap(colX(13), 404, 'QUAL.', 3.8)
+  cap(P1 + 2, 389.5, '15. OTHER DATE'); cap(P1 + 2, 404, 'QUAL.', 3.8)
+  cap(M2 + 2, 389.5, '16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION')
+  cap(LX + 2, 413, '17. NAME OF REFERRING PROVIDER OR OTHER SOURCE')
+  cap(P1 + 2, 416, '17a.', 4.4); cap(P1 + 2, 428, '17b.  NPI', 4.4)
+  cap(M2 + 2, 413, '18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES')
+  cap(LX + 2, 437, '19. ADDITIONAL CLAIM INFORMATION (Designated by NUCC)')
+  cap(M2 + 2, 437, '20. OUTSIDE LAB?                    $ CHARGES'); box(38, 52, 'YES'); box(38, 57, 'NO')
+  cap(LX + 2, 461.5, '21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY  Relate A-L to service line below (24E)'); cap(colX(38), 467, 'ICD Ind.', 4)
+  ;['A.', 'B.', 'C.', 'D.', 'E.', 'F.', 'G.', 'H.', 'I.', 'J.', 'K.', 'L.'].forEach((l, i) => cap(colX([3, 16, 29, 42][i % 4]) - 8, lineY(40 + Math.floor(i / 4)), l, 5))
+  cap(M2 + 2, 461.5, '22. RESUBMISSION CODE                 ORIGINAL REF. NO.'); line(colX(61) + 4, 466, colX(61) + 4, 480.1)
+  cap(M2 + 2, 485, '23. PRIOR AUTHORIZATION NUMBER')
 
-  // ================= signature / facility / provider =================
-  const sigH = 62
-  cell(doc, L, y, CW * 0.40, sigH, {
-    num: '31.', label: 'Signature of physician or supplier',
-    sub: '(I certify that the statements on the reverse apply to this bill and are made a part thereof.)',
-    lines: [{ text: `${val(d, '33a')[0]} · ${val(d, '21')[0]}`, style: 'i', size: 4.6 }, { text: `SIGNED  X        DATE  ${val(d, '28')[0]}`, size: 6 }],
-  })
-  const f32 = val(d, '32')
-  cell(doc, L + CW * 0.40, y, CW * 0.30, sigH, {
-    num: '32.', label: 'Service facility location information',
-    lines: [{ text: f32[0], style: 'n', size: 4.8 }, { text: f32[1] || '', size: 6 }],
-  })
-  doc.setFontSize(3.4); doc.setTextColor(...RED)
-  doc.text('32a. NPI', L + CW * 0.40 + 3, y + sigH - 5)
-  doc.setTextColor(...BLACK)
-  const f33 = val(d, '33')
-  cell(doc, L + CW * 0.70, y, CW * 0.30, sigH, {
-    num: '33.', label: 'Billing provider info & ph. #',
-    lines: [{ text: f33[0], style: 'n', size: 4.8 }, { text: f33[1] || '', size: 4.4 }, { text: f33[2] || '', size: 5.6 }],
-  })
-  doc.setFontSize(3.4); doc.setTextColor(...RED)
-  doc.text('33a. NPI', L + CW * 0.70 + 3, y + sigH - 5)
-  doc.setTextColor(...BLACK)
-  y += sigH
+  // item 24: header, six shaded / unshaded service lines
+  const top24 = 527.2
+  const rows = [527.2, 551.2, 575.8, 599.2, 623.8, 647.2, 671.2]
+  for (let k = 0; k < 6; k++) shade(LX, rows[k], RX - LX, 12)
+  for (const y of rows) line(LX, y, RX, y)
+  const inner = [86.96, 151.38, 174.39, 195.99, 248.41, 338.91, 375.77, 421.3, 439.38]
+  for (const x of inner) { line(x, 504.8, x, top24); for (let k = 0; k < 6; k++) line(x, rows[k] + 12, x, rows[k + 1]) }
+  for (const x of [468.32, 483.27, 504.27]) line(x, 504.8, x, 671.2)
+  cap(LX + 2, 510, '24. A.      DATE(S) OF SERVICE'); cap(LX + 6, 517, 'From                       To', 4.2); cap(LX + 4, 524, 'MM    DD    YY    MM    DD    YY', 3.8)
+  cap(152.5, 514, 'B.', 4.4); cap(152.5, 520, 'PLACE OF', 3.6); cap(152.5, 524.5, 'SERVICE', 3.6)
+  cap(176, 514, 'C.', 4.4); cap(176, 524.5, 'EMG', 3.6)
+  cap(197.5, 510, 'D. PROCEDURES, SERVICES, OR SUPPLIES'); cap(197.5, 516, '(Explain Unusual Circumstances)', 3.8); cap(197.5, 524.5, 'CPT/HCPCS                       MODIFIER', 3.8)
+  cap(340.5, 514, 'E.', 4.4); cap(340.5, 520, 'DIAGNOSIS', 3.6); cap(340.5, 524.5, 'POINTER', 3.6)
+  cap(377.5, 514, 'F.', 4.4); cap(377.5, 524.5, '$ CHARGES', 4)
+  cap(441, 514, 'G.', 4.4); cap(441, 520, 'DAYS OR', 3.6); cap(441, 524.5, 'UNITS', 3.6)
+  cap(469.5, 514, 'H.', 4.4); cap(469.5, 520, 'EPSDT', 3.6); cap(469.5, 524.5, 'Family Plan', 3)
+  cap(484.5, 514, 'I.', 4.4); cap(484.5, 520, 'ID.', 3.6); cap(484.5, 524.5, 'QUAL.', 3.6)
+  cap(506, 514, 'J.', 4.4); cap(506, 520, 'RENDERING', 3.6); cap(506, 524.5, 'PROVIDER ID. #', 3.6)
+  for (let k = 0; k < 6; k++) { cap(LX - 8, lineY(46 + 2 * k), String(k + 1), 6, 'bold'); cap(484.5, rows[k] + 22, 'NPI', 4.4) }
 
-  // ================= solid footer band =================
-  doc.setFillColor(...BAND); doc.rect(L, y, CW, 13, 'F')
-  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8)
-  doc.text('PLEASE PRINT OR TYPE', (L + R) / 2, y + 8.8, { align: 'center' })
-  const formBottom = y + 13
-  doc.setTextColor(...RED); doc.setFont('helvetica', 'normal'); doc.setFontSize(3.8)
-  doc.text('NUCC Instruction Manual available at: www.nucc.org', L, formBottom + 6)
-  doc.text('WCMS-1500CS-12', (L + R) / 2, formBottom + 6, { align: 'center' })
-  doc.text('APPROVED OMB 0938-1197  FORM 1500 (02-12)', R, formBottom + 6, { align: 'right' })
-  let ny = formBottom + 13
-  if (claim.mode === 'selfpay') {
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...RED)
-    doc.text('COURTESY COPY — family invoice; payer boxes reflect the self-pay account.', (L + R) / 2, ny + 7, { align: 'center' })
-    doc.setTextColor(...BLACK); doc.setFont('helvetica', 'normal')
-    ny += 12
-  }
-  doc.setFontSize(4.4); doc.setTextColor(...RED)
-  doc.text(d.note, L, ny + 7)
-  doc.text(`Page ${pageNo + 1} of ${d.pages.length} for ${d.claimNo} · Aloha ABA`, R, ny + 7, { align: 'right' })
-  doc.setTextColor(...BLACK)
+  // items 25-33
+  line(LX, 695.5, RX, 695.5); line(264.44, 742.3, M2, 742.3); line(458.68, 742.3, RX, 742.3)
+  for (const x of [180.87, 286.35, 375.63, 456.4, 524.79]) line(x, 671.2, x, 695.5)
+  for (const c of [58, 68]) line(colX(c), 685, colX(c), 695.5) // dollars | cents in 28 and 29
+  line(180.87, 695.5, 180.87, 756.5); line(M2, 695.5, M2, 756.5); line(264.44, 742.3, 264.44, 756.5); line(458.68, 742.3, 458.68, 756.5)
+  shade(264.44, 742.39, M2 - 264.44, 13.3); shade(458.68, 742.34, RX - 458.68, 13.8)
+  cap(LX + 2, 676.5, '25. FEDERAL TAX I.D. NUMBER          SSN   EIN'); box(58, 17); box(58, 19)
+  cap(182.5, 676.5, "26. PATIENT'S ACCOUNT NO.")
+  cap(288, 676.5, '27. ACCEPT ASSIGNMENT?'); cap(288, 681.5, '(For govt. claims, see back)', 3.4); box(58, 38, 'YES'); box(58, 43, 'NO')
+  cap(377, 676.5, '28. TOTAL CHARGE'); cap(458, 676.5, '29. AMOUNT PAID'); cap(526.5, 676.5, '30. Rsvd for NUCC Use', 4.2)
+  cap(LX + 2, 701, '31. SIGNATURE OF PHYSICIAN OR SUPPLIER', 4.4); cap(LX + 2, 706, 'INCLUDING DEGREES OR CREDENTIALS', 4.2)
+  cap(LX + 2, 711, '(I certify that the statements on the reverse', 3.8); cap(LX + 2, 715.5, 'apply to this bill and are made a part thereof.)', 3.8)
+  cap(LX + 2, 754, 'SIGNED', 4.4); cap(colX(16) + 2, 754, 'DATE', 4.4)
+  cap(182.5, 701, '32. SERVICE FACILITY LOCATION INFORMATION')
+  cap(182.5, 752, 'a.', 4.4); cap(266, 752, 'b.', 4.4)
+  cap(377, 701, '33. BILLING PROVIDER INFO & PH #')
+  cap(colX(65) + 2, lineY(59), '(', 8); cap(colX(69), lineY(59), ')', 8)
+  cap(377, 752, 'a.', 4.4); cap(460, 752, 'b.', 4.4)
 
-  // ================= right side bands (drawn last, sized to the real form bottom) =================
-  const bandX = R + 2
-  const midY = 44 + (formBottom - 44) * 0.55
-  doc.setFillColor(...BAND); doc.setDrawColor(...BAND)
-  doc.rect(bandX, 44, 14, midY - 46, 'F')
-  doc.rect(bandX, midY, 14, formBottom - midY - 2, 'F')
-  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(5)
-  doc.text('C A R R I E R', bandX + 10, (44 + midY) / 2, { angle: 90, align: 'center' })
-  doc.text('PATIENT AND INSURANCE INFORMATION', bandX + 10, (midY + formBottom) / 2, { angle: 90, align: 'center' })
-  // small fold arrows like the paper stock
-  doc.setFillColor(255, 255, 255)
-  const ay = (44 + midY) / 2 + 52
-  doc.triangle(bandX + 5, ay, bandX + 9, ay, bandX + 7, ay + 4, 'F')
-  doc.triangle(bandX + 5, formBottom - 10, bandX + 9, formBottom - 10, bandX + 7, formBottom - 14, 'F')
-  doc.setTextColor(...BLACK)
+  // footer
+  cap(LX, 766, 'NUCC Instruction Manual available at: www.nucc.org', 4.6)
+  cap(250, 766, 'PLEASE PRINT OR TYPE', 6, 'bold')
+  cap(452, 766, 'APPROVED OMB-0938-1197 FORM 1500 (02-12)', 4.6)
+  // right-hand side bands
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(5)
+  // rotated text reads upward from its start point; centre it on the band by hand
+  const band = (t, yMid) => doc.text(t, 604, yMid + doc.getTextWidth(t) / 2, { angle: 90 })
+  band('CARRIER', 60); band('PATIENT AND INSURED INFORMATION', 240); band('PHYSICIAN OR SUPPLIER INFORMATION', 570)
+
+  // this PDF is a review copy: the paper claim is the data mode on genuine red stock
+  doc.setTextColor(...INK)
+  cap(colX(38), 14, 'REVIEW COPY - NOT FOR OCR SUBMISSION. For a paper claim, print the', 5.4, 'bold')
+  cap(colX(38), 20.5, '"data only" version onto genuine red-ink CMS-1500 (02/12) forms.', 5.4, 'bold')
+  if (d.mode === 'selfpay') cap(colX(38), 27, 'COURTESY COPY - self-pay account; this is not an insurance claim.', 5.4, 'bold')
+  if (d.pages.length > 1 && pageIndex < d.pages.length - 1) cap(377, 694, 'CONTINUED ON NEXT PAGE - total on last page', 3.8)
+  doc.setTextColor(...INK)
 }

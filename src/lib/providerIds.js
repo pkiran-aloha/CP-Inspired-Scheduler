@@ -14,7 +14,7 @@ import { validNpi } from './claims'
 
 export const PROVIDER_ID_RULES = [
   { id: 'npi', label: 'NPI only', hint: 'Box 24J and 33a carry the NPI (most commercial plans).' },
-  { id: 'medicaid', label: 'Medicaid ID only', hint: 'Box 24J (shaded, qualifier 1D) and 33b carry the Medicaid provider number.' },
+  { id: 'medicaid', label: 'Medicaid ID only', hint: 'Box 24J (shaded, qualifier G2) and 33b carry the Medicaid provider number.' },
   { id: 'both', label: 'NPI and Medicaid ID', hint: 'The NPI in 24J/33a and the Medicaid ID in the shaded 24J/33b, both required.' },
 ]
 const LABEL = Object.fromEntries(PROVIDER_ID_RULES.map((r) => [r.id, r.label]))

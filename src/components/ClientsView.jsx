@@ -163,6 +163,10 @@ function ClientModal({ client, dup, onClose }) {
               </F>
               <F k="phone" label="Guardian phone" icon="phone" type="tel" />
               <F k="email" label="Family email" icon="mail" type="email" wide />
+              <F k="street" label="Home address (CMS-1500 item 5)" icon="house" wide />
+              <F k="city" label="City" />
+              <F k="state" label="State" hint="2-letter code" />
+              <F k="zip" label="ZIP" />
             </div>
           </section>
           <section className="pm-sect">

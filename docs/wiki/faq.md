@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced against main 09dc973 plus the docs/mismatch-nits branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 4b850b4 plus the feat/cms1500-standard branch on 2026-10-06; unrelated behavior unchanged._
 
 [Wiki home](README.md)
 
@@ -101,7 +101,7 @@ Each insurance line gets up to four, in this order: the payer's own modifier for
 
 ### Can I use the CMS-1500 PDF as it is?
 
-Treat it as a printable draft and check it first. Program, group number, plan ID, other coverage and service facility now come from the payer and client records, but the member ID and authorization number are still placeholder values, and the footer note mentions an electronic filing the app does not perform. [More: Billing and claims](billing-and-claims.md#cms-1500-pdf)
+For a paper claim, use **Red form print**: it prints only the data, on the NUCC/CMS print grid, for genuine red-ink CMS-1500 (02/12) forms loaded in your printer (print at 100%). The plain **CMS-1500** download draws the form too and is marked as a review copy, because payers that scan paper claims reject replicas and photocopies. Check the member ID, authorization number and diagnosis first: the app prints placeholders when the client chart has none. [More: Billing and claims](billing-and-claims.md#cms-1500-pdf)
 
 ### How do I rebill, void or write off a claim?
 

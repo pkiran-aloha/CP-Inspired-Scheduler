@@ -1,119 +1,182 @@
-// ---- CMS-1500 mapping & PDF smoke tests over the real demo ledger ----
+// ---- CMS-1500 (02/12): NUCC item values, print-grid layout and PDF, over the demo ledger ----
 import { describe, it, expect } from 'vitest'
 import { blankState } from '../state/store'
-import { cms1500Data, claimTo1500, claimsTo1500, usDate, lastFirst, money2, posFor, LINES_PER_PAGE } from '../lib/cms1500'
+import {
+  cms1500Data, layout1500, claimTo1500, claimsTo1500, posFor, LINES_PER_PAGE,
+  nameLFM, moneyParts, splitAddress, plain, compact, colX, lineY,
+} from '../lib/cms1500'
 
 const st = blankState()
-const box = (d, id) => d.boxes.find((b) => b.id === id)
 const anyClaim = (pred) => Object.values(st.claims).find(pred)
+const claim = anyClaim((c) => c.mode === 'insurance' && c.lines.length >= 2)
+const client = st.clients.find((c) => c.id === claim.clientId)
+const withClient = (patch) => ({ ...st, clients: st.clients.map((c) => (c.id === claim.clientId ? { ...c, ...patch } : c)) })
+const at = (fields, line, col) => fields.find((f) => f.line === line && f.col === col)?.text
 
-describe('cms1500 mapping', () => {
-  const claim = anyClaim((c) => c.mode === 'insurance' && c.lines.length >= 2)
-  const d = cms1500Data(st, claim)
-  const client = st.clients.find((c) => c.id === claim.clientId)
-
-  it('maps identity boxes end-to-end (1a, 25, 32, 23, 33)', () => {
-    expect(box(d, '33').value[0]).toBe(st.settings.org.name)
-    expect(box(d, '25').value[0]).toBe(st.settings.org.taxId)
-    expect(box(d, '1a').value[0]).toMatch(/^[A-Z]{2,3}\d{6,7}$/) // payer-prefixed member id
-    expect(box(d, '33').value[2]).toMatch(/NPI \d{10}/)
-    expect(box(d, '32').value).toEqual(['—']) // default rule: facility = billing provider, leave blank
-    expect(box(d, '23').value[0]).toMatch(/^AUTH-/)
+describe('NUCC formatting rules', () => {
+  it('names are LAST, FIRST, MI with commas, no periods, accents folded (items 2, 4, 9)', () => {
+    expect(nameLFM('Justin Hsu')).toBe('HSU, JUSTIN')
+    expect(nameLFM('Mary Ann Smith-Jones')).toBe('SMITH-JONES, MARY, A')
+    expect(nameLFM('L. Hsu')).toBe('HSU, L')
+    expect(nameLFM('Noah Bergström', 'Erik')).toBe('BERGSTROM, NOAH, E')
   })
 
-  it('patient boxes use LAST, FIRST format + mm/dd/yy DOB + sex from the client record', () => {
-    expect(box(d, '2').value[0]).toBe(lastFirst(client.name))
-    expect(box(d, '2b').value[0]).toMatch(/^\d{2}\/\d{2}\/\d{2}$/)
-    expect(['M', 'F']).toContain(box(d, '2c').value[0])
+  it('addresses drop punctuation; IDs drop hyphens and spaces', () => {
+    expect(plain('123 N. Main Street, #101')).toBe('123 N MAIN STREET 101')
+    expect(compact('AUTH-2026-41305')).toBe('AUTH202641305')
+    expect(splitAddress('1140 Sunset Crest Way, San Jose, CA 95124-3301')).toEqual({ street: '1140 Sunset Crest Way', city: 'San Jose', state: 'CA', zip: '95124-3301' })
   })
 
-  it('service rows: dates, CPT, units, rate/charge money format, dx pointers within 1–12', () => {
-    expect(d.pages.length).toBeGreaterThanOrEqual(1)
-    const row = d.pages[0][0]
-    expect(row.from).toBe(usDate(claim.lines[0].dos))
-    expect(row.cpt).toBe(claim.lines[0].code || '14220')
-    expect(row.charge).toBe(money2(claim.lines[0].charge))
-    const ptrs = claim.lines.map((_, i) => Number(d.pages[Math.floor(i / LINES_PER_PAGE)][i % LINES_PER_PAGE].ptr))
-    ptrs.forEach((p) => expect(p).toBeGreaterThanOrEqual(1))
-    ptrs.forEach((p) => expect(p).toBeLessThanOrEqual(12))
+  it('money splits into dollars and cents with no $ or decimal point', () => {
+    expect(moneyParts(1234)).toEqual({ dollars: '1234', cents: '00' })
+    expect(moneyParts(128.5)).toEqual({ dollars: '128', cents: '50' })
+    expect(moneyParts(-5)).toEqual({ dollars: '0', cents: '00' }) // negatives are not allowed on the form
+  })
+})
+
+describe('cms1500Data: NUCC item values from the workspace', () => {
+  const d = cms1500Data(withClient({ street: '42 Maple Ave.', city: 'San Jose', state: 'CA', zip: '95124-1234' }), claim)
+  const items = d.items
+
+  it('patient and insured: a child is insured under the guardian; ZIP prints without the hyphen (items 2-7)', () => {
+    expect(items[2]).toBe(nameLFM(client.name))
+    expect(items[3].dob.yyyy).toHaveLength(4)
+    expect(['M', 'F']).toContain(items[3].sex)
+    expect(items[4]).toBe(nameLFM(client.guardian))
+    expect(items[6]).toBe('CHILD')
+    expect(items[5]).toEqual({ street: '42 MAPLE AVE', city: 'SAN JOSE', state: 'CA', zip: '951241234' })
+    expect(items[7]).toEqual(items[5])
   })
 
-  it('six-line pagination: every grid page carries ≤ 6 rows and CONTINUED pages exist past 6', () => {
+  it('diagnoses print with ICD indicator 0 and no decimal point; every line points at A', () => {
+    expect(items[21].ind).toBe('0')
+    items[21].codes.forEach((c) => expect(c).toMatch(/^[A-Z][0-9A-Z]{2,6}$/))
+    expect(items[21].codes[0]).toBe('F840')
+    d.pages.flat().forEach((r) => expect(r.ptr).toBe('A'))
+  })
+
+  it('service lines: six per page, CPT + up to four modifiers, NPI only when it differs from 33a', () => {
     const big = anyClaim((c) => c.lines.length > LINES_PER_PAGE)
-    if (!big) return // demo currently has a 10-line claim; if seed changes, nothing breaks
-    const dd = cms1500Data(st, big)
-    expect(dd.pages.length).toBe(Math.ceil(big.lines.length / LINES_PER_PAGE))
-    dd.pages.forEach((p) => expect(p.length).toBeLessThanOrEqual(LINES_PER_PAGE))
-    expect(dd.pages.at(-1).length).toBe(big.lines.length % LINES_PER_PAGE || LINES_PER_PAGE)
+    if (big) {
+      const db = cms1500Data(st, big)
+      expect(db.pages.length).toBe(Math.ceil(big.lines.length / LINES_PER_PAGE))
+      db.pages.forEach((p) => expect(p.length).toBeLessThanOrEqual(LINES_PER_PAGE))
+    }
+    const row = d.pages[0][0]
+    const dos = claim.lines[0].dos
+    expect(row.cpt).toBe(String(claim.lines[0].code).toUpperCase())
+    expect(row.mods.length).toBeLessThanOrEqual(4)
+    expect(row.from.mm + row.from.dd + row.from.yy).toBe(dos.slice(5, 7) + dos.slice(8, 10) + dos.slice(2, 4))
+    if (row.npi) expect(row.npi).not.toBe(items['33a'])
   })
 
-  it('replacement versioning: a rebilled claim carries REPLACEMENT + resubmission code 7 + prior ref', () => {
-    const dd = cms1500Data(st, { ...claim, version: 2, parentNo: 'CLM-202608-014' })
-    expect(box(dd, '12').value[0]).toBe('REPLACEMENT')
-    expect(box(dd, '22').value[0]).toBe('7')
-    expect(box(dd, '16').value[0]).toBe('CLM-202608-014')
+  it('billing provider, tax ID and authorization use NUCC formats (items 23, 25, 27, 32, 33)', () => {
+    expect(items[25]).toEqual({ tin: st.settings.org.taxId.replace(/\D/g, ''), ein: true })
+    expect(items[33][0]).toBe(plain(st.settings.org.name))
+    expect(items[33][2]).toMatch(/^[A-Z ]+ [A-Z]{2} \d{5,9}$/) // CITY ST ZIP, no comma
+    expect(items['33a']).toMatch(/^\d{10}$/)
+    expect(items['33phone']).toEqual({ area: '408', num: '5550134' })
+    expect(items[23]).toMatch(/^[A-Z0-9]+$/)
+    expect(items[27]).toBe(true)
+    expect(items[32]).toBeNull() // default rule: facility = billing provider, leave 32 blank
   })
 
-  it('totals: 23c & 24J agree with the ledger, paid only shown on paid claims', () => {
-    const paid = anyClaim((c) => c.status === 'paid')
-    const dp = cms1500Data(st, paid)
-    expect(dp.totalCharge).toBe(money2(paid.charges))
-    expect(dp.amountPaid).toBe(money2(paid.paid))
-    const draft = anyClaim((c) => c.status === 'draft')
-    expect(cms1500Data(st, draft).amountPaid).toBe('')
+  it('other coverage fills 9 / 9a / 9d only when 11d is YES', () => {
+    const withSec = cms1500Data(withClient({ secondary: { payerId: st.payers[0].id, memberId: 'SEC-1' } }), claim)
+    expect(withSec.items['11d']).toBe(true)
+    expect([withSec.items[9], withSec.items['9a'], withSec.items['9d']]).toEqual([nameLFM(client.guardian), 'SEC1', plain(st.payers[0].name)])
+    const none = cms1500Data(withClient({ secondary: null }), claim)
+    expect([none.items['11d'], none.items[9], none.items['9a'], none.items['9d']]).toEqual([false, '', '', ''])
   })
 
-  it('place of service derives from the first line’s location', () => {
+  it('a replacement claim carries frequency code 7 and the original reference (item 22)', () => {
+    expect(cms1500Data(st, { ...claim, version: 1 }).items[22]).toBeNull()
+    expect(cms1500Data(st, { ...claim, version: 2, parentNo: 'CLM-202608-014' }).items[22]).toEqual({ code: '7', ref: 'CLM202608014' })
+  })
+
+  it('item 1 program and items 11 / 11c come from the payer master', () => {
+    const payer = st.payers.find((p) => p.name === claim.payer)
+    const s2 = { ...st, payers: st.payers.map((p) => (p === payer ? { ...p, cmsType: 'Medicaid', ext: { ...payer.ext, group: 'G-77', plan: 'Plan 9' } } : p)) }
+    const m = cms1500Data(s2, claim)
+    expect(m.items[1]).toBe('MEDICAID')
+    expect(m.items[11]).toBe('G77')
+    expect(m.items['11c']).toBe('PLAN 9')
+  })
+
+  it("item 29 is what the patient or other payers paid, never this payer's own payment", () => {
+    expect(cms1500Data(st, { ...claim, paid: 500, patientPaid: 0 }).items[29]).toBeNull()
+    expect(cms1500Data(st, { ...claim, patientPaid: 25 }).items[29]).toBe(25)
+  })
+
+  it('place of service derives from the appointment location', () => {
     expect(posFor({ location: "Jimmy Ma's home" })).toBe('12')
-    expect(posFor({ location: 'Jefferson Elementary' })).toBe('11') // school names aren't labeled 'school' — center fallback ok
     expect(posFor({ location: 'Jefferson Elementary School' })).toBe('03')
     expect(posFor({ location: 'Telehealth (video)' })).toBe('10')
   })
+})
 
-  it('program, plan, group, other coverage and box 32 come from the payer and client records', () => {
-    const payer = st.payers.find((p) => p.name === claim.payer)
-    const withPayer = (patch, clientPatch = {}) => ({
-      ...st,
-      payers: st.payers.map((p) => (p === payer ? { ...p, ...patch } : p)),
-      clients: st.clients.map((c) => (c.id === claim.clientId ? { ...c, ...clientPatch } : c)),
-    })
-    const m = cms1500Data(withPayer({ cmsType: 'Medicaid', ext: { ...payer.ext, plan: 'PLAN-9', group: 'G-77' }, rules: { ...(payer.rules || {}), claims: { box32: 'Always display Service Facility Name and Location' } } }, { secondary: { payerId: 'py-x' } }), claim)
-    expect(m.typeOfService).toBe('MEDICAID')
-    expect(box(m, '10').value[0]).toBe('PLAN-9')
-    expect(box(m, '7a').value[0]).toBe('G-77')
-    expect(box(m, '6').value[0]).toBe('YES')
-    expect(box(m, '32').value[1]).toMatch(/NPI \d{10}/)
-    const blank = cms1500Data(withPayer({ cmsType: 'Medicare', ext: { ...payer.ext, plan: '', group: '' } }, { secondary: null }), claim)
-    expect(blank.typeOfService).toBe('MEDICARE')
-    expect([box(blank, '10').value[0], box(blank, '7a').value[0], box(blank, '6').value[0]]).toEqual(['—', '—', 'NO'])
+describe('layout1500: the 10-cpi by 6-lpi print grid', () => {
+  const d = cms1500Data(st, claim)
+  const f = layout1500(d, 0)
+
+  it('places fields on their CMS lines and columns', () => {
+    expect(at(f, 10, 50)).toBe(d.items['1a'])
+    expect(at(f, 12, 1)).toBe(d.items[2])
+    expect(at(f, 12, 31)).toBe(d.items[3].dob.mm)
+    expect(at(f, 12, 37)).toBe(d.items[3].dob.yyyy)
+    expect(at(f, 39, 42)).toBe('0')
+    expect(at(f, 40, 3)).toBe('F840')
+    expect(at(f, 46, 25)).toBe(d.pages[0][0].cpt)
+    expect(at(f, 58, 23)).toBe(d.items[26])
+    expect(at(f, 63, 51)).toBe(d.items['33a'])
+    expect(at(f, 14, 42)).toBe('X') // item 6: Child
+    expect(at(f, 58, 19)).toBe('X') // item 25: EIN
   })
 
-  it('payer policy feeds timely filing days (Medicaid gets the longest runway)', () => {
-    expect(+box(d, '7b').value[0]).toBeGreaterThanOrEqual(90)
+  it('right-justifies dollars so the cents sit after the dotted line (24F)', () => {
+    const m = moneyParts(d.pages[0][0].charge)
+    expect(at(f, 46, 55 - m.dollars.length + 1)).toBe(m.dollars)
+    expect(at(f, 46, 56)).toBe(m.cents)
   })
 
-  it('money format is 2dp everywhere a dollar appears', () => {
-    expect(box(d, '23c').value[0]).toMatch(/\$\s?\d+\.\d{2}/)
-    d.pages.forEach((p) => p.forEach((r) => expect(r.charge).toMatch(/^\d+\.\d{2}$/)))
+  it('keeps every field inside the 79-column form body', () => {
+    for (const x of f) expect(x.col + x.text.length - 1).toBeLessThanOrEqual(79)
+  })
+
+  it('prints the claim total on the last page only, with page numbers on line 8', () => {
+    const big = anyClaim((c) => c.lines.length > LINES_PER_PAGE)
+    if (!big) return
+    const db = cms1500Data(st, big)
+    const first = layout1500(db, 0)
+    const last = layout1500(db, db.pages.length - 1)
+    const t = moneyParts(big.charges)
+    expect(at(first, 58, 57 - t.dollars.length + 1)).toBeUndefined()
+    expect(at(last, 58, 57 - t.dollars.length + 1)).toBe(t.dollars)
+    expect(at(first, 8, 32)).toBe(`PAGE 1 OF ${db.pages.length}`)
+  })
+
+  it('grid maths: column 1 starts 0.35in from the edge, 10 characters and 6 lines per inch', () => {
+    expect(colX(1)).toBeCloseTo(25.2)
+    expect(colX(11) - colX(1)).toBeCloseTo(72)
+    expect(lineY(7) - lineY(1)).toBeCloseTo(72)
   })
 })
 
 describe('cms1500 pdf', () => {
-  it('renders a real %PDF document for one claim', () => {
-    const claim = Object.values(st.claims)[0]
-    const out = claimTo1500(st, claim).output('arraybuffer')
-    const head = new TextDecoder('latin1').decode(new Uint8Array(out).slice(0, 5))
-    expect(head).toBe('%PDF-')
-    expect(out.byteLength).toBeGreaterThan(4000)
+  const head = (doc) => new TextDecoder('latin1').decode(new Uint8Array(doc.output('arraybuffer')).slice(0, 5))
+  it('renders the review copy and the data-only red-form print as real PDFs', () => {
+    const copy = claimTo1500(st, claim)
+    const data = claimTo1500(st, claim, { mode: 'data' })
+    expect(head(copy)).toBe('%PDF-')
+    expect(head(data)).toBe('%PDF-')
+    // the data-only print carries no form artwork, so it is much smaller than the copy
+    expect(data.output('arraybuffer').byteLength).toBeLessThan(copy.output('arraybuffer').byteLength)
   })
 
-  it('batch packs every visible claim into one multi-page PDF', () => {
+  it('batch packs every claim page into one PDF', () => {
     const claims = Object.values(st.claims).slice(0, 6)
-    const out = claimsTo1500(st, claims).output('arraybuffer')
-    const bytes = new TextDecoder('latin1').decode(new Uint8Array(out))
-    expect(bytes.startsWith('%PDF-')).toBe(true)
-    const count = Math.max(...[...bytes.matchAll(/\/Count (\d+)/g)].map((m) => Number(m[1])), 0)
-    expect(count).toBeGreaterThanOrEqual(claims.length) // ≥ one page per claim
-    expect(out.byteLength).toBeGreaterThan(12000)
+    const doc = claimsTo1500(st, claims)
+    const pages = claims.reduce((n, c) => n + cms1500Data(st, c).pages.length, 0)
+    expect(doc.getNumberOfPages()).toBe(pages)
   })
 })

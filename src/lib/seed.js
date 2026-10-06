@@ -91,7 +91,8 @@ export const CLIENTS = [
   { id: 'c14', name: 'Sowmya Reddy', initials: 'SR', color: '#d946ef', program: 'EIBI · Day program', home: 'Main Center', authWeekly: 20, guardian: 'K. Reddy', geo: [37.35, -122.03] , avatar: 'frog', phone: '(408) 555-0174'},
   { id: 'c15', name: 'Sylviya Anand', initials: 'SA', color: '#f59e0b', program: 'Speech co-treatment', home: 'Northside Center', authWeekly: 6, guardian: 'T. Anand', geo: [37.4, -121.99] , avatar: 'bunny', phone: '(408) 555-0175'},
   { id: 'c16', name: 'Bharath Reddy', initials: 'BR', color: '#3b82f6', program: 'Assessment / intake', home: 'Main Center', authWeekly: 5, guardian: 'G. Reddy', geo: [37.34, -122.05] , avatar: 'koala', phone: '(408) 555-0176'},
-]
+// fictional mailing addresses, so the demo CMS-1500 has a complete item 5 / 7
+].map((c, i) => ({ ...c, street: `${120 + i * 37} ${['Orchard', 'Willow', 'Cedar', 'Linden', 'Maple', 'Juniper', 'Aspen', 'Hazel'][i % 8]} Ln`, city: 'San Jose', state: 'CA', zip: `951${String(10 + i).padStart(2, '0')}` }))
 export const CLIENTS_BY_ID = Object.fromEntries(CLIENTS.map((c) => [c.id, c]))
 // attach payer + authorization window (deterministic by index) + birth demographics for claims
 CLIENTS.forEach((c, i) => Object.assign(c, {

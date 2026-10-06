@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### CMS-1500 to the NUCC / CMS standard
+
+The CMS-1500 (02/12) now follows the NUCC instruction manual item by item and prints every character on the form's 10-per-inch, 6-lines-per-inch grid. **Red form print** produces the data only, for genuine red-ink forms, which is the paper claim scanning payers accept. The **CMS-1500** download adds the drawn form and is marked as a review copy. Clients > Edit now records the home address the form needs in item 5.
+
 ### Small consistency fixes
 
 The secondary screen's title now reads **Secondary Queue**, matching its nav item and the Billing desk. The AR Manager lost an unreachable "Clear filter" button (its filter was never set); search remains the client filter.
