@@ -16,6 +16,19 @@ Last updated **2026-10-06** (red-main fix, `fix/family-balances-date`). Any agen
 
 ## Shipped (newest first)
 
+### Superbill for out-of-network families (`feat/superbill`)
+
+- **What.** A superbill (an itemized statement a family submits to its own insurer for services it paid itself). `src/lib/superbill.js` has three functions. `superbillClaims` returns self-pay claims, never draft, void or secondary, with a date of service in the range. `superbillView` is pure; `superbillPdf` draws the letter portrait PDF. The Generate Invoice client row has a **Superbill** button (`gi-superbill-<clientId>`), shown when the client has self-pay services in the page's range.
+- **Fields** (Cigna behavioral-health member claim form list plus common payer expectations):
+  - provider name, address, phone, tax ID and billing NPI
+  - patient name, DOB, address, account number; subscriber (guardian, Child), plan and member ID, printed only when real (blank fill-in lines otherwise)
+  - ICD-10-CM codes; rendering providers with certification and NPI
+  - per line: DOS, POS, CPT/HCPCS, modifiers, units, pointer, rendering provider and charge
+  - totals (charges, paid by patient, balance); attestation and signature/date line; "This is not a bill."
+- **Why self-pay only:** services the practice billed to an insurer must not be resubmitted by the family.
+- **Verification:** rendered a 24-line demo superbill (2 pages) with node and jsPDF 4.2.1 and viewed it in the browser pane. The pure assertions pass in node. `superbill.test.jsx` (pure + UI download) runs in CI.
+- **Not done:** e-signature (the signature line is for a wet signature); a per-line rendering NPI column (NPIs are listed in the rendering-providers block); Good Faith Estimate (next candidate).
+
 ### Family statement to HFMA guidance (`feat/family-statement`)
 
 - **Why.** The old statement PDF was a generic key/value document (via `docToPdf`): no due date, no proof of what insurance paid, no envelope-window layout, no remittance stub. Research basis: HFMA patient-friendly billing ("clear, concise, correct"; see at a glance what the plan paid and what you owe; whom to call), HIPAA practice for mailed bills (only the addressee shows through the window; no diagnosis), the No Surprises Act GFE / patient-provider dispute rules (45 CFR 149.610: $400 threshold, 120 days from the bill) for self-pay lines.
