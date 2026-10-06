@@ -7,7 +7,7 @@ Last updated **2026-10-06** (cancellation notice in the risk model opened — C4
   - `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`: the main checkout. Git works there, but node/npm cannot write under `Documents` (see below).
   - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
-- State at handoff (2026-10-06): `origin/main` is `8a352cc` — PR #31 (C4 confidence-threshold picker) merged, CI green (run 37485478015, deployed) — and the cancellation-notice follow-up is on `arena/…` awaiting its PR. Newest first today: cancellation notice (this branch), C4 confidence-threshold picker, Windows test fix, D2 hire/contract, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
+- State at handoff (2026-10-06): `origin/main` is `8a352cc` — PR #31 (C4 confidence-threshold picker) merged, CI green (run 37485478015, deployed) — and PR #32 (cancellation notice in the risk model, C4 follow-up) is open against it. Newest first today: cancellation notice (this branch), C4 confidence-threshold picker, Windows test fix, D2 hire/contract, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
 
 ## How the maintainer works
 
@@ -24,7 +24,7 @@ Last updated **2026-10-06** (cancellation notice in the risk model opened — C4
 
 ## Shipped (newest first)
 
-### C4 follow-up — cancellation notice in the risk model (`arena/…`, PR #NN)
+### C4 follow-up — cancellation notice in the risk model (PR #32)
 
 - **What.** The at-risk worklist now honours the practice's late-cancel notice threshold: a **family-side** cancellation that gave more notice than `settings.billing.lateCancelHours` (24 h by default) stops counting as a lost slot — in the client's own attendance rate, the missed-session streak and the practice-wide base rate alike. No-shows, cancellations under the threshold, cancellations with no time recorded, and cancellations whose reason is missing or practice-side count exactly as before.
 - **One threshold, two engines.** `cancelNoticeHoursOf(settings, fallback)` and `cancelledEarly(a, hours)` in `cancelReasons.js` own the rule; `risk.js` reads them, and `overbook.js` now reads the same setting instead of its own `overbookLateHours` constant (the constant stays as the fallback, `cfg.lateHours` reports the effective value). The Billing desk's Setup tab got the row that was missing (`bi-latecancel`, clamped 0–168 h): the setting was stored but editable nowhere before.
