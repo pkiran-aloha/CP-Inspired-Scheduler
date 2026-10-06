@@ -1,15 +1,23 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (D2 hire/contract verdict built on the Ramp tab; next pick is the small C4 70/80/90 threshold picker, or D4). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-06**, end of session (D2 landed via PR #30; the test suite now runs on the work PC; next pick is the small C4 70/80/90 threshold picker, or D4). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
-- Local clone (maintainer): `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler` (an older clone at `C:\Users\PrateekKiran\aloha` is stale — ignore it)
-- State at handoff (2026-10-06): `origin/main` = `458fac7` (PR #28 D1 ramp merged), CI green (run 37471361122). **D2 hire/contract** is on this session branch, not yet on `main`. Earlier today, newest first: D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. The maintainer's local checkout may sit behind: run `git pull --ff-only` there before building.
+- Local clones (maintainer), both tracking `main`:
+  - `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`: the main checkout. Git works there, but node/npm cannot write under `Documents` (see below).
+  - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
+  - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
+- State at handoff (2026-10-06, end of session): `origin/main` = `3940947` (PR #30 D2 hire/contract merged), CI green (run 37478896893). Earlier today, newest first: Windows test fix, D2, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
 
 ## How the maintainer works
 
 - **Plain git only, no `gh`.** The maintainer's terminal is **Windows PowerShell 5.1** (no grep/sed). Commands handed to them must be pure git and start with `cd C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`. Use `git for-each-ref` instead of `git branch | grep`.
-- **npm is blocked on the work PC** (`EPERM … systemprofile`, no execution rights). `node` works. Tests run only in GitHub CI on push to `main` — see `AGENTS.md` → "Verifying without npm".
+- **The full suite runs on the work PC** (verified 2026-10-06: 910/910), with three workarounds documented in `AGENTS.md` → "Commands":
+  - work in the `dev` clone, because Windows Controlled Folder Access blocks node writes under `Documents`;
+  - start npm through node with `--preserve-symlinks --preserve-symlinks-main`, because `C:\nvm4w\nodejs` links into `systemprofile`;
+  - set `NODE_OPTIONS=--no-experimental-webstorage` and pass `--testTimeout=20000`, because Node 25's built-in localStorage hides jsdom's.
+
+  An agent's shell can run the suite directly in the `dev` clone: `NODE_OPTIONS="--no-experimental-webstorage" node node_modules/vitest/vitest.mjs run --testTimeout=20000`. Leave `npm ci` to the maintainer. GitHub CI on `main` is still the gate.
 - Delivery style chosen: **one feature at a time** — build, land on `main`, wait for CI green, report, then the next. Ask before starting a new wave.
 - The maintainer may use other agents (not only Claude). `AGENTS.md` is the shared rulebook; `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` point to it.
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
@@ -282,10 +290,17 @@ Other open items, smaller:
 - C4: use `cancelledAt` in the risk model (late-cancel rate) once a few months of times exist.
 - D1 follow-ups (only if the ramp proves out): a practice-days setting so supply stops assuming Mon–Fri; intake conversion tracking once enough history exists (still never a forecast knob).
 - D4 scenario planner (L).
-- Architecture mismatches still listed in `docs/wiki/architecture.md` (#4 unused `playwright` devDependencies, needs npm; #10; #12 `build*` helpers only tests import; #13 unenforced MFA/lock settings).
+- Billing-form follow-ups (each "Not done" in the CMS-1500, statement and GFE entries above):
+  - printer X/Y calibration for the red-form print;
+  - the mileage code `14220` (a CPT surgery code): replace it with a payer-specific mileage code;
+  - a secondary (COB) 1500 profile;
+  - Section 1557 language taglines on statements (a settings block with a per-family opt-out);
+  - a per-guarantor confidential "send to" address;
+  - comparing statements against an issued GFE (the $400 dispute threshold).
+- Architecture mismatches still listed in `docs/wiki/architecture.md`: #4 unused `playwright` devDependencies (npm now works in the `dev` clone, so the lock file can be regenerated there); #10; #12 `build*` helpers that only tests import; #13 unenforced MFA/lock settings.
 - "Known issues / backlog" below.
 
-**How this session built safely alongside a parallel agent:** every feature was built in a scratch git worktree from `origin/main` (`git worktree add -b feat/x <scratch>/dir origin/main`), never in the shared checkout; before landing, `git merge origin/main` into the branch (README/HANDOFF/wiki "Last synced" lines conflict often: keep both new sections, take the newer sync line), then `git checkout --detach origin/main && git merge --no-ff feat/x && git push origin feat/x HEAD:main`, then poll `actions/runs?head_sha=<sha>` until green. Pure `src/lib` tests can be run with node through a small `vitest` shim (resolve hook maps `vitest` to a file exporting `describe/it/expect`); JSX and store-importing tests only run in CI.
+**How this session built safely alongside a parallel agent:** every feature was built in a scratch git worktree from `origin/main` (`git worktree add -b feat/x <scratch>/dir origin/main`), never in the shared checkout; before landing, `git merge origin/main` into the branch (README/HANDOFF/wiki "Last synced" lines conflict often: keep both new sections, take the newer sync line), then `git checkout --detach origin/main && git merge --no-ff feat/x && git push origin feat/x HEAD:main`, then poll `actions/runs?head_sha=<sha>` until green. Since the end of this session the full suite, JSX included, also runs locally in the `dev` clone (see "How the maintainer works").
 
 ## Hackathon waves (all shipped)
 
@@ -310,15 +325,15 @@ Other open items, smaller:
 
 ## Resume prompts (paste into a new session; any agent)
 
-These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can read the repo and run git. Agents without a local clone should first clone `https://github.com/pkiran-aloha/CP-Inspired-Scheduler`.
+These work in Claude Code, Codex, Cursor, Copilot, Gemini or any agent that can read the repo and run git. Agents without a local clone should first clone `https://github.com/pkiran-aloha/CP-Inspired-Scheduler`. On the work PC, run tests and builds in `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler` (see "How the maintainer works").
 
 **Let me pick the next work:**
 
 > Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main`, report anything new). Then list what is left (HANDOFF "Next", the "Still open" notes in the waves table, and "Known issues / backlog"), recommend one item, ask me which to build, and follow the one-feature-at-a-time workflow.
 
-**Continue with D2 (hire/contract decision support):**
+**Continue with the C4 threshold picker (recommended next):**
 
-> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green; merge the D1 ramp PR if it is still open). Then settle D2's requirements with me first, starting from the round-1 candidates in HANDOFF "Next", and only then build it on a `feat/…` branch: tests, wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
+> Read `docs/HANDOFF.md` and `AGENTS.md`. Sync with GitHub (`git fetch`, confirm `main` matches `origin/main` and its latest CI run is green). Then build the C4 70/80/90 picker for `settings.risk.overbookSafePct`, copying the B4 holdout picker on Coverage, on a `feat/…` branch: tests (run the full suite locally in the `dev` clone first), wiki/README/HANDOFF/marketing sync, land on `main`, confirm CI green, report.
 
 **Status check only (no code changes):**
 
