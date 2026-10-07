@@ -340,6 +340,7 @@ Other open items, smaller:
 
 ## Known issues / backlog (not yet fixed)
 
+- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). Audit-only; no behavior changes. Local verification: 89 files / 934 tests passed, build succeeded with the bundle-size warning, and dependency advisories remain unremediated.
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integrations panel stores API keys in plain local settings (needs the backend).
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
