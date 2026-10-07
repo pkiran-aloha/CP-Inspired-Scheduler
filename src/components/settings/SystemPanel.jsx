@@ -527,18 +527,19 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
           <b style={{ display: 'block', marginBottom: 8 }}>Staff Validations</b>
           <div className="set-grid2">
             <ValidationRuleRow group="staff" ruleKey="qualification" label="Qualification" hint="Staff holds required credential (or a covering higher credential) for the service" />
-            <ValidationRuleRow group="staff" ruleKey="serviceProvider" label="Service Provider" hint="At least one rendering provider is assigned to the session" />
+            <ValidationRuleRow group="staff" ruleKey="serviceProvider" label="Service Provider" hint="Clinical appointments must have at least one assigned rendering provider" />
             <ValidationRuleRow group="staff" ruleKey="overlap" label="Overlap" hint="Staff member is double-booked on another appointment in the same window" />
             <ValidationRuleRow group="staff" ruleKey="missingNpi" label="Missing NPI / Medicaid ID" hint="Staff member has a 10-digit NPI or Medicaid ID on file" />
             <ValidationRuleRow group="staff" ruleKey="payRate" label="Pay Rate" hint="Staff member has an hourly pay rate or payroll profile configured" />
             <ValidationRuleRow group="staff" ruleKey="unavailable" label="Unavailable" hint="Staff member has an overlapping Unavailable / PTO block" />
+            <ValidationRuleRow group="staff" ruleKey="travel" label="Travel Feasibility" hint="Estimated travel between same-day appointments (straight-line distance × 1.3; not a map route)" />
           </div>
         </div>
         <div className="set-subcard" style={{ marginBottom: 12 }}>
           <b style={{ display: 'block', marginBottom: 8 }}>Client Validations</b>
           <div className="set-grid2">
             <ValidationRuleRow group="client" ruleKey="overlap" label="Overlap" hint="Client is booked on another appointment in the same window" />
-            <ValidationRuleRow group="client" ruleKey="clientAssignment" label="Client Assignment" hint="Assigned staff member belongs to the client's care team" />
+            <ValidationRuleRow group="client" ruleKey="assignment" label="Client Assignment" hint="Assigned staff member belongs to the client's care team" />
             <ValidationRuleRow group="client" ruleKey="duplicateOverlap" label="Duplicate Overlap" hint="Identical client, service, and time window already exists" />
           </div>
         </div>

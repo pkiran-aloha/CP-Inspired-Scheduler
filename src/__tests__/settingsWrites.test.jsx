@@ -155,6 +155,21 @@ describe('settings modules actually write', () => {
     expect(hints).toMatch(/stimulus preparation/i)
   })
 
+  it('exposes and persists the evaluator-backed travel and client-assignment validation controls', async () => {
+    await openModule('system')
+    fireEvent.click(screen.getByTestId('set-sys-tab-validations'))
+
+    const travel = await screen.findByTestId('set-val-staff-travel')
+    fireEvent.click(within(travel).getByRole('button', { name: 'Stop' }))
+    await waitFor(() => expect(stored().settings.appointmentValidations.staff.travel).toBe('stop'))
+
+    const assignment = screen.getByTestId('set-val-client-assignment')
+    fireEvent.click(within(assignment).getByRole('button', { name: 'Warn' }))
+    await waitFor(() => expect(stored().settings.appointmentValidations.client.assignment).toBe('warn'))
+    expect(stored().settings.appointmentValidations.client).not.toHaveProperty('clientAssignment')
+    expect(screen.queryByTestId('set-val-client-clientAssignment')).toBeNull()
+  })
+
   it('imports a pasted CSV, logs it, and shows the new client in the roster', async () => {
     const { unmount } = R(<App />)
     fireEvent.click(await screen.findByTestId('nav-settings'))

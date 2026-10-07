@@ -19,6 +19,7 @@ import { abaActivityById, abaHoursCfg } from './abaHours'
 import { providerIdIssues } from './providerIds'
 import { planReasonLists, posFor } from './claims'
 import { travelChecksForStaffDay } from './travel'
+import { hasIntegrationSecrets, stripIntegrationSecrets } from './integrationSecrets'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -265,7 +266,6 @@ export const DEFAULT_APPOINTMENT_VALIDATIONS = {
   client: {
     overlap: 'warn',
     assignment: 'flag',
-    clientAssignment: 'flag',
     duplicateOverlap: 'warn',
   },
   payer: {
@@ -497,7 +497,7 @@ export function messagesCfg(settings) {
 }
 // Saved rows first, then any default row added since the workspace saved its list.
 export const integrationsCfg = (settings) => {
-  const saved = arr(settings?.clinicalIntegrations)
+  const saved = arr(settings?.clinicalIntegrations).map(stripIntegrationSecrets)
   if (!saved.length) return DEFAULT_INTEGRATIONS
   const missing = DEFAULT_INTEGRATIONS.filter((d) => !saved.some((r) => r.id === d.id))
   return missing.length ? [...saved, ...missing] : saved
@@ -523,12 +523,27 @@ export const evvCfg = (settings) => ({ ...DEFAULT_EVV_CONFIG, ...(settings?.evvC
 export const VALIDATION_GROUPS = ['staff', 'client', 'payer', 'aba']
 export function appointmentValidationsCfg(settings) {
   const raw = settings?.appointmentValidations || {}
-  return {
+  const groups = {
     staff: { ...DEFAULT_APPOINTMENT_VALIDATIONS.staff, ...(raw.staff || {}) },
     client: { ...DEFAULT_APPOINTMENT_VALIDATIONS.client, ...(raw.client || {}) },
     payer: { ...DEFAULT_APPOINTMENT_VALIDATIONS.payer, ...(raw.payer || {}) },
     aba: { ...DEFAULT_APPOINTMENT_VALIDATIONS.aba, ...(raw.aba || {}) },
   }
+  const rawClient = raw.client || {}
+  // `clientAssignment` was an older UI key; the evaluator and current settings
+  // contract use `assignment`. Older saved workspaces have both fields because
+  // `assignment` was seeded but never exposed: preserve a non-default legacy
+  // choice, unless a newer non-default canonical value is already present.
+  const legacyAssignment = rawClient.clientAssignment
+  const canonicalAssignment = rawClient.assignment
+  if (
+    legacyAssignment != null &&
+    (canonicalAssignment == null || canonicalAssignment === DEFAULT_APPOINTMENT_VALIDATIONS.client.assignment)
+  ) {
+    groups.client.assignment = legacyAssignment
+  }
+  delete groups.client.clientAssignment
+  return groups
 }
 export function systemConfigFor(settings) {
   const sys = settings?.system || settings?.systemConfig || {}
@@ -573,7 +588,15 @@ export function evaluateAppointmentValidations(state, draft = {}) {
   const clientIds = arr(draft.clientIds)
   const isClinic = ['service', 'evaluation', 'supervision'].includes(draft.type || 'service')
 
-  // 1) Staff Qualification & Service Provider
+  // 1) A clinical session needs a rendering provider even when the selected provider
+  // is otherwise qualified. Qualification is a separate rule and must not make the
+  // presence check disappear.
+  const hasRenderingProvider = staffIds.some((sid) => Boolean(staffById[sid]))
+  if (isClinic && !hasRenderingProvider) {
+    push('staff', 'serviceProvider', 'Service Provider', 'Assign at least one rendering provider to this clinical appointment.')
+  }
+
+  // 2) Staff Qualification, independent of whether any provider is assigned.
   const reqCerts = svc ? (arr(svc.allowedCerts).length ? arr(svc.allowedCerts) : (arr(svc.credentials).length ? arr(svc.credentials) : arr(BILL_CODES.find((c) => c.id === svc.code)?.cred))) : []
   if (isClinic && svc && reqCerts.length > 0 && staffIds.length > 0) {
     for (const sid of staffIds) {
@@ -582,7 +605,6 @@ export function evaluateAppointmentValidations(state, draft = {}) {
       const ok = reqCerts.some((req) => staffSatisfiesQualification(settings, st, req))
       if (!ok) {
         push('staff', 'qualification', 'Staff Qualification', `${st.name} (${st.cert || st.role || 'uncredentialed'}) does not hold or cover required qualification (${reqCerts.join(', ')}) for ${svc.label}.`)
-        push('staff', 'serviceProvider', 'Service Provider Eligibility', `${st.name} is not an eligible provider for service ${svc.code} (${svc.label}).`)
       }
     }
   }
@@ -1218,10 +1240,12 @@ export function planSettingsOp(state, op, payload = {}) {
       return done(`${row.phone} removed from the opt-out list`, { patch: { textMessaging: { ...cfg, optOuts: cfg.optOuts.filter((o) => o.id !== row.id) } } })
     }
     case 'integration.patch': {
+      const rawPatch = payload.patch || {}
+      if (hasIntegrationSecrets(rawPatch)) return fail('API keys, tokens and other integration credentials cannot be stored in this browser-only app. Do not enter live credentials.')
       const rows = integrationsCfg(settings)
       const row = rows.find((i) => i.id === payload.id)
       if (!row) return fail('That integration no longer exists.')
-      const patch = { ...payload.patch }
+      const patch = { ...rawPatch }
       if (patch.status && !INTEGRATION_STATUSES[patch.status]) return fail('Unknown integration status.')
       for (const k of ['roomUrl', 'payUrl']) {
         if (!(k in patch)) continue
@@ -1291,18 +1315,26 @@ export function planSettingsOp(state, op, payload = {}) {
         const next = { ...cur }
         for (const [grp, rules] of Object.entries(payload.patch)) {
           if (!VALIDATION_GROUPS.includes(grp)) return fail('Unknown validation group.')
-          next[grp] = { ...(cur[grp] || {}), ...(rules || {}) }
+          const groupPatch = { ...(rules || {}) }
+          if (grp === 'client' && Object.hasOwn(groupPatch, 'clientAssignment')) {
+            if (!Object.hasOwn(groupPatch, 'assignment')) groupPatch.assignment = groupPatch.clientAssignment
+            delete groupPatch.clientAssignment
+          }
+          next[grp] = { ...(cur[grp] || {}), ...groupPatch }
         }
-        return done('Appointment validation rules updated', { patch: { appointmentValidations: next } })
+        const canonical = appointmentValidationsCfg({ appointmentValidations: next })
+        return done('Appointment validation rules updated', { patch: { appointmentValidations: canonical } })
       }
       const { group, key, severity } = payload
       if (!VALIDATION_GROUPS.includes(group)) return fail('Unknown validation group.')
       if (!VALIDATION_SEVERITIES.some((s) => s.id === severity)) return fail('Pick None, Flag, Warn or Stop.')
+      const canonicalKey = group === 'client' && key === 'clientAssignment' ? 'assignment' : key
       const next = {
         ...cur,
-        [group]: { ...cur[group], [key]: severity },
+        [group]: { ...cur[group], [canonicalKey]: severity },
       }
-      return done(`Appointment validation (${group} · ${key}) set to ${severity.toUpperCase()}`, { patch: { appointmentValidations: next } })
+      const canonical = appointmentValidationsCfg({ appointmentValidations: next })
+      return done(`Appointment validation (${group} · ${canonicalKey}) set to ${severity.toUpperCase()}`, { patch: { appointmentValidations: canonical } })
     }
     case 'notifications.patch': {
       const next = { ...notificationsCfg(settings), ...(payload.patch || {}) }
@@ -1494,19 +1526,18 @@ export function normalizeSettingsMasters(state) {
   if (!messaging || typeof messaging !== 'object') { next.textMessaging = DEFAULT_TEXT_MESSAGING; changed = true }
   else if (!arr(messaging.templates).length) { next.textMessaging = { ...messagesCfg(settings), templates: DEFAULT_MESSAGE_TEMPLATES }; changed = true }
 
-  if (!arr(settings.clinicalIntegrations).length) { next.clinicalIntegrations = DEFAULT_INTEGRATIONS; changed = true }
+  const integrations = arr(settings.clinicalIntegrations)
+  if (!integrations.length) { next.clinicalIntegrations = DEFAULT_INTEGRATIONS; changed = true }
+  else if (hasIntegrationSecrets(integrations)) {
+    next.clinicalIntegrations = integrations.map(stripIntegrationSecrets)
+    changed = true
+  }
   if (!arr(settings.clearinghouses).length) { next.clearinghouses = DEFAULT_CLEARINGHOUSES; changed = true }
   if (!settings.evvConfig) { next.evvConfig = { ...DEFAULT_EVV_CONFIG }; changed = true }
-  if (!settings.appointmentValidations) { next.appointmentValidations = { ...DEFAULT_APPOINTMENT_VALIDATIONS }; changed = true }
-  else {
-    const av = settings.appointmentValidations
-    const merged = {
-      staff: { ...DEFAULT_APPOINTMENT_VALIDATIONS.staff, ...(av.staff || {}) },
-      client: { ...DEFAULT_APPOINTMENT_VALIDATIONS.client, ...(av.client || {}) },
-      payer: { ...DEFAULT_APPOINTMENT_VALIDATIONS.payer, ...(av.payer || {}) },
-      aba: { ...DEFAULT_APPOINTMENT_VALIDATIONS.aba, ...(av.aba || {}) },
-    }
-    if (JSON.stringify(merged) !== JSON.stringify(av)) { next.appointmentValidations = merged; changed = true }
+  const validationCfg = appointmentValidationsCfg(settings)
+  if (JSON.stringify(validationCfg) !== JSON.stringify(settings.appointmentValidations || {})) {
+    next.appointmentValidations = validationCfg
+    changed = true
   }
   if (!settings.subscription) { next.subscription = { ...DEFAULT_SUBSCRIPTION }; changed = true }
   if (!settings.notifications) { next.notifications = { ...DEFAULT_NOTIFICATIONS }; changed = true }

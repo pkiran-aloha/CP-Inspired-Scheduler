@@ -304,10 +304,9 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
                   {row.id === 'int-paylink' && (
                     <Row label="Payment link URL" hint="Your practice’s own payment page, e.g. a Stripe Payment Link. Printed on client statements; the app never charges a card."><TextField value={row.payUrl || ''} disabled={readOnly} wide={260} testid="set-integration-paylink" placeholder="https://" onCommit={(v) => patch(row.id, { payUrl: v })} /></Row>
                   )}
-                  {/* Reference-data rows are just links: no keys, so nobody pastes a live secret into local storage. */}
+                  {/* This local prototype has no server-side secret vault, so no credential input is offered. */}
                   {row.direction !== 'Reference data' && (
                     <>
-                      <Row label="API Key / Token"><TextField value={row.apiKey || ''} disabled={readOnly} wide={240} testid="set-integration-apikey" placeholder="e.g. sk_live_..." onCommit={(v) => patch(row.id, { apiKey: v })} /></Row>
                       <Row label="Client ID / Account ID"><TextField value={row.clientId || ''} disabled={readOnly} wide={200} testid="set-integration-clientid" placeholder="Partner client ID" onCommit={(v) => patch(row.id, { clientId: v })} /></Row>
                       <Row label="Sandbox mode"><Toggle on={row.sandbox !== false} disabled={readOnly} testid="set-integration-sandbox" onChange={(v) => patch(row.id, { sandbox: v })} /></Row>
                       <Row label="Auto-sync session notes"><Toggle on={!!row.syncEnabled} disabled={readOnly} testid="set-integration-sync" onChange={(v) => patch(row.id, { syncEnabled: v })} /></Row>
@@ -322,6 +321,7 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
         <Banner tone="warn" testid="set-integrations-note">
           Nothing here opens a network connection. What exists is real <b>local export</b> (ICS feed, QuickBooks CSV, backup JSON);
           clinical data collection partners (Ensora, Hi Rasmus, Motivity, Welina, Catalyst, Passage Health), clearinghouse and eligibility rows are documented seams kept honest by their status.
+          This browser-local prototype has no server-side secret vault, so the app does not accept or retain API keys and tokens in integration records. Do not enter live credentials.
         </Banner>
       </Section>
     </>
