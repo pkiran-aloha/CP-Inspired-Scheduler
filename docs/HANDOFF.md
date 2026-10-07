@@ -8,6 +8,7 @@ Last updated **2026-10-07** (configuration-audit remediation landed on branch `a
   - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
 - State at handoff (2026-10-06): `origin/main` is `83ba96c` — PR #32 (cancellation notice in the risk model, C4 follow-up) merged, CI green (run 37491879917, deployed); before it `8a352cc` (PR #31, C4 confidence-threshold picker). Newest first today: cancellation notice (this branch), C4 confidence-threshold picker, Windows test fix, D2 hire/contract, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
+- State at handoff (2026-10-07, audit remediation): `origin/main` is `0411c2c` (PR #36). Branch `arena/e8f5fefe-cp-inspired-scheduler` holds the seven remediation commits; PR #37 is open with the `build` CI job green on the final head and lands on `main` as a merge commit (the `deploy` job runs on `main` only, so it fires after the merge).
 
 ## How the maintainer works
 
@@ -26,7 +27,7 @@ Last updated **2026-10-07** (configuration-audit remediation landed on branch `a
 
 ### Audit remediation — configuration-audit findings CFG-02…CFG-12 (branch `arena/e8f5fefe-cp-inspired-scheduler`, 2026-10-07)
 
-- **What.** The open findings from `docs/audits/configuration-audit-2026-10-07.md`, fixed in six commits on the Arena branch (PR pending; `main` untouched):
+- **What.** The open findings from `docs/audits/configuration-audit-2026-10-07.md`, fixed in seven commits on the Arena branch (PR #37 — build CI green; landing on `main`):
   - **CFG-04/10/11** — client/guardian and staff signatures separated (own pads, own gates, Quick Verify honours the payer rule); canonical `staffSigRequiredToComplete` key with legacy read; integration categories on all default rows; "Maximum Appointment Length" copy no longer claims a hard ceiling.
   - **CFG-08/09** — every inbox alert gated by its preference (12 wired keys, 6 no-source toggles removed, browser toasts for stop-tone alerts); `enableEra` wired to the Payment Center; gateway methods / portal columns normalized to one shape; honest stub banners for the remaining no-ops.
   - **CFG-02/03** — Stop-severity validation rules are a write-time invariant in the reducer (`create`/`update`/`move` refuse; cancelling is never blocked); Warn requires an acknowledgement tick (persisted as `warnsAcked`); Flag items persist as session badges; series create/edit/rebuild and CSV import validate every occurrence/row against live state plus already-accepted ones and report rejected dates/rows.
@@ -318,7 +319,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** landed the same day on branch `arena/e8f5fefe-cp-inspired-scheduler` (PR pending) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. **Recommended next:** the `14220` mileage-code fix or a billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. **Recommended next:** the `14220` mileage-code fix or a billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
 - D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).

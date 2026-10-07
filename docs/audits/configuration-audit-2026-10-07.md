@@ -1,6 +1,6 @@
 # Cross-module configuration audit — 2026-10-07
 
-**Status:** source-trace audit complete; remediation landed on branch `arena/e8f5fefe-cp-inspired-scheduler` (2026-10-07). CFG-02 through CFG-09, CFG-11 and CFG-12 are resolved with tests; CFG-05 is resolved by labelling the unpriced controls informational (the calculator/legal review gate stays); CFG-06 and CFG-07 are resolved by disabling/labelling unsupported options and enforcing scopes; REL-01 is triaged and deferred (documented below). CFG-01 remains open as a production-architecture decision — the local credential-capture mitigation stays as-is.
+**Status:** source-trace audit complete; remediation delivered as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (2026-10-07; build CI green, landing on `main`). CFG-02 through CFG-09, CFG-11 and CFG-12 are resolved with tests; CFG-05 is resolved by labelling the unpriced controls informational (the calculator/legal review gate stays); CFG-06 and CFG-07 are resolved by disabling/labelling unsupported options and enforcing scopes; REL-01 is triaged and deferred (documented below). CFG-01 remains open as a production-architecture decision — the local credential-capture mitigation stays as-is.
 
 ## Executive result
 
@@ -145,6 +145,7 @@ The System panel writes Smart scheduling, Authorization guard, ABA Hours and sev
 - `npm test` (audit time): **89 test files, 934 tests passed**.
 - `npm test` (after remediation, 2026-10-07): **95 test files, 995 tests passed**.
 - `npm run build`: succeeded both times, with the bundle-size warning above (unchanged).
+- PR #37 (`arena/e8f5fefe-cp-inspired-scheduler` → `main`): GitHub CI `build` job green on the final head; the `deploy` job runs on `main` only and fires after the merge.
 - `npm audit`: results recorded under REL-01; no dependency remediation attempted (deferred, triaged above).
 - The build changed only generated `public/version.json`; it was restored before handoff. No behavior changes were made by the audit itself.
 - This is a repository/source-trace audit plus automated test/build review. It does not validate external payer contracts, legal payroll requirements, production security controls, or live integrations.
