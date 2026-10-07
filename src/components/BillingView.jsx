@@ -11,7 +11,7 @@ import { unitRuleFor, unitsFor } from '../lib/authUnits'
 import { download } from '../lib/ics'
 import { addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import {
-  stagedAppts, planClaims, claimGate, claimStats, claimCsv, claimsCsv, quickPosts,
+  stagedAppts, planClaims, claimGate, claimStats, claimCsv, claimsCsv, quickPosts, mileageCodeFor, mileageCodeIssue,
   CLAIM_STATUSES, denialReasonsOf, agingOf, dueOf, copayOf, memberIdOf, authNoOf, npiOf, dxFor, filingDaysOf,
   secondaryEligible, AGING_BUCKETS, AGING_BUCKET_LABELS,
 } from '../lib/claims'
@@ -266,12 +266,17 @@ export default function BillingView({ initialTab }) {
                 const c = clientOf(a.clientIds?.[0])
                 const prov = (settings.providers || []).find((p) => p.kind === 'staff' && p.refId === a.staffIds?.[0])
                 const timely = (() => { const filing = filingDaysOf(state, c.insurer || 'Self-pay'); const due = isoDate(new Date(new Date(a.date).getTime() + filing * 86400000)); const today = todayISO(); const daysLeft = Math.round((new Date(due) - new Date(today)) / 86400000); return { due, daysLeft, amber: daysLeft <= 21 && daysLeft >= 0, over: daysLeft < 0 } })()
+                const mileageLine = a.billing?.mileage && !a.billing?.units
+                const payerMileageCode = c.insurer && c.insurer !== 'Self-pay'
+                  ? mileageCodeFor((state.payers || []).find((p) => p.name === c.insurer))
+                  : ''
+                const displayCode = mileageLine ? (c.insurer && c.insurer !== 'Self-pay' ? payerMileageCode || 'Needs code' : 'Mileage') : a.billing?.code || '—'
                 return (
                   <div className="py-trow" key={a.id} data-testid={`bil-row-${i}`} style={{ gridTemplateColumns: '40px 1.4fr 1fr 110px 1fr 100px 110px', minHeight: 56, transition: 'background .12s', background: picked.has(a.id) ? '#f5f3ff' : undefined }}>
                     <div className="py-cell"><span className={`cb ${picked.has(a.id) ? 'on' : ''}`} onClick={() => toggle(a.id)} role="checkbox" aria-checked={picked.has(a.id)} data-testid={`bil-pick-${i}`} style={{ width: 20, height: 20, borderRadius: 6 }}>{picked.has(a.id) && Icon.check({ size: 12 })}</span></div>
                     <div className="py-idcell"><div style={{ display: 'flex', alignItems: 'center', gap: 10 }}><PersonAvatar p={clientOf(a.clientIds?.[0])} size={28} /><div><b style={{ fontSize: 13 }}>{c.name || '—'}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}>{fmtDayLabel(a.date)}</div></div></div></div>
                     <div className="py-cell"><span className="tag soft" style={{ fontSize: 12, padding: '4px 10px', borderRadius: 20 }}>{c.insurer || 'Self-pay'}</span></div>
-                    <div className="py-cell"><div><span className="ln-code" style={{ fontSize: 12 }}>{a.billing?.mileage && !a.billing?.units ? '14220' : a.billing?.code || '—'}</span><div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{a.billing?.mileage && !a.billing?.units ? `${a.billing?.distance} mi` : `${a.billing?.units}u × $${a.billing?.rate}`}</div></div></div>
+                    <div className="py-cell"><div><span className="ln-code" title={mileageLine && displayCode === 'Needs code' ? 'Set this payer’s approved mileage code in Masters → Payer → Billing Rules → Claims Settings.' : undefined} style={{ fontSize: 12, color: displayCode === 'Needs code' ? 'var(--warn)' : undefined }}>{displayCode}</span><div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{mileageLine ? `${a.billing?.distance} mi` : `${a.billing?.units}u × $${a.billing?.rate}`}</div></div></div>
                     <div className="py-cell"><div><div style={{ fontSize: 13 }}>{prov?.name?.split(' ')[0] || a.staffIds?.[0] || '—'}</div><div style={{ fontSize: 11, color: timely.over ? '#ef4444' : timely.amber ? '#d97706' : 'var(--muted)' }}>{timely.over ? `${-timely.daysLeft}d overdue` : timely.amber ? `${timely.daysLeft}d left` : `${timely.daysLeft}d · ${prov?.npi ? 'NPI ok' : 'no NPI'}`}</div></div></div>
                     <div className="py-cell"><b style={{ fontSize: 14, color: '#059669' }}>{money(computeBilling(a))}</b></div>
                     <div className="py-cell" style={{ display: 'flex', gap: 6 }}>
@@ -487,6 +492,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
   const due = dueOf(claim)
   const copay = copayOf(claim, client, state)
   const dx = dxFor(client)
+  const claimPayer = claim.mode === 'selfpay' ? null : (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer)
   const firstAppt = appts[claim.lines[0]?.apptId]
   const facility = firstAppt?.location || client.home || org.address
   const shortPay = claim.status === 'paid' && dueOf(claim) > 0.5
@@ -553,12 +559,14 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
         {claim.lines.map((l, i) => {
           const src = appts[l.apptId]
           const isBad = badIds.has(l.apptId)
+          const mileageIssue = l.kind === 'mileage' && claim.mode !== 'selfpay' ? mileageCodeIssue(l.code, claimPayer) : ''
+          const displayLineCode = l.kind !== 'mileage' ? l.code : claim.mode === 'selfpay' ? 'Mileage' : mileageIssue ? 'Needs code' : mileageCodeFor(claimPayer)
           return (
             <div key={l.apptId} className={`py-trow ${isBad ? 'gated' : ''} ${disputed.has(l.apptId) ? 'disputed' : ''}`} data-testid={`clm-line-${i}`} style={{ gridTemplateColumns: `${editable && claim.status === 'denied' ? '36px ' : ''}40px 110px 90px 1fr 100px 70px 100px`, minHeight: 52, background: disputed.has(l.apptId) ? '#fffbeb' : isBad ? '#fef2f2' : undefined }}>
               {editable && claim.status === 'denied' && (<div className="py-cell"><button className="iconbtn" style={{ width: 28, height: 28, border: '1px solid var(--line)', borderRadius: 6 }} onClick={() => toggleDispute(l.apptId)} data-testid={`clm-dispute-${i}`}><span className={`cb ${disputed.has(l.apptId) ? 'on' : ''}`} style={{ width: 14, height: 14, borderRadius: 4, border: '1.5px solid var(--line)', display: 'grid', placeItems: 'center', background: disputed.has(l.apptId) ? 'var(--accent)' : 'var(--panel)', color: '#fff' }}>{disputed.has(l.apptId) ? '✓' : ''}</span></button></div>)}
               <div className="py-cell muted" style={{ fontSize: 12 }}>{i + 1}</div>
               <div className="py-cell"><b style={{ fontSize: 13 }}>{l.dos}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}>{l.kind === 'mileage' ? 'trip' : `${hhmm(l.t0)}–${hhmm(l.t1)}`}</div></div>
-              <div className="py-cell"><span className="ln-code" style={{ fontSize: 12 }}>{l.code}</span></div>
+              <div className="py-cell"><span className="ln-code" title={mileageIssue || undefined} style={{ fontSize: 12, color: mileageIssue ? 'var(--warn)' : undefined }}>{displayLineCode}</span></div>
               <div className="py-cell" style={{ fontSize: 13 }}>{l.desc}<div style={{ fontSize: 11, color: 'var(--muted)' }}>{dx[i % dx.length]}</div></div>
               <div className="py-cell" style={{ fontSize: 12 }}>{l.staff.split(', ')[0] || '—'}</div>
               <div className="py-cell" style={{ fontSize: 12 }}>{l.kind === 'mileage' ? `${l.units} mi` : `${l.units}u`}</div>

@@ -56,6 +56,8 @@ The statement PDF is rebuilt to HFMA's patient-friendly billing guidance. It put
 
 The CMS-1500 (02/12) now follows the NUCC instruction manual item by item and prints every character on the form's 10-per-inch, 6-lines-per-inch grid. **Red form print** produces the data only, for genuine red-ink forms, which is the paper claim scanning payers accept. The **CMS-1500** download adds the drawn form and is marked as a review copy. Clients > Edit now records the home address the form needs in item 5.
 
+Mileage is not assigned a universal procedure code. **Masters → Payer → Billing Rules → Claims Settings** accepts the payer-approved 5-character CPT/HCPCS mileage code; no default is guessed, and CPT `14220` is rejected because it is a surgery code. Insurance mileage lines without the configured code are held and cannot be exported on the CMS-1500 until the code is saved and the draft is rebuilt; changing a payer's code also makes existing drafts stale. Verify the code against the payer's contract.
+
 ### Small consistency fixes
 
 The secondary screen's title now reads **Secondary Queue**, matching its nav item and the Billing desk. The AR Manager lost an unreachable "Clear filter" button (its filter was never set); search remains the client filter.

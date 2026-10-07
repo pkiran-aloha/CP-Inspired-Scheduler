@@ -136,7 +136,7 @@ export const FORMATS = ['None', 'Custom Format 1', 'Custom Format 2']
 export const CREDENTIALS = ['BCBA', 'BCaBA', 'BQ', 'RBT', 'LCDC', 'SLP', 'OT', 'MSW']
 
 const DEFAULT_CLAIMS = {
-  separateBy: '—', box17: '—', box19: '—',
+  separateBy: '—', mileageCode: '', box17: '—', box19: '—',
   box32: 'Auto-populate if blank, leave blank if same as billing NPI',
   box33B: '—', box33B2: '—',
   file: 'One file per claim', apptTime: 'Do not include',

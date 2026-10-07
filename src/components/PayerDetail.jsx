@@ -10,7 +10,7 @@ import { PayerForm, RemoveArm } from './PayersView'
 import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs, cfScopesFor } from '../lib/master'
 import { BILL_CODES, QUAL_MODIFIER_KEYS, uid } from '../lib/model'
 import { PROVIDER_ID_RULES, providerIdRule, providerIdIssues } from '../lib/providerIds'
-import { PAYER_KINDS, payerPolicy } from '../lib/claims'
+import { PAYER_KINDS, payerPolicy, normalizeMileageCode } from '../lib/claims'
 
 /**
  * Payer deep record — opened by clicking a payer row. Three tabs mirroring how
@@ -672,16 +672,38 @@ function RuleBody({ p, section, patch, saved }) {
     const chk = (k, label, na = false) => (
       <label className="pr-check"><input type="checkbox" checked={Boolean(clm.flags[k])} disabled={na} data-testid={`clm-flag-${k}`} onChange={(e) => setClm({ ...clm, flags: { ...clm.flags, [k]: e.target.checked } })} /><span>{label}{na ? ' (not available)' : ''}</span></label>
     )
+    const saveClaims = () => {
+      const mileage = normalizeMileageCode(clm.mileageCode)
+      if (!mileage.ok) { toast({ message: mileage.msg, kind: 'error' }); return }
+      commit('claims', { ...clm, mileageCode: mileage.code })
+    }
     return (
       <div className="pr-sec" data-testid="pr-claims">
         <SecHead t="Claims Settings" s="Boxes and routing options applied when this payer’s CMS-1500 is assembled." />
         <Banner tone="info" testid="pr-claims-na-note">
-          Working options: Box 32 behavior, same-day merging, credential modifiers and the claim split keys below.
+          Working options: Box 32 behavior, same-day merging, credential modifiers, payer-specific mileage code and the claim split keys below.
           Box 17, Box 19, Box 33B, Box 33B2, claim file grouping, appointment time and the taxonomy / rendering
           checkboxes are saved with the payer record but not yet applied when the claim is assembled — they stay
           disabled so the panel does not imply an effect the CMS-1500 does not have.
         </Banner>
         <div className="pr-fields">
+          <div className="pr-frow" data-testid="clm-row-mileageCode">
+            <label className="pr-flabel" htmlFor="clm-mileageCode" title="Optional 5-character CPT/HCPCS code approved by this payer. CPT 14220 is intentionally rejected because it is not a mileage code.">Payer mileage code</label>
+            <input
+              id="clm-mileageCode"
+              className="input"
+              type="text"
+              autoCapitalize="characters"
+              pattern="[A-Za-z0-9]{5}"
+              aria-label="Payer mileage code"
+              data-testid="clm-mileageCode"
+              value={clm.mileageCode || ''}
+              onChange={(e) => setClm({ ...clm, mileageCode: e.target.value })}
+            />
+          </div>
+          <p className="muted" style={{ gridColumn: '1 / -1', margin: '-2px 0 2px', fontSize: 11.5 }}>
+            Enter only a payer-approved code when the contract covers mileage. Leave blank if mileage is not covered; insurance mileage lines are held until a code is set or mileage is removed. After setting or changing this value, void and rebuild existing drafts. No code is guessed.
+          </p>
           <div className="pr-frow" data-testid="clm-row-separateBy">
             <span className="pr-flabel" title="Split claims that would otherwise mix these values. A session records one clinician, so both provider choices split by that clinician; “Supervising Provider” is not offered because sessions record no supervisor.">Separate Claim By</span>
             <Dropdown testid="clm-separateBy" value={clm.separateBy || '—'} onChange={(v) => setClm({ ...clm, separateBy: v })} options={[{ value: '—', label: '—' }, { value: 'Rendering Provider', label: 'Rendering Provider (the session’s clinician)' }, { value: 'Service Provider', label: 'Service Provider (same split — the session’s clinician)' }, { value: 'Place of Service', label: 'Place of Service' }]} />
@@ -701,7 +723,7 @@ function RuleBody({ p, section, patch, saved }) {
           {chk('mergeSameDay', 'Merge appointments for same day, same client and same service provider into one charge line')}
           {chk('credentialMods', "Add the rendering provider's credential modifier to each line (HO BCBA · HN BCaBA · HM RBT · HP Psychologist), the Medicaid norm")}
         </div>
-        <SaveRow onCancel={saved} onSave={() => commit('claims', clm)} />
+        <SaveRow onCancel={saved} onSave={saveClaims} />
       </div>
     )
   }

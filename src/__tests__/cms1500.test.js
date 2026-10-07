@@ -5,6 +5,7 @@ import {
   cms1500Data, layout1500, claimTo1500, claimsTo1500, posFor, LINES_PER_PAGE,
   nameLFM, moneyParts, splitAddress, plain, compact, colX, lineY,
 } from '../lib/cms1500'
+import { lineFor } from '../lib/claims'
 
 const st = blankState()
 const anyClaim = (pred) => Object.values(st.claims).find(pred)
@@ -112,6 +113,30 @@ describe('cms1500Data: NUCC item values from the workspace', () => {
     expect(posFor({ location: "Jimmy Ma's home" })).toBe('12')
     expect(posFor({ location: 'Jefferson Elementary School' })).toBe('03')
     expect(posFor({ location: 'Telehealth (video)' })).toBe('10')
+  })
+
+  it('refuses mileage codes that are missing, unconfigured, or stale for the payer', () => {
+    const source = st.appts[claim.lines[0].apptId]
+    const mileage = { ...source, id: 'cms-mileage-test', type: 'drive', billing: { units: 0, rate: 0, mileage: true, distance: 4.5, mileageRate: 0.7 } }
+    const stateNoCode = { ...st, appts: { ...st.appts, [mileage.id]: mileage } }
+    const line = lineFor(mileage, stateNoCode, { payer: claim.payer, mode: 'insurance' })
+    const mileageClaim = { ...claim, mode: 'insurance', lines: [line], charges: line.charge }
+    expect(line.code).toBe('')
+    expect(() => cms1500Data(stateNoCode, mileageClaim)).toThrow(/No payer-specific mileage code/)
+    const unconfiguredLine = { ...line, code: 'X1234' }
+    expect(() => cms1500Data(stateNoCode, { ...mileageClaim, lines: [unconfiguredLine] })).toThrow(/No payer-specific mileage code is configured/)
+
+    const stateWithCode = {
+      ...stateNoCode,
+      payers: stateNoCode.payers.map((p) => p.name === claim.payer
+        ? { ...p, rules: { ...p.rules, claims: { ...(p.rules?.claims || {}), mileageCode: 'X1234' } } }
+        : p),
+    }
+    const codedLine = lineFor(mileage, stateWithCode, { payer: claim.payer, mode: 'insurance' })
+    const codedClaim = { ...mileageClaim, lines: [codedLine], charges: codedLine.charge }
+    expect(cms1500Data(stateWithCode, codedClaim).pages[0][0].cpt).toBe('X1234')
+    const staleClaim = { ...codedClaim, lines: [{ ...codedLine, code: 'Y1234' }] }
+    expect(() => cms1500Data(stateWithCode, staleClaim)).toThrow(/current mileage code is X1234/)
   })
 })
 

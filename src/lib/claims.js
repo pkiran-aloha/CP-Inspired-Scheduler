@@ -267,13 +267,41 @@ export function staffQualifierTokens(staff) {
 
 const qualKey = (v) => String(v).replace(/[’‘]/g, "'").trim().toLowerCase().replace(/\s+degree$/, '')
 
+const MILEAGE_CODE_RE = /^[A-Z0-9]{5}$/
+
+/** Normalize a payer-entered CPT/HCPCS mileage code without guessing one. */
+export function normalizeMileageCode(value) {
+  const code = String(value ?? '').trim().toUpperCase()
+  if (!code) return { ok: true, code: '' }
+  if (code === '14220') return { ok: false, code: '', msg: 'CPT 14220 is a surgery code, not a mileage code. Enter the code approved by this payer.' }
+  if (!MILEAGE_CODE_RE.test(code)) return { ok: false, code: '', msg: 'A mileage billing code must be exactly 5 letters or digits.' }
+  return { ok: true, code }
+}
+
+/** Payer-specific mileage code; an absent or malformed value stays blank, never guessed. */
+export const mileageCodeFor = (payer) => normalizeMileageCode(payer?.rules?.claims?.mileageCode).code
+
+/** Explain why a mileage line is not valid under the payer's current Claims Settings. */
+export function mileageCodeIssue(lineCode, payer) {
+  const line = normalizeMileageCode(lineCode)
+  if (!line.ok) return line.msg
+  const configured = normalizeMileageCode(payer?.rules?.claims?.mileageCode)
+  if (!configured.ok) return `The payer's saved mileage code is invalid. ${configured.msg}`
+  if (!configured.code) return 'No payer-specific mileage code is configured for this payer.'
+  if (!line.code) return 'No payer-specific mileage code is on this draft.'
+  if (line.code !== configured.code) return `This draft uses ${line.code}, but the payer's current mileage code is ${configured.code}. Rebuild this draft.`
+  return ''
+}
+
 export function lineFor(a, state, plan = {}) {
   const staff = Object.fromEntries((state.staff || []).map((s) => [s.id, s]))
   const b = a.billing || {}
   const codeDef = BILL_CODES.find((c) => c.id === b.code)
   if (b.mileage && !b.units) {
+    const payer = (state.payers || []).find((p) => p.id === plan.payerId || p.name === plan.payer)
+    const code = plan.mode === 'selfpay' ? '' : mileageCodeFor(payer)
     const rate = state.settings.mileageRate ?? b.mileageRate ?? 0.7
-    return { apptId: a.id, dos: a.date, t0: a.start, t1: a.end, code: '14220', desc: `Travel ${a.title || ''}`.trim(), units: b.distance || 0, rate, charge: r2((b.distance || 0) * rate), staff: names(a.staffIds, staff), kind: 'mileage' }
+    return { apptId: a.id, dos: a.date, t0: a.start, t1: a.end, code, desc: `Travel ${a.title || ''}`.trim(), units: b.distance || 0, rate, charge: r2((b.distance || 0) * rate), staff: names(a.staffIds, staff), kind: 'mileage' }
   }
   return { apptId: a.id, dos: a.date, t0: a.start, t1: a.end, code: b.code || '—', mod: lineModifiers(state, a, plan.payer, plan.mode), desc: a.title || codeDef?.label.split(' · ')[1] || 'Treatment', units: b.units || 0, rate: b.rate || codeDef?.rate || 0, charge: r2(computeBilling(a)), staff: names(a.staffIds, staff), kind: 'session' }
 }
@@ -364,6 +392,10 @@ export function claimGate(state, claim) {
     if (!a) { bad.push({ line: l, why: 'Source appointment no longer exists — drop this line' }); continue }
     if (a.billing?.status === 'billed') { bad.push({ line: l, why: 'Line was already billed outside a claim' }); continue }
     if (!(a.billing?.units > 0) && !(a.billing?.mileage && a.billing?.distance > 0)) bad.push({ line: l, why: `Missing billable units on ${l.dos}` })
+    if (claim.mode !== 'selfpay' && l.kind === 'mileage') {
+      const issue = mileageCodeIssue(l.code, idPayer)
+      if (issue) bad.push({ line: l, why: `${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings, or remove mileage if it is not covered, then rebuild this draft.` })
+    }
     if (needVer && TYPES[a.type]?.hasVerification && a.verification?.verifyStatus !== 'verified') bad.push({ line: l, why: `Verification flag not cleared on ${l.dos} — open the session & verify` })
     // timely filing gate (U3)
     if (claim.timelyDue && today > claim.timelyDue) bad.push({ line: l, why: `Timely filing exceeded — due ${claim.timelyDue} (DOS ${l.dos})` })

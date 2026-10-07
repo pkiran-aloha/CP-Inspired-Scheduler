@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main 8a352cc plus the cancellation-notice branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main ffa98a2; updated for payer-specific mileage-code safety on 2026-10-07; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -37,6 +37,7 @@ The desk has a range picker, a payer filter, KPI cards (In Staging, Drafts, Awai
    - the authorization window covers the date (when strict authorization is on)
    - an RBT-only session has a BCBA present (when the supervision check is on)
    - the payer's provider-ID rule is satisfied for every rendering staff member (only once the payer has chosen a rule)
+   - every insurance mileage line has its payer-approved 5-character CPT/HCPCS code; missing codes and CPT 14220 are refused
 4. **Submit.** Submit on one claim, "Submit N ready" (all gate-clean drafts), or "Process". A gated claim is held and the toast says how many were held. Process also records a billed file (see below). Submitting sets the claim to Submitted and stamps the sessions as claimed. It does not contact anyone.
 5. **Record the outcome.** From a Submitted claim you can post a payment, record a denial, or void. See [era-and-payments](era-and-payments.md) for payments.
 
@@ -76,6 +77,8 @@ These come from the payer's Billing Rules (Masters, Payer, Billing Rules, Claims
 ### CMS-1500 PDF
 
 The form follows the NUCC 1500 Claim Form Reference Instruction Manual (v13.0, 07/25) for what goes in each item, and the CMS print grid (Pub 100-04 ch. 26 §30) for where it goes. The 02/12 form is laid out for 10-pitch pica type: 10 characters per inch across, 6 lines per inch down. Every value prints in black Courier at 10 pt on that grid, so it lands inside the boxes of a genuine form.
+
+Insurance mileage lines require a code entered for that payer in Masters → Payer → Billing Rules → Claims Settings. The code is copied onto new claim lines; it is not guessed. The known-wrong CPT surgery code `14220` is rejected. A missing or malformed code, or a draft code that no longer matches the payer's current setting, holds claim submission and stops CMS-1500 generation. Configure the payer-approved code (or remove mileage if it is not covered), then void and rebuild drafts created before the code was set or changed. Self-pay mileage is not assigned a payer procedure code.
 
 Two downloads, on a claim and for the claims in view:
 
@@ -134,7 +137,7 @@ Filing days resolve in one order everywhere: the payer record, then the practice
 
 ### Modules
 
-- [`claims.js`](../../src/lib/claims.js) is the pure lifecycle engine. Staging and assembly: `stagedAppts`, `planClaims`, `lineFor`, `nextClaimSeq`, `claimNoAt`, `assembleClaims`, plus `posFor`, `lineModifiers`, `mergeSameDayLines` and `lineApptIds`. Gate: `claimGate`. Transitions return patches: `submitPatch`, `denyPatch`, `releasePatch`, `dropLinePatch`, `rebillPatch`. Money helpers and aging live here too and are documented in [accounts-receivable](accounts-receivable.md) and [era-and-payments](era-and-payments.md). Provider helpers: `npiCheck`, `validNpi`, `resolveProviders`, `credentialIssue`. Payer terms: `payerPolicy`, `filingDaysOf`, `PAYER_KINDS`, `planPayerTerms`. Exports: `claimCsv`, `claimsCsv`.
+- [`claims.js`](../../src/lib/claims.js) is the pure lifecycle engine. Staging and assembly: `stagedAppts`, `planClaims`, `lineFor`, `nextClaimSeq`, `claimNoAt`, `assembleClaims`, plus `posFor`, `lineModifiers`, `mergeSameDayLines` and `lineApptIds`. Gate: `claimGate`. Transitions return patches: `submitPatch`, `denyPatch`, `releasePatch`, `dropLinePatch`, `rebillPatch`. Money helpers and aging live here too and are documented in [accounts-receivable](accounts-receivable.md) and [era-and-payments](era-and-payments.md). Provider helpers: `npiCheck`, `validNpi`, `resolveProviders`, `credentialIssue`. Payer terms: `payerPolicy`, `filingDaysOf`, `PAYER_KINDS`, `planPayerTerms`. Mileage configuration and consistency checks: `normalizeMileageCode`, `mileageCodeFor`, `mileageCodeIssue`. Exports: `claimCsv`, `claimsCsv`.
 - [`cms1500.js`](../../src/lib/cms1500.js): three layers. `cms1500Data` returns the NUCC item values (`items`, keyed by item number) and the service lines in pages of six (`LINES_PER_PAGE`). `layout1500` turns them into `{ line, col, text }` placements on the pica grid (`colX`, `lineY`). `claimTo1500` / `claimsTo1500` draw the PDF with jsPDF, with `{ mode: 'copy' | 'data' }`. The NUCC format helpers (`nameLFM`, `plain`, `compact`, `moneyParts`, `splitAddress`) are exported for tests. `posFor` is re-exported from `claims.js`.
 - [`providerIds.js`](../../src/lib/providerIds.js): `providerIdRule`, `providerFor`, `providerIdsFor`, `providerIdIssues`, `PROVIDER_ID_RULES`. It reads the rule from `payer.rules.providerId`.
 - [`billingDocs.js`](../../src/lib/billingDocs.js): `buildInvoices`, `buildQboCsv`, `buildVerificationForm`, `buildAppealLetter`, `build835ErrorReport`. These are pure builders that return file name and content. Only `build835ErrorReport` is called from a screen (the Payment Center); the other four are imported only by tests, so no screen calls them today.
@@ -155,7 +158,7 @@ Claim lifecycle transitions do not use the plan/Tx pair. Each `createActions` me
 - `claims` (map): `no`, `status`, `mode` (insurance or selfpay), `method` (null, `ch`, `selfpay`, `secondary`), `lines[]` (a line has `apptId`; a merged same-day line also has `apptIds`, so always read a line's sessions through `lineApptIds(l)`, never `l.apptId` alone), `charges`, `paid`, `adj`, `timelyDue`, `version`, `parentNo`, `history[]`, `appeal` (filed date, template, note, outcome), `denial`.
 - `billedFiles` (map): `fileName`, `format` (`837p`), `status`, `billedThrough`, `claimIds`, `content`, `sendCount`.
 - `invoices` (map) and `settings.billing` (`claimPrefix`, `invoicePrefix`, `invoiceSeq`, `requireVerification`, `strictAuth`, `supervisionCheck`, `defaultFilingDays`).
-- `settings.providers` (provider master) and `payers[].policy`, `payers[].ext.filingDeadlineDays`, `payers[].rules.providerId`, `payers[].rules.claims` (`separateBy`, `box32`, `flags.mergeSameDay`, `flags.credentialMods`), `payers[].rules.qualMods` (`{qual, m1, m2}` keyed by education level or a role/title part) and `payers[].rules.posMods`. Staff rows carry the optional `education` this reads.
+- `settings.providers` (provider master) and `payers[].policy`, `payers[].ext.filingDeadlineDays`, `payers[].rules.providerId`, `payers[].rules.claims` (`separateBy`, `mileageCode`, `box32`, `flags.mergeSameDay`, `flags.credentialMods`), `payers[].rules.qualMods` (`{qual, m1, m2}` keyed by education level or a role/title part) and `payers[].rules.posMods`. Staff rows carry the optional `education` this reads.
 
 Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary drafts append `-S<n>`.
 
@@ -165,7 +168,7 @@ Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary d
 
 ### Tests
 
-[`claims.test.js`](../../src/__tests__/claims.test.js), [`claimModifiers.test.jsx`](../../src/__tests__/claimModifiers.test.jsx), [`qualificationModifiers.test.js`](../../src/__tests__/qualificationModifiers.test.js), [`unitNorms.test.js`](../../src/__tests__/unitNorms.test.js), [`cms1500.test.js`](../../src/__tests__/cms1500.test.js), [`providerIds.test.js`](../../src/__tests__/providerIds.test.js), [`billingDocs.test.js`](../../src/__tests__/billingDocs.test.js), [`billingV2.test.jsx`](../../src/__tests__/billingV2.test.jsx), [`billingIds.test.jsx`](../../src/__tests__/billingIds.test.jsx), [`billingTransactions.test.jsx`](../../src/__tests__/billingTransactions.test.jsx), [`billedFilesFlow.test.jsx`](../../src/__tests__/billedFilesFlow.test.jsx), [`payerTerms.test.jsx`](../../src/__tests__/payerTerms.test.jsx), [`payers.test.jsx`](../../src/__tests__/payers.test.jsx).
+[`claims.test.js`](../../src/__tests__/claims.test.js), [`claimModifiers.test.jsx`](../../src/__tests__/claimModifiers.test.jsx), [`qualificationModifiers.test.js`](../../src/__tests__/qualificationModifiers.test.js), [`unitNorms.test.js`](../../src/__tests__/unitNorms.test.js), [`cms1500.test.js`](../../src/__tests__/cms1500.test.js), [`mileageBilling.test.jsx`](../../src/__tests__/mileageBilling.test.jsx), [`providerIds.test.js`](../../src/__tests__/providerIds.test.js), [`billingDocs.test.js`](../../src/__tests__/billingDocs.test.js), [`billingV2.test.jsx`](../../src/__tests__/billingV2.test.jsx), [`billingIds.test.jsx`](../../src/__tests__/billingIds.test.jsx), [`billingTransactions.test.jsx`](../../src/__tests__/billingTransactions.test.jsx), [`billedFilesFlow.test.jsx`](../../src/__tests__/billedFilesFlow.test.jsx), [`payerTerms.test.jsx`](../../src/__tests__/payerTerms.test.jsx), [`payers.test.jsx`](../../src/__tests__/payers.test.jsx).
 
 ## Not yet built
 

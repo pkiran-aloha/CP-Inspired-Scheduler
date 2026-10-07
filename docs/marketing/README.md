@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced against main 458fac7 plus the D2 hire/contract verdict on 2026-10-06._
+_Last synced against main ffa98a2 plus the payer-specific mileage-code follow-up on 2026-10-07._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -95,6 +95,7 @@ Completed sessions become claim-ready lines and are grouped into claims. Submiss
 
 - **Submission gates** for timely filing, rendering-provider credentials and payer provider-ID rules. Held claims show the specific fix.
 - **Provider ID rule per payer:** NPI, Medicaid ID or both. It drives the appointment validation, the claim gate and the CMS-1500 provider items (24I/24J, 33a, 33b), and a readiness line names who cannot yet be billed under it.
+- **Payer-specific mileage codes, never a guess.** The practice records each payer's approved CPT/HCPCS mileage code; lines without the current payer code are held, and CPT 14220 is not treated as mileage.
 - **Medicaid unit norms by default.** The ABA codes bill per 15 minutes under the midpoint rule, and the booking dialog, Quick Add and the claim all count units with the payer's own rule, so the authorization pool and the claim agree.
 - **Modifiers on every line, from the payer's settings.** Each insurance claim line carries up to four modifiers: the payer's service modifier, the rendering provider's credential modifier (HO, HN, HM, HP), the payer's qualification modifier for that clinician's education level (first matching row; blanks add nothing) and the payer's place-of-service modifier. The credential modifier can be switched off per payer, and the staff record's education level is optional — the payer panel reports anyone missing one instead of guessing.
 - **Same-day merge and claim splitting.** By default, same-day sessions for one client, code and rendering provider become one line with their minutes added up and rounded once, the Medicaid way. A payer can turn that off, or ask for separate claims by rendering provider or place of service.

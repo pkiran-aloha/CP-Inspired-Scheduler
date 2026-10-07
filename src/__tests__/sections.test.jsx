@@ -2,6 +2,7 @@ import React from 'react'
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import App from '../App'
+import { blankState } from '../state/store'
 
 const KEY = 'aloha-aba.v3'
 const stored = () => JSON.parse(localStorage.getItem(KEY) || '{}')
@@ -250,7 +251,15 @@ describe('reports desk', () => {
 })
 
 describe('billing workspace', () => {
-  it('stages → assembles claim forms → submits → posts payment → full undo', async () => {
+  it('stages → assembles claim forms → submits → posts payment → full undo when the payer mileage code is configured', async () => {
+    const base = blankState()
+    const configured = {
+      ...base,
+      payers: base.payers.map((p) => p.name === 'Aetna'
+        ? { ...p, rules: { ...p.rules, claims: { ...(p.rules?.claims || {}), mileageCode: 'X1234' } } }
+        : p),
+    }
+    localStorage.setItem(KEY, JSON.stringify(configured))
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-billing'))
     await screen.findByTestId('bil-row-0')
