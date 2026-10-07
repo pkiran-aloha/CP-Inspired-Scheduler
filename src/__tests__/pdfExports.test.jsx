@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState } from '../state/store'
 import { buildSpec, specToPdf, toBlob, pdfSafe } from '../lib/exportKit'
@@ -43,14 +43,14 @@ describe('PDF exports — encoding and download', () => {
 })
 
 describe('PDF exports — payroll summary download', () => {
-  it('downloads a real PDF document', () => {
+  it('downloads a real PDF document', async () => {
     const state = blankState()
     state.ui = { ...state.ui, section: 'pay-summary', nav: false }
     localStorage.setItem('aloha-aba.v3', JSON.stringify(state))
     render(<App />)
     fireEvent.click(screen.getByTestId('pay-sum-generate'))
     fireEvent.click(screen.getByTestId('pay-sum-pdf'))
-    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)) // PDF engine loads async
     const blob = window.URL.createObjectURL.mock.calls[0][0]
     expect(blob.type).toBe('application/pdf')
     expect(blob.size).toBeGreaterThan(1000)

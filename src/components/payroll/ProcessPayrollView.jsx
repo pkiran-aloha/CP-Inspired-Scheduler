@@ -10,7 +10,7 @@ import {
 import ReviewRegisterModal from './ReviewRegisterModal'
 import { RUN_STATUS_LABEL, eligibleProfiles, computeRun, periodFromId, periodFor, stubFor } from '../../lib/payroll'
 import { registerCsv, registerSpec, qboCsv, glJournalRows, achFile, stubHtml, payrollCsv } from '../../lib/payrollExport'
-import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
+import { specToXls, specToPdf, downloadDoc, loadPdf } from '../../lib/exportKit'
 import { download } from '../../lib/ics'
 import { todayISO } from '../../lib/date'
 
@@ -122,8 +122,9 @@ export default function ProcessPayrollView() {
     download(`pay-stubs-${run.no}.html`, html, 'text/html;charset=utf-8')
     toast({ message: `${parts.length} pay stubs opened as a printable document — browser printing does not transmit anything`, kind: 'ok' })
   }
-  const downloadRegister = (kind) => {
+  const downloadRegister = async (kind) => {
     if (!run) return
+    if (kind === 'pdf' && !(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     if (kind === 'csv') {
       download(`payroll-register-${run.no}.csv`, registerCsv(run, state), 'text/csv;charset=utf-8')
       actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'register_csv', fileName: `payroll-register-${run.no}.csv`, rows: run.lines.length })

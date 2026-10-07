@@ -5,7 +5,6 @@
 // honest "generated / range / scope" stamp. Excel ships as an HTML-table .xls
 // with mso number formats (opens natively in Excel / Sheets / LibreOffice with
 // colors and alignment preserved); PDF is vector jsPDF, letter landscape.
-import { jsPDF } from 'jspdf'
 
 const ACCENT = [79, 70, 229] // brand indigo — header band + rules
 const INK = [31, 36, 54]
@@ -47,6 +46,25 @@ export const pdfSafe = (v) => String(v ?? '')
   .replace(/[→➜➡]/g, '->').replace(/←/g, '<-').replace(/↔/g, '<->')
   .replace(/−/g, '-').replace(/≤/g, '<=').replace(/≥/g, '>=').replace(/[   ]/g, ' ')
   .replace(/[^\u0000-ÿ]/g, (c) => (WIN_ANSI_EXTRA.includes(c) ? c : ''))
+// jsPDF (~440 kB with its deps) is fetched on the first PDF export, not on first paint.
+// A UI handler awaits loadPdf() once; the builders below then stay synchronous.
+let JsPDF = null
+// Returns true when ready; on a failed fetch (offline, stale deploy) it passes a message
+// to onFail and returns false.
+export async function loadPdf(onFail) {
+  try {
+    if (!JsPDF) JsPDF = (await import('jspdf')).jsPDF
+    return true
+  } catch {
+    onFail?.('The PDF engine could not be loaded, so nothing was downloaded. Check the connection and try again.')
+    return false
+  }
+}
+export function newPdf(opts) {
+  if (!JsPDF) throw new Error('The PDF engine is not loaded yet. Try the export again.')
+  return winAnsi(new JsPDF(opts))
+}
+
 /** Route every string a jsPDF document draws or measures through pdfSafe. */
 export function winAnsi(doc) {
   const fix = (s) => (Array.isArray(s) ? s.map(pdfSafe) : typeof s === 'string' ? pdfSafe(s) : s)
@@ -123,7 +141,7 @@ export function specToXls(spec) {
 // paginates by measured row heights with a repeating header. What the screen shows
 // in full, the PDF contains in full — printable and signable as-is.
 export function specToPdf(spec) {
-  const doc = winAnsi(new jsPDF({ unit: 'pt', format: 'letter', orientation: 'landscape', compress: false }))
+  const doc = newPdf({ unit: 'pt', format: 'letter', orientation: 'landscape', compress: false })
   const PW = 792
   const M = 30
   const CW = PW - M * 2

@@ -16,6 +16,7 @@ import {
   secondaryEligible, AGING_BUCKETS, AGING_BUCKET_LABELS,
 } from '../lib/claims'
 import { claimTo1500, claimsTo1500, cms1500Data } from '../lib/cms1500'
+import { loadPdf } from '../lib/exportKit'
 
 // Payers that scan paper claims accept only genuine red-ink forms, so the two exports say what each is for.
 const cms1500Toast = (mode, what) => (mode === 'data'
@@ -195,9 +196,10 @@ export default function BillingView({ initialTab }) {
         {tab === 'claims' && (
           <>
             {[['copy', 'bil-cms1500-batch', '1500 Batch', 'Review copies: the form and the data, one PDF'], ['data', 'bil-cms1500-batch-data', 'Batch · red forms', 'Data only, to print onto genuine red CMS-1500 (02/12) forms']].map(([mode, testid, label, title]) => (
-              <button key={mode} className="btn btn-sm" title={title} onClick={() => {
+              <button key={mode} className="btn btn-sm" title={title} onClick={async () => {
                 const ins = list.filter((c) => c.status !== 'void' && c.method !== 'secondary')
                 if (!ins.length) { toast({ message: 'No claims in view to export', kind: 'warn' }); return }
+                if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
                 try { claimsTo1500(state, ins, { mode }).save(`CMS-1500-batch-${mode === 'data' ? 'red-form-' : ''}${todayISO()}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
                 toast({ message: cms1500Toast(mode, `${ins.length} claims`), kind: 'ok' })
               }} data-testid={testid} style={{ borderRadius: 10 }}>{Icon.print({ size: 13 })} {label}</button>
@@ -501,8 +503,9 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
 
   const editable = claim.method !== 'secondary' && !claim.secondary && (claim.status === 'draft' || claim.status === 'denied')
   const toggleDispute = (aid) => setDisputed((s) => { const n = new Set(s); n.has(aid) ? n.delete(aid) : n.add(aid); return n })
-  const export1500 = (mode) => {
+  const export1500 = async (mode) => {
     if (claim.method === 'secondary') { toast({ message: 'Secondary COB details are not mapped to a compliant CMS-1500. Verify and file externally.', kind: 'warn' }); return }
+    if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     try { claimTo1500(state, claim, { mode }).save(`${claim.no}-1500${mode === 'data' ? '-red-form' : ''}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
     toast({ message: cms1500Toast(mode, claim.no), kind: 'ok' })
   }
