@@ -347,7 +347,7 @@ function StackCardH({ g, h24, conflict, onOpen }) {
       }}
     >
       {badge ? (
-        <span className="badge-n">{conflict ? '⚠ ' : ''}×{g.items.length}</span>
+        <span className="badge-n">{conflict ? <span role="img" aria-label="Conflict" style={{ display: 'inline-flex', verticalAlign: '-1px', marginRight: 2 }}>{Icon.alert({ size: 10, strokeWidth: 2.2 })}</span> : null}×{g.items.length}</span>
       ) : (
         <>
           <div className="stack-head">
@@ -423,7 +423,7 @@ function ChipH({ a, h24, conflict, selected, staffById, clientsById, onDown, day
       {wpx > 190 && a.seriesId && (
         <span className="flag" style={{ right: conflict ? 20 : 4, color: a.edited ? 'var(--accent)' : 'var(--text-2)' }} title={a.edited ? 'Series exception — differs from the repeating default' : 'Part of a repeating series'}>
           {Icon.repeat({ size: 11 })}
-          {a.edited ? <b style={{ fontSize: 9, marginLeft: 1 }}>✎</b> : null}
+          {a.edited ? <span role="img" aria-label="Changed from series" title="Changed from series" style={{ display: 'inline-flex', marginLeft: 1 }}>{Icon.edit({ size: 9, strokeWidth: 2.2 })}</span> : null}
         </span>
       )}
     </div>

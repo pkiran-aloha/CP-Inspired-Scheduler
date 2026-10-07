@@ -226,7 +226,7 @@ export function stubHtml(stub) {
  tr.net td{font-weight:800;border-top:2px solid #4f46e5;border-bottom:none;padding-top:8px}
  tr.tot td{font-weight:700;background:#f6f7fc}
  .grid{display:flex;gap:28px}.grid>div{flex:1}
- .note{margin-top:22px;padding:10px 12px;background:#f6f7fc;border-left:3px solid #4f46e5;font-size:11.5px;color:#4a5169}
+ .note{margin-top:22px;padding:10px 12px;background:#f6f7fc;border:1px solid #dfe3f5;border-radius:6px;font-size:11.5px;color:#4a5169}
  @media print{body{margin:12mm}}
 </style></head><body>
 <div class="head">
