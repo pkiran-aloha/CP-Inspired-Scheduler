@@ -222,6 +222,14 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             <Row label="Default rate / unit"><NumberField value={settings.defaultRate} min={0} max={1000} suffix="$" testid="set-sys-rate" onCommit={(v) => patch({ defaultRate: v })} /></Row>
             <Row label="Mileage rate / mile"><NumberField value={settings.mileageRate} min={0} max={10} step={0.05} suffix="$" testid="set-sys-mileage" onCommit={(v) => patch({ mileageRate: v })} /></Row>
             <Row label="Weekday hours"><span className="set-inline"><NumberField value={settings.workday?.[0] ?? 8} min={0} max={23} testid="set-sys-wd0" onCommit={(v) => patch({ workday: [v, settings.workday?.[1] ?? 18] })} /><span className="muted">→</span><NumberField value={settings.workday?.[1] ?? 18} min={1} max={24} testid="set-sys-wd1" onCommit={(v) => patch({ workday: [settings.workday?.[0] ?? 8, v] })} /></span></Row>
+            <Row label="Practice days" hint="Days per week counted as clinician supply on the caseload ramp. At least one day must remain selected." stack>
+              <div className="viewseg" role="group" aria-label="Practice days" data-testid="set-sys-practice-days">
+                {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((label, day) => {
+                  const selected = (settings.practiceDays || [1, 2, 3, 4, 5]).includes(day)
+                  return <button key={day} type="button" aria-pressed={selected} className={selected ? 'on' : ''} disabled={readOnly || (selected && (settings.practiceDays || [1, 2, 3, 4, 5]).length === 1)} data-testid={`set-sys-practice-day-${day}`} onClick={() => patch({ practiceDays: selected ? (settings.practiceDays || [1, 2, 3, 4, 5]).filter((d) => d !== day) : [...(settings.practiceDays || [1, 2, 3, 4, 5]), day].sort((a, b) => a - b) })}>{label.slice(0, 3)}</button>
+                })}
+              </div>
+            </Row>
           </div>
         </Section>
 

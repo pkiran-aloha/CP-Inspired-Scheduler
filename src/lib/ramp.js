@@ -13,8 +13,8 @@
 // marked "renewal pending" — a renewal is never assumed.
 //
 // Supply reuses the Coverage tab's denominator: each active clinician's working day
-// (`settings.workday`) minus blocked-out time, split RBT vs BCBA. Until the app has
-// a practice-days setting, supply counts Monday–Friday only, and the UI says so.
+// (`settings.workday`) minus blocked-out time, split RBT vs BCBA. The practice-days
+// setting controls which weekdays count toward this ramp's supply.
 //
 // Pure and read-only: nothing here books, moves or sends anything.
 
@@ -23,8 +23,10 @@ import { overlapsType } from './model'
 import { isTerminal } from './intake'
 
 export const RAMP_WEEKS = 12
-/** Weekdays supply is counted on. There is no practice-days setting yet; the panel states this. */
+/** Default practice days: Monday–Friday. */
 export const RAMP_OPEN_DOWS = [1, 2, 3, 4, 5]
+const validPracticeDays = (value) => Array.isArray(value) && value.length > 0 && value.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+const practiceDaysOf = (value) => [...new Set(validPracticeDays(value) ? value : RAMP_OPEN_DOWS)].sort((a, b) => a - b)
 
 const round1 = (n) => Math.round(n * 10) / 10
 const validDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && isoDate(parseISO(s)) === s
@@ -77,6 +79,7 @@ export function rampBoard(state, { today = todayISO(), weeks = RAMP_WEEKS } = {}
   const settings = state.settings || {}
   const ws = Number.isInteger(settings.weekStart) ? settings.weekStart : 0
   const [wdStart, wdEnd] = Array.isArray(settings.workday) && settings.workday.length === 2 ? settings.workday : [8, 18]
+  const openDows = practiceDaysOf(settings.practiceDays)
   const span = Math.max(1, wdEnd - wdStart)
   const week0 = startOfWeek(parseISO(today), ws)
 
@@ -152,7 +155,7 @@ export function rampBoard(state, { today = todayISO(), weeks = RAMP_WEEKS } = {}
     for (let d = 0; d < 7; d++) {
       const dateObj = addDays(parseISO(b.start), d)
       const dow = dateObj.getDay()
-      if (!RAMP_OPEN_DOWS.includes(dow)) continue
+      if (!openDows.includes(dow)) continue
       const date = isoDate(dateObj)
       for (const s of staff) {
         const blocked = blockedHours.get(`${date}|${s.id}`)
@@ -182,13 +185,13 @@ export function rampBoard(state, { today = todayISO(), weeks = RAMP_WEEKS } = {}
     'Demand is the authorized weekly hours on file plus open intake requests at their requested hours — a ramp from known work, ' +
     'not a forecast of referrals, and intake is never weighted by a conversion rate. Renewals are never assumed: an authorization ' +
     'ending inside the horizon drops to zero and the week is marked. Supply is each clinician\u2019s working day minus blocked-out ' +
-    'time, Mon\u2013Fri, split RBT vs BCBA. Read-only: nothing here is booked, moved or sent.'
+    `time, ${openDows.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}, split RBT vs BCBA. Read-only: nothing here is booked, moved or sent.`
 
   return {
     weeks: buckets,
     horizonWeeks: buckets.length,
     workday: { start: wdStart, end: wdEnd, span },
-    cfg: { weeks: buckets.length, weekStart: ws, openDows: RAMP_OPEN_DOWS },
+    cfg: { weeks: buckets.length, weekStart: ws, openDows },
     summary: {
       clients: clientsCounted,
       lapsed: clientsLapsed,

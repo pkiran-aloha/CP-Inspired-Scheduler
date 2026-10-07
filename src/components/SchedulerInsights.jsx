@@ -601,7 +601,7 @@ export default function SchedulerInsights({ days, onClose }) {
                   <span className="muted">
                     {' '}
                     — authorized hours on file plus open intake requests at their requested hours, against clinician supply (working day {ramp.workday.start}:00–{ramp.workday.end}:00 minus
-                    blocked time, Mon–Fri). {ramp.summary.clients} client{ramp.summary.clients === 1 ? '' : 's'} authorized · {ramp.summary.intakeCounted} intake request
+                    blocked time, {ramp.cfg.openDows.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}). {ramp.summary.clients} client{ramp.summary.clients === 1 ? '' : 's'} authorized · {ramp.summary.intakeCounted} intake request
                     {ramp.summary.intakeCounted === 1 ? '' : 's'} with hours{ramp.summary.intakeNoHours ? ` · ${ramp.summary.intakeNoHours} open without hours recorded` : ''}.
                   </span>
                 </div>
