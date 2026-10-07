@@ -4120,3 +4120,25 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .si-hire-thin { border-style: dashed; }
 .si-hire-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
 .si-hire-reason { margin: 6px 0 0; font-size: 12px; }
+
+/* Pick fit: facts, best-fit badge and ranked order in the people pickers; open slots in the rail */
+.pv-sort {
+  margin-left: auto; padding: 1px 8px; border: 1px solid var(--line-2); border-radius: 999px; background: var(--panel);
+  font: inherit; font-size: 10.4px; font-weight: 700; color: var(--text-2); cursor: pointer;
+}
+.pv-sort[aria-pressed='true'] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line-2)); color: var(--accent); }
+.pv-sort:focus-visible, .bk-slot:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pv-facts { display: flex; flex-wrap: wrap; gap: 2px 8px; margin-top: 2px; font-size: 10.2px; color: var(--muted); white-space: normal; }
+.pv-facts .tone-flag { color: var(--tn-ink); background: none; }
+.pv-facts .tone-ok { color: var(--tn-ink); background: none; }
+.pv-best {
+  display: inline-flex; align-items: center; gap: 3px; flex: none; padding: 1px 7px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.bk-slots { display: flex; flex-direction: column; gap: 4px; margin: 8px 0 0 37px; }
+.bk-slot {
+  display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--panel); font: inherit; font-size: 11px; color: var(--text); text-align: left; cursor: pointer; overflow-wrap: anywhere;
+}
+.bk-slot:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); background: var(--accent-soft); }
+@media (max-width: 640px) { .bk-slots { margin-left: 0; } }

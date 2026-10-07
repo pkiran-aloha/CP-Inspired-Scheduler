@@ -26,7 +26,7 @@ export const RAMP_WEEKS = 12
 /** Default practice days: Monday–Friday. */
 export const RAMP_OPEN_DOWS = [1, 2, 3, 4, 5]
 const validPracticeDays = (value) => Array.isArray(value) && value.length > 0 && value.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)
-const practiceDaysOf = (value) => [...new Set(validPracticeDays(value) ? value : RAMP_OPEN_DOWS)].sort((a, b) => a - b)
+export const practiceDaysOf = (value) => [...new Set(validPracticeDays(value) ? value : RAMP_OPEN_DOWS)].sort((a, b) => a - b)
 
 const round1 = (n) => Math.round(n * 10) / 10
 const validDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && isoDate(parseISO(s)) === s

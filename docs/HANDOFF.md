@@ -33,6 +33,17 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Pick fit and open slots — smarter booking pickers (`feat/smart-scheduling-picks`, 2026-10-07)
+
+- **What.** `src/lib/pickFit.js` adds context at the point of decision, reusing existing engines (`suggestStaff`, `authBurn`, `travelChecksForStaffDay`/`travelLeg`, `riskFor`, `clinicianGroup`, `practiceDaysOf`):
+  - **Staff rows** (`bk-pick-facts`): past sessions with the client or **New to**; hours this week after the booking vs `targetWeekH` (flag when over; 30 h fallback like StaffView/reports); straight-line drive estimate from the previous appointment that day.
+  - **Client rows** (clinical): authorized hours booked this week vs the authorized week (flag under the guard's under-pace %), days to expiry inside `expiryWarnDays` else % used, usual weekday × time band over 8 weeks (marked when this slot matches).
+  - **Badge** (`bk-best-fit`): one **Best fit** (top `suggestStaff` score among clear/flag candidates — same ranking as "Suggested for this client") or **Most hours open** (client with the most authorized hours open this week). **A–Z / Ranked** switch (`bk-pick-sort`), A–Z by default so the list order people know (and tests that click item 0) is unchanged.
+  - **Checks rail `bk-fit`** (flag): continuity (picked clinician has no past sessions with the client while another has ≥3), caseload balance (over target hours; names a free same-tier peer under 75% of target), and **open slots** (`bk-slot-<i>`) when the slot clashes: ≤3 in the next 7 practice days, inside `settings.workday`, from today, nobody picked busy/blocked, never a slot the travel check calls impossible; ranked same day → near the asked time → joins a block → high risk last. A click only fills date/time; save is the normal path.
+- **Fix along the way.** The modal's "Suggested for this client" passed `load: 0` for every clinician, so it claimed "Light week · 0 sessions" for everyone; it now passes `weekLoad` for the booking week.
+- **Decisions taken conservatively (maintainer may revisit):** pickers open A–Z, not ranked; tunables are constants (`FIT_LOOKBACK_WEEKS` 8, `USUAL_MIN` 3, `PEER_UNDER` 0.75, `SLOT_DAYS` 7, `SLOT_LIMIT` 3), no Settings UI; QuickAdd untouched (a parallel recurrence branch edits it); open slots only appear when the chosen slot clashes.
+- **Verification.** `pickFit.test.js` (11) + 2 UI cases in `bookingChecks.test.jsx` (facts/badge/ranking; clash → slot → saved at the slot's time). Full suite 97 files / 1,013 tests green before docs; `npm run build` green (chunk-size warning only).
+
 ### Audit remediation — configuration-audit findings CFG-02…CFG-12 (branch `arena/e8f5fefe-cp-inspired-scheduler`, 2026-10-07)
 
 - **What.** The open findings from `docs/audits/configuration-audit-2026-10-07.md`, fixed in seven commits on the Arena branch (PR #37 — build CI green; landing on `main`):

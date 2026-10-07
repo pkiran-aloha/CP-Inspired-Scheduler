@@ -184,7 +184,14 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
   const anchor = useRef(null)
   const live = open || selected.length > 0
   const vmap = useMemo(() => (verdicts && live ? verdicts() || {} : {}), [verdicts, live])
-  const list = people.filter((p) => !q || (p.name + ' ' + (p.role || p.program || '')).toLowerCase().includes(q.toLowerCase()))
+  const [ranked, setRanked] = useState(false)
+  const hasFit = Object.values(vmap).some((v) => v && v.score != null)
+  const TR = { ok: 0, flag: 1, warn: 2, stop: 3 }
+  const filtered = people.filter((p) => !q || (p.name + ' ' + (p.role || p.program || '')).toLowerCase().includes(q.toLowerCase()))
+  // Ranked: nothing-in-the-way first, then the fit score; A–Z keeps the list as given.
+  const list = ranked && hasFit
+    ? [...filtered].sort((a, b) => (TR[vmap[a.id]?.tone] ?? 0) - (TR[vmap[b.id]?.tone] ?? 0) || (vmap[b.id]?.score ?? -1e9) - (vmap[a.id]?.score ?? -1e9))
+    : filtered
   const byId = Object.fromEntries(people.map((p) => [p.id, p]))
 
   const toggle = (id) => {
@@ -235,6 +242,11 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
             <div className="pv-head" data-testid="pick-checked-for">
               {Icon.cal({ size: 12 })}
               <span>Checked for {checkedFor}</span>
+              {hasFit && (
+                <button type="button" className="pv-sort" data-testid="bk-pick-sort" aria-pressed={ranked} onClick={() => setRanked((r) => !r)} title="Order by fit: clear first, then the strongest match">
+                  {ranked ? 'Ranked' : 'A–Z'}
+                </button>
+              )}
             </div>
           )}
           {list.map((p) => {
@@ -245,7 +257,13 @@ export function PeoplePicker({ label, required, people, selected, onChange, plac
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span className="nm">{p.name}</span>
                   <div className="rl">{p.role || p.program}</div>
+                  {v?.facts?.length > 0 && (
+                    <div className="pv-facts" data-testid="bk-pick-facts">
+                      {v.facts.map((x, k) => <span key={k} className={x.tone ? `tone-${x.tone}` : undefined}>{x.text}</span>)}
+                    </div>
+                  )}
                 </span>
+                {v?.best && <span className="pv-best" data-testid="bk-best-fit" title={v.reason || v.best}>{Icon.spark({ size: 10 })}{v.best}</span>}
                 <VerdictChip v={v} />
                 <span className="ck">{Icon.check({ size: 14, strokeWidth: 2.6 })}</span>
               </button>
