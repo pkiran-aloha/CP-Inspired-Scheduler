@@ -13,6 +13,20 @@ beforeEach(() => {
 })
 afterEach(() => cleanup())
 
+describe('practice-days setting', () => {
+  it('saves a selected practice day in System Settings and does not allow an empty week', async () => {
+    render(<App />)
+    fireEvent.click(screen.getByTestId('nav-sub-set-system'))
+    const days = await screen.findByTestId('set-sys-practice-days')
+    const sunday = within(days).getByTestId('set-sys-practice-day-0')
+    fireEvent.click(sunday)
+    await waitFor(() => expect(stored().settings.practiceDays).toEqual([0, 1, 2, 3, 4, 5]))
+    for (const d of [0, 1, 2, 3, 4, 5]) fireEvent.click(within(days).getByTestId(`set-sys-practice-day-${d}`))
+    expect(within(days).getByTestId('set-sys-practice-day-5').disabled).toBe(true)
+    expect(stored().settings.practiceDays).toEqual([5])
+  })
+})
+
 describe('navigation rail', () => {
   it('switches sections and the collapse state persists', async () => {
     render(<App />)

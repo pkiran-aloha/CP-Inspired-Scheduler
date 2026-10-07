@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-06** (cancellation notice in the risk model landed via PR #32 — C4's last open item; C4 confidence-threshold picker landed via PR #31; D2 landed via PR #30; the test suite now runs on the work PC). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-07** (D1 practice-days follow-up built; ramp supply now follows the practice's selected days, Monday–Friday by default). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
@@ -23,6 +23,12 @@ Last updated **2026-10-06** (cancellation notice in the risk model landed via PR
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### D1 follow-up — configurable practice days (built 2026-10-07)
+
+- **What.** System Settings → Display & workspace now lets the practice select one or more open days (Sunday–Saturday; Monday–Friday by default). The Ramp tab counts clinical supply only on those days, while preserving working-hour and blocked-time calculations. At least one day must stay selected. The selected days are named in the Ramp header and its explanatory note.
+- **Compatibility.** Workspaces without `settings.practiceDays` retain the old Monday–Friday behavior. Malformed or empty values also safely fall back to that default.
+- **Verification.** `ramp.test.js` covers weekend-only capacity and fallback; `sections.test.jsx` covers changing and persisting the setting and preventing an empty selection. (Run full suite/build before landing.)
 
 ### C4 follow-up — cancellation notice in the risk model (PR #32, landed at `83ba96c`)
 
@@ -300,10 +306,10 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. **Recommended next:** the D1 practice-days follow-up, the `14220` mileage-code fix, or a billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07. **Recommended next:** the `14220` mileage-code fix or a billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
-- D1 follow-ups (only if the ramp proves out): a practice-days setting so supply stops assuming Mon–Fri; intake conversion tracking once enough history exists (still never a forecast knob).
+- D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).
 - D4 scenario planner (L).
 - Billing-form follow-ups (each "Not done" in the CMS-1500, statement and GFE entries above):
   - printer X/Y calibration for the red-form print;
@@ -328,7 +334,7 @@ Other open items, smaller:
 | ~~Integrations, honest partial (#3, #11, #12)~~ (shipped 2026-10-05) | Telehealth link; Apple/Google calendar; Stripe | All three slices have shipped (see Shipped above). Still open: per-staff video rooms; a subscribable calendar feed and real Stripe reconciliation both need a backend. |
 | ~~Scheduling idea C4~~ (shipped 2026-10-06) | Calibrated overbooking guidance | Read-only Overbooking tab in Scheduler Insights; block-level, never two clients on one clinician. Booking-dialog hint, cancellation time, the 70/80/90 confidence-threshold picker (PR #31) and the late-cancel notice rate in the risk model (2026-10-06, one threshold shared with the backtest) shipped too. Still open: nothing. |
 | ~~Scheduling idea B3~~ (shipped 2026-10-05) | Travel feasibility & route sequencing | Both slices shipped: Slice1 travel check in booking dialog (office lat/lng, staff.travel Warn, candidate verdicts), Slice2 per-clinician day route view in Scheduler Insights Travel tab (legs, travel minutes, tight/impossible, suggested re-order read-only with miles saved, nothing moves). Honest copy, no map API. |
-| ~~Scheduling idea D1~~ (built 2026-10-06, PR #28) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, Mon–Fri, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Requirements settled with the maintainer first (all five round-1 picks as recommended). Still open: a practice-days setting so supply stops assuming Mon–Fri. |
+| ~~Scheduling idea D1~~ (built 2026-10-06, PR #28; practice-days follow-up 2026-10-07) | Caseload ramp forecast | Read-only Ramp tab in Scheduler Insights: 12 practice weeks of authorized demand plus the intake band (never weighted by a conversion rate) against clinician supply (working day minus blocked time, on the configurable practice days; Monday–Friday default, split RBT vs BCBA); expiry weeks marked renewal pending, renewals never assumed. Practice days are editable in System Settings → Display & workspace. Still open: intake conversion tracking once enough history exists (never a forecast knob). |
 | ~~Scheduling idea D2~~ (built 2026-10-06) | Hire/contract decision support | Read-only verdict strip on the Ramp tab: hours gap vs template problem from short weeks + Coverage fill (85%). Hours, never a headcount. Thin data named, never invented. |
 | #15 | "Remove pop-up that payer is not on list" | Not present in this app (it's a production-Aloha complaint). Keep it that way. |
 

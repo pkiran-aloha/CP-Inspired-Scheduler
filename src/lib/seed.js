@@ -197,6 +197,7 @@ export const defaultSettings = () => ({
   defaultRate: 32,
   mileageRate: 0.7,
   workday: [8, 18],
+  practiceDays: [1, 2, 3, 4, 5],
   smart: SMART_DEFAULTS,
   // authorization guard for the calendar: flag/warn/stop a booking that spends
   // past the hours on file. See src/lib/authBudget.js.

@@ -111,6 +111,16 @@ describe('caseload ramp (D1)', () => {
     expect(board.summary.staff).toEqual({ rbt: 1, bcba: 1, other: 0 })
   })
 
+  it('uses configured practice days for supply and defaults safely to Monday–Friday', () => {
+    const staff = [staffer('rbt', 'RBT · EIBI', 'RBT #24-08-0001')]
+    const week = rampBoard(base({ staff, settings: { practiceDays: [0, 6] } }), { today: TODAY }).weeks[0]
+    expect(week.supplyHours).toBe(20)
+    const defaulted = rampBoard(base({ staff, settings: { practiceDays: [] } }), { today: TODAY })
+    expect(defaulted.weeks[0].supplyHours).toBe(50)
+    expect(defaulted.cfg.openDows).toEqual([1, 2, 3, 4, 5])
+    expect(defaulted.note).toContain('Mon, Tue, Wed, Thu, Fri')
+  })
+
   it('removes blocked-out time from supply, matching the Coverage denominator', () => {
     const staff = [staffer('rbt', 'RBT · EIBI', 'RBT #24-08-0001')]
     const appts = {
