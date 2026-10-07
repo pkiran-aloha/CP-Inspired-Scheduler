@@ -230,19 +230,22 @@ export const DEFAULT_SUBSCRIPTION = {
   invoices: [],
 }
 
+// Every key here gates a real alert source in notificationsFor (src/lib/tasks.js).
+// Older panels wrote a few alternate names (clinicalTeam, qualificationExpiration,
+// incompleteAppointments, …) — notificationsCfg folds those onto the canonical keys.
 export const DEFAULT_NOTIFICATIONS = {
-  timelyFiling: true, authExpiry: true, parkedEra: true, secondaryReady: true, intakeSla: true, browserToasts: false,
-  staffBirthday: true,
-  staffClinicalTeam: true,
-  staffSubordinate: true,
-  staffSupervisor: true,
-  staffQualExpiration: true,
-  staffQualFrequencyDays: 30,
-  staffIncompleteAppts: true,
-  staffIncompleteLookbackDays: 7,
-  staffTimesheetReminder: true,
-  staffTimesheetDaysBefore: 2,
-  staffClientAssignment: true,
+  staffTasks: true, // overdue & due-today task reminders
+  staffQualExpiration: true, // credential documents expiring (Cabinet alerts)
+  staffQualFrequencyDays: 30, // …warn this many days ahead
+  staffIncompleteAppts: true, // past sessions still awaiting completion
+  staffIncompleteLookbackDays: 7, // …look back this many days
+  timelyFiling: true, // claims past their filing window
+  authExpiry: true, // authorizations lapsed or ending soon
+  parkedEra: true, // unapplied payments waiting to be matched
+  secondaryReady: true, // primary claims ready for secondary filing
+  intakeSla: true, // intake requests past their stage deadline
+  deniedClaims: true, // denied claims to work
+  browserToasts: false, // opt-in: surface stop-tone alerts while the tab is open
 }
 
 export const VALIDATION_SEVERITIES = [
@@ -325,14 +328,16 @@ export const DEFAULT_SYSTEM_CONFIG = {
   },
   other: {
     distanceUnit: 'miles',
+    // No client portal ships in this build — the selection is saved for when one
+    // does, keyed by the column ids the settings panel edits.
     clientPortalColumns: {
-      invoiceNo: true,
-      serviceDate: true,
-      charges: true,
+      totalCharges: true,
       insurancePaid: true,
-      clientPaid: true,
-      balanceDue: true,
+      patientResponsibility: true,
+      currentBalance: true,
     },
+    // No payment gateway ships in this build either — saved for when online
+    // payments exist. One canonical shape: an object of booleans.
     paymentGatewayMethods: {
       creditCard: true,
       ach: true,
@@ -517,7 +522,26 @@ export function paymentLinkFor(settings) {
   return row && row.status !== 'off' && isWebUrl(row.payUrl) ? row.payUrl.trim() : ''
 }
 export const subscriptionCfg = (settings) => ({ ...DEFAULT_SUBSCRIPTION, ...(settings?.subscription || {}) })
-export const notificationsCfg = (settings) => ({ ...DEFAULT_NOTIFICATIONS, ...(settings?.notifications || {}) })
+export const notificationsCfg = (settings) => {
+  const raw = settings?.notifications || {}
+  const out = { ...DEFAULT_NOTIFICATIONS, ...raw }
+  // Legacy UI key names → canonical keys, only where a canonical key is absent and
+  // the legacy value actually gates something. Names with no alert source are dropped.
+  const fold = (legacyKey, canonicalKey, map) => {
+    if (raw[canonicalKey] == null && raw[legacyKey] != null) out[canonicalKey] = map ? map(raw[legacyKey]) : raw[legacyKey]
+  }
+  fold('qualificationExpiration', 'staffQualExpiration', (v) => v !== false)
+  fold('qualificationExpirationFreq', 'staffQualFrequencyDays', (v) => {
+    const d = parseInt(String(v).replace(/[^\d]/g, ''), 10)
+    return Number.isFinite(d) && d > 0 ? d : 30
+  })
+  fold('incompleteAppointments', 'staffIncompleteAppts', (v) => v !== false)
+  fold('incompleteLookbackDays', 'staffIncompleteLookbackDays', (v) => {
+    const d = Number(v)
+    return Number.isFinite(d) && d > 0 ? d : 7
+  })
+  return out
+}
 export const clearinghousesCfg = (settings) => (arr(settings?.clearinghouses).length ? settings.clearinghouses : DEFAULT_CLEARINGHOUSES)
 export const evvCfg = (settings) => ({ ...DEFAULT_EVV_CONFIG, ...(settings?.evvConfig || {}) })
 export const VALIDATION_GROUPS = ['staff', 'client', 'payer', 'aba']
@@ -570,10 +594,33 @@ export function systemConfigFor(settings) {
     other: {
       ...DEFAULT_SYSTEM_CONFIG.other,
       ...(sys.other || {}),
-      clientPortalColumns: { ...DEFAULT_SYSTEM_CONFIG.other.clientPortalColumns, ...(sys.other?.clientPortalColumns || {}) },
+      clientPortalColumns: normalizePortalColumns(sys.other),
       paymentGatewayMethods: normalizeGatewayMethods(sys.other?.paymentGatewayMethods),
     },
   }
+}
+
+/**
+ * One canonical shape for the portal's balance columns: an object of booleans
+ * keyed by column id. The panel's first draft wrote an array under a different
+ * key (`portalBalanceColumns`) — fold that onto the canonical object so a saved
+ * selection survives a reload.
+ */
+function normalizePortalColumns(other) {
+  const base = { ...DEFAULT_SYSTEM_CONFIG.other.clientPortalColumns }
+  const raw = other?.clientPortalColumns
+  if (Array.isArray(raw)) {
+    for (const id of raw) if (id in base) base[id] = true
+    return base
+  }
+  const merged = { ...base, ...(raw || {}) }
+  const legacy = other?.portalBalanceColumns
+  if (Array.isArray(legacy)) {
+    for (const id of legacy) if (id in base) merged[id] = true
+    else if (id === 'charges') merged.totalCharges = true
+    else if (id === 'balanceDue') merged.currentBalance = true
+  }
+  return merged
 }
 export const systemConfigCfg = systemConfigFor
 
