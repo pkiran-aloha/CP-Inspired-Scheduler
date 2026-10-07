@@ -372,6 +372,30 @@ describe('masters — billing rules', () => {
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.flags.mergeSameDay).toBe(false))
   })
 
+  it('payer mileage code is payer-specific, normalized, and refuses CPT 14220', async () => {
+    render(<App />)
+    await openDetail('py-blue-shield-ca')
+    fireEvent.click(screen.getByTestId('pd-tab-rules'))
+    fireEvent.click(await screen.findByTestId('pr-tab-claims'))
+    const field = await screen.findByTestId('clm-mileageCode')
+
+    fireEvent.change(field, { target: { value: 'X12345' } })
+    fireEvent.click(screen.getByTestId('pr-save'))
+    expect(await screen.findByText(/exactly 5 letters or digits/)).toBeTruthy()
+    expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules?.claims?.mileageCode).toBeUndefined()
+
+    fireEvent.change(screen.getByTestId('clm-mileageCode'), { target: { value: '14220' } })
+    fireEvent.click(screen.getByTestId('pr-save'))
+    expect(await screen.findByText(/CPT 14220 is a surgery code, not a mileage code/)).toBeTruthy()
+    expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules?.claims?.mileageCode).toBeUndefined()
+
+    fireEvent.change(screen.getByTestId('clm-mileageCode'), { target: { value: 'x1234' } })
+    fireEvent.click(screen.getByTestId('pr-save'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.mileageCode).toBe('X1234'))
+    fireEvent.click(await screen.findByText('Undo'))
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules?.claims?.mileageCode).toBeUndefined())
+  })
+
   it('a payer rule save is one Undo — the toast puts the previous rules back', async () => {
     render(<App />)
     await openDetail('py-blue-shield-ca')

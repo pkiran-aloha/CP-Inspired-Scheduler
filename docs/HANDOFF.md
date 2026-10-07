@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-07** (configuration-audit remediation landed on branch `arena/e8f5fefe-cp-inspired-scheduler`; D1 practice-days follow-up built earlier the same day). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-07** (payer-specific mileage-code follow-up started after the configuration-audit remediation and D1 practice-days follow-up). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
@@ -22,6 +22,14 @@ Last updated **2026-10-07** (configuration-audit remediation landed on branch `a
 - Delivery style chosen: **one feature at a time** — build, land on `main`, wait for CI green, report, then the next. Ask before starting a new wave.
 - The maintainer may use other agents (not only Claude). `AGENTS.md` is the shared rulebook; `CLAUDE.md`, `GEMINI.md`, `.github/copilot-instructions.md` point to it.
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
+
+## Work started (not yet landed)
+
+### Billing follow-up — payer-specific mileage code (2026-10-07)
+
+- **What.** The Billing staging list no longer labels mileage as CPT `14220`. Masters → Payer → Billing Rules → Claims Settings has an optional, payer-specific 5-character CPT/HCPCS mileage code. The app never guesses a code; `14220` is rejected as a surgery code, not mileage.
+- **Safety.** An insurance mileage line without a valid payer code is marked **Needs code** and held by the claim gate. CMS-1500 export refuses a missing or invalid mileage code. Set the payer-approved value or remove mileage if it is not covered, then void/rebuild a draft assembled before the setting was saved or changed. Self-pay lines do not get a payer code. Existing claim snapshots are not rewritten; invalid or out-of-date historical mileage codes display as **Needs code** and cannot be exported on a CMS-1500.
+- **Verification.** Focused claims/CMS-1500/payer-settings/Billing tests pass. Full `npm test`: **96 files, 1,000 tests passed**. `npm run build` passes; Vite still warns that the main JS bundle is over 500 kB (the existing REL-01 bundle-splitting issue, intentionally out of scope). JSDOM canvas/navigation and payer-list key warnings are pre-existing, unrelated and non-failing.
 
 ## Shipped (newest first)
 
@@ -157,7 +165,7 @@ Last updated **2026-10-07** (configuration-audit remediation landed on branch `a
 - **UI.** The claim header has CMS-1500 (review copy) and Red form print (data only); Claims has 1500 Batch and Batch · red forms. Toasts say which is which and that nothing was sent.
 - **Data.** Clients > Edit has Home address / City / State / ZIP (item 5; intake already carried them). The demo clients got fictional addresses. Provider-ID hint says G2.
 - **Research also covered other forms:** UB-04, ADA and state Medicaid forms do not apply to ABA (all states sampled use the 1500/837P). Candidates for next slices: a family statement laid out per HFMA guidance (window-safe address, amount-due panel, account summary, aging, tear-off stub, no diagnosis codes), an out-of-network superbill (Cigna's required elements), a No Surprises Act Good Faith Estimate for self-pay families, and a secondary (COB) 1500 profile.
-- **Not done:** printer X/Y calibration for the red-form print; per-payer page totals (total prints on the last page only); item 17 (no referring/supervising data); payer claim control number for item 22 (ERA CLP07 is not stored on the claim). The mileage line's code `14220` is a CPT surgery code, not a mileage HCPCS. It needs a payer-specific code, and is flagged for follow-up rather than changed.
+- **Not done:** printer X/Y calibration for the red-form print; per-payer page totals (total prints on the last page only); item 17 (no referring/supervising data); payer claim control number for item 22 (ERA CLP07 is not stored on the claim). The mileage-code follow-up is implemented and verified locally but not yet landed (see above); no default is assumed, and each payer must supply a contract-approved mileage code.
 - **Verification:** node run of the new assertions with jsPDF 4.2.1 (all pass). `cms1500.test.js` was rewritten, and `providerIds`/`payerTerms` tests were updated; these run in CI.
 
 ### Docs — mismatches #1–6 (`docs/mismatch-nits`)
@@ -319,14 +327,13 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. **Recommended next:** the `14220` mileage-code fix or a billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
 - D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).
 - D4 scenario planner (L).
 - Billing-form follow-ups (each "Not done" in the CMS-1500, statement and GFE entries above):
   - printer X/Y calibration for the red-form print;
-  - the mileage code `14220` (a CPT surgery code): replace it with a payer-specific mileage code;
   - a secondary (COB) 1500 profile;
   - Section 1557 language taglines on statements (a settings block with a per-family opt-out);
   - a per-guarantor confidential "send to" address;

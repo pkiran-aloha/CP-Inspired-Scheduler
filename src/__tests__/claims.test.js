@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   stagedAppts, planClaims, assembleClaims, nextClaimSeq, claimGate, submitPatch, payPatch,
   denyPatch, rebillPatch, dropLinePatch, dueOf, agingOf, claimStats, claimCsv, claimNoAt, PAYER_POLICY, arOf,
+  lineFor, mileageCodeFor, normalizeMileageCode,
 } from '../lib/claims'
 import { addDays, addMonths, isoDate } from '../lib/date'
 
@@ -42,6 +43,46 @@ describe('claims engine', () => {
     ])
     const staged = stagedAppts(st, null).map((a) => a.id).sort()
     expect(staged).toEqual(['mileage', 'ok'])
+  })
+
+  it('mileage lines use a payer-approved code and never guess 14220', () => {
+    const mileage = appt('mileage', 'c1', {
+      type: 'drive',
+      billing: { units: 0, rate: 0, mileage: true, distance: 12, mileageRate: 0.7 },
+    })
+    const base = state([mileage])
+    const plan = planClaims(base, [mileage])[0]
+    const draft = assembleClaims(base, [plan]).claims[0]
+    expect(draft.lines[0].kind).toBe('mileage')
+    expect(draft.lines[0].code).toBe('')
+    const missing = claimGate(base, draft).bad.find((b) => b.line.kind === 'mileage')
+    expect(missing.why).toMatch(/No payer-specific mileage code/)
+    expect(missing.why).toMatch(/rebuild this draft/)
+
+    const payer = { id: 'payer-aetna', name: 'Aetna', rules: { claims: { mileageCode: ' x1234 ' } } }
+    const configured = { ...base, payers: [payer] }
+    expect(mileageCodeFor(payer)).toBe('X1234')
+    expect(lineFor(mileage, configured, plan).code).toBe('X1234')
+    const codedDraft = { ...draft, lines: [{ ...draft.lines[0], code: 'X1234' }] }
+    expect(claimGate(configured, codedDraft).bad.some((b) => b.line.kind === 'mileage')).toBe(false)
+    const unconfiguredCode = { ...draft, lines: [{ ...draft.lines[0], code: 'X1234' }] }
+    expect(claimGate(base, unconfiguredCode).bad.find((b) => b.line.kind === 'mileage').why).toMatch(/No payer-specific mileage code is configured/)
+    const changedSetting = { ...configured, payers: [{ ...payer, rules: { claims: { mileageCode: 'Y1234' } } }] }
+    expect(claimGate(changedSetting, codedDraft).bad.find((b) => b.line.kind === 'mileage').why).toMatch(/current mileage code is Y1234/)
+
+    expect(normalizeMileageCode('14220').ok).toBe(false)
+    expect(normalizeMileageCode('x123').ok).toBe(false)
+    expect(normalizeMileageCode('x12345').ok).toBe(false)
+    expect(mileageCodeFor({ rules: { claims: { mileageCode: '14220' } } })).toBe('')
+    const legacy = { ...draft, lines: [{ ...draft.lines[0], code: '14220' }] }
+    expect(claimGate(base, legacy).bad.find((b) => b.line.kind === 'mileage').why).toMatch(/surgery code, not a mileage code/)
+
+    const selfPayTrip = appt('selfpay-trip', 'c2', { type: 'drive', billing: { units: 0, rate: 0, mileage: true, distance: 12 } })
+    const selfPayState = state([selfPayTrip])
+    const selfPayPlan = planClaims(selfPayState, [selfPayTrip])[0]
+    const selfPayDraft = assembleClaims(selfPayState, [selfPayPlan]).claims[0]
+    expect(selfPayDraft.lines[0].code).toBe('')
+    expect(claimGate(selfPayState, selfPayDraft).bad.some((b) => b.line.kind === 'mileage')).toBe(false)
   })
 
   it('plans group by client × payer × DOS-month and fold self-pay into one invoice', () => {

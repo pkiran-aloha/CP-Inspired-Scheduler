@@ -17,7 +17,7 @@
 // The electronic standard is ANSI 837P; nothing here transmits anything.
 import { jsPDF } from 'jspdf'
 import { winAnsi } from './exportKit'
-import { posFor, memberIdOf, authNoOf, dxFor, lineApptIds } from './claims'
+import { posFor, memberIdOf, authNoOf, dxFor, lineApptIds, mileageCodeIssue } from './claims'
 import { providerIdRule } from './providerIds'
 
 export const LINES_PER_PAGE = 6 // the paper grid carries six service lines
@@ -71,6 +71,13 @@ export function cms1500Data(state, claim) {
   const providers = (state.settings?.providers || []).filter((p) => p.active !== false)
   const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
   const payerRec = (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
+  if (claim.mode !== 'selfpay') {
+    const unpricedMileage = (claim.lines || []).find((line) => line.kind === 'mileage' && mileageCodeIssue(line.code, payerRec))
+    if (unpricedMileage) {
+      const issue = mileageCodeIssue(unpricedMileage.code, payerRec)
+      throw new Error(`${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings, or remove mileage if it is not covered, then rebuild this draft.`)
+    }
+  }
   const secondaryFiling = claim.method === 'secondary'
   const rule = providerIdRule(payerRec).id
   const wantNpi = rule !== 'medicaid'
