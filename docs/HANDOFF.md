@@ -44,6 +44,34 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 - **Decisions taken conservatively (maintainer may revisit):** pickers open A–Z, not ranked; tunables are constants (`FIT_LOOKBACK_WEEKS` 8, `USUAL_MIN` 3, `PEER_UNDER` 0.75, `SLOT_DAYS` 7, `SLOT_LIMIT` 3), no Settings UI; QuickAdd untouched (a parallel recurrence branch edits it); open slots only appear when the chosen slot clashes.
 - **Verification.** `pickFit.test.js` (11) + 2 UI cases in `bookingChecks.test.jsx` (facts/badge/ranking; clash → slot → saved at the slot's time). Full suite 97 files / 1,013 tests green before docs; `npm run build` green (chunk-size warning only).
 
+### Recurrence — Google-style repeat rules and series edits (`feat/recurrence-series`, 2026-10-07)
+
+- **Bugs fixed (each has a regression test):**
+  - Monthly on the 31st clamped to the 30th. It now skips, as Google does.
+  - "All/This & following" edits copied the edited session's status, verification signature, documents and billing to every sibling (a completed session marked the whole series completed). They also reset exceptions and rewrote completed or billed sessions.
+  - "This & following" never split the series, and a rule change only worked for "this occurrence".
+  - A rule rebuild was three dispatches (three Undo steps) and deleted completed, billed or claimed future sessions. Series delete removed claimed, completed and payroll-locked sessions silently.
+  - A dragged occurrence was not marked as an exception.
+  - A no-show in the slot counted as a clash.
+  - The series edit test was pinned to a fixed date.
+- **What.**
+  - `src/lib/recurrence.js`: the rule engine (daily/weekly/monthly/yearly, interval, weekdays, month day / nth / last weekday, ends never / until / count, a 12-month cap, words, presets), locks, occurrence screening and `planSeriesTx`. `RecurrenceEditor.jsx` is the picker.
+  - Scope choices: this occurrence / this & following / all on edit, delete and cancel. The detail card asks for the reason, then the scope.
+  - New action `seriesTx`: one Undo, with `actionAreas` and record-scope entries.
+  - `rrule` is stored on every occurrence. `normalizeRecurrence` migrates legacy series and is idempotent. Restore refuses a bad `rrule`. The intake handoff refuses an `rrule` or `seriesId`.
+  - `model.js` drops `RECURRENCES`, `seriesDatesFor`, `planScopedPatch`, `planSeriesRebuild` and `mapSeriesDate`; `store.jsx` drops `removeSeries`.
+- **Decisions taken as Google's behaviour (maintainer may change):**
+  - The default end is **Never**, capped at 12 months. It was 8 occurrences before.
+  - A rule change replaces single-session exceptions in the rebuilt range.
+  - Delete removes the record. There is no EXDATE memory, so a later rule rebuild can bring back a deleted date.
+- **Our own safety choices:**
+  - Rebuilds never create or delete past dates.
+  - A series cancel only touches today and later sessions.
+  - Status, verification, documents and billing state never propagate across a series.
+  - Completed, cancelled/no-show, billed or claimed sessions and sessions in approved/processed pay sheets are kept and counted.
+- **Not done:** no holiday calendar exists (closed weekdays are only warned). Yearly rules inside the 12-month cap yield one date. The ✎ glyph on TimeGrid/TimelineView exception markers is unchanged.
+- **Verification.** `recurrence.test.js` (24) + `recurrenceUi.test.jsx` (5); existing app/store tests updated. Full suite 98 files / 1,025 tests green; `vite build` green (bundle-size warning unchanged).
+
 ### Audit remediation — configuration-audit findings CFG-02…CFG-12 (branch `arena/e8f5fefe-cp-inspired-scheduler`, 2026-10-07)
 
 - **What.** The open findings from `docs/audits/configuration-audit-2026-10-07.md`, fixed in seven commits on the Arena branch (PR #37 — build CI green; landing on `main`):

@@ -2,9 +2,9 @@
 
 _Last synced: 2026-10-07_
 
-_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/lib/recurrence.js, src/components/RecurrenceEditor.jsx, src/state/store.jsx, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main 0434a5a plus the feat/smart-scheduling-picks branch on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 0434a5a plus the feat/smart-scheduling-picks and recurrence-series branches on 2026-10-07; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -96,9 +96,37 @@ The authorization window total is weekly hours times weeks on file. It is an est
 
 **How a session's units are counted.** The booking dialog's Billing tab, Quick Add and the one-click unit fix on the Billing desk's Blocked tab all count units with one rule chain (`unitRuleFor` then `unitsFor`): the payer's per-service override, the payer's own service, the service master, then the code default. The default is the Medicaid / CPT norm: 15-minute units for the ABA codes (97151 to 97158, 0362T, 0373T) and H2019, with the midpoint rule (a unit counts at 8 minutes or more; 38 minutes is 3 units, 37 is 2). 253MT stays at 30 minutes. A payer can set its own unit size and rounding (AMA, Nearest, Round Up, Round Down, Truncate). The Billing tab shows the rule it used, for example "45 min in 15-min units (AMA rounding) = 3 units x rate". A billing code picked by hand that differs from the service's own code ignores the service's unit rule and uses the code default. Because the authorization pool and the claim use the same rule, they agree.
 
+### Repeating sessions
+
+The booking dialog's **Repeats** picker offers the same quick picks as Google Calendar: Daily, Every weekday (Mon–Fri), Weekly on the chosen day, Every 2 weeks, Monthly on day N, Monthly on the Nth or last weekday, Annually. Any of them can then be customised:
+- **Every** N days, weeks, months or years.
+- **On** any set of weekdays (weekly).
+- **Monthly** on the day of the month, the Nth weekday, or the last weekday.
+- **Ends** never, on a date, or after N times.
+
+A line under the picker says the rule in words (for example "Weekly on Mon, Wed until Dec 31, 2026"), how many sessions it books and the last date.
+
+Honest limits, also shown in the picker:
+- A series books **at most 12 months ahead**. "Never" means "for 12 months"; extend the series later.
+- Monthly on the 29th–31st **skips months without that day**, as Google does. Annually on Feb 29 only lands in leap years.
+- There is no holiday calendar. Dates on weekdays outside the practice's open days are named as a warning, never moved.
+
+Every date is checked before it is booked: clashes, Stop rules and the authorization guard refuse that date (named with its reason), and warnings are listed in the result.
+
+**Editing a series.** Edit asks what to apply the change to:
+- **This occurrence**: only this session changes and becomes an exception (pencil badge). A dragged occurrence becomes an exception too and remembers its original date.
+- **This & following**: the series splits here. Earlier sessions keep the old pattern and now end the day before.
+- **All**: the whole series.
+
+Changing only fields such as title, time, staff or notes copies the changed fields. Each session keeps its own other differences: status, verification, signatures, documents and billing state always stay with their session. A new date or repeat rule rebuilds the upcoming sessions from the rule. Single-session changes in that range are replaced, as in Google. "This occurrence" is disabled when the rule changes. Choosing "Doesn't repeat" for this & following ends the series at that session. Editing a single session's rule turns it into a series.
+
+**Deleting and cancelling.** Delete and Cancel offer the same three scopes. Cancel first asks for the reason, then the scope. A series cancel affects only today and later sessions, because a past session's notice time would be invented. Cancelled sessions stay on the calendar with their reason and cancellation time.
+
+**What a series change never touches.** Sessions that are completed, cancelled or no-show, billed or on a claim, or in an approved or processed pay period are kept as they are, and the result names how many were kept and why. A rebuild never creates or deletes sessions dated before today. Every scoped change is one transaction and one Undo.
+
 ### Cancelling and skipping
 
-On the detail card, **Cancel** (or **Skip occurrence** for a series) asks for a reason from the practice's Cancellation reasons custom list instead of cancelling immediately. In the form, any status that counts as a cancellation requires a reason. A reason naming staff, a clinician, scheduling or the practice is practice side; everything else is the family's side. Practice-side cancels are excluded from a family's risk history. Reports > Operations > Cancellation Root Cause groups them (see [Dashboard and reports](dashboard-and-reports.md)).
+On the detail card, **Cancel** asks for a reason from the practice's Cancellation reasons custom list instead of cancelling immediately. In the form, any status that counts as a cancellation requires a reason. A reason naming staff, a clinician, scheduling or the practice is practice side; everything else is the family's side. Practice-side cancels are excluded from a family's risk history. Reports > Operations > Cancellation Root Cause groups them (see [Dashboard and reports](dashboard-and-reports.md)).
 
 The moment a session enters a cancellation status, the app records the time (`cancelledAt`); reinstating the session clears it, and changing the reason keeps it. A no-show gets no time. Sessions cancelled before this was recorded keep no time; the app never guesses one.
 
@@ -147,7 +175,7 @@ A clinician cannot be in two places at once. Two slices shipped.
 
 ### Write path
 
-Calendar writes are mostly plain reducer actions, not plan-then-Tx. `createActions` in [store.jsx](../../src/state/store.jsx) exposes `create`, `update`, `move`, `remove` and `removeSeries`, which dispatch `upsertMany`, `patch` and `deleteMany`. Each takes one Undo snapshot of `appts`. `src/lib/security.js` maps all three to the `calendar` area.
+Calendar writes are mostly plain reducer actions, not plan-then-Tx. `createActions` in [store.jsx](../../src/state/store.jsx) exposes `create`, `update`, `move` and `remove`, which dispatch `upsertMany`, `patch` and `deleteMany`. Each takes one Undo snapshot of `appts`. Series changes follow plan-then-Tx: `actions.seriesTx(input)` plans with `planSeriesTx` in [recurrence.js](../../src/lib/recurrence.js), then dispatches `seriesTx`. The reducer re-plans against live state, reusing the plan's new ids, and applies upserts and deletes under one snapshot. `src/lib/security.js` maps all four to the `calendar` area; `seriesTx` also requires every member of the series and the edited draft to be within the account's office scope. `move` marks a dragged series occurrence `edited` and stamps `originalDate`.
 
 Stop-severity validation rules are a write-time invariant in the reducer itself: `create`, `update` (scheduling writes only — completing, cancelling or billing a flagged session is never blocked) and `move` each evaluate the resulting draft with `stopViolationsForDraft` and refuse with `{ok:false, msg}` when a Stop rule trips, so the booking modal, Quick Add, drag-moves, series edits and CSV imports all land on the same guard. Flag-severity items are derived at save time and stored on the session as `validationFlags` (badges in DetailCard and the TimeGrid). The booking modal additionally refuses to save while unacknowledged warnings stand (a tick bound to the exact warning ids), and the authorization check stays dialog-level: the modal refuses when `errors` is non-empty or an authorization check is `blocked`.
 
@@ -169,6 +197,12 @@ The Density tab is the exception that adds a pure preflight before using the nor
 - [smart.js](../../src/lib/smart.js): `suggestStaff`, `scanNeedsCover`, `backfillFor`, `smartCfg` (weights for team, history, fit, load under Settings > System Settings > Smart scheduling).
 - [abaHours.js](../../src/lib/abaHours.js): `countsAsAbaHours` is the single predicate; also `abaStaffRows`, `abaTotals`, `normalizeAbaHours`.
 - [travel.js](../../src/lib/travel.js): travel feasibility and routing. `haversineMi`, `estimateTravelMinutes`, `travelLeg`, `resolveApptLocation` (office lat/lng or client geo, skips telehealth/unknown), `travelChecksForStaffDay` (prev/next), `routeForDay` (legs, totals, tight/impossible), `suggestRouteOrder` (greedy nearest-neighbor read-only with miles saved), `TRAVEL_DEFAULTS` (1.3×, 25 mph, 5 min buffer, 10 min tight).
+- [recurrence.js](../../src/lib/recurrence.js): rule engine and series transactions.
+  - Rules: `normalizeRule`, `expandRule(rule, start, {weekStart})` → `{dates, capped, cap}` (12-month `RECURRENCE_MAX_MONTHS` ceiling, start date always included), `describeRule`, `rulePresets`, `presetIdOf`, `retargetRule`, `ruleFromLegacy`, `ruleOf`.
+  - Migration: `normalizeRecurrence`.
+  - Locks and screening: `lockReason` (completed, cancel status, billed/claimed via `lineApptIds`, approved/processed pay sheet), `occurrenceChecks`/`screenOccurrences` (clash, Stop rules, `mergeAuthChecks`, warnings, closed practice days).
+  - Transactions: `planSeriesTx` (edit / remove / cancel with scope `one` | `following` | `all`).
+  - Occurrences store `seriesId`, `rrule` (`{freq, interval, byDay, monthBy, end, dtstart}`), `recurrence` (coarse legacy label), and on exceptions `edited` / `originalDate`. [RecurrenceEditor.jsx](../../src/components/RecurrenceEditor.jsx) is the picker.
 - [settingsMasters.js](../../src/lib/settingsMasters.js): `DEFAULT_APPOINTMENT_VALIDATIONS` (groups `staff`, `client`, `payer`, `aba` plus `staff.travel`), `appointmentValidationsCfg`, `evaluateAppointmentValidations` returning `{items, stops, warns, flags}`.
 
 ### Components
@@ -179,12 +213,12 @@ The Density tab is the exception that adds a pure preflight before using the nor
 
 - Fields: `appts` (map by id), client `authStart`, `authEnd`, `authWeekly`, `authUnits`; `settings.authGuard`, `settings.smart`, `settings.risk`, `settings.appointmentValidations`.
 - `setSettings` with `authGuard` or `risk` keys routes to the `calendar` permission area (schedulers own it), not `settings`.
-- `normalizeWorkspace` in store.jsx runs `normalizeAuthUnits` (converts weekly hours to per-code units, flagged "converted, verify"), `normalizeUnitNorms` (once, flag `meta.unitNorm15`: untouched 30-minute services, their rates, authorization pools and unbilled appointments move to 15-minute units; claims are never touched) and `normalizeAbaHours` (strips the flag from service appointments, records `meta.abaHoursStripped`). All are idempotent.
+- `normalizeWorkspace` in store.jsx runs `normalizeAuthUnits` (converts weekly hours to per-code units, flagged "converted, verify"), `normalizeUnitNorms` (once, flag `meta.unitNorm15`: untouched 30-minute services, their rates, authorization pools and unbilled appointments move to 15-minute units; claims are never touched) and `normalizeAbaHours` (strips the flag from service appointments, records `meta.abaHoursStripped`), and `normalizeRecurrence` (gives each legacy series a rule read from its old `recurrence` label: weekly, every 2 weeks or monthly on the day, from its first date until its last). All are idempotent.
 - Undo history is tab-local, 25 steps, never persisted.
 
 ### Tests
 
-`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js` (coverage + density), `schedulerInsights.test.jsx` (Insights tabs, density move, overbooking tab, ramp tab, hire strip), `overbook.test.js`, `ramp.test.js`, `hire.test.js`, `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
+`authBudget.test.js`, `authUnits.test.jsx`, `bookingChecks.test.jsx`, `schedulingRisk.test.js`, `schedulerInsights.test.js` (coverage + density), `schedulerInsights.test.jsx` (Insights tabs, density move, overbooking tab, ramp tab, hire strip), `overbook.test.js`, `ramp.test.js`, `hire.test.js`, `cancelReasons.test.js`, `smart.test.js`, `abaHours.test.js`, `abaHoursUi.test.jsx`, `travel.test.js`, `settingsMasters.test.js`, `recurrence.test.js` (rule engine, series transactions, locks, migration, backup), `recurrenceUi.test.jsx` (picker, rule rebuild, scoped delete/cancel, drag exception), `app.test.jsx` (detail-card cancel flow), `palette.test.jsx`.
 
 ## Not yet built
 

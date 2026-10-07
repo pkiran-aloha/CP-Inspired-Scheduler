@@ -95,7 +95,7 @@ export function planHandoffSession(state, clientId, input, { today = todayISO() 
   if (!input?.id || state.appts[input.id]) return fail('This appointment was already saved. Refresh the proposal.')
   if (input.type !== 'service' || input.clientIds?.length !== 1 || input.clientIds[0] !== clientId || !input.staffIds?.length || input.staffIds.some((id) => !state.staff.some((s) => s.id === id))) return fail('Keep the linked client and select an existing clinician for this service session.')
   if (!validDate(input.date) || input.date < today || !Number.isInteger(input.start) || !Number.isInteger(input.end) || input.start < 0 || input.end > 1440 || input.end <= input.start) return fail('Choose a valid future date and time range.')
-  if (input.recurrence && input.recurrence !== 'none') return fail('Review one occurrence at a time for the first-week handoff.')
+  if ((input.recurrence && input.recurrence !== 'none') || input.rrule || input.seriesId) return fail('Review one occurrence at a time for the first-week handoff.')
   if (isCancelStatus(state.settings, input.status)) return fail('Choose a non-cancelled status to book this handoff session.')
   if (!svcOptionsFor(state, [clientId]).some((s) => s.id === input.service) || !locationOptions(state.settings).includes(input.location)) return fail('Choose an active service and service location before booking.')
   const appt = { ...input, intakeId: link.request.id }

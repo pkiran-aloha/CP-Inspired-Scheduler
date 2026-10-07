@@ -5,7 +5,8 @@ import { useToast } from '../ui/Toast'
 import { Icon } from '../ui/Icons'
 import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek, todayISO } from '../lib/date'
 import { needsCoverFor, backfillFor } from '../lib/smart'
-import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
+import { computeBilling, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
+import { describeRule, ruleOf } from '../lib/recurrence'
 import { isCancelStatus, statusFor, systemConfigFor } from '../lib/settingsMasters'
 import { payerForAppt, svcRule } from '../lib/master'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
@@ -24,9 +25,18 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   const toast = useToast()
   const [confirmDel, setConfirmDel] = useState(false)
   const [pickReason, setPickReason] = useState(false)
+  const [cancelOpt, setCancelOpt] = useState(null) // reason picked; a series then asks which occurrences
   const cancelWith = (opt) => {
     setPickReason(false)
-    setStatus('cancelled', { ...(appt.seriesId ? { edited: true } : {}), ...reasonPatch(opt) })
+    if (series.length > 1) { setCancelOpt(opt); return }
+    setStatus('cancelled', reasonPatch(opt))
+  }
+  const cancelScoped = (scope) => {
+    const opt = cancelOpt
+    setCancelOpt(null)
+    if (scope === 'one') { setStatus('cancelled', { edited: true, ...reasonPatch(opt) }); return }
+    const res = actions.seriesTx({ op: 'cancel', id: appt.id, scope, status: 'cancelled', ...reasonPatch(opt) })
+    toast(res.ok ? { message: res.msg, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } } : { message: res.msg, kind: 'warn' })
   }
   const t = TYPES[appt.type] || TYPES.service
   const staffById = Object.fromEntries(staff.map((s) => [s.id, s]))
@@ -129,14 +139,17 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     onClose()
   }
   const del = (scope) => {
-    if (scope === 'one' || !appt.seriesId) actions.remove([appt.id])
-    else {
-      const ids = series.filter((a) => (scope === 'following' ? a.date >= appt.date : true)).map((a) => a.id)
-      actions.remove(ids)
+    if (!appt.seriesId) {
+      actions.remove([appt.id])
+      onClose()
+      toast({ message: 'Appointment deleted', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
+      return
     }
+    // a series delete is one transaction: completed, cancelled, billed and payroll-approved sessions stay
+    const res = actions.seriesTx({ op: 'remove', id: appt.id, scope })
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     onClose()
-    const n = scope === 'all' ? series.length : scope === 'following' ? series.filter((a) => a.date >= appt.date).length : 1
-    toast({ message: n > 1 ? `Deleted ${n} occurrences` : 'Appointment deleted', kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
+    toast({ message: res.msg, kind: 'warn', action: { label: 'Undo', onClick: () => actions.undo() } })
   }
 
   return (
@@ -160,7 +173,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             {appt.abaHr === true && !countsAsAbaHours(appt) && (
               <span className="sbadge" data-testid="dc-aba-badge-stale" title="Marked as ABA hours but this block cannot count as behavior-analytic time">⚡ ABA hr not counted</span>
             )}
-            {appt.edited && appt.seriesId && <span className="sbadge" title="This occurrence was changed independently from the series">✎ exception</span>}
+            {appt.edited && appt.seriesId && <span className="sbadge" data-testid="dc-exception" title={`This occurrence was changed independently from the series${appt.originalDate && appt.originalDate !== appt.date ? ` (originally ${fmtDayLabel(appt.originalDate)})` : ''}`}>{Icon.edit({ size: 11 })} exception</span>}
             {appt.backfilled && <span className="sbadge backfilled" data-testid="backfilled-badge" title="Reassigned from a cancelled booking via smart backfill">↩ backfilled</span>}
             {Array.isArray(appt.validationFlags) && appt.validationFlags.length > 0 && (
               <span className="sbadge" data-testid="dc-flag-badge" title={`Flagged at booking: ${appt.validationFlags.map((f) => f.label).join(' · ')}`}>⚑ {appt.validationFlags.length} flagged</span>
@@ -363,7 +376,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             <div className="kv">
               <span className="k">Series</span>
               <span className="v" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                {Icon.repeat({ size: 12 })} {RECURRENCES.find((r) => r.id === appt.recurrence)?.label || 'Repeating'} · {series.length} occurrences
+                {Icon.repeat({ size: 12 })} <span data-testid="dc-series-rule">{ruleOf(appt, series) ? describeRule(ruleOf(appt, series), series[0].date) : 'Repeating'} · {series.length} occurrences</span>
                 {nextOcc && (
                   <button
                     className="btn btn-ghost btn-sm"
@@ -385,7 +398,20 @@ export default function DetailCard({ appt, onClose, onEdit }) {
           )}
         </div>
 
-        {canEdit ? (pickReason ? (
+        {canEdit ? (cancelOpt ? (
+          <div className="dactions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }} data-testid="dc-cx-scope">
+            <span style={{ fontSize: 12, fontWeight: 700 }}>Cancel which sessions? (reason: {cancelOpt.label})</span>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button className="btn btn-sm" data-testid="dc-cx-scope-one" onClick={() => cancelScoped('one')}>This occurrence</button>
+              <button className="btn btn-sm" data-testid="dc-cx-scope-following" onClick={() => cancelScoped('following')}>This &amp; following</button>
+              <button className="btn btn-sm" data-testid="dc-cx-scope-all" onClick={() => cancelScoped('all')}>All upcoming</button>
+            </div>
+            <span className="muted" style={{ fontSize: 11.5 }}>Sessions stay on the calendar as cancelled. Completed, billed and payroll-approved sessions, and past dates, are left as they are.</span>
+            <div style={{ display: 'flex' }}>
+              <button className="btn btn-sm btn-ghost" onClick={() => setCancelOpt(null)}>Back</button>
+            </div>
+          </div>
+        ) : pickReason ? (
           <div className="dactions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }} data-testid="cx-reasons">
             <span style={{ fontSize: 12, fontWeight: 700 }}>Why is this {appt.seriesId ? 'occurrence' : 'session'} being cancelled?</span>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -400,18 +426,19 @@ export default function DetailCard({ appt, onClose, onEdit }) {
         ) : confirmDel ? (
           <div className="dactions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700 }}>Delete “{appt.title}”?</span>
+            {series.length > 1 && <span className="muted" style={{ fontSize: 11.5 }}>Completed, cancelled, billed and payroll-approved sessions are kept.</span>}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button className="btn btn-sm" onClick={() => setConfirmDel(false)}>Cancel</button>
               <span className="f1" />
-              <button className="btn btn-sm" style={{ color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => del('one')}>
+              <button className="btn btn-sm" data-testid="dc-del-one" style={{ color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => del('one')}>
                 This only
               </button>
               {series.length > 1 && (
                 <>
-                  <button className="btn btn-sm" style={{ color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => del('following')}>
+                  <button className="btn btn-sm" style={{ color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }} data-testid="dc-del-following" onClick={() => del('following')}>
                     This &amp; following
                   </button>
-                  <button className="btn btn-sm" style={{ color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => del('all')}>
+                  <button className="btn btn-sm" style={{ color: '#fff', background: 'var(--danger)', borderColor: 'var(--danger)' }} data-testid="dc-del-all" onClick={() => del('all')}>
                     All {series.length}
                   </button>
                 </>
@@ -431,9 +458,9 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                 className="btn btn-sm"
                 data-testid="dc-cancel"
                 onClick={() => setPickReason(true)}
-                title={appt.seriesId ? 'Skips this occurrence only — series continues' : 'Keep on calendar, greyed out'}
+                title={appt.seriesId ? 'Cancel this occurrence, or this and following' : 'Keep on calendar, greyed out'}
               >
-                {Icon.ban({ size: 13 })} {appt.seriesId ? 'Skip occurrence' : 'Cancel'}
+                {Icon.ban({ size: 13 })} Cancel
               </button>
             )}
             {isPast && TYPES[appt.type]?.hasVerification && !signed && (

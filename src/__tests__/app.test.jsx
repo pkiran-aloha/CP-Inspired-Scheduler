@@ -140,14 +140,14 @@ describe('scheduler shell', () => {
     expect(container.querySelectorAll('.mv-cell').length).toBe(42)
   })
 
-  it('clicking a chip opens the detail card with series info & skip occurrence', () => {
+  it('clicking a chip opens the detail card with series info & cancel', () => {
     const { container } = render(<App />)
     const chip = container.querySelector('.chip:not(.stack)')
     fireEvent.pointerDown(chip, { button: 0 })
     fireEvent.pointerUp(chip)
     expect(screen.getByRole('button', { name: /Duplicate/ })).toBeTruthy()
     expect(screen.getByRole('button', { name: /Edit/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Skip occurrence/ })).toBeTruthy()
+    expect(screen.getByTestId('dc-cancel')).toBeTruthy()
     expect(screen.getByText(/occurrences/)).toBeTruthy()
   })
 
@@ -162,6 +162,8 @@ describe('scheduler shell', () => {
     // nothing is cancelled until a reason is picked
     expect(screen.getByTestId('cx-reasons')).toBeTruthy()
     fireEvent.click(screen.getByTestId('cx-reason-opt-cancel-reasons-5')) // Weather
+    // a repeating session then asks which occurrences; this one only
+    if (screen.queryByTestId('dc-cx-scope')) fireEvent.click(screen.getByTestId('dc-cx-scope-one'))
     await waitFor(() => expect(weatherCancels(apptsInStorage())).toBe(before + 1))
     const saved = Object.values(apptsInStorage()).filter((a) => a.cancelReason === 'Weather' && a.edited)
     expect(saved.some((a) => a.cancelReasonId === 'opt-cancel-reasons-5')).toBe(true)
@@ -312,7 +314,7 @@ describe('create wizard', () => {
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '3' } })
     fireEvent.click(screen.getByTestId('save-appt'))
-    expect(await screen.findByText('Created 3 occurrences')).toBeTruthy()
+    expect(await screen.findByText(/^Created 3 occurrences/)).toBeTruthy()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBe(before + 3))
     const series = Object.values(apptsInStorage()).filter((a) => a.recurrence === 'weekly' && a.date >= startISO && a.date <= expected[2])
     expect(series.length).toBe(3)
@@ -605,18 +607,18 @@ describe('series editing end-to-end', () => {
     await openServiceWizard()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBeGreaterThan(0))
     await addPeople()
-    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
+    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: isoDate(addDays(new Date(), 100)) } })
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '3' } })
     fireEvent.click(screen.getByTestId('save-appt'))
-    expect(await screen.findByText('Created 3 occurrences')).toBeTruthy()
+    expect(await screen.findByText(/^Created 3 occurrences/)).toBeTruthy()
     // detail card auto-opens → edit → scope all
     fireEvent.click(screen.getByRole('button', { name: /Edit/ }))
     expect(await screen.findByText(/Repeating series — apply changes to/)).toBeTruthy()
     fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Renamed session' } })
     fireEvent.click(screen.getByTestId('scope-all'))
     fireEvent.click(screen.getByTestId('save-appt'))
-    expect(await screen.findByText('Updated all 3 occurrences')).toBeTruthy()
+    expect(await screen.findByText(/^Updated all 3 occurrences/)).toBeTruthy()
     await waitFor(() => {
       const renamed = Object.values(apptsInStorage()).filter((a) => a.title === 'Renamed session')
       expect(renamed.length).toBe(3)

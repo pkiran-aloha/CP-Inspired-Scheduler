@@ -534,7 +534,7 @@ function areasForUndo(state) {
 
 function actionAreas(state, action) {
   switch (action.type) {
-    case 'handoffSessionTx': case 'upsertMany': case 'patch': case 'deleteMany': case 'relabel': return ['calendar']
+    case 'handoffSessionTx': case 'upsertMany': case 'patch': case 'deleteMany': case 'relabel': case 'seriesTx': return ['calendar']
     case 'claimsTx': case 'secondaryFilingTx': case 'secondarySkipTx': case 'secondaryCancelTx':
     case 'claimPaymentTx': case 'claimVoidPaymentTx': case 'patientReceiptTx': case 'unappliedPaymentTx':
     case 'claimRecoupTx': case 'eraImportTx': case 'eraRetryTx': return ['billing']
@@ -688,6 +688,13 @@ function actionWithinOfficeScope(state, action) {
       return !!existing && canAccessRecord(state, 'appointment', { ...existing, ...(action.patch || {}) })
     }
     case 'deleteMany': return ids(action.ids, 'appointment', 'appts')
+    case 'seriesTx': {
+      // every occurrence of the series, and the edited draft, must be in the account's scope
+      const anchor = state.appts?.[action.input?.id]
+      if (!anchor) return false
+      const members = anchor.seriesId ? Object.values(state.appts).filter((a) => a.seriesId === anchor.seriesId) : [anchor]
+      return all(members, 'appointment', 'appts') && (!action.input.draft || canAccessRecord(state, 'appointment', { ...anchor, ...action.input.draft }))
+    }
     case 'relabel': return all(Object.values(state.appts || {}), 'appointment', 'appts')
     case 'claimsTx': {
       if ((action.claimUpserts != null && !Array.isArray(action.claimUpserts)) ||

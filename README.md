@@ -24,6 +24,23 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 The booking dialog's staff and client pickers now show what the workspace knows under each name. Staff: past sessions with the client (or **New to** them), hours this week after the booking against their target hours, and a straight-line drive estimate from their previous appointment that day. Clients: authorized hours booked this week against the authorized week, days to expiry inside the renewal window, and their usual weekday and time band over the last 8 weeks. One **Best fit** badge (staff, the same ranking as "Suggested for this client", which now uses each clinician's real session count for the week) or **Most hours open** badge (clients) marks the strongest clear candidate, and an **A–Z / Ranked** switch reorders the list (A–Z by default). The Checks rail gains a **Schedule fit** flag: a clinician new to the client when someone else has history, a clinician going over target hours with a free same-tier peer under 75% of theirs, and, when the slot clashes, up to 3 open slots in the next 7 practice days that everyone picked is free for and can reach. A slot click only fills the form. Advisory; nothing is booked, moved or blocked. Code: `src/lib/pickFit.js`; tests `pickFit.test.js` and `bookingChecks.test.jsx`.
 
+### Repeating sessions and series edits
+
+The booking dialog's **Repeats** picker offers Google Calendar's options:
+- daily, weekdays, weekly on any days, every N days/weeks/months/years;
+- monthly by day or by Nth/last weekday, and yearly;
+- ends never (capped at 12 months ahead, said in the picker), on a date, or after N times.
+
+Months without a 29th–31st are skipped. Every generated date is screened for clashes, Stop rules and the authorization guard: refused dates and warnings are named in the result.
+
+Edit, Delete and Cancel on a series offer **This occurrence**, **This & following** and **All**:
+- "This & following" splits the series.
+- Field edits copy only the changed fields and keep each session's own changes.
+- A new date or rule rebuilds upcoming sessions.
+- A dragged occurrence becomes an exception that remembers its original date.
+
+Completed, cancelled, billed or claimed, and payroll-approved sessions are never changed. Rebuilds never create or delete past dates. Each scoped change is one `seriesTx` transaction and one Undo. Code: `src/lib/recurrence.js`, `src/components/RecurrenceEditor.jsx`; `normalizeRecurrence` migrates legacy weekly, every-2-weeks and monthly series. Tests: `recurrence.test.js`, `recurrenceUi.test.jsx`.
+
 ### Access holdout (B4)
 
 Scheduler Insights → Coverage keeps a share of each hour's bookable staff time (Off, 10%, 15% or 20%; default 10%) for new starts and same-day needs, from today on. It says how many hours that holds back in the range and how many are already booked, and outlines the weekday hours where bookings eat into it. The share is saved for the practice (`settings.risk.holdoutPct`). It never blocks a booking. Code: `coverageBoard` in `src/lib/insights.js`.

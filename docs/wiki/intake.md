@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/components/AppointmentModal.jsx, src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 0434a5a plus the recurrence-series branch on 2026-10-07; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -91,7 +91,7 @@ Open **Plan first week** on the newly converted client's profile, or on a conver
 5. Each usable slot has up to three ranked staff, score/reasons, and expandable checks. Ranking reuses care team, history, fit and workload. Stop candidates are excluded; warnings remain reviewable. Later slots include earlier tentative appointments using their top-ranked staff.
 6. Choose staff and **Review & book**. This opens the existing booking dialog with the slot filled in. Review the Checks rail and save one occurrence. Save rechecks live state, refuses Stop items and exact duplicates, and names warnings. Cancel creates nothing. The proposal refreshes after each save.
 
-Proposals are not saved, and no recurring series or outreach is created. Each saved session has one Undo and the existing appointment `intakeId` link. The first-service label is derived from non-cancelled service appointments, not the evaluation; this does not change the older intake `firstServiceDate` reporting field.
+Proposals are not saved, and no recurring series or outreach is created: the handoff transaction refuses a session that carries a repeat rule or a series id. Each saved session has one Undo and the existing appointment `intakeId` link. The first-service label is derived from non-cancelled service appointments, not the evaluation; this does not change the older intake `firstServiceDate` reporting field.
 
 ### Referral Sources
 

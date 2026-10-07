@@ -2,7 +2,7 @@
 
 _Sources: src/lib/payroll.js, src/lib/payrollExport.js, src/components/payroll/PayrollCommon.jsx, src/components/payroll/PayrollCycleView.jsx, src/components/payroll/ProcessPayrollView.jsx, src/components/payroll/ReviewRegisterModal.jsx, src/components/payroll/PayRunsView.jsx, src/components/payroll/PayrollIdMappingView.jsx, src/components/payroll/PayrollSummaryView.jsx, src/components/payroll/PayrollSetupView.jsx, src/components/payroll/TimesheetSubmissionView.jsx, src/components/payroll/QuickBooksPayrollView.jsx, src/components/settings/PayrollPanel.jsx, src/lib/settingsMasters.js, src/state/store.jsx, src/lib/security.js_
 
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 0434a5a plus the recurrence-series branch on 2026-10-07; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -102,4 +102,5 @@ Payroll follows action, then plan, then Tx:
 - Pay is from the schedule, not clock-in or timesheet punches. EVV is read from the verification signature already on a completed visit; there is no separate time clock.
 - The ACH file uses placeholder bank details unless set, and no real bank validation exists.
 - The 1099-NEC review list only flags contractors; no 1099 or W-2 forms are generated.
+- A calendar series edit, delete or cancel never changes a session whose staff timesheet for that period is approved or processed; it is kept and counted in the result (see [Scheduling](scheduling.md#repeating-sessions)).
 - Void of a processed run needs an explicit reversal decision; there is no automated reversal or off-cycle run builder beyond adjustments.
