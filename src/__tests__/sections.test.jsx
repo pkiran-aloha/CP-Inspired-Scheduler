@@ -16,6 +16,8 @@ afterEach(() => cleanup())
 describe('practice-days setting', () => {
   it('saves a selected practice day in System Settings and does not allow an empty week', async () => {
     render(<App />)
+    fireEvent.click(await screen.findByTestId('nav-settings'))
+    await screen.findByTestId('settings-modal')
     fireEvent.click(screen.getByTestId('nav-sub-set-system'))
     const days = await screen.findByTestId('set-sys-practice-days')
     const sunday = within(days).getByTestId('set-sys-practice-day-0')
