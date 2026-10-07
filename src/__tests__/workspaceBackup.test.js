@@ -154,11 +154,17 @@ describe('undo and browser persistence', () => {
     expect(tx.settings.billing.invoiceSeq).toBe(99)
     const undone = reducer(tx, { type: 'undo' })
     for (const key of ['claims', 'payments', 'billedFiles', 'eraImports', 'invoices', 'verificationForms', 'qbo', 'settings']) expect(undone[key]).toEqual(base[key])
-    // A separate setting edit after the claim transaction is not part of that Undo.
+    // A separate setting edit after the claim transaction is its own undoable write
+    // (audit CFG-12): one Undo reverts the setting edit only, the next reverts the
+    // claim transaction — and neither clobbers the other's collections.
     const withTheme = reducer(tx, { type: 'setSettings', patch: { theme: 'dark', billing: { ...tx.settings.billing, strictAuth: true } } })
-    const undoWithTheme = reducer(withTheme, { type: 'undo' })
-    expect(undoWithTheme.settings.theme).toBe('dark')
-    expect(undoWithTheme.settings.billing.strictAuth).toBe(true)
+    const undoTheme = reducer(withTheme, { type: 'undo' })
+    expect(undoTheme.settings.theme).toBe(base.settings.theme)
+    expect(undoTheme.settings.billing.strictAuth).toBe(base.settings.billing.strictAuth)
+    expect(undoTheme.settings.billing.invoiceSeq).toBe(99) // the claim transaction's billing patch survives
+    const undoWithTheme = reducer(undoTheme, { type: 'undo' })
+    expect(undoWithTheme.settings.theme).toBe(base.settings.theme)
+    expect(undoWithTheme.settings.billing.strictAuth).toBe(base.settings.billing.strictAuth)
     expect(undoWithTheme.settings.billing.invoiceSeq).toBe(base.settings.billing.invoiceSeq)
   })
 

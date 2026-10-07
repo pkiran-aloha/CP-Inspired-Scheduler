@@ -98,7 +98,7 @@ Payroll follows action, then plan, then Tx:
 ## Not yet built
 
 - **No payment, filing or connection.** No direct deposit, payroll provider API, QuickBooks sync or tax filing. Withholding is an editable estimate table; the Setup screen says it is not a compliance guarantee.
-- **Daily overtime, double time and seventh-day rules are stored but not priced.** Settings accepts a daily threshold, a daily multiplier, a double-time threshold and per-office daily and seventh-day values, and Payroll Setup tells the user the engine prices weekly and office weekly rules only. `earningsFor` reads only the weekly threshold (`otAfterHours`, or an office's `weeklyOtHours`) and the multiplier. A state with daily overtime (such as California) is not covered.
+- **Daily overtime, double time and seventh-day rules are stored but not priced.** Settings accepts a daily threshold, a daily multiplier, a double-time threshold and per-office daily and seventh-day values, and labels every one of those controls "Informational — not priced" (section sub-copy, row hints, a warning banner under the daily rules and a note under the office table). The engine prices weekly and office weekly rules only. `earningsFor` reads only the weekly threshold (`otAfterHours`, or an office's `weeklyOtHours`) and the multiplier. A state with daily overtime (such as California) is not covered.
 - Pay is from the schedule, not clock-in or timesheet punches. EVV is read from the verification signature already on a completed visit; there is no separate time clock.
 - The ACH file uses placeholder bank details unless set, and no real bank validation exists.
 - The 1099-NEC review list only flags contractors; no 1099 or W-2 forms are generated.

@@ -77,6 +77,41 @@ describe('settings modules actually write', () => {
     await waitFor(() => expect(stored().settings.payroll.otMultiplier).toBeGreaterThanOrEqual(1.5)) // FLSA floor holds
   })
 
+  it('labels daily, double-time and seventh-day overtime controls as informational — not priced (audit CFG-05)', async () => {
+    await openModule('payroll')
+    fireEvent.click(await screen.findByTestId('nav-sub-set-payroll-overtime'))
+    const note = await screen.findByTestId('set-ot-daily-note')
+    expect(note.textContent).toMatch(/policy note only/i)
+    expect(note.textContent).toMatch(/never change a calculated wage/i)
+    const offices = screen.getByTestId('set-ot-offices-note')
+    expect(offices.textContent).toMatch(/Weekly OT/)
+    expect(offices.textContent).toMatch(/informational policy notes/i)
+    // the controls themselves carry the hint on their rows
+    const dailyHours = screen.getByTestId('set-ot-daily-hours').closest('.set-row')
+    expect(dailyHours.getAttribute('title')).toMatch(/not priced/i)
+  })
+
+  it('a raw setSettings write is one undoable transaction (audit CFG-12)', async () => {
+    // reducer: one write → exactly one Undo restores the previous settings, nothing else
+    const before = blankState()
+    const next = reducer(before, { type: 'setSettings', patch: { h24: true, mileageRate: 0.75 } })
+    expect(next.settings.h24).toBe(true)
+    expect(next.settings.mileageRate).toBe(0.75)
+    expect(next.history.length).toBe(before.history.length + 1)
+    const back = reducer(next, { type: 'undo' })
+    expect(back.settings.h24).toBe(false)
+    expect(back.settings.mileageRate).toBe(before.settings.mileageRate)
+    expect(back.appts).toBe(next.appts) // unrelated collections are untouched
+    expect(back.history.length).toBe(before.history.length)
+
+    // UI: a System panel write persists, and one Undo (the global shortcut) reverses it
+    await openModule('system')
+    fireEvent.click(screen.getByTestId('set-sys-h24'))
+    await waitFor(() => expect(stored().settings.h24).toBe(true))
+    fireEvent.keyDown(window, { key: 'u' })
+    await waitFor(() => expect(stored().settings.h24).toBe(false))
+  })
+
   it('adds a service-type custom list with an option', async () => {
     await openModule('custom-lists')
     fireEvent.click(screen.getByTestId('nav-sub-set-custom-lists-service-type'))

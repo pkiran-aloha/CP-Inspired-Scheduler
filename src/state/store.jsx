@@ -436,7 +436,10 @@ export function reducer(state, action) {
       if (hasIntegrationSecrets(settings.clinicalIntegrations)) {
         settings.clinicalIntegrations = stripIntegrationSecrets(settings.clinicalIntegrations)
       }
-      return { ...state, settings }
+      // Audit CFG-12: every durable settings write is one undoable transaction.
+      // The snapshot holds the whole settings object, so one Undo reverses exactly
+      // this write and nothing else.
+      return { ...state, settings, history: pushSnap(state, ['settings']) }
     }
     /**
      * chunk-42 — one settings transaction.
