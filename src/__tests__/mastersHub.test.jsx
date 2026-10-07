@@ -339,17 +339,37 @@ describe('masters — billing rules', () => {
     expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.concurrent.rules[0]).toEqual({ if: 'dtt', with: 'net', bill: 'dtt' })
   })
 
-  it('claims settings: merge-same-day default on, toggle persists', async () => {
+  it('claims settings: merge-same-day default on, toggle persists; unimplemented options are disabled (audit CFG-06)', async () => {
     render(<App />)
     await openDetail('py-blue-shield-ca')
     fireEvent.click(screen.getByTestId('pd-tab-rules'))
     fireEvent.click(await screen.findByTestId('pr-tab-claims'))
     await screen.findByTestId('pr-claims')
     expect(screen.getByTestId('clm-flag-mergeSameDay').checked).toBe(true)
-    fireEvent.click(screen.getByTestId('clm-flag-renderProvider'))
+    // stored-but-ignored options are disabled and labelled, not silently editable
+    for (const k of ['box17', 'box19', 'box33B', 'box33B2', 'file', 'apptTime']) {
+      expect(screen.getByTestId(`clm-${k}`).disabled).toBe(true)
+      expect(screen.getByTestId(`clm-row-${k}`).textContent).toMatch(/not available/)
+    }
+    for (const k of ['renderProvider', 'renderTaxo', 'billTaxo']) {
+      expect(screen.getByTestId(`clm-flag-${k}`).disabled).toBe(true)
+    }
+    expect(screen.getByTestId('pr-claims-na-note').textContent).toMatch(/not yet applied/)
+    // the working options stay editable
+    expect(screen.getByTestId('clm-box32').disabled).toBe(false)
+    expect(screen.getByTestId('clm-flag-credentialMods').disabled).toBe(false)
+    // the split picker no longer offers a supervisor key sessions cannot produce
+    fireEvent.click(screen.getByTestId('clm-separateBy'))
+    const opts = await screen.findAllByTestId(/^opt-clm-separateBy-/)
+    const labels = opts.map((o) => o.textContent)
+    expect(labels.some((l) => l.includes('Supervising Provider'))).toBe(false)
+    expect(labels.some((l) => l.includes('Rendering Provider'))).toBe(true)
+    expect(labels.some((l) => l.includes('Place of Service'))).toBe(true)
+    fireEvent.mouseDown(document.body)
+    // a working toggle still persists
+    fireEvent.click(screen.getByTestId('clm-flag-mergeSameDay'))
     fireEvent.click(screen.getByTestId('pr-save'))
-    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.flags.renderProvider).toBe(true))
-    expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.flags.mergeSameDay).toBe(true)
+    await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.claims.flags.mergeSameDay).toBe(false))
   })
 
   it('a payer rule save is one Undo — the toast puts the previous rules back', async () => {
@@ -402,17 +422,22 @@ describe('masters — billing rules', () => {
     expect(qm[3].qual).toBe('Therapist') // moved up from last
   })
 
-  it('POS modifiers: edit, hide-flags save', async () => {
+  it('POS modifiers: edit, hide-flags save (audit CFG-06)', async () => {
     render(<App />)
     await openDetail('py-blue-shield-ca')
     fireEvent.click(screen.getByTestId('pd-tab-rules'))
     fireEvent.click(await screen.findByTestId('pr-tab-pos'))
     await screen.findByTestId('pr-pos')
     await pickDropdown('pos-mod-0', 'U6')
-    fireEvent.click(screen.getByTestId('pos-hide02'))
+    // POS-02 has no locations to hide (every video location codes POS-10) — disabled
+    expect(screen.getByTestId('pos-hide02').disabled).toBe(true)
+    expect(screen.getByTestId('pos-hide02').closest('.pr-check').textContent).toMatch(/not available/)
+    // POS-10 is the working control: telehealth locations leave the booking picker
+    expect(screen.getByTestId('pos-hide10').disabled).toBe(false)
+    fireEvent.click(screen.getByTestId('pos-hide10'))
     fireEvent.click(screen.getByTestId('pr-save'))
     await waitFor(() => expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.posMods[0].mod).toBe('U6'))
-    expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.hideTeleOther).toBe(true)
+    expect(stored().payers.find((p) => p.id === 'py-blue-shield-ca').rules.hideTeleHome).toBe(true)
   })
 
   it('MUEs: daily cap and per-code limits persist', async () => {

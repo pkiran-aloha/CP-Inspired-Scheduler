@@ -43,6 +43,7 @@ import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptions
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
+import { posFor } from '../lib/claims'
 import SignaturePad from '../ui/SignaturePad'
 
 export default function AppointmentModal({ mode, initial, onClose, onSaved, onBack, onCreate }) {
@@ -586,13 +587,20 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       .filter((o) => o.excludeFromLocations || o.isLocation === false || o.active === false)
       .map((o) => o.name),
   )
+  // POS rule (audit CFG-06): a payer that does not cover telehealth rendered from the
+  // patient's home (POS-10) hides those locations from the picker for its clients.
+  // The session's current location always stays pickable, so editing an existing
+  // telehealth booking never blanks the field.
+  const hideTeleHome = Boolean(billPayer?.rules?.hideTeleHome)
   const locOptions = [
     ...new Set([
       ...locationOptions(settings),
       ...LOCATIONS.filter((l) => !excludedOfficeNames.has(l)),
       ...Object.values(appts).map((a) => a.location).filter((l) => l && !excludedOfficeNames.has(l)),
+      ...(f.location ? [f.location] : []),
     ]),
-  ].map((l) => ({ value: l, label: l }))
+  ].filter((l) => !hideTeleHome || posFor({ location: l }) !== '10')
+    .map((l) => ({ value: l, label: l }))
 
   const verifier = STAFF_BY_ID[f.verification?.completedBy]
 

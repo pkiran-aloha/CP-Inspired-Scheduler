@@ -37,9 +37,9 @@ Severity language is shared across the whole app:
 
 | Glyph | Meaning | What you do |
 |---|---|---|
-| Stop sign | Must fix | Save is refused until it is resolved or the practice relaxes the rule |
-| Caution | Review | Read it; you can still save |
-| Flag | Noted | Recorded and shown; no action needed |
+| Stop sign | Must fix | Save is refused until it is resolved or the practice relaxes the rule — enforced on every write path, not just the dialog |
+| Caution | Review | Read it; the dialog asks you to tick “I've reviewed these warnings” before saving (the acknowledgement is recorded on the session) |
+| Flag | Noted | Recorded on the session as a badge and shown; no action needed |
 | Pencil | To fill in | A required field is still empty (turns into Stop sign after a failed save attempt) |
 | Check | Clear | Nothing in the way |
 
@@ -141,7 +141,7 @@ A clinician cannot be in two places at once. Two slices shipped.
 
 Calendar writes are mostly plain reducer actions, not plan-then-Tx. `createActions` in [store.jsx](../../src/state/store.jsx) exposes `create`, `update`, `move`, `remove` and `removeSeries`, which dispatch `upsertMany`, `patch` and `deleteMany`. Each takes one Undo snapshot of `appts`. `src/lib/security.js` maps all three to the `calendar` area.
 
-Consequence: the Stop-level guards live in `AppointmentModal.save`, not in the reducer. The modal refuses when `errors` is non-empty (including `STOP` validation items) or when an authorization check is `blocked`. Quick Add (`actions.create`), drag-moves and `actions.update` calls (NeedsCover, Insights Confirm, DetailCard) do not re-run the full guard stack.
+Stop-severity validation rules are a write-time invariant in the reducer itself: `create`, `update` (scheduling writes only — completing, cancelling or billing a flagged session is never blocked) and `move` each evaluate the resulting draft with `stopViolationsForDraft` and refuse with `{ok:false, msg}` when a Stop rule trips, so the booking modal, Quick Add, drag-moves, series edits and CSV imports all land on the same guard. Flag-severity items are derived at save time and stored on the session as `validationFlags` (badges in DetailCard and the TimeGrid). The booking modal additionally refuses to save while unacknowledged warnings stand (a tick bound to the exact warning ids), and the authorization check stays dialog-level: the modal refuses when `errors` is non-empty or an authorization check is `blocked`.
 
 The Density tab is the exception that adds a pure preflight before using the normal move action: `planDensityMove` in [density.js](../../src/lib/density.js) rechecks same-day eligibility, staff/client conflicts and Stop-level overlap/travel findings immediately before **Move here** dispatches `actions.move`.
 
