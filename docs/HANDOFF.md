@@ -33,6 +33,13 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Fix — UI rule violations (`fix/ui-rule-violations`, 2026-10-07)
+
+- **Series exception marker.** The calendar cards in `TimeGrid.jsx` and `TimelineView.jsx` drew a text pencil glyph on edited series occurrences; they now draw `Icon.edit` from `src/ui/Icons.jsx` with `role="img"` and the label "Changed from series". The same cards' text glyphs for the ABA hr pill, the flagged pill and the timeline conflict badge now use `Icon.zap`, `Icon.flag` and `Icon.alert`.
+- **Side stripes.** `impeccable detect` side-tab findings across `src/` went from 19 to 0 (13 in `styles.css`, 5 inline `borderLeft` in AppealsView, ArManagerView, BillingView, GenerateInvoiceView, VerificationFormsView, 1 in the payroll export's print HTML), plus three inset row stripes the detector did not flag (`.cd-lines tr.gated`, `.dir-table` expanded row, `.pcf-f.filled`). Tone now lives in a 1px border mixed from the tone color and, for warn/danger, a light tinted background; the inline selected rows use `var(--accent-soft)` instead of light-only hex colors, so dark mode is correct there too.
+- **Audit note.** CFG-03's remediation note now points at `occurrenceChecks` / `screenOccurrences` in `src/lib/recurrence.js` (the recurrence rewrite removed `occurrenceReasons`).
+- **Verification.** New `recurrenceUi.test.jsx` case: an edited occurrence shows one labelled drawn pencil and no text glyph. No existing test asserted the old glyphs or stripes. Full suite 99 files / 1,039 tests green; `npm run build` green (chunk-size warning only).
+
 ### Pick fit and open slots — smarter booking pickers (`feat/smart-scheduling-picks`, 2026-10-07)
 
 - **What.** `src/lib/pickFit.js` adds context at the point of decision, reusing existing engines (`suggestStaff`, `authBurn`, `travelChecksForStaffDay`/`travelLeg`, `riskFor`, `clinicianGroup`, `practiceDaysOf`):
@@ -402,7 +409,6 @@ Other open items, smaller:
 - Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). **Remediation landed 2026-10-07 on branch `arena/e8f5fefe-cp-inspired-scheduler`** (see the Shipped entry above): CFG-02…CFG-09, CFG-11 and CFG-12 resolved with tests; CFG-05 resolved by labelling; CFG-06/CFG-07 resolved by disabling/labelling and scope enforcement; REL-01 triaged and deferred (vitest major upgrade and bundle splitting are separate projects). Still open: **CFG-01** — the production hosting/auth/HIPAA architecture gate (P0; a decision, not a code fix) — and the CFG-05 jurisdictional payroll calculator + legal review. Suite on the branch: 95 files / 995 tests green; build green with the bundle-size warning; dependency advisories unremediated by design (documented in REL-01).
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
-- `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
 
 ## Resume prompts (paste into a new session; any agent)
 

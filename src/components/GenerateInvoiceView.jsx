@@ -113,7 +113,7 @@ export default function GenerateInvoiceView() {
               const clClaims = Object.values(claims).filter((x) => x.clientId === c.id && isPrimaryReceivable(x))
               const due = clClaims.reduce((s, x) => s + patientResponsibilityOf(state, x), 0)
               return (
-                <div key={c.id} data-testid={`gi-client-${c.id}`} onClick={() => setClientIds((ids) => on ? ids.filter((x) => x !== c.id) : [...ids, c.id])} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: on ? '#f5f3ff' : undefined, borderLeft: `3px solid ${on ? '#6366f1' : 'transparent'}`, borderBottom: '1px solid var(--line)' }}>
+                <div key={c.id} data-testid={`gi-client-${c.id}`} onClick={() => setClientIds((ids) => on ? ids.filter((x) => x !== c.id) : [...ids, c.id])} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: on ? 'var(--accent-soft)' : undefined, borderBottom: '1px solid var(--line)' }}>
                   <input type="checkbox" checked={on} readOnly style={{ pointerEvents: 'none' }} />
                   <PersonAvatar p={c} size={28} />
                   <div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 13, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{clClaims.length} primary claims · {money(due)} reported patient share</span></div>

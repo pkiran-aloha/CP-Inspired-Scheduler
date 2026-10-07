@@ -20,6 +20,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### UI rule cleanup
+
+Calendar cards draw their small markers (series exception pencil, ABA hr, flagged, conflict) from the shared icon set instead of text glyphs; the exception pencil reads "Changed from series" to screen readers. Cards, rows and hints that used a thick colored left stripe now show tone with a 1px tinted border and, for warnings, a light tinted background, in both themes.
+
 ### Pick fit and open slots (scheduling intelligence)
 
 The booking dialog's staff and client pickers now show what the workspace knows under each name. Staff: past sessions with the client (or **New to** them), hours this week after the booking against their target hours, and a straight-line drive estimate from their previous appointment that day. Clients: authorized hours booked this week against the authorized week, days to expiry inside the renewal window, and their usual weekday and time band over the last 8 weeks. One **Best fit** badge (staff, the same ranking as "Suggested for this client", which now uses each clinician's real session count for the week) or **Most hours open** badge (clients) marks the strongest clear candidate, and an **A–Z / Ranked** switch reorders the list (A–Z by default). The Checks rail gains a **Schedule fit** flag: a clinician new to the client when someone else has history, a clinician going over target hours with a free same-tier peer under 75% of theirs, and, when the slot clashes, up to 3 open slots in the next 7 practice days that everyone picked is free for and can reach. A slot click only fills the form. Advisory; nothing is booked, moved or blocked. Code: `src/lib/pickFit.js`; tests `pickFit.test.js` and `bookingChecks.test.jsx`.
