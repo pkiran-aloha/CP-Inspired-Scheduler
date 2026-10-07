@@ -31,6 +31,8 @@ The maintainer's work PC (Windows, Node 25 via nvm4w) runs the suite with three 
 
 Where npm cannot run at all, verify with `node --check` for syntax and pure `src/lib` logic run directly with node (see "Verifying without npm"), then GitHub CI on push to `main`.
 
+**Test runner: Vitest 4** (`vitest@^4.1.11`). Stay on 4 for now — Vitest 5's `engines` is `^22.12.0 || ^24.0.0 || >=26.0.0`, which excludes the Node 25 work PC, while Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0` and clears the same advisories (it depends on neither `tinypool` nor a nested Vite 5). `npm audit` currently reports 0 vulnerabilities on both the full tree and `--omit=dev`; check it again before adding any dependency.
+
 ## Layout
 
 - `src/state/store.jsx`: seeded workspace (`blankState`), load + migrations (`initial`, `normalizeWorkspace`), the reducer, Undo, `createActions`, localStorage persistence. Large; search it, don't read it whole.

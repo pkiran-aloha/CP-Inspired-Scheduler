@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main 3940947 on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 0434a5a plus the release-hygiene branch (Vitest 4, clean dependency audit, unused devDependencies removed) on 2026-10-07; unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -67,14 +67,14 @@ Money is held in integer cents inside `paymentLedger.js` (`cents()`); values wit
 - Select elements by `data-testid` with a module prefix (`py-`, `pd-`, `pay-`, `pc-`, `iq-`, `dw-`, `bk-`, `nav-sub-`). There is no shared helper module: seed with `localStorage.setItem('aloha-aba.v3', JSON.stringify(state))`, then render `<App />`.
 - When a change alters behaviour on purpose, search the tests for the old assumption in the same change, with `grep -rn "<old text or id>" src/__tests__`.
 - Exact-text queries throw on duplicates; panels that echo a message must not render the identical string twice.
-- Test setup: Vitest with the jsdom environment, files matching `src/**/*.test.{js,jsx}`, mocks restored between tests (`vite.config.js`). `npm test` runs `vitest run`.
+- Test setup: Vitest 4 with the jsdom environment, files matching `src/**/*.test.{js,jsx}`, mocks restored between tests (`vite.config.js`). `npm test` runs `vitest run`. Vitest 4's `engines` allow Node 20, 22 and 24+ — which is why the runner sits at 4 and not 5: Vitest 5 declares `^22.12.0 || ^24.0.0 || >=26.0.0` and so excludes the work PC's Node 25. The dependency tree carries no known advisory (`npm audit` reports 0 vulnerabilities, full tree and `--omit=dev`).
 - The maintainer's work PC (Windows, Node 25) runs the full suite with three workarounds listed in `AGENTS.md` → "Commands": a clone outside `Documents`, npm started through node with `--preserve-symlinks`, and `NODE_OPTIONS=--no-experimental-webstorage`. Where npm cannot run at all, the fallback is `node --check` for syntax, pure `src/lib` logic run with node through a resolve hook, then CI.
 
 ### CI and deploy
 
 [`.github/workflows/deploy.yml`](../../.github/workflows/deploy.yml) runs on pushes to `main`, pull requests to `main`, and manual dispatch, on `ubuntu-24.04` with Node 22 and the npm cache.
 
-1. **build job:** install dependencies with `npm ci` (a legacy fallback, kept from an older repo layout, moves a nested `CP-Inspired-Scheduler/` or `aba-scheduler/` folder up and runs `npm install` when no root `package-lock.json` exists; it never fires today), run the full test suite (`npm test -- --run`; the extra flag is redundant with `vitest run` and harmless), then `npm run build`. The `prebuild` script runs `scripts/write-version.cjs`, which stamps `public/version.json` with a build id that the app embeds and compares at runtime. Vite builds into `dist/` with `base: './'`, so the site works on a GitHub Pages sub-path.
+1. **build job:** install dependencies with `npm ci` (a legacy fallback, kept from an older repo layout, moves a nested `CP-Inspired-Scheduler/` or `aba-scheduler/` folder up and runs `npm install` when no root `package-lock.json` exists; it never fires today), run the full test suite (`npm test -- --run`; the extra flag is redundant with `vitest run` and harmless), then `npm run build`. The `prebuild` script runs `scripts/write-version.cjs`, which stamps `public/version.json` with a build id that the app embeds and compares at runtime. Vite builds into `dist/` with `base: './'`, so the site works on a GitHub Pages sub-path. The build succeeds but still warns that the main minified chunk is about 2,489 kB (747 kB gzip), over Vite's 500 kB threshold — that is the open bundle half of REL-01 in [`docs/audits/configuration-audit-2026-10-07.md`](../audits/configuration-audit-2026-10-07.md), which measures what is in the chunk and lists the lazy-loading slices.
 2. **Pages artifact:** uploaded only on non-PR events.
 3. **deploy job:** needs the build job, runs only on non-PR events, and publishes to GitHub Pages (environment `github-pages`).
 
@@ -91,7 +91,7 @@ Docs versus repo:
 1. Resolved: `AGENTS.md` now names the Python history files `c33-*` to `c37-*` and the two live scripts.
 2. Resolved (documented): the `deploy.yml` legacy install fallback is described under "CI and deploy" above.
 3. Resolved (documented): the redundant `--run` flag is noted under "CI and deploy" above.
-4. `playwright` and `playwright-core` are devDependencies but nothing in the repository imports them. Removing them needs a regenerated `package-lock.json`, so do it from a machine that can run npm.
+4. Resolved (2026-10-07): the unused `playwright` and `playwright-core` devDependencies were removed and `package-lock.json` regenerated — the blocker had been needing a machine that can run npm. Nothing in the repository imported them; the only "playwright" strings left in the lock file are Vitest's optional `@vitest/browser-playwright` peer entry, which installs nothing.
 5. Resolved: the README now says v3 JSON (v2 files still import).
 6. Resolved: the README now says Settings → System → Data & backup.
 

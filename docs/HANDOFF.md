@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-07** (payer-specific mileage-code follow-up started after the configuration-audit remediation and D1 practice-days follow-up). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-07** (release hygiene: the configuration audit's remaining REL-01 dependency half, after the payer-specific mileage-code follow-up landed as PR #38). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
@@ -9,10 +9,12 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
 - State at handoff (2026-10-06): `origin/main` is `83ba96c` — PR #32 (cancellation notice in the risk model, C4 follow-up) merged, CI green (run 37491879917, deployed); before it `8a352cc` (PR #31, C4 confidence-threshold picker). Newest first today: cancellation notice (this branch), C4 confidence-threshold picker, Windows test fix, D2 hire/contract, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
 - State at handoff (2026-10-07, audit remediation): `origin/main` is `0411c2c` (PR #36). Branch `arena/e8f5fefe-cp-inspired-scheduler` holds the seven remediation commits; PR #37 is open with the `build` CI job green on the final head and lands on `main` as a merge commit (the `deploy` job runs on `main` only, so it fires after the merge).
+- State at handoff (2026-10-07, release hygiene): `origin/main` is `0434a5a` — PR #37 (configuration-audit remediation) merged 13:56 UTC, then PR #38 (payer-specific mileage codes) merged 15:27 UTC as `0434a5a`. Branch `arena/ba9e3ddc-cp-inspired-scheduler` holds the REL-01 dependency work: Vitest 2.1.9 → 4.1.11, non-breaking `npm audit fix` patches, unused `playwright` devDependencies removed. `npm audit` is at **0 vulnerabilities** (was 8) and the suite is **96 files / 1,000 tests green** with no test edits. No `src/` file changed.
 
 ## How the maintainer works
 
 - **Plain git only, no `gh`.** The maintainer's terminal is **Windows PowerShell 5.1** (no grep/sed). Commands handed to them must be pure git and start with `cd C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`. Use `git for-each-ref` instead of `git branch | grep`.
+- **Test runner: Vitest 4** since 2026-10-07 (was 2.1.9). Stay on 4: Vitest 5's `engines` (`^22.12.0 || ^24.0.0 || >=26.0.0`) excludes Node 25, Vitest 4's (`^20.0.0 || ^22.0.0 || >=24.0.0`) does not, and 4 clears the same advisories. `npm audit` is at 0 vulnerabilities; the upgrade needed **no test edits** (96 files / 1,000 tests green on Node 22). One suite run in the `dev` clone on Node 25 is still worth doing to confirm the work PC.
 - **The full suite runs on the work PC** (verified 2026-10-06: 910/910), with three workarounds documented in `AGENTS.md` → "Commands":
   - work in the `dev` clone, because Windows Controlled Folder Access blocks node writes under `Documents`;
   - start npm through node with `--preserve-symlinks --preserve-symlinks-main`, because `C:\nvm4w\nodejs` links into `systemprofile`;
@@ -25,13 +27,25 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Work started (not yet landed)
 
-### Billing follow-up — payer-specific mileage code (2026-10-07)
+- **Release hygiene (REL-01 dependency half + architecture mismatch #4)** — built and verified locally on branch `arena/ba9e3ddc-cp-inspired-scheduler`; see the Shipped entry below for what changed.
+
+## Shipped (newest first)
+
+### Release hygiene — Vitest 4, clean dependency audit, unused devDependencies (branch `arena/ba9e3ddc-cp-inspired-scheduler`, 2026-10-07)
+
+- **What.** The remaining actionable half of REL-01 in `docs/audits/configuration-audit-2026-10-07.md`, plus architecture mismatch #4. Dev/test dependency tree only — **no `src/` file changed**.
+  - **Vitest 2.1.9 → 4.1.11**, not 5.x. npm's forced fix installs `vitest@5.0.3`, but Vitest 5's `engines` is `^22.12.0 || ^24.0.0 || >=26.0.0`, which excludes the Node 25 work PC; Vitest 4 declares `^20.0.0 || ^22.0.0 || >=24.0.0`, so Node 25 is still covered. Vitest 4 clears the same advisories: it has **no `tinypool` dependency** (the two critical prototype-pollution/RCE advisories) and no longer pulls the nested `vite@5.4.21` → `esbuild@0.21.5` chain (the three moderate esbuild advisories). Both packages are now absent from the tree. Its `vite` peer range (`^6 || ^7 || ^8`) is satisfied by the pinned `vite@^6.0.7` (6.4.3), which has no advisory of its own, so Vite stayed at 6.
+  - **`npm audit fix`** (non-breaking): `source-map-js` 1.2.1 → 1.2.2 (high, event-loop DoS, via postcss 8.5.28) and `dompurify` 3.4.15 → 3.4.16 (low, via jsPDF 4.2.1).
+  - **Architecture mismatch #4 closed:** the unused `playwright` / `playwright-core` devDependencies are gone and `package-lock.json` is regenerated (the stated blocker was needing a machine that can run npm). The only "playwright" strings left in the lock file are Vitest's optional `@vitest/browser-playwright` peer entry, which installs nothing.
+- **Result.** `npm audit` reports **0 vulnerabilities** on both the full tree and `--omit=dev` (was 8: 2 critical, 2 high, 3 moderate, 1 low).
+- **Verification.** Full suite on the upgraded tree: **96 files / 1,000 tests passed — no test edits were needed for the runner upgrade**. `npm ci` from the regenerated lock file with npm 10.9.8 (the npm that CI's Node 22 ships) succeeds; CI's exact `npm test -- --run` invocation still runs clean under Vitest 4; `npm run build` unchanged. **Node 25 was not re-run here** — the sandbox is Node 22.22.3 — so the work-PC pass is inferred from Vitest 4's declared `engines` range and should be confirmed with one suite run in the `dev` clone.
+- **Still open (REL-01 bundle half).** `npm run build` still warns: the main minified chunk is **2,489.53 kB (747.71 kB gzip)**. Measured by rendered module length, it is `src/components` 1,728.9 kB, `src/lib` 956.1 kB, `jspdf` + `pako` 441.9 kB, the bundled `docs/wiki/*.md` 205.3 kB, `react-dom` 131.6 kB and `store.jsx` 87.9 kB. `manualChunks` alone would only silence the warning (same bytes on first paint), so it was deliberately not done. The honest slices, largest first: (1) `import('jspdf')` in the six PDF builders — `exportKit`, `cms1500`, `statements`, `gfe`, `superbill`, `intakeDocs` — since PDF output is user-initiated (~442 kB); (2) `React.lazy` per section in `App.jsx`, which already renders every screen behind `{section === '…' && <View/>}` (~1.7 MB); (3) a non-eager `import.meta.glob` for the wiki markdown in `HelpView.jsx` (~205 kB). Slices 2 and 3 make rendering asynchronous, so the UI tests that query synchronously after a nav click must move to async queries first — that is why it is its own branch.
+
+### Billing follow-up — payer-specific mileage code (PR #38, landed at `0434a5a`)
 
 - **What.** The Billing staging list no longer labels mileage as CPT `14220`. Masters → Payer → Billing Rules → Claims Settings has an optional, payer-specific 5-character CPT/HCPCS mileage code. The app never guesses a code; `14220` is rejected as a surgery code, not mileage.
 - **Safety.** An insurance mileage line without a valid payer code is marked **Needs code** and held by the claim gate. CMS-1500 export refuses a missing or invalid mileage code. Set the payer-approved value or remove mileage if it is not covered, then void/rebuild a draft assembled before the setting was saved or changed. Self-pay lines do not get a payer code. Existing claim snapshots are not rewritten; invalid or out-of-date historical mileage codes display as **Needs code** and cannot be exported on a CMS-1500.
 - **Verification.** Focused claims/CMS-1500/payer-settings/Billing tests pass. Full `npm test`: **96 files, 1,000 tests passed**. `npm run build` passes; Vite still warns that the main JS bundle is over 500 kB (the existing REL-01 bundle-splitting issue, intentionally out of scope). JSDOM canvas/navigation and payer-list key warnings are pre-existing, unrelated and non-failing.
-
-## Shipped (newest first)
 
 ### Audit remediation — configuration-audit findings CFG-02…CFG-12 (branch `arena/e8f5fefe-cp-inspired-scheduler`, 2026-10-07)
 
@@ -165,7 +179,7 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 - **UI.** The claim header has CMS-1500 (review copy) and Red form print (data only); Claims has 1500 Batch and Batch · red forms. Toasts say which is which and that nothing was sent.
 - **Data.** Clients > Edit has Home address / City / State / ZIP (item 5; intake already carried them). The demo clients got fictional addresses. Provider-ID hint says G2.
 - **Research also covered other forms:** UB-04, ADA and state Medicaid forms do not apply to ABA (all states sampled use the 1500/837P). Candidates for next slices: a family statement laid out per HFMA guidance (window-safe address, amount-due panel, account summary, aging, tear-off stub, no diagnosis codes), an out-of-network superbill (Cigna's required elements), a No Surprises Act Good Faith Estimate for self-pay families, and a secondary (COB) 1500 profile.
-- **Not done:** printer X/Y calibration for the red-form print; per-payer page totals (total prints on the last page only); item 17 (no referring/supervising data); payer claim control number for item 22 (ERA CLP07 is not stored on the claim). The mileage-code follow-up is implemented and verified locally but not yet landed (see above); no default is assumed, and each payer must supply a contract-approved mileage code.
+- **Not done:** printer X/Y calibration for the red-form print; per-payer page totals (total prints on the last page only); item 17 (no referring/supervising data); payer claim control number for item 22 (ERA CLP07 is not stored on the claim). The mileage-code follow-up has since landed (PR #38, `0434a5a`); no default is assumed, and each payer must supply a contract-approved mileage code.
 - **Verification:** node run of the new assertions with jsPDF 4.2.1 (all pass). `cms1500.test.js` was rewritten, and `providerIds`/`payerTerms` tests were updated; these run in CI.
 
 ### Docs — mismatches #1–6 (`docs/mismatch-nits`)
@@ -327,7 +341,15 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved. The payer-specific mileage-code follow-up landed after it as PR #38 (`0434a5a`). The REL-01 **dependency half** was then closed on `arena/ba9e3ddc-cp-inspired-scheduler` (Vitest 4, `npm audit` at 0 vulnerabilities, unused `playwright` devDependencies removed).
+
+What the audit still leaves open, and why:
+- **CFG-01 (P0) — production hosting/data/auth/HIPAA architecture.** A decision, not a code fix: choose the backend, enforce MFA/session controls there, use a server-side secret store for any live integration. The local credential-capture mitigation is landed and stays as-is. Needs the maintainer.
+- **CFG-05 — jurisdictional payroll calculator (daily OT / double time / seventh day) + legal review.** The controls are labelled informational today; pricing them is a payroll-engine project gated on legal review, not a settings fix. Needs the maintainer and counsel.
+- **REL-01 bundle half — still open and the largest remaining code task.** Main chunk 2,489.53 kB (747.71 kB gzip). Measured composition and the three lazy-loading slices are in the audit's REL-01 and in the Shipped entry above; it needs its own branch because slices 2 and 3 make view rendering asynchronous and the UI tests must move to async queries first.
+- Architecture mismatch #12 (`buildInvoices`, `buildQboCsv`, `buildVerificationForm`, `buildAppealLetter` are imported only by tests) and #13 (MFA/lock settings enforced nowhere — blocked by CFG-01) remain. #12 is a judgement call, not a defect: delete the helpers and their tests, or keep them for the screens that would use them.
+
+**Recommended next:** the REL-01 bundle split (largest measured win, no decision needed), then printer X/Y calibration for the red-form print or another billing-form follow-up. D4 scenario planner is large.
 
 Other open items, smaller:
 - D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).
@@ -338,7 +360,7 @@ Other open items, smaller:
   - Section 1557 language taglines on statements (a settings block with a per-family opt-out);
   - a per-guarantor confidential "send to" address;
   - comparing statements against an issued GFE (the $400 dispute threshold).
-- Architecture mismatches still listed in `docs/wiki/architecture.md`: #4 unused `playwright` devDependencies (npm now works in the `dev` clone, so the lock file can be regenerated there); #10; #12 `build*` helpers that only tests import; #13 unenforced MFA/lock settings.
+- Architecture mismatches still listed in `docs/wiki/architecture.md`: #10; #12 `build*` helpers that only tests import; #13 unenforced MFA/lock settings. (#4, the unused `playwright` devDependencies, was closed 2026-10-07 with the Vitest 4 / lock-file regeneration.)
 - "Known issues / backlog" below.
 
 **How this session built safely alongside a parallel agent:** every feature was built in a scratch git worktree from `origin/main` (`git worktree add -b feat/x <scratch>/dir origin/main`), never in the shared checkout; before landing, `git merge origin/main` into the branch (README/HANDOFF/wiki "Last synced" lines conflict often: keep both new sections, take the newer sync line), then `git checkout --detach origin/main && git merge --no-ff feat/x && git push origin feat/x HEAD:main`, then poll `actions/runs?head_sha=<sha>` until green. Since the end of this session the full suite, JSX included, also runs locally in the `dev` clone (see "How the maintainer works").
@@ -360,7 +382,7 @@ Other open items, smaller:
 
 ## Known issues / backlog (not yet fixed)
 
-- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). **Remediation landed 2026-10-07 on branch `arena/e8f5fefe-cp-inspired-scheduler`** (see the Shipped entry above): CFG-02…CFG-09, CFG-11 and CFG-12 resolved with tests; CFG-05 resolved by labelling; CFG-06/CFG-07 resolved by disabling/labelling and scope enforcement; REL-01 triaged and deferred (vitest major upgrade and bundle splitting are separate projects). Still open: **CFG-01** — the production hosting/auth/HIPAA architecture gate (P0; a decision, not a code fix) — and the CFG-05 jurisdictional payroll calculator + legal review. Suite on the branch: 95 files / 995 tests green; build green with the bundle-size warning; dependency advisories unremediated by design (documented in REL-01).
+- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). **Remediation landed 2026-10-07 as PR #37** (see the Shipped entry above): CFG-02…CFG-09, CFG-11 and CFG-12 resolved with tests; CFG-05 resolved by labelling; CFG-06/CFG-07 resolved by disabling/labelling and scope enforcement. **REL-01's dependency half is now closed** on `arena/ba9e3ddc-cp-inspired-scheduler` (Vitest 4.1.11, `npm audit` at 0 vulnerabilities, unused `playwright` devDependencies removed; 96 files / 1,000 tests green, no test edits). Still open: **CFG-01** — the production hosting/auth/HIPAA architecture gate (P0; a decision, not a code fix); the **CFG-05** jurisdictional payroll calculator + legal review; and **REL-01's bundle half** (2,489.53 kB main chunk, measured slices listed in the audit).
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
