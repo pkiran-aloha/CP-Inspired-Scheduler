@@ -33,6 +33,12 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Bundle code-splitting — REL-01 bundle half (`perf/lazy-views`, 2026-10-07)
+
+- **What.** Entry JS **2,525 → 1,015 kB minified (759 → 322 kB gzip)**. Non-calendar sections in `App.jsx` are `React.lazy` chunks behind a "Loading this section…" status inside the section error boundary; the wiki markdown rides in the Help chunk; jsPDF is a dynamic import via `loadPdf()` in `exportKit.js` (builders stay sync through `newPdf()`, every PDF button awaits `loadPdf()` and toasts honestly if the fetch fails). `chunkSizeWarningLimit` is 1,100 kB as a tripwire; the rest of the entry is the store plus the domain engines the reducer imports.
+- **Tests.** `src/test/setup.js` preloads every chunk (`preloadViews()`) and the PDF engine, so UI tests stay synchronous; four PDF-download tests now `await waitFor`. The Suspense first-visit path itself is not exercised by tests (setup preloads everything).
+- **Verification.** Full suite 99 files / 1,039 tests green; `npm run build` green with no size warning; `npm run share` (Git Bash; on Windows pass `--script-shell` bash to npm) writes one self-contained file.
+
 ### Fix — UI rule violations (`fix/ui-rule-violations`, 2026-10-07)
 
 - **Series exception marker.** The calendar cards in `TimeGrid.jsx` and `TimelineView.jsx` drew a text pencil glyph on edited series occurrences; they now draw `Icon.edit` from `src/ui/Icons.jsx` with `role="img"` and the label "Changed from series". The same cards' text glyphs for the ABA hr pill, the flagged pill and the timeline conflict badge now use `Icon.zap`, `Icon.flag` and `Icon.alert`.
@@ -373,7 +379,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades) remains open by design — its bundle half shipped on `perf/lazy-views`, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
 - D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).

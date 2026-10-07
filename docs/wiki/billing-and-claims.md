@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main 5f99933 plus the fix/ui-rule-violations branch on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -85,7 +85,7 @@ Two downloads, on a claim and for the claims in view:
 - **CMS-1500** / **1500 Batch**: a review copy. It is the red form drawn from the CMS 02/12 geometry with the data on it, marked "REVIEW COPY - NOT FOR OCR SUBMISSION". Payers that scan paper claims accept only originals printed in Flint J-6983 red dropout ink and return photocopies and black-and-white prints, so a laser-printed replica is for checking and filing, or for a payer that takes images.
 - **Red form print** / **Batch · red forms**: the data only (`<claim no>-1500-red-form.pdf`). Load genuine red CMS-1500 (02/12) forms in the printer and print at actual size (100%). This is the paper claim.
 
-A secondary (COB) claim is refused with a caution because its service lines are not allocated for a compliant secondary claim. If a PDF cannot be built, a caution names the error and no success message shows.
+A secondary (COB) claim is refused with a caution because its service lines are not allocated for a compliant secondary claim. If a PDF cannot be built, a caution names the error and no success message shows. The PDF engine is fetched on the first PDF export of a visit; if that fetch fails (for example offline after a new deployment), a caution says nothing was downloaded.
 
 What prints, item by item (NUCC formats: uppercase, no punctuation, no `$` or decimal point, dates in their `MM DD YY` sub-fields):
 
