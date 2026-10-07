@@ -91,7 +91,7 @@ export default function VerificationFormsView() {
               const cl = clients.find((c) => c.id === f.clientId)
               const isSel = selId === f.id
               return (
-                <div key={f.id} className={`py-trow ${isSel ? 'on' : ''}`} data-testid={`vf-row-${f.id}`} onClick={() => setSelId(f.id)} style={{ gridTemplateColumns: '1.4fr 1fr 100px 100px 120px', minHeight: 56, padding: '12px 16px', cursor: 'pointer', background: isSel ? '#f5f3ff' : undefined, borderLeft: `3px solid ${isSel ? '#6366f1' : 'transparent'}` }}>
+                <div key={f.id} className={`py-trow ${isSel ? 'on' : ''}`} data-testid={`vf-row-${f.id}`} onClick={() => setSelId(f.id)} style={{ gridTemplateColumns: '1.4fr 1fr 100px 100px 120px', minHeight: 56, padding: '12px 16px', cursor: 'pointer', background: isSel ? 'var(--accent-soft)' : undefined }}>
                   <div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl || { name: f.clientName }} size={26} /><b style={{ fontSize: 13 }}>{f.clientName || cl?.name || f.clientId}</b></div></div>
                   <div className="py-cell" style={{ fontSize: 12 }}>{f.payer}</div>
                   <div className="py-cell" style={{ fontSize: 12 }}>{f.date || '—'}</div>

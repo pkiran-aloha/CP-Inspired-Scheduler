@@ -105,7 +105,7 @@ export default function AppealsView() {
               const cl = clients.find((x) => x.id === c.clientId)
               const isSel = selId === c.id
               return (
-                <div key={c.id} className={`py-trow ${isSel ? 'on' : ''}`} data-testid={`appeal-row-${c.id}`} onClick={() => setSelId(c.id)} style={{ gridTemplateColumns: '1.2fr 1fr 100px 120px 1fr', minHeight: 56, padding: '12px 16px', cursor: 'pointer', background: isSel ? '#fef2f2' : undefined, borderLeft: `3px solid ${isSel ? '#ef4444' : 'transparent'}` }}>
+                <div key={c.id} className={`py-trow ${isSel ? 'on' : ''}`} data-testid={`appeal-row-${c.id}`} onClick={() => setSelId(c.id)} style={{ gridTemplateColumns: '1.2fr 1fr 100px 120px 1fr', minHeight: 56, padding: '12px 16px', cursor: 'pointer', background: isSel ? 'color-mix(in srgb, var(--danger) 8%, var(--panel))' : undefined }}>
                   <div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl} size={26} /><div><b style={{ fontSize: 13 }}>{cl?.name || c.clientId}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}><span className="ln-code">{c.no}</span> · {c.dosFrom}</div></div></div></div>
                   <div className="py-cell"><div><div style={{ fontSize: 12 }}>{c.payer}</div><div style={{ fontSize: 11, color: '#b91c1c' }}>{c.denials?.[0]?.reason || c.denialReason || 'Denied'}</div></div></div>
                   <div className="py-cell"><b style={{ fontSize: 13, color: '#b91c1c' }}>{money(dueOf(c))}</b></div>

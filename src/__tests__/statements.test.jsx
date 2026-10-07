@@ -116,7 +116,7 @@ describe('statements — store and screen', () => {
     await waitFor(() => expect(Object.values(saved().statements)).toHaveLength(1))
     const st = Object.values(saved().statements)[0]
     fireEvent.click(await screen.findByTestId(`gi-st-pdf-${st.id}`))
-    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)) // PDF engine loads async
     expect(window.URL.createObjectURL.mock.calls[0][0].type).toBe('application/pdf')
     fireEvent.change(screen.getByTestId(`gi-st-via-${st.id}`), { target: { value: 'hand' } })
     fireEvent.click(screen.getByTestId(`gi-st-sent-${st.id}`))

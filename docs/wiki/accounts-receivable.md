@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/gfe.js, src/components/GfeDialog.jsx, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 957dbf1 plus the feat/good-faith-estimate branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 

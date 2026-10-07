@@ -18,11 +18,16 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - `src/state/store.jsx` owns the seeded workspace, migrations, reducer, undo and browser persistence. `src/lib/` contains the domain engines (claims, documents, reporting, scheduler); `src/components/` holds the screens. `src/__tests__/` exercises both pure logic and UI workflows.
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
+- The build is code-split: the calendar, store and domain engines load first (≈1,015 kB minified, 322 kB gzip, down from 2,525 / 759 kB); every other section, the bundled wiki and jsPDF load on first use. `src/test/setup.js` preloads them so UI tests render synchronously. `npm run share` still produces one self-contained file.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
 ### Appointment location suggestions
 
 The booking dialog's Location field groups suggestions by source: the client's usual site and street address on file (saved as `Home · …` so place of service stays 12), where each picked staff member was just before this slot (same day, else their latest earlier stop), and the practice's offices and telehealth location. Anything typed is saved as typed, with an **Open in Google Maps** link the user clicks themselves (new tab); no map service is called and nothing is sent. Sources are a plain list in `src/lib/locationSources.js`, so another source is one more function. No new stored field. Tests: `locationSources.test.js`, `locationField.test.jsx`.
+
+### UI rule cleanup
+
+Calendar cards draw their small markers (series exception pencil, ABA hr, flagged, conflict) from the shared icon set instead of text glyphs; the exception pencil reads "Changed from series" to screen readers. Cards, rows and hints that used a thick colored left stripe now show tone with a 1px tinted border and, for warnings, a light tinted background, in both themes.
 
 ### Pick fit and open slots (scheduling intelligence)
 

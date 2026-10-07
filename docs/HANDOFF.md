@@ -41,6 +41,19 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 - **Downstream.** No new field, so no migration or backup change. The `Home · ` prefix keeps `posFor` at POS 12, `officeForValue` at Home programs, and travel on the client geo. Known limits: a typed street address that is not an office bills POS 11 and travels from the client geo (unchanged behaviour for any unknown text); a staff-previous value that was another client's home resolves to the current client's geo for travel. No client school source (clients carry no school field; school sites are offices).
 - **Verification.** `locationSources.test.js` (5) + `locationField.test.jsx` (client address → staff-previous → typed text + Enter → saved in localStorage). Full suite 101 files / 1,044 tests: 1,042 passed, 2 timing failures under full-suite load (`intakeUi`, `schedulerInsights`) that pass in isolation; `npm run build` green (bundle-size warning only).
 
+### Bundle code-splitting — REL-01 bundle half (`perf/lazy-views`, 2026-10-07)
+
+- **What.** Entry JS **2,525 → 1,015 kB minified (759 → 322 kB gzip)**. Non-calendar sections in `App.jsx` are `React.lazy` chunks behind a "Loading this section…" status inside the section error boundary; the wiki markdown rides in the Help chunk; jsPDF is a dynamic import via `loadPdf()` in `exportKit.js` (builders stay sync through `newPdf()`, every PDF button awaits `loadPdf()` and toasts honestly if the fetch fails). `chunkSizeWarningLimit` is 1,100 kB as a tripwire; the rest of the entry is the store plus the domain engines the reducer imports.
+- **Tests.** `src/test/setup.js` preloads every chunk (`preloadViews()`) and the PDF engine, so UI tests stay synchronous; four PDF-download tests now `await waitFor`. The Suspense first-visit path itself is not exercised by tests (setup preloads everything).
+- **Verification.** Full suite 99 files / 1,039 tests green; `npm run build` green with no size warning; `npm run share` (Git Bash; on Windows pass `--script-shell` bash to npm) writes one self-contained file.
+
+### Fix — UI rule violations (`fix/ui-rule-violations`, 2026-10-07)
+
+- **Series exception marker.** The calendar cards in `TimeGrid.jsx` and `TimelineView.jsx` drew a text pencil glyph on edited series occurrences; they now draw `Icon.edit` from `src/ui/Icons.jsx` with `role="img"` and the label "Changed from series". The same cards' text glyphs for the ABA hr pill, the flagged pill and the timeline conflict badge now use `Icon.zap`, `Icon.flag` and `Icon.alert`.
+- **Side stripes.** `impeccable detect` side-tab findings across `src/` went from 19 to 0 (13 in `styles.css`, 5 inline `borderLeft` in AppealsView, ArManagerView, BillingView, GenerateInvoiceView, VerificationFormsView, 1 in the payroll export's print HTML), plus three inset row stripes the detector did not flag (`.cd-lines tr.gated`, `.dir-table` expanded row, `.pcf-f.filled`). Tone now lives in a 1px border mixed from the tone color and, for warn/danger, a light tinted background; the inline selected rows use `var(--accent-soft)` instead of light-only hex colors, so dark mode is correct there too.
+- **Audit note.** CFG-03's remediation note now points at `occurrenceChecks` / `screenOccurrences` in `src/lib/recurrence.js` (the recurrence rewrite removed `occurrenceReasons`).
+- **Verification.** New `recurrenceUi.test.jsx` case: an edited occurrence shows one labelled drawn pencil and no text glyph. No existing test asserted the old glyphs or stripes. Full suite 99 files / 1,039 tests green; `npm run build` green (chunk-size warning only).
+
 ### Pick fit and open slots — smarter booking pickers (`feat/smart-scheduling-picks`, 2026-10-07)
 
 - **What.** `src/lib/pickFit.js` adds context at the point of decision, reusing existing engines (`suggestStaff`, `authBurn`, `travelChecksForStaffDay`/`travelLeg`, `riskFor`, `clinicianGroup`, `practiceDaysOf`):
@@ -374,7 +387,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades) remains open by design — its bundle half shipped on `perf/lazy-views`, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
 - D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).
@@ -410,7 +423,6 @@ Other open items, smaller:
 - Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). **Remediation landed 2026-10-07 on branch `arena/e8f5fefe-cp-inspired-scheduler`** (see the Shipped entry above): CFG-02…CFG-09, CFG-11 and CFG-12 resolved with tests; CFG-05 resolved by labelling; CFG-06/CFG-07 resolved by disabling/labelling and scope enforcement; REL-01 triaged and deferred (vitest major upgrade and bundle splitting are separate projects). Still open: **CFG-01** — the production hosting/auth/HIPAA architecture gate (P0; a decision, not a code fix) — and the CFG-05 jurisdictional payroll calculator + legal review. Suite on the branch: 95 files / 995 tests green; build green with the bundle-size warning; dependency advisories unremediated by design (documented in REL-01).
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
-- `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
 
 ## Resume prompts (paste into a new session; any agent)
 

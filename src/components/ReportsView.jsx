@@ -10,7 +10,7 @@ import { VERIFY_CHECKS, unitsFor } from '../lib/model'
 import { unitRuleFor } from '../lib/authUnits'
 import { bucketize, resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
-import { buildSpec, specToXls, specToPdf, downloadDoc } from '../lib/exportKit'
+import { buildSpec, specToXls, specToPdf, downloadDoc, loadPdf } from '../lib/exportKit'
 import { addDays, isoDate, parseISO, todayISO } from '../lib/date'
 
 const fmtCell = (v, t) => {
@@ -204,7 +204,8 @@ export default function ReportsView() {
     downloadDoc(`${fileBase}.xls`, specToXls(spec()), 'application/vnd.ms-excel')
     toast({ message: `Excel workbook exported — ${rows.length} styled rows${Object.keys(totals).length ? ' + totals' : ''}`, kind: 'ok' })
   }
-  const exportPdf = () => {
+  const exportPdf = async () => {
+    if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     downloadDoc(`${fileBase}.pdf`, specToPdf(spec()).output('blob'), 'application/pdf')
     toast({ message: `PDF exported — ${rows.length} rows, letter landscape, totals included`, kind: 'ok' })
   }
