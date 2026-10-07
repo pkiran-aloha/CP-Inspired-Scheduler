@@ -3,9 +3,14 @@
 // request, and closed when done. Notifications are not stored: they are read from the
 // workspace (my tasks due, expiring documents and authorizations, overdue intake,
 // denied claims) every time the inbox opens. Nothing is sent off this device.
+// Every alert source is gated by its Settings → System → Notifications preference
+// (audit CFG-08): a preference that is off suppresses its alert, and no preference
+// is shown in Settings that has no alert behind it.
 import { cabinetAlerts } from './cabinet'
 import { intakeKpis } from './intake'
-import { parseISO } from './date'
+import { addDays, isoDate, parseISO } from './date'
+import { notificationsCfg, isCancelStatus } from './settingsMasters'
+import { filingDaysOf, secondaryEligible } from './claims'
 
 export const TASK_PRIORITIES = [{ id: 'normal', label: 'Normal' }, { id: 'high', label: 'High' }]
 export const LINK_KINDS = [
@@ -82,33 +87,78 @@ export function openTasksFor(state, staffId, today) {
  * The notification feed for one person, read fresh from the workspace. `can(area)` hides
  * what their role cannot open. Each item: { id, tone: 'stop' | 'warn' | 'flag', text, go }.
  */
+/** Credential-expiry window in days, from the preference (legacy saves may hold '30d'). */
+const qualWarnDays = (cfg) => {
+  const d = parseInt(String(cfg.staffQualFrequencyDays ?? 30).replace(/[^\d]/g, ''), 10)
+  return Number.isFinite(d) && d > 0 ? d : 30
+}
+
+/** Past clinical sessions still awaiting a completion status, within the lookback window. */
+export function incompleteApptsFor(state, today, lookbackDays = 7) {
+  const since = isoDate(addDays(parseISO(today), -Math.max(1, Number(lookbackDays) || 7)))
+  return Object.values(state?.appts || {}).filter((a) =>
+    a.date && a.date < today && a.date >= since &&
+    (a.type === 'service' || a.type === 'evaluation') &&
+    a.status !== 'completed' && !isCancelStatus(state?.settings, a.status))
+}
+
+/** Staged claims whose date-of-service window closed past the payer's filing limit. */
+export function lateFilingClaimsFor(state, today) {
+  return Object.values(state?.claims || {}).filter((c) => {
+    if (!c.dosTo || c.submittedAt || ['denied', 'void', 'paid', 'written_off'].includes(c.status)) return false
+    const limit = isoDate(addDays(parseISO(c.dosTo), filingDaysOf(state, c.payer)))
+    return limit < today
+  })
+}
+
 export function notificationsFor(state, staffId, today, can = () => true) {
   const out = []
+  const cfg = notificationsCfg(state?.settings)
+  const on = (v) => v !== false
+  const plural = (k, word) => `${k} ${word}${k === 1 ? '' : 's'}`
   // An account not linked to a staff member (the practice administrator) oversees the whole team's tasks.
   const team = !staffId
-  const mine = openTasksFor(state, staffId || null, today)
-  const overdue = mine.filter((t) => taskState(t, today) === 'overdue')
-  const dueToday = mine.filter((t) => taskState(t, today) === 'today')
-  const n = (k) => `${k} ${team ? 'team ' : ''}task${k > 1 ? 's' : ''}`
-  if (overdue.length) out.push({ id: 'tasks-overdue', tone: 'stop', text: team ? `${n(overdue.length)} ${overdue.length > 1 ? 'are' : 'is'} overdue` : `${overdue.length} of your tasks ${overdue.length > 1 ? 'are' : 'is'} overdue`, go: { tab: 'tasks' } })
-  if (dueToday.length) out.push({ id: 'tasks-today', tone: 'warn', text: `${n(dueToday.length)} due today`, go: { tab: 'tasks' } })
-  if (can('staff')) {
-    const docs = cabinetAlerts(state, today)
-    const expired = docs.filter((d) => d.expiresOn < today).length
-    if (docs.length) out.push({ id: 'cabinet', tone: expired ? 'stop' : 'warn', text: `${docs.length} document${docs.length > 1 ? 's' : ''} expired or expiring within 30 days`, go: { section: 'cabinet' } })
+  if (on(cfg.staffTasks)) {
+    const mine = openTasksFor(state, staffId || null, today)
+    const overdue = mine.filter((t) => taskState(t, today) === 'overdue')
+    const dueToday = mine.filter((t) => taskState(t, today) === 'today')
+    const n = (k) => `${k} ${team ? 'team ' : ''}task${k > 1 ? 's' : ''}`
+    if (overdue.length) out.push({ id: 'tasks-overdue', tone: 'stop', text: team ? `${n(overdue.length)} ${overdue.length > 1 ? 'are' : 'is'} overdue` : `${overdue.length} of your tasks ${overdue.length > 1 ? 'are' : 'is'} overdue`, go: { tab: 'tasks' } })
+    if (dueToday.length) out.push({ id: 'tasks-today', tone: 'warn', text: `${n(dueToday.length)} due today`, go: { tab: 'tasks' } })
   }
-  if (can('clients')) {
+  if (can('staff') && on(cfg.staffQualExpiration)) {
+    const docs = cabinetAlerts(state, today, qualWarnDays(cfg))
+    const expired = docs.filter((d) => d.expiresOn < today).length
+    if (docs.length) out.push({ id: 'cabinet', tone: expired ? 'stop' : 'warn', text: `${plural(docs.length, 'document')} expired or expiring within ${qualWarnDays(cfg)} days`, go: { section: 'cabinet' } })
+  }
+  if (can('staff') && on(cfg.staffIncompleteAppts)) {
+    const stale = incompleteApptsFor(state, today, cfg.staffIncompleteLookbackDays)
+    if (stale.length) out.push({ id: 'incomplete', tone: 'warn', text: `${plural(stale.length, 'session')} from the last ${cfg.staffIncompleteLookbackDays ?? 7} days still awaiting completion`, go: { section: 'calendar' } })
+  }
+  if (can('clients') && on(cfg.authExpiry)) {
     const ending = (state.clients || []).filter((c) => iso(c.authEnd) && daysBetween(today, c.authEnd) <= 30)
     const lapsed = ending.filter((c) => c.authEnd < today).length
-    if (ending.length) out.push({ id: 'auths', tone: lapsed ? 'stop' : 'warn', text: `${ending.length} authorization${ending.length > 1 ? 's' : ''} lapsed or ending within 30 days`, go: { section: 'clients' } })
+    if (ending.length) out.push({ id: 'auths', tone: lapsed ? 'stop' : 'warn', text: `${plural(ending.length, 'authorization')} lapsed or ending within 30 days`, go: { section: 'clients' } })
   }
-  if (can('intake')) {
+  if (on(cfg.timelyFiling)) {
+    const late = lateFilingClaimsFor(state, today)
+    if (late.length) out.push({ id: 'filing', tone: 'stop', text: `${plural(late.length, 'claim')} past its filing window — file or write off`, go: { section: 'billing' } })
+  }
+  if (can('billing') && on(cfg.parkedEra)) {
+    const parked = Object.values(state.payments || {}).filter((p) => p.kind === 'unapplied' && !p.reversalOf)
+    if (parked.length) out.push({ id: 'parked', tone: 'warn', text: `${plural(parked.length, 'unapplied payment')} waiting to be matched`, go: { section: 'billing' } })
+  }
+  if (can('billing') && on(cfg.secondaryReady)) {
+    const ready = Object.values(state.claims || {}).filter((c) => secondaryEligible(state, c))
+    if (ready.length) out.push({ id: 'secondary', tone: 'flag', text: `${plural(ready.length, 'primary claim')} ready for secondary filing`, go: { section: 'billing' } })
+  }
+  if (can('intake') && on(cfg.intakeSla)) {
     const k = intakeKpis(state.intakeRequests || {})
-    if (k.overdue.length) out.push({ id: 'intake', tone: 'warn', text: `${k.overdue.length} intake request${k.overdue.length > 1 ? 's' : ''} past their stage deadline`, go: { section: 'intake' } })
+    if (k.overdue.length) out.push({ id: 'intake', tone: 'warn', text: `${plural(k.overdue.length, 'intake request')} past their stage deadline`, go: { section: 'intake' } })
   }
-  if (can('billing')) {
+  if (can('billing') && on(cfg.deniedClaims)) {
     const denied = Object.values(state.claims || {}).filter((c) => c.status === 'denied').length
-    if (denied) out.push({ id: 'denied', tone: 'flag', text: `${denied} denied claim${denied > 1 ? 's' : ''} to work`, go: { section: 'billing' } })
+    if (denied) out.push({ id: 'denied', tone: 'flag', text: `${plural(denied, 'denied claim')} to work`, go: { section: 'billing' } })
   }
   return out
 }

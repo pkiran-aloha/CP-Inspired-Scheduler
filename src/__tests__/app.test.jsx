@@ -344,9 +344,13 @@ describe('create wizard', () => {
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: jdates[jdates.length - 1] } })
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '5' } })
+    // the form date overlaps the seed, so its warnings need an explicit acknowledgement first
     fireEvent.click(screen.getByTestId('save-appt'))
-    const t = await screen.findByText(/skipped \(conflict\)/)
-    expect(t.textContent).toMatch(/Created \d+ occurrences · \d+ skipped \(conflict\)/)
+    fireEvent.click(await screen.findByTestId('appt-ack-warns'))
+    fireEvent.click(screen.getByTestId('save-appt'))
+    // a clashing occurrence is rejected and the report names the date (audit CFG-03)
+    const t = await screen.findByText(/rejected \(/)
+    expect(t.textContent).toMatch(/Created \d+ occurrences · \d+ rejected \(/)
   })
 
   it('unified Location dropdown: search, list, and free-text creation (no native select)', async () => {
@@ -570,11 +574,13 @@ describe('billing, verification & signature', () => {
     fireEvent.click(screen.getByText('Verification'))
     fireEvent.click(screen.getByText('Session data captured in EHR'))
     expect(screen.getByText('Session data captured in EHR').closest('.checkrow').className).toContain('on')
-    // switch to type-sign mode and sign
-    fireEvent.click(screen.getByText('⌨ Type'))
-    fireEvent.change(screen.getByTestId('sig-type'), { target: { value: 'Prateek Kiran' } })
-    fireEvent.click(screen.getByTestId('sig-sign'))
-    await screen.findAllByText(/Signed by Prateek Kiran/)
+    // switch to type-sign mode and sign — the STAFF pad (a payer's client/guardian
+    // pad renders alongside it when the rule asks for one)
+    const staffPad = await screen.findByTestId('am-staff-sig')
+    fireEvent.click(within(staffPad).getByText('⌨ Type'))
+    fireEvent.change(within(staffPad).getByTestId('sig-type'), { target: { value: 'Prateek Kiran' } })
+    fireEvent.click(within(staffPad).getByTestId('sig-sign'))
+    await within(staffPad).findByText(/Signed by Prateek Kiran/)
     // certification captured on the signature (the rail's Checks may also quote it in a rule)
     expect(screen.getAllByText(/BCBA #5-12-0034/).some((el) => !el.closest('[data-testid="booking-checks"]'))).toBe(true)
     expect(screen.getByText(/geocode not shared|±\d+m/)).toBeTruthy() // timestamp/geo handling

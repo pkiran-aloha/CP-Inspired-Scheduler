@@ -172,8 +172,8 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
       <React.Fragment key="sys-block-general">
         <Section title="General Settings" sub="Session security, signature policies, cache refresh, and supervision job titles" testId="set-sys-general">
           <div className="set-grid2">
-            <Row label="Staff Signature Required to Complete Appointments" hint="Requires a clinician signature before a session can be marked Completed">
-              <Toggle on={sysCfg.general?.staffSignatureRequired !== false} disabled={readOnly} testid="set-sys-gen-sigreq" onChange={(v) => patchSysCfg('general', { staffSignatureRequired: v })} />
+            <Row label="Staff Signature Required to Complete Appointments" hint="Requires a staff verification signature before a session can be marked Completed">
+              <Toggle on={sysCfg.general?.staffSigRequiredToComplete === true} disabled={readOnly} testid="set-sys-gen-sigreq" onChange={(v) => patchSysCfg('general', { staffSigRequiredToComplete: v })} />
             </Row>
             <Row label="MFA Required" hint="Enforces multi-factor verification policy on user accounts">
               <Toggle on={!!sysCfg.general?.mfaRequired} disabled={readOnly} testid="set-sys-gen-mfa" onChange={(v) => patchSysCfg('general', { mfaRequired: v })} />
@@ -184,7 +184,7 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             <Row label="Locked Session Auto Logout in Minutes" hint="Time on lock screen before terminating the session">
               <NumberField value={sysCfg.general?.autoLogoutMinutes ?? 60} min={5} max={480} suffix="min" disabled={readOnly} testid="set-sys-gen-logout" onCommit={(v) => patchSysCfg('general', { autoLogoutMinutes: v })} />
             </Row>
-            <Row label="Maximum Appointment Length" hint="Hard ceiling on a single scheduled session (in minutes)">
+            <Row label="Maximum Appointment Length" hint="Warns when a single scheduled session runs longer than this (in minutes) — a warning, not a hard block">
               <NumberField value={sysCfg.general?.maxAppointmentLengthMins ?? 480} min={30} max={1440} step={15} suffix="min" disabled={readOnly} testid="set-sys-gen-maxlen" onCommit={(v) => patchSysCfg('general', { maxAppointmentLengthMins: v })} />
             </Row>
             <Row label="Refresh Cache in Seconds" hint="Schedule board polling / refresh interval">
@@ -352,18 +352,21 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     ),
 
     billing: (
-      <Section key="sys-block-billing" title="Billing defaults" sub="ERA automation, AR Manager behaviour, and authorization/filing controls" testId="set-sys-billing">
-        <div className="set-grid2">
-          <Row label="Enable ERA (835 Electronic Remittance)" hint="Allows importing and auto-matching 835 ERA payment files">
+        <Section key="sys-block-billing" title="Billing defaults" sub="ERA automation, AR Manager behaviour, and authorization/filing controls" testId="set-sys-billing">
+          <Banner tone="info" testid="set-bill-stub-note">
+            “Enable ERA” is live — it gates 835 import in the Payment Center. The AR Manager and auto-transfer switches are saved with the workspace but not yet enforced in this build.
+          </Banner>
+          <div className="set-grid2">
+          <Row label="Enable ERA (835 Electronic Remittance)" hint="Gates 835 ERA import in the Payment Center">
             <Toggle on={sysCfg.billing?.enableEra !== false} disabled={readOnly} testid="set-bill-era" onChange={(v) => patchSysCfg('billing', { enableEra: v })} />
           </Row>
-          <Row label="AR Manager - Load Records on Generate" hint="Automatically populates aging records when opening the AR ledger">
+          <Row label="AR Manager - Load Records on Generate" hint="Saved but not enforced in this build — the AR ledger always loads its records">
             <Toggle on={sysCfg.billing?.arLoadOnGenerate !== false} disabled={readOnly} testid="set-bill-arload" onChange={(v) => patchSysCfg('billing', { arLoadOnGenerate: v })} />
           </Row>
-          <Row label="Auto Transfer to Secondary" hint="Automatically queues secondary COB claims when primary posts a balance">
+          <Row label="Auto Transfer to Secondary" hint="Saved but not enforced in this build — secondary claims are queued from the Secondary desk">
             <Toggle on={sysCfg.billing?.autoTransferSecondary !== false} disabled={readOnly} testid="set-bill-autosec" onChange={(v) => patchSysCfg('billing', { autoTransferSecondary: v })} />
           </Row>
-          <Row label="New ERA Preview" hint="Shows side-by-side line adjudication preview before posting ERA">
+          <Row label="New ERA Preview" hint="Saved but not enforced in this build — every 835 import shows the same line review">
             <Toggle on={sysCfg.billing?.newEraPreview !== false} disabled={readOnly} testid="set-bill-erapreview" onChange={(v) => patchSysCfg('billing', { newEraPreview: v })} />
           </Row>
           <Row label="Strict authorization (block billing without auth)">
@@ -382,18 +385,21 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     appointment: (
       <React.Fragment key="sys-block-appointments">
         <Section title="Appointment Settings" sub="Clock-in/out automation, signature completion triggers, and verification time sync" testId="set-sys-appointments">
+          <Banner tone="info" testid="set-appt-stub-note">
+            There is no EVV clock-in/out flow in this build — the clock and time-sync switches are saved with the workspace but not enforced. The signature-completion switch is live: Quick Verify completes a session when it is on.
+          </Banner>
           <div className="set-grid2">
-            <Row label="Enable Clock In & Out" hint="Displays EVV clock-in and clock-out timestamps on session cards">
+            <Row label="Enable Clock In & Out" hint="Saved but not enforced in this build — no EVV clock-in/out flow exists yet">
               <Toggle on={sysCfg.appointment?.enableClockInOut !== false} disabled={readOnly} testid="set-appt-clockinout" onChange={(v) => patchSysCfg('appointment', { enableClockInOut: v })} />
             </Row>
-            <Row label="Clock Out completes Appointment" hint="Automatically transitions session status to Completed upon Clock Out">
+            <Row label="Clock Out completes Appointment" hint="Saved but not enforced in this build — no EVV clock-in/out flow exists yet">
               <Toggle on={!!sysCfg.appointment?.clockOutCompletesAppt} disabled={readOnly} testid="set-appt-clockcomplete" onChange={(v) => patchSysCfg('appointment', { clockOutCompletesAppt: v })} />
             </Row>
             <Row label="Staff Signature Completes Appointment" hint="Automatically transitions session status to Completed when signed & verified">
               <Toggle on={sysCfg.appointment?.staffSigCompletesAppt !== false} disabled={readOnly} testid="set-appt-sigcomplete" onChange={(v) => patchSysCfg('appointment', { staffSigCompletesAppt: v })} />
             </Row>
-            <Row label="Sync Verification Time to Appointment Time" hint="Updates scheduled start/end times to match verified EVV timestamps">
-              <Toggle on={!!sysCfg.appointment?.syncVerifTimeToAppt} disabled={readOnly} testid="set-appt-synctime" onChange={(v) => patchSysCfg('appointment', { syncVerifTimeToAppt: v })} />
+            <Row label="Sync Verification Time to Appointment Time" hint="Saved but not enforced in this build — verified times never rewrite the schedule here">
+              <Toggle on={!!sysCfg.appointment?.syncVerificationTime} disabled={readOnly} testid="set-appt-synctime" onChange={(v) => patchSysCfg('appointment', { syncVerificationTime: v })} />
             </Row>
           </div>
         </Section>
@@ -564,51 +570,54 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     ),
 
     notifications: (
-      <Section key="sys-block-notifications" title="Notifications" sub="Staff alerts, credential expiry reminders, and operational billing notifications" testId="set-sys-notify">
+      <Section key="sys-block-notifications" title="Notifications" sub="Inbox alerts — every switch below turns a real alert on or off" testId="set-sys-notify">
         <div className="set-subcard" style={{ marginBottom: 12 }}>
           <b style={{ display: 'block', marginBottom: 8 }}>Staff Notifications</b>
           <div className="set-grid2">
-            <Row label="Staff Birthday"><Toggle on={notify.staffBirthday !== false} disabled={readOnly} testid="set-notify-birthday" onChange={(v) => setNotify({ staffBirthday: v })} /></Row>
-            <Row label="Clinical Team Updates"><Toggle on={notify.clinicalTeam !== false} disabled={readOnly} testid="set-notify-team" onChange={(v) => setNotify({ clinicalTeam: v })} /></Row>
-            <Row label="Sub-ordinate Alerts"><Toggle on={!!notify.subordinate} disabled={readOnly} testid="set-notify-subordinate" onChange={(v) => setNotify({ subordinate: v })} /></Row>
-            <Row label="Supervisor Alerts"><Toggle on={notify.supervisor !== false} disabled={readOnly} testid="set-notify-supervisor" onChange={(v) => setNotify({ supervisor: v })} /></Row>
-            <Row label="Qualification Expiration">
+            <Row label="Task reminders" hint="Overdue and due-today tasks in the inbox">
+              <Toggle on={notify.staffTasks !== false} disabled={readOnly} testid="set-notify-tasks" onChange={(v) => setNotify({ staffTasks: v })} />
+            </Row>
+            <Row label="Qualification Expiration" hint="Credential documents expiring in the Cabinet">
               <div className="set-inline">
-                <Toggle on={notify.qualificationExpiration !== false} disabled={readOnly} testid="set-notify-qualexp" onChange={(v) => setNotify({ qualificationExpiration: v })} />
-                <Select value={notify.qualificationExpirationFreq || '30d'} wide={140} disabled={readOnly || notify.qualificationExpiration === false} testid="set-notify-qualexp-freq"
+                <Toggle on={notify.staffQualExpiration !== false} disabled={readOnly} testid="set-notify-qualexp" onChange={(v) => setNotify({ staffQualExpiration: v })} />
+                <Select value={`${notify.staffQualFrequencyDays ?? 30}d`} wide={140} disabled={readOnly || notify.staffQualExpiration === false} testid="set-notify-qualexp-freq"
                   options={[{ value: '7d', label: '7 days prior' }, { value: '14d', label: '14 days prior' }, { value: '30d', label: '30 days prior' }, { value: '60d', label: '60 days prior' }]}
-                  onChange={(v) => setNotify({ qualificationExpirationFreq: v })} />
+                  onChange={(v) => setNotify({ staffQualFrequencyDays: parseInt(String(v).replace(/[^\d]/g, ''), 10) || 30 })} />
               </div>
             </Row>
-            <Row label="Incomplete Appointments">
+            <Row label="Incomplete Appointments" hint="Past sessions still awaiting a completion status">
               <div className="set-inline">
-                <Toggle on={notify.incompleteAppointments !== false} disabled={readOnly} testid="set-notify-incomplete" onChange={(v) => setNotify({ incompleteAppointments: v })} />
-                <NumberField value={notify.incompleteLookbackDays ?? 7} min={1} max={90} suffix="days" disabled={readOnly || notify.incompleteAppointments === false} testid="set-notify-incomplete-days" onCommit={(v) => setNotify({ incompleteLookbackDays: v })} />
+                <Toggle on={notify.staffIncompleteAppts !== false} disabled={readOnly} testid="set-notify-incomplete" onChange={(v) => setNotify({ staffIncompleteAppts: v })} />
+                <NumberField value={notify.staffIncompleteLookbackDays ?? 7} min={1} max={90} suffix="days" disabled={readOnly || notify.staffIncompleteAppts === false} testid="set-notify-incomplete-days" onCommit={(v) => setNotify({ staffIncompleteLookbackDays: v })} />
               </div>
             </Row>
-            <Row label="Time Sheet Submission">
-              <div className="set-inline">
-                <Toggle on={notify.timesheetSubmission !== false} disabled={readOnly} testid="set-notify-timesheet" onChange={(v) => setNotify({ timesheetSubmission: v })} />
-                <NumberField value={notify.timesheetOffsetHours ?? 24} min={1} max={168} suffix="hrs" disabled={readOnly || notify.timesheetSubmission === false} testid="set-notify-timesheet-hrs" onCommit={(v) => setNotify({ timesheetOffsetHours: v })} />
-              </div>
-            </Row>
-            <Row label="Client Assignment"><Toggle on={notify.clientAssignment !== false} disabled={readOnly} testid="set-notify-assignment" onChange={(v) => setNotify({ clientAssignment: v })} /></Row>
           </div>
         </div>
         <div className="set-grid2">
-          <Row label="Timely filing deadlines"><Toggle on={notify.timelyFiling !== false} disabled={readOnly} testid="set-sys-filing" onChange={(v) => setNotify({ timelyFiling: v })} /></Row>
+          <Row label="Timely filing deadlines" hint="Claims whose filing window has closed">
+            <Toggle on={notify.timelyFiling !== false} disabled={readOnly} testid="set-sys-filing" onChange={(v) => setNotify({ timelyFiling: v })} />
+          </Row>
           <Row label="Authorisation expiries"><Toggle on={notify.authExpiry !== false} disabled={readOnly} testid="set-sys-auth" onChange={(v) => setNotify({ authExpiry: v })} /></Row>
-          <Row label="Parked ERA payments"><Toggle on={notify.parkedEra !== false} disabled={readOnly} testid="set-sys-era" onChange={(v) => setNotify({ parkedEra: v })} /></Row>
-          <Row label="Secondary claims ready"><Toggle on={notify.secondaryReady !== false} disabled={readOnly} testid="set-sys-secondary" onChange={(v) => setNotify({ secondaryReady: v })} /></Row>
+          <Row label="Parked ERA payments" hint="Unapplied payments waiting to be matched">
+            <Toggle on={notify.parkedEra !== false} disabled={readOnly} testid="set-sys-era" onChange={(v) => setNotify({ parkedEra: v })} />
+          </Row>
+          <Row label="Secondary claims ready" hint="Primary claims with a balance ready for secondary filing">
+            <Toggle on={notify.secondaryReady !== false} disabled={readOnly} testid="set-sys-secondary" onChange={(v) => setNotify({ secondaryReady: v })} />
+          </Row>
           <Row label="Intake SLA breaches"><Toggle on={notify.intakeSla !== false} disabled={readOnly} testid="set-sys-sla" onChange={(v) => setNotify({ intakeSla: v })} /></Row>
-          <Row label="Browser toasts while the tab is open"><Toggle on={!!notify.browserToasts} disabled={readOnly} testid="set-sys-toasts" onChange={(v) => setNotify({ browserToasts: v })} /></Row>
+          <Row label="Denied claims" hint="Denied claims to work in the billing desk">
+            <Toggle on={notify.deniedClaims !== false} disabled={readOnly} testid="set-notify-denied" onChange={(v) => setNotify({ deniedClaims: v })} />
+          </Row>
+          <Row label="Browser toasts while the tab is open" hint="Surfaces urgent (stop-tone) inbox alerts as a toast once per session">
+            <Toggle on={!!notify.browserToasts} disabled={readOnly} testid="set-sys-toasts" onChange={(v) => setNotify({ browserToasts: v })} />
+          </Row>
         </div>
         <Banner tone="info">Notification preferences only change what the local workspace highlights. This demo never sends mail, SMS or push messages.</Banner>
       </Section>
     ),
 
     'clinical-integrations': (
-      <Section key="sys-block-clinical" title="Clinical Integrations" sub="ABA clinical data-collection platforms (Ensora, Hi Rasmus, Motivity, Welina, Catalyst, Passage Health)" testId="set-sys-clinical-integrations">
+      <Section key="sys-block-clinical" title="Clinical Integrations" sub="Clinical platforms and data seams (Ensora, Hi Rasmus, Motivity, Welina, EMR/FHIR hand-off)" testId="set-sys-clinical-integrations">
         <DataTable
           testid="set-sys-clinical-table"
           empty="No clinical integrations configured."
@@ -657,8 +666,11 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     other: (
       <React.Fragment key="sys-block-other">
         <Section title="Other Settings" sub="Distance units, Client Portal visible balance columns, and accepted payment gateway methods" testId="set-sys-other">
+          <Banner tone="info" testid="set-other-stub-note">
+            No payment gateway and no client portal ship in this build — the selections below are saved with the workspace for when they do. Distance is always shown in miles here.
+          </Banner>
           <div className="set-grid2">
-            <Row label="Distance Unit">
+            <Row label="Distance Unit" hint="Saved with the workspace; distances show in miles throughout this build">
               <Seg
                 value={sysCfg.other?.distanceUnit || 'miles'}
                 disabled={readOnly}
@@ -670,10 +682,14 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             </Row>
             <Row label="Payment Gateway Methods" stack>
               <div className="set-inline" style={{ flexWrap: 'wrap', gap: 6 }}>
-                {[['card', 'Credit / Debit Card'], ['ach', 'ACH Bank Transfer'], ['check', 'Check'], ['cash', 'Cash']].map(([id, label]) => {
-                  const rawMethods = sysCfg.other?.paymentGatewayMethods
-                  const methods = Array.isArray(rawMethods) ? rawMethods : ['card', 'ach', 'check']
-                  const on = methods.includes(id)
+                {[
+                  ['creditCard', 'Credit / Debit Card'],
+                  ['ach', 'ACH Bank Transfer'],
+                  ['hsaFsa', 'HSA / FSA'],
+                  ['appleGooglePay', 'Apple & Google Pay'],
+                ].map(([id, label]) => {
+                  const methods = sysCfg.other?.paymentGatewayMethods || {}
+                  const on = methods[id] !== false
                   return (
                     <button
                       key={id}
@@ -681,7 +697,7 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
                       className={`checkbox ${on ? 'on' : ''}`}
                       disabled={readOnly}
                       data-testid={`set-other-pay-${id}`}
-                      onClick={() => patchSysCfg('other', { paymentGatewayMethods: on ? methods.filter((x) => x !== id) : [...methods, id] })}
+                      onClick={() => patchSysCfg('other', { paymentGatewayMethods: { ...methods, [id]: !on } })}
                     >
                       {label}
                     </button>
@@ -692,9 +708,8 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             <Row label="Client Portal — Current Balance Columns" stack>
               <div className="set-inline" style={{ flexWrap: 'wrap', gap: 6 }}>
                 {[['totalCharges', 'Total Charges'], ['insurancePaid', 'Insurance Paid'], ['patientResponsibility', 'Patient Responsibility'], ['currentBalance', 'Current Balance']].map(([id, label]) => {
-                  const rawCols = sysCfg.other?.portalBalanceColumns
-                  const cols = Array.isArray(rawCols) ? rawCols : ['totalCharges', 'insurancePaid', 'patientResponsibility', 'currentBalance']
-                  const on = cols.includes(id)
+                  const cols = sysCfg.other?.clientPortalColumns || {}
+                  const on = cols[id] !== false
                   return (
                     <button
                       key={id}
@@ -702,7 +717,7 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
                       className={`checkbox ${on ? 'on' : ''}`}
                       disabled={readOnly}
                       data-testid={`set-other-col-${id}`}
-                      onClick={() => patchSysCfg('other', { portalBalanceColumns: on ? cols.filter((x) => x !== id) : [...cols, id] })}
+                      onClick={() => patchSysCfg('other', { clientPortalColumns: { ...cols, [id]: !on } })}
                     >
                       {label}
                     </button>

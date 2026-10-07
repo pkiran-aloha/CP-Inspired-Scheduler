@@ -585,11 +585,15 @@ describe('workspace integration', () => {
     const run = newRun(s, p, { who: 'A' })
     let state = reducer(s, { type: 'payrollTx', scope: 'run', op: 'create', periodId: p.id, options: { who: 'A', included: ['rbt'] } })
     expect(Object.keys(state.payRuns)).toHaveLength(1)
-    // an unrelated setting change must survive the undo of the payroll write
+    // a settings write is its own undoable transaction (audit CFG-12): one Undo
+    // reverts it and touches nothing else, the next Undo reverts the payroll write
     state = reducer(state, { type: 'setSettings', patch: { theme: 'dark' } })
     state = reducer(state, { type: 'undo' })
+    expect(state.settings.theme).toBe(s.settings.theme)
+    expect(Object.keys(state.payRuns)).toHaveLength(1)
+    state = reducer(state, { type: 'undo' })
     expect(Object.keys(state.payRuns)).toHaveLength(0)
-    expect(state.settings.theme).toBe('dark')
+    expect(state.settings.theme).toBe(s.settings.theme)
     expect(run.id).toBeTruthy()
   })
 

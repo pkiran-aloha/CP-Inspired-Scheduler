@@ -25,13 +25,15 @@ export default function NeedsCover({ days, onClose }) {
     const s = row.candidates.find((c) => c.staff.id === staffId)
     if (!s) return
     const prev = { status: row.appt.status, staffIds: row.appt.staffIds, backfilled: row.appt.backfilled, backfillIgnored: row.appt.backfillIgnored }
-    actions.update(row.appt.id, {
+    // re-staffing is a scheduling write — a Stop rule can refuse it (audit CFG-02)
+    const res = actions.update(row.appt.id, {
       status: 'active',
       staffIds: [s.staff.id],
       backfilled: true,
       backfilledFrom: row.appt.staffIds || [],
       backfillIgnored: false,
     })
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({
       message: `Slot reactivated — ${s.staff.name.split(' ')[0]} covers ${fmtDayLabel(row.appt.date)} · ${s.reasons[0] || 'free at this time'}`,
       kind: 'ok',

@@ -7,7 +7,7 @@ import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO, todayISO } from '../lib/date'
 import { dueOf, isPrimaryReceivable, patientResponsibilityOf, PATIENT_AR_BUCKET } from '../lib/claims'
 import { parse835 } from '../lib/era'
-import { paymentLinkFor } from '../lib/settingsMasters'
+import { paymentLinkFor, systemConfigFor } from '../lib/settingsMasters'
 import { previewEra } from '../lib/eraPosting'
 import { build835ErrorReport } from '../lib/billingDocs'
 import { buildPatientReceiptAudit, RECOUP_REASONS, RECOUP_METHODS } from '../lib/paymentLedger'
@@ -190,6 +190,13 @@ function UploadEraForm({ state, onSaved }) {
   const [shown, setShown] = useState(50)
   const [error, setError] = useState('')
   const preview = useMemo(() => parsed ? previewEra(state, parsed) : null, [parsed, state.claims, state.payments, state.eraImports])
+  // The ERA switch in Settings owns this form: off means no 835 import at all (audit CFG-09).
+  const eraOff = systemConfigFor(state.settings).billing?.enableEra === false
+  if (eraOff) {
+    return <div className="pc-form" data-testid="pc-upload-era">
+      <p className="muted" style={{ margin: 0, fontSize: 12 }}>ERA import is switched off — turn on “Enable ERA (835 Electronic Remittance)” in Settings → System → Billing defaults to import 835 files here.</p>
+    </div>
+  }
   const onFile = async (e) => {
     const file = e.target.files?.[0]
     setParsed(null); setSelected([]); setShown(50); setError('')
@@ -305,6 +312,8 @@ export default function PaymentCenterView() {
   const [manualApply, setManualApply] = useState('unapplied')
   const [openEra, setOpenEra] = useState(false)
   const [openRecoup, setOpenRecoup] = useState(false)
+  // Settings → System → Billing defaults: the ERA switch gates 835 import here (audit CFG-09)
+  const eraEnabled = systemConfigFor(settings).billing?.enableEra !== false
   useEffect(() => {
     if (ui.paymentClaimId || ui.patientClaimId) {
       setManualApply(ui.patientClaimId ? 'patient' : 'claim')
@@ -353,7 +362,7 @@ export default function PaymentCenterView() {
       <button className="btn btn-sm" data-testid="pc-open-patient" onClick={() => { setManualApply('patient'); setOpenMan(true) }} style={{ borderRadius: 10 }}>+ Patient receipt</button>
       <button className="btn btn-sm" data-testid="pc-open-recoup" onClick={() => setOpenRecoup(true)} style={{ borderRadius: 10 }}>+ Recoupment</button>
       <button className="btn btn-sm" data-testid="pc-export-patient" onClick={() => { download(`Patient-receipts-${todayISO()}.csv`, buildPatientReceiptAudit(state), 'text/csv'); toast({ message: 'Local patient receipt audit downloaded — verify against external deposits', kind: 'ok' }) }} style={{ borderRadius: 10 }}>Patient audit CSV</button>
-      <button className="btn btn-sm" data-testid="pc-open-era" onClick={() => { setEntryMode('upload'); setOpenEra(true) }} style={{ borderRadius: 10 }}>Upload ERA (835)</button>
+      <button className="btn btn-sm" data-testid="pc-open-era" disabled={!eraEnabled} title={eraEnabled ? undefined : 'ERA import is switched off — turn on “Enable ERA” in Settings → System → Billing defaults'} onClick={() => { setEntryMode('upload'); setOpenEra(true) }} style={{ borderRadius: 10 }}>Upload ERA (835)</button>
     </SectionBar>
     <div className="batch-strip pc-tabs" data-testid="pc-tabs"><button className={tab === 'payments' ? 'on' : ''} data-testid="pc-tab-payments" onClick={() => setTab('payments')}>Payments</button><button className={tab === 'eras' ? 'on' : ''} data-testid="pc-tab-eras" onClick={() => setTab('eras')}>ERAs ({Object.keys(state.eraImports || {}).length})</button></div>
     {tab === 'payments' ? <>

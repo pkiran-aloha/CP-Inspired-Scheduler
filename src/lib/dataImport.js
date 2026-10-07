@@ -12,7 +12,7 @@
  */
 import { uid } from './model'
 import { STATUSES } from './model'
-import { apptStatusList, officeNames, settingsOffices } from './settingsMasters'
+import { apptStatusList, officeNames, settingsOffices, stopViolationsForDraft } from './settingsMasters'
 import { ABA_ACTIVITIES } from './abaHours'
 import { isServiceAppt } from './model'
 import { parseISO, isoDate } from './date'
@@ -268,6 +268,8 @@ export function validateImport(state, typeId, matrix, mapping) {
   const issues = []
   const records = []
   const seen = new Set()
+  // appointment rows are validated against each other as well as the live calendar
+  const importAppts = {}
   matrix.forEach((row, index) => {
     const raw = {}
     for (const [col, key] of Object.entries(mapping)) if (key) raw[key] = row[Number(col)] ?? ''
@@ -433,6 +435,22 @@ export function validateImport(state, typeId, matrix, mapping) {
         seen.add(key)
         const clash = Object.values(state.appts || {}).find((a) => (a.clientIds || []).includes(rec.clientId) && a.date === rec.date && a.start === rec.start)
         rec.existingId = clash?.id || null
+      }
+      // Stop-severity validation rules are a write-time invariant (audit CFG-02): an
+      // import row that trips one is refused like any other booking write. Rows are
+      // evaluated against the live calendar plus the rows already accepted above.
+      if (rec.date && rec.start != null && rec.end != null && rec.clientId && rec.staffIds.length) {
+        const wouldBe = {
+          ...(rec.existingId && state.appts?.[rec.existingId] ? state.appts[rec.existingId] : {}),
+          id: rec.existingId || `import-${rec.line}`,
+          date: rec.date, start: rec.start, end: rec.end,
+          clientIds: [rec.clientId], staffIds: rec.staffIds,
+          type: rec.type, status: rec.statusKey, location: rec.location || '',
+          abaHr: rec.abaHr, ...(rec.abaActivity ? { abaActivity: rec.abaActivity } : {}),
+        }
+        const view = { ...state, appts: { ...(state.appts || {}), ...importAppts } }
+        for (const s of stopViolationsForDraft(view, wouldBe)) errs.push(`Stop rule blocks this row: ${s.label}`)
+        importAppts[wouldBe.id] = wouldBe
       }
     }
     if (errs.length) issues.push({ line, errors: errs, name: rec.name || rec.clientName || '' })

@@ -3,10 +3,11 @@ import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { Dropdown, InlineSelect, InlineText } from './fields'
+import { Banner } from './settings/kit'
 import { CfPickRow } from './CfPick.jsx'
 import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
-import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
+import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs, cfScopesFor } from '../lib/master'
 import { BILL_CODES, QUAL_MODIFIER_KEYS, uid } from '../lib/model'
 import { PROVIDER_ID_RULES, providerIdRule, providerIdIssues } from '../lib/providerIds'
 import { PAYER_KINDS, payerPolicy } from '../lib/claims'
@@ -117,6 +118,10 @@ function ProfileTab({ p, patch }) {
   const [cfEdit, setCfEdit] = useState(null) // 'new' | def — full editor, opened from INSIDE the picker
   const fields = payerFieldDefs(state, p)
   const templates = state.customFields || []
+  // Audit CFG-07: the picker offers the templates scoped to Payer Profile (plus any
+  // this payer already picked, so they can be unlinked) — client-, authorization- or
+  // staff-scoped templates never appear here.
+  const scopedTemplates = templates.filter((t) => (p.cf || []).includes(t.id) || cfScopesFor(t).includes('payer'))
   const phone = (p.contacts || []).find((c) => c.kind === 'Main')?.number || ''
   const fax = (p.contacts || []).find((c) => c.kind === 'Fax')?.number || ''
   const portal = (p.contacts || []).find((c) => c.kind === 'Claims portal')?.number || ''
@@ -186,7 +191,7 @@ function ProfileTab({ p, patch }) {
         <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{fields.length > 0 && <span className="pd-cfn">{fields.length}</span>}<span className="an-spacer" />
           <span className="muted" style={{ fontSize: 10.6 }}>selectable · never pre-selected</span>
         </div>
-        <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. They then appear on appointments and exports automatically.</p>
+        <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. Sessions add them opt-in from the booking dialog, and captured values show on the appointment detail; no claim, CMS-1500 or export reads them yet.</p>
         {fields.length === 0 && <div className="muted pd-cfempty">No fields picked yet.</div>}
         {fields.length > 0 && (
           <div className="pcf-rows" data-testid="pd-cf-list">
@@ -217,7 +222,7 @@ function ProfileTab({ p, patch }) {
         )}
         <div className="pd-cfadd">
           <button className="btn btn-sm btn-primary" data-testid="pd-cf-pick" onClick={() => setPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
-          <span className="muted" style={{ fontSize: 11.5 }}>{templates.filter((t) => t.status !== 'inactive' && !(p.cf || []).includes(t.id)).length} template(s) not yet used by this payer</span>
+          <span className="muted" style={{ fontSize: 11.5 }}>{scopedTemplates.filter((t) => t.status !== 'inactive' && !(p.cf || []).includes(t.id)).length} template(s) not yet used by this payer</span>
         </div>
       </div>
 
@@ -232,9 +237,9 @@ function ProfileTab({ p, patch }) {
               <button className="iconbtn modal-x" aria-label="Close" data-testid="pd-cf-picker-close" onClick={() => setPick(false)}>{Icon.x({ size: 14 })}</button>
             </div>
             <div className="modal-body">
-              {templates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No templates defined yet — create the first one with “Add template” below.</div>}
+              {scopedTemplates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No payer-scoped templates yet — scope one to Payer Profile on the Custom Fields master page, or create one with “Add template” below.</div>}
               <div className="cf-picklist">
-                {templates.map((t) => {
+                {scopedTemplates.map((t) => {
                   const on = (p.cf || []).includes(t.id)
                   const used = usedBy(t.id)
                   return (
@@ -654,32 +659,45 @@ function RuleBody({ p, section, patch, saved }) {
 
   if (section === 'claims') {
     const opts = (arr) => [{ value: '—', label: '—' }, ...arr.map((x) => ({ value: x, label: x }))]
-    const sel = (k, label, list, hint) => (
+    // Audit CFG-06: options with no reader in claim assembly / CMS-1500 code are
+    // disabled and labelled, so the panel never implies an effect the claim output
+    // does not have.
+    const NA = 'Not available in this build — saved with the payer record but not applied when the CMS-1500 is assembled.'
+    const sel = (k, label, list, hint, na = false) => (
       <div className="pr-frow" data-testid={`clm-row-${k}`}>
-        <span className="pr-flabel" title={hint || ''}>{label}</span>
-        <Dropdown testid={`clm-${k}`} value={clm[k] || '—'} onChange={(v) => setClm({ ...clm, [k]: v })} options={opts(list)} />
+        <span className="pr-flabel" title={na ? NA : (hint || '')}>{label}{na ? ' (not available)' : ''}</span>
+        <Dropdown testid={`clm-${k}`} value={clm[k] || '—'} onChange={(v) => setClm({ ...clm, [k]: v })} options={opts(list)} disabled={na} />
       </div>
     )
-    const chk = (k, label) => (
-      <label className="pr-check"><input type="checkbox" checked={Boolean(clm.flags[k])} data-testid={`clm-flag-${k}`} onChange={(e) => setClm({ ...clm, flags: { ...clm.flags, [k]: e.target.checked } })} /><span>{label}</span></label>
+    const chk = (k, label, na = false) => (
+      <label className="pr-check"><input type="checkbox" checked={Boolean(clm.flags[k])} disabled={na} data-testid={`clm-flag-${k}`} onChange={(e) => setClm({ ...clm, flags: { ...clm.flags, [k]: e.target.checked } })} /><span>{label}{na ? ' (not available)' : ''}</span></label>
     )
     return (
       <div className="pr-sec" data-testid="pr-claims">
         <SecHead t="Claims Settings" s="Boxes and routing options applied when this payer’s CMS-1500 is assembled." />
+        <Banner tone="info" testid="pr-claims-na-note">
+          Working options: Box 32 behavior, same-day merging, credential modifiers and the claim split keys below.
+          Box 17, Box 19, Box 33B, Box 33B2, claim file grouping, appointment time and the taxonomy / rendering
+          checkboxes are saved with the payer record but not yet applied when the claim is assembled — they stay
+          disabled so the panel does not imply an effect the CMS-1500 does not have.
+        </Banner>
         <div className="pr-fields">
-          {sel('separateBy', 'Separate Claim By', ['Rendering Provider', 'Service Provider', 'Supervising Provider', 'Place of Service'], 'Split claims that would otherwise mix these values')}
-          {sel('box17', 'Box 17 — Referring Provider', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider', 'Always Display if a Referring Provider exists, even if same as billing provider'])}
-          {sel('box19', 'Box 19 — Continue Hospital Info', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider'])}
+          <div className="pr-frow" data-testid="clm-row-separateBy">
+            <span className="pr-flabel" title="Split claims that would otherwise mix these values. A session records one clinician, so both provider choices split by that clinician; “Supervising Provider” is not offered because sessions record no supervisor.">Separate Claim By</span>
+            <Dropdown testid="clm-separateBy" value={clm.separateBy || '—'} onChange={(v) => setClm({ ...clm, separateBy: v })} options={[{ value: '—', label: '—' }, { value: 'Rendering Provider', label: 'Rendering Provider (the session’s clinician)' }, { value: 'Service Provider', label: 'Service Provider (same split — the session’s clinician)' }, { value: 'Place of Service', label: 'Place of Service' }]} />
+          </div>
+          {sel('box17', 'Box 17 — Referring Provider', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider', 'Always Display if a Referring Provider exists, even if same as billing provider'], undefined, true)}
+          {sel('box19', 'Box 19 — Continue Hospital Info', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider'], undefined, true)}
           {sel('box32', 'Box 32 — Service Facility Name & Location', ['Auto-populate if blank, leave blank if same as billing NPI', 'Always display Service Facility Name and Location', 'Never display Service Facility Name and Location'])}
-          {sel('box33B', 'Box 33B — Payer ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], 'Only shown when it differs from Box 33A')}
-          {sel('box33B2', 'Secondary Payer — ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'])}
-          {sel('file', 'Claim File Options', ['One file per claim', 'One claim per file', 'One file per payer per day'], 'How claim files are grouped for the clearing house')}
-          {sel('apptTime', 'Include Appointment Time on Claim', ['Do not include', 'Include appointment start time', 'Include appointment start & end time'])}
+          {sel('box33B', 'Box 33B — Payer ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], 'Only shown when it differs from Box 33A', true)}
+          {sel('box33B2', 'Secondary Payer — ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], undefined, true)}
+          {sel('file', 'Claim File Options', ['One file per claim', 'One claim per file', 'One file per payer per day'], 'How claim files are grouped for the clearing house', true)}
+          {sel('apptTime', 'Include Appointment Time on Claim', ['Do not include', 'Include appointment start time', 'Include appointment start & end time'], undefined, true)}
         </div>
         <div className="pr-checks">
-          {chk('renderProvider', 'Use Service Provider as Rendering Provider')}
-          {chk('renderTaxo', 'Include Rendering Provider Taxonomy Code on Claim')}
-          {chk('billTaxo', 'Include Billing Provider Taxonomy Code on Claim')}
+          {chk('renderProvider', 'Use Service Provider as Rendering Provider', true)}
+          {chk('renderTaxo', 'Include Rendering Provider Taxonomy Code on Claim', true)}
+          {chk('billTaxo', 'Include Billing Provider Taxonomy Code on Claim', true)}
           {chk('mergeSameDay', 'Merge appointments for same day, same client and same service provider into one charge line')}
           {chk('credentialMods', "Add the rendering provider's credential modifier to each line (HO BCBA · HN BCaBA · HM RBT · HP Psychologist), the Medicaid norm")}
         </div>
@@ -747,8 +765,8 @@ function RuleBody({ p, section, patch, saved }) {
         ))}
         <button className="btn btn-sm pr-addrule" data-testid="pos-add" onClick={() => setPos({ ...pos, rows: [...pos.rows, { pos: '99', mod: '' }] })}>{Icon.plus({ size: 12 })} Add row</button>
         <div className="pr-checks">
-          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleOther} data-testid="pos-hide02" onChange={(e) => setPos({ ...pos, hideTeleOther: e.target.checked })} /><span>Hide POS-02 (other than patient home) in Appointment Location</span></label>
-          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleHome} data-testid="pos-hide10" onChange={(e) => setPos({ ...pos, hideTeleHome: e.target.checked })} /><span>Hide POS-10 (rendered from home) in Appointment Location</span></label>
+          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleOther} disabled data-testid="pos-hide02" onChange={(e) => setPos({ ...pos, hideTeleOther: e.target.checked })} /><span>Hide POS-02 (other than patient home) in Appointment Location — not available: every video location codes POS-10, so there are no POS-02 locations to hide</span></label>
+          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleHome} data-testid="pos-hide10" onChange={(e) => setPos({ ...pos, hideTeleHome: e.target.checked })} /><span>Hide POS-10 (rendered from home) in Appointment Location — telehealth locations leave the booking picker for this payer’s clients</span></label>
         </div>
         <SaveRow onCancel={saved} onSave={() => { patch({ rules: { ...rules, posMods: pos.rows, hideTeleOther: pos.hideTeleOther, hideTeleHome: pos.hideTeleHome } }, 'POS modifiers saved'); saved() }} />
       </div>

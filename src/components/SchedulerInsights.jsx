@@ -113,7 +113,9 @@ export default function SchedulerInsights({ days, onClose }) {
       return
     }
     const prev = row.from
-    actions.move(row.apptId, plan.patch)
+    // a Stop rule can refuse the suggested move (audit CFG-02)
+    const res = actions.move(row.apptId, plan.patch)
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({
       message: `${plan.msg} Press U to undo.`,
       kind: 'ok',

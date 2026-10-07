@@ -320,7 +320,7 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
         </div>
         <Banner tone="warn" testid="set-integrations-note">
           Nothing here opens a network connection. What exists is real <b>local export</b> (ICS feed, QuickBooks CSV, backup JSON);
-          clinical data collection partners (Ensora, Hi Rasmus, Motivity, Welina, Catalyst, Passage Health), clearinghouse and eligibility rows are documented seams kept honest by their status.
+          clinical data-collection partners (Ensora, Hi Rasmus, Motivity, Welina), the EMR/FHIR hand-off, clearinghouse and eligibility rows are documented seams kept honest by their status.
           This browser-local prototype has no server-side secret vault, so the app does not accept or retain API keys and tokens in integration records. Do not enter live credentials.
         </Banner>
       </Section>

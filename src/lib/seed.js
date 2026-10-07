@@ -114,18 +114,18 @@ export const TEAM_DEFS = [
 ]
 // Custom Fields master — reusable typed templates; payers only reference these ids
 export const CF_DEFS = [
-  { id: 'cf-authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3', 'School Liaison'], required: false, note: 'Which department issued the auth — printed on the claim remarks.', status: 'active' },
-  { id: 'cf-waiver', label: 'Service waiver on file', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Copay/coinsurance waiver documentation received.', status: 'active' },
-  { id: 'cf-present', label: 'Caregiver present', type: 'toggle', onLabel: 'Present', offLabel: 'Not present', required: false, note: '', status: 'active' },
-  { id: 'cf-goals', label: 'Session focus areas', type: 'multi', options: ['Mandec', 'Toilet training', 'Sleep routine', 'Play skills', 'Feeding', 'Safety skills'], required: false, note: 'Tick every goal targeted during the session.', status: 'active' },
-  { id: 'cf-parentsig', label: 'Parent/Caregiver signature', type: 'signature', required: true, note: 'Capture at the end of any parent-training session.', status: 'active' },
-  { id: 'cf-teleconf', label: 'Telehealth consent confirmed', type: 'text', required: false, note: 'Verbal consent wording or link sent.', status: 'inactive' },
+  { id: 'cf-authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3', 'School Liaison'], required: false, note: 'Which department issued the auth — printed on the claim remarks.', status: 'active', assignedTo: ['appointment', 'payer'] },
+  { id: 'cf-waiver', label: 'Service waiver on file', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Copay/coinsurance waiver documentation received.', status: 'active', assignedTo: ['appointment', 'payer'] },
+  { id: 'cf-present', label: 'Caregiver present', type: 'toggle', onLabel: 'Present', offLabel: 'Not present', required: false, note: '', status: 'active', assignedTo: ['appointment', 'payer'] },
+  { id: 'cf-goals', label: 'Session focus areas', type: 'multi', options: ['Mandec', 'Toilet training', 'Sleep routine', 'Play skills', 'Feeding', 'Safety skills'], required: false, note: 'Tick every goal targeted during the session.', status: 'active', assignedTo: ['appointment', 'payer'] },
+  { id: 'cf-parentsig', label: 'Parent/Caregiver signature', type: 'signature', required: true, note: 'Capture at the end of any parent-training session.', status: 'active', assignedTo: ['appointment'] },
+  { id: 'cf-teleconf', label: 'Telehealth consent confirmed', type: 'text', required: false, note: 'Verbal consent wording or link sent.', status: 'inactive', assignedTo: ['appointment', 'payer'] },
   // chunk-39: the old built-in appointment fields live here now — defined in the master,
   // addable per appointment, NEVER pre-rendered ("Meg Test" deliberately not promoted)
-  { id: 'cf-mycare', label: 'My Care', type: 'multi', options: ['Sensory Diet', 'Feeding Therapy', 'Sleep Protocol', 'Toileting Plan', 'Behavior Support', 'AAC Training', 'Mand Training'], required: false, note: 'Focus areas carried over from the old built-in appointment fields.', status: 'active' },
-  { id: 'cf-yesno', label: 'Yes or No', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
-  { id: 'cf-grade', label: 'Grade', type: 'select', options: ['A', 'B', 'C', 'D', 'E', 'N/A'], required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
-  { id: 'cf-reval', label: 'Re-eval Notes', type: 'text', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active' },
+  { id: 'cf-mycare', label: 'My Care', type: 'multi', options: ['Sensory Diet', 'Feeding Therapy', 'Sleep Protocol', 'Toileting Plan', 'Behavior Support', 'AAC Training', 'Mand Training'], required: false, note: 'Focus areas carried over from the old built-in appointment fields.', status: 'active', assignedTo: ['appointment'] },
+  { id: 'cf-yesno', label: 'Yes or No', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active', assignedTo: ['appointment'] },
+  { id: 'cf-grade', label: 'Grade', type: 'select', options: ['A', 'B', 'C', 'D', 'E', 'N/A'], required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active', assignedTo: ['appointment'] },
+  { id: 'cf-reval', label: 'Re-eval Notes', type: 'text', required: false, note: 'Carried over from the old built-in appointment fields.', status: 'active', assignedTo: ['appointment'] },
 ]
 
 export const SVCS = SERVICES.map((s) => {

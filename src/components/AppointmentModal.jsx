@@ -38,11 +38,12 @@ import { riskFor, RISK_TIME_LABEL } from '../lib/risk'
 import { overbookBoard, overbookBlockFor } from '../lib/overbook'
 import { apptAutoTitle } from '../lib/apptName'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
-import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, telehealthRoomFor } from '../lib/settingsMasters'
-import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
+import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, staffSigRequiredToCompleteOf, telehealthRoomFor } from '../lib/settingsMasters'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, pcfFormatErrors, customFieldsForScope, CF_TEXT_FORMAT_RULES, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
+import { posFor } from '../lib/claims'
 import SignaturePad from '../ui/SignaturePad'
 
 export default function AppointmentModal({ mode, initial, onClose, onSaved, onBack, onCreate }) {
@@ -75,7 +76,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // chunk-37: in NO way may a NEW appointment carry custom fields — even if some entry
     // point (duplicate/series/keep) tried to pass them through, the new modal starts empty.
     if (mode !== 'edit') x.pcfs = {}
-    x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null }
+    // Two distinct signatures: `signature` is the STAFF verification signature (who
+    // verified the session); `clientSignature` is the client/guardian signature a
+    // payer's rule asks for. One boolean never satisfied both — see audit CFG-04.
+    x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null, clientSignature: null }
     x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : svcById(state, x.service)?.code || '97151')
     x.units = x.billing ? x.billing.units : null
     x.rate = x.billing ? x.billing.rate : null
@@ -123,6 +127,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const [confirmClose, setConfirmClose] = useState(false)
   const [scope, setScope] = useState('one') // one | following | all
   const [rebuild, setRebuild] = useState(false)
+  // Warn acknowledgement (audit CFG-02): a Warn-severity rule never blocks on its
+  // own, but saving with warnings outstanding requires an explicit tick in the
+  // Checks rail. The tick is bound to the exact warnings it acknowledged, so editing
+  // the slot re-arms the gate.
+  const [warnAckSig, setWarnAckSig] = useState(null)
   const fileRef = useRef(null)
 
   const set = (patch) => {
@@ -161,9 +170,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // readable (stored label/type) so nothing a user typed is ever destroyed
     return saved ? { id, label: saved.label || id, type: saved.type || 'text', options: saved.options || [], required: false, _stale: true } : null
   }).filter(Boolean)
-  // the picker offers EVERY active master template (plus any inactive one already
-  // captured here, so it can be removed) — not the payer's picks
-  const pickerDefs = masterDefs.filter((d) => d.status !== 'inactive' || (f.pcfs || {})[d.id] !== undefined)
+  // the picker offers the templates scoped to Schedule Appointment (audit CFG-07) —
+  // plus anything already captured here, so it can be removed — not the payer's picks
+  const appointmentDefs = customFieldsForScope(state, 'appointment')
+  const pickerDefs = masterDefs.filter((d) => (f.pcfs || {})[d.id] !== undefined || appointmentDefs.some((x) => x.id === d.id))
   const [cfEdit, setCfEdit] = useState(null) // 'new' | def — template editor, opened from INSIDE the picker
   const saveCf = (v) => {
     if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setCfEdit(null); return }
@@ -187,12 +197,20 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     () => evaluateAppointmentValidations(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }),
     [state, f.type, f.date, f.start, f.end, f.service, f.status, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id, f.abaHr, f.abaActivity],
   )
+  // Warn acknowledgement (audit CFG-02): the tick in the Checks rail is bound to the
+  // exact warnings it acknowledged, so editing the slot re-arms the gate.
+  const warnSig = JSON.stringify((valReport.warns || []).map((w) => w.id))
+  const warnsAcked = Boolean(valReport.warns.length) && warnAckSig === warnSig
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')
   if (needsStaff && !f.staffIds.length) errors.push('Add at least one staff member')
   if (needsClient && !f.clientIds.length) errors.push('Add a client')
-  if (showClinic) errors.push(...pcfsErrors(apptPcfDefs.filter((d) => !d._stale), f.pcfs))
+  if (showClinic) {
+    const live = apptPcfDefs.filter((d) => !d._stale)
+    errors.push(...pcfsErrors(live, f.pcfs))
+    errors.push(...pcfFormatErrors(live, f.pcfs)) // saved textFormat is enforced at save time
+  }
   if (statusCfg?.noteRequired && !String(f.notes || '').trim()) {
     errors.push(`Status “${statusCfg.label}” requires a note`)
   }
@@ -326,6 +344,21 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       key: 'rules', tone: top, icon: 'clipboard', testid: 'appt-validation-banner',
       title: 'Practice rules', sub: top === 'stop' ? 'A stop rule blocks this booking' : top === 'warn' ? 'Warnings from Settings → Validations' : 'Flags from Settings → Validations',
       lines: valReport.items.map((item) => ({ tone: toneOf(item.severity), text: `${item.label}: ${item.message}` })),
+      extra: valReport.warns.length ? (
+        <label
+          className={`checkrow ${warnsAcked ? 'on' : ''}`}
+          data-testid="appt-ack-warns"
+          style={{ marginTop: 6, cursor: 'pointer', alignItems: 'center' }}
+          onClick={() => setWarnAckSig(warnsAcked ? null : warnSig)}
+        >
+          <span className="cb">{warnsAcked && Icon.check({ size: 10, strokeWidth: 3 })}</span>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>
+            {warnsAcked
+              ? `Warnings reviewed — saving is allowed`
+              : `I've reviewed these ${valReport.warns.length} warning${valReport.warns.length === 1 ? '' : 's'} — save anyway`}
+          </span>
+        </label>
+      ) : null,
     })
   }
   const checksHint = !f.staffIds.length || !f.clientIds.length
@@ -344,7 +377,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const onContract = Boolean(rateRes && /contract/.test(rateRes.source))
   const svcMod = svcOvr?.modifier || (billPayer ? (ensurePayer(billPayer).svcs || []).find((x) => x.id === f.service)?.modifier : null)
   const rate = f.rate ?? (f.type === 'drive' ? 0 : rateRes && Number.isFinite(rateRes.rate) && rateRes.rate ? rateRes.rate : code.rate)
-  const sigReq = Boolean(billRules?.appt?.sigRequired || sysCfg.general?.staffSignatureRequired || sysCfg.general?.staffSigRequiredToComplete)
+  // Two separate completion rules: the payer asks for a client/guardian signature,
+  // the practice asks for a staff verification signature. They are checked apart.
+  const payerSigRequired = Boolean(billRules?.appt?.sigRequired)
+  const staffSigRequired = staffSigRequiredToCompleteOf(settings)
   const concNote = useMemo(() => concurrentNote(state, { payer: billPayer, svcId: f.service, clientId: (f.clientIds || [])[0], date: f.date, start: f.start, end: f.end, excludeId: f.id === '__draft__' ? undefined : f.id }), [f.date, f.start, f.end, f.service, JSON.stringify(f.clientIds), billPayer?.id, state.appts])
   const mileage = f.type === 'drive' ? true : !!f.mileage
   const distance = Number(f.distance) || 0
@@ -354,6 +390,8 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   // ---------- verification ----------
   const checksDone = VERIFY_CHECKS.filter((c) => f.verification?.checks?.[c.id]).length
   const signed = Boolean(f.verification?.signature)
+  const clientSigned = Boolean(f.verification?.clientSignature)
+  const guardianName = (f.clientIds || []).map((cid) => clientsById[cid]?.guardian).find(Boolean) || clientsById[(f.clientIds || [])[0]]?.name || 'client/guardian'
 
   const buildAppt = (date) => ({
     type: f.type,
@@ -380,16 +418,36 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     custom: f.custom || {},
     documents: f.documents || [],
     verification: f.verification,
+    // the warn acknowledgement is recorded so the audit trail shows it was seen
+    ...(valReport.warns.length && warnsAcked ? { warnsAcked: { n: valReport.warns.length, at: new Date().toISOString() } } : {}),
     billing: isBillable ? { code: code.id, unitMins: unitRule.unitMins, rounding: unitRule.rounding, minutes: dur, units, rate, mileage, distance, mileageRate: mileRate } : null,
   })
 
-  const clashFor = (draft, ignoreIds) =>
-    Object.values(appts).some((b) => {
+  const clashFor = (draft, ignoreIds, apptsMap = appts) =>
+    Object.values(apptsMap).some((b) => {
       if (b.date !== draft.date || b.status === 'cancelled') return false
       if (ignoreIds?.has(b.id)) return false
       if (!timeOverlap(draft.start, draft.end, b.start, b.end)) return false
       return (draft.staffIds || []).some((s) => (b.staffIds || []).includes(s)) || (draft.clientIds || []).some((c) => (b.clientIds || []).includes(c))
     })
+
+  // CFG-03: every occurrence of a series is validated against the calendar view it
+  // will land in — live bookings plus the occurrences already accepted above it.
+  // Validation stops and authorization blocks reject that date only.
+  const occurrenceReasons = (viewState, draft) => {
+    const reasons = []
+    if (clashFor(draft, undefined, viewState.appts)) reasons.push('time clash with an existing booking')
+    for (const s of evaluateAppointmentValidations(viewState, draft).stops) reasons.push(s.label)
+    if (showClinic && (draft.clientIds || []).length) {
+      for (const cid of draft.clientIds) {
+        const client = clientsById[cid]
+        if (!client) continue
+        const merged = mergeAuthChecks(authCheckFor(viewState, client, draft), unitCheckFor(viewState, client, draft, { today: todayISO() }), settings)
+        if (merged.blocked) reasons.push(`authorization for ${client.name}: ${merged.reasons[0] || 'past the hours on file'}`)
+      }
+    }
+    return reasons
+  }
 
   const save = (andNew) => {
     setShowErrs(true)
@@ -406,30 +464,76 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       })
       return
     }
-    if (sigReq && f.status === 'completed' && !signed) {
+    if (payerSigRequired && f.status === 'completed' && !clientSigned) {
       toast({ message: `${billPayer?.name || 'This payer'} requires a client signature to complete — capture it on the Verification tab`, kind: 'warn' })
       setTab('verify')
+      return
+    }
+    if (staffSigRequired && f.status === 'completed' && !signed) {
+      toast({ message: 'The practice requires a staff verification signature before a session can be completed — capture it on the Verification tab', kind: 'warn' })
+      setTab('verify')
+      return
+    }
+    if (valReport.warns.length && !warnsAcked) {
+      toast({ message: `Review the ${valReport.warns.length} warning${valReport.warns.length === 1 ? '' : 's'} from Settings → Validations, then tick “I've reviewed these warnings” in the Checks rail to save`, kind: 'warn' })
       return
     }
     if (mode === 'edit') {
       const patch = buildAppt(f.date)
       if (isSeries && scope !== 'one') {
         const { updates } = planScopedPatch(appts, { id: f.id, seriesId: initial.seriesId, date: initial.date }, scope, patch)
-        actions.create(updates.map((u) => ({ ...u, edited: false })))
-        onSaved(scope === 'all' ? `Updated all ${updates.length} occurrences` : `Updated this & ${updates.length - 1} following`, { id: f.id })
+        // each rewritten occurrence is validated against the live calendar plus the
+        // occurrences already accepted (audit CFG-03) — rejected ones are skipped, not forced
+        const cumulative = { ...appts }
+        for (const u of updates) delete cumulative[u.id]
+        const applied = []
+        const rejectedOcc = []
+        for (const u of updates) {
+          const next = { ...u, edited: false }
+          const view = { ...cumulative, ...Object.fromEntries(applied.map((a) => [a.id, a])) }
+          const reasons = occurrenceReasons({ ...state, appts: view }, next)
+          if (reasons.length) { rejectedOcc.push({ date: next.date, reasons }); continue }
+          applied.push(next)
+          cumulative[next.id] = next
+        }
+        if (!applied.length) {
+          toast({ message: `No occurrence can be updated — ${rejectedOcc[0].date}: ${rejectedOcc[0].reasons[0]}`, kind: 'warn' })
+          return
+        }
+        const res = actions.create(applied)
+        if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
+        onSaved(
+          rejectedOcc.length
+            ? (scope === 'all'
+              ? `Updated ${applied.length} of ${updates.length} occurrences · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})`
+              : `Updated this & ${applied.length - 1} following · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})`)
+            : (scope === 'all' ? `Updated all ${updates.length} occurrences` : `Updated this & ${updates.length - 1} following`),
+          { id: f.id },
+        )
         return
       }
       actions.update(f.id, { ...patch, ...(isSeries ? { edited: true } : {}) })
       // repeat-rule rebuild: regenerate future occurrences of the series
       if (isSeries && rebuild && f.repeat !== (initial.recurrence || 'none')) {
         const { deleteIds, newDates } = planSeriesRebuild(appts, initial, f.repeat, f.repeatCount)
+        // every regenerated occurrence is validated like a fresh booking (audit CFG-03)
+        const cumulative = { ...appts }
+        for (const id of deleteIds) delete cumulative[id]
+        const created = []
+        const rejectedOcc = []
+        for (const date of newDates) {
+          const draft = { ...buildAppt(date), id: uid(), seriesId: initial.seriesId, recurrence: f.repeat, date }
+          const reasons = occurrenceReasons({ ...state, appts: cumulative }, draft)
+          if (reasons.length) { rejectedOcc.push({ date, reasons }); continue }
+          created.push(draft)
+          cumulative[draft.id] = draft
+        }
         actions.remove(deleteIds)
-        const skip = new Set(deleteIds)
-        const created = newDates
-          .map((date) => ({ ...buildAppt(date), id: uid(), seriesId: initial.seriesId, recurrence: f.repeat, date }))
-          .filter((d) => !clashFor(d, skip))
-        if (created.length) actions.create(created)
-        onSaved(`Series rebuilt — ${created.length + 1} occurrences under “${RECURRENCES.find((r) => r.id === f.repeat)?.label}”`, { id: f.id })
+        if (created.length) {
+          const res = actions.create(created)
+          if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
+        }
+        onSaved(`Series rebuilt — ${created.length + 1} occurrence${created.length === 1 ? '' : 's'} under “${RECURRENCES.find((r) => r.id === f.repeat)?.label}”${rejectedOcc.length ? ` · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})` : ''}`, { id: f.id })
         return
       }
       onSaved('Appointment updated', { id: f.id })
@@ -438,18 +542,21 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // ----- create -----
     const dates = seriesDatesFor(f.date, f.repeat, f.repeatCount)
     const created = []
-    let skipped = 0
+    const rejected = [] // { date, reasons } — dates a Stop rule or the authorization guard refuses
     const seriesId = f.repeat === 'none' ? undefined : uid()
+    // occurrences already accepted join the calendar the next dates are checked against
+    const cumulative = { ...appts }
     for (const date of dates) {
-      const draft = { ...buildAppt(date), date }
-      if (dates.length > 1 && clashFor(draft)) {
-        skipped++
-        continue
-      }
-      created.push({ id: uid(), seriesId, recurrence: f.repeat, ...draft })
+      const draft = { ...buildAppt(date), date, id: '__draft__' }
+      const reasons = dates.length > 1 ? occurrenceReasons({ ...state, appts: cumulative }, draft) : []
+      if (reasons.length) { rejected.push({ date, reasons }); continue }
+      const occ = { id: uid(), seriesId, recurrence: f.repeat, ...buildAppt(date), date }
+      created.push(occ)
+      cumulative[occ.id] = occ
     }
     if (!created.length) {
-      toast({ message: 'All occurrences conflict with existing bookings', kind: 'warn' })
+      const why = rejected[0] ? ` — ${rejected[0].date}: ${rejected[0].reasons[0]}` : ''
+      toast({ message: `No occurrence can be booked${why}`, kind: 'warn' })
       return
     }
     if (onCreate) {
@@ -458,16 +565,18 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       onSaved(result.msg, created[0])
       return
     }
-    actions.create(created)
+    const res = actions.create(created)
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
+    const rejectedNote = rejected.length ? ` · ${rejected.length} rejected (${rejected.slice(0, 3).map((r) => r.date).join(', ')})` : ''
     if (andNew) {
       setF(fresh({ id: uid(), date: f.date }))
       setTitleTouched(false)
       setDirty(false)
       setTab('info')
-      toast({ message: `Created${created.length > 1 ? ` ${created.length} occurrences` : ''} — ready for the next one`, kind: 'ok' })
+      toast({ message: `Created${created.length > 1 ? ` ${created.length} occurrences` : ''}${rejectedNote} — ready for the next one`, kind: 'ok' })
       return
     }
-    onSaved(created.length > 1 ? `Created ${created.length} occurrences${skipped ? ` · ${skipped} skipped (conflict)` : ''}` : `Appointment created${skipped ? ` · ${skipped} skipped (conflict)` : ''}`, created[0])
+    onSaved(created.length > 1 ? `Created ${created.length} occurrences${rejectedNote}` : `Appointment created${rejectedNote}`, created[0])
   }
 
   const requestClose = () => (dirty ? setConfirmClose(true) : onClose())
@@ -483,13 +592,20 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       .filter((o) => o.excludeFromLocations || o.isLocation === false || o.active === false)
       .map((o) => o.name),
   )
+  // POS rule (audit CFG-06): a payer that does not cover telehealth rendered from the
+  // patient's home (POS-10) hides those locations from the picker for its clients.
+  // The session's current location always stays pickable, so editing an existing
+  // telehealth booking never blanks the field.
+  const hideTeleHome = Boolean(billPayer?.rules?.hideTeleHome)
   const locOptions = [
     ...new Set([
       ...locationOptions(settings),
       ...LOCATIONS.filter((l) => !excludedOfficeNames.has(l)),
       ...Object.values(appts).map((a) => a.location).filter((l) => l && !excludedOfficeNames.has(l)),
+      ...(f.location ? [f.location] : []),
     ]),
-  ].map((l) => ({ value: l, label: l }))
+  ].filter((l) => !hideTeleHome || posFor({ location: l }) !== '10')
+    .map((l) => ({ value: l, label: l }))
 
   const verifier = STAFF_BY_ID[f.verification?.completedBy]
 
@@ -763,7 +879,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields<i>optional · nothing pre-filled · add only what you capture</i>
                             <button type="button" className="btn btn-sm pcf-addbtn" data-testid="am-pcf-add" onClick={() => setCfPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
                           </div>
-                          {apptPcfDefs.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment yet — “Add Custom Fields” lists every field defined in the master, and you can define a new one right there.</div>}
+                          {apptPcfDefs.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment yet — “Add Custom Fields” lists the templates scoped to Schedule Appointment, and you can define a new one right there.</div>}
                           {apptPcfDefs.map((d) => (
                             d._stale ? (
                               <div className="pcf-f pcf-stale" key={d.id} data-testid={`pcf-f-${d.id}`}>
@@ -776,8 +892,9 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                               </div>
                             ) : (
                             <div className={`pcf-f pcf-f-${d.type}${(f.pcfs || {})[d.id]?.value ? ' filled' : ''}`} key={d.id} data-testid={`pcf-f-${d.id}`}>
-                              <label>{d.label}{d.required && ' *'}</label>
+                              <label>{d.label}{d.required && ' *'}{['text', 'textarea'].includes(d.type) && d.textFormat && d.textFormat !== 'any' && CF_TEXT_FORMAT_RULES[d.textFormat] ? <i className="muted"> · must be {CF_TEXT_FORMAT_RULES[d.textFormat].label}</i> : null}</label>
                               {d.type === 'text' && <input className="input" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
+                              {d.type === 'textarea' && <textarea className="input py-ta" rows={3} value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
                               {d.type === 'date' && <input className="input" type="datetime-local" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
                               {(d.type === 'select' || d.type === 'multi') && (
                                 <div className="pcf-chips" data-testid={`pcf-chips-${d.id}`}>
@@ -824,13 +941,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <div className="modal pm-modal py-modal" data-testid="am-pcf-picker" role="dialog" aria-modal="true" aria-label="Add custom fields">
                             <div className="modal-head pm-head">
                               <h3>Add custom fields</h3>
-                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>any field defined in the Custom Fields master — or define a new one below</span>
+                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>templates scoped to Schedule Appointment in the Custom Fields master — or define a new one below</span>
                               <span className="an-spacer" />
                               <button className="iconbtn modal-x" aria-label="Close" data-testid="am-pcf-picker-close" onClick={() => setCfPick(false)}>{Icon.x({ size: 14 })}</button>
                             </div>
                             <div className="modal-body">
                               <div className="cf-picklist">
-                                {pickerDefs.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No templates defined yet — create the first one with “Add template” below.</div>}
+                                {pickerDefs.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No appointment-scoped templates yet — scope one to Schedule Appointment on the master page, or create one with “Add template” below.</div>}
                                 {pickerDefs.map((d) => {
                                   const on = (f.pcfs || {})[d.id] !== undefined
                                   return (
@@ -946,22 +1063,42 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       </div>
                     </div>
 
-                    {sigReq && (
-                      <div className={`am-note ${signed ? 'ok' : 'warn'}`} data-testid="am-sig-note">
-                        {signed ? `Signature captured — ${billPayer.name} completion requirement met.` : `${billPayer.name} requires a client signature to complete this appointment.`}
+                    {payerSigRequired && (
+                      <div className={`am-note ${clientSigned ? 'ok' : 'warn'}`} data-testid="am-sig-note">
+                        {clientSigned ? `Client/guardian signature captured — ${billPayer?.name || 'this payer'} completion requirement met.` : `${billPayer?.name || 'This payer'} requires a client signature to complete this appointment.`}
                       </div>
                     )}
-                    <SignaturePad
-                      value={f.verification?.signature}
-                      staffName={(verifier || staffById[f.staffIds?.[0]] || {}).name}
-                      staffId={verifier?.id || f.staffIds?.[0] || ''}
-                      certification={(verifier || staffById[f.staffIds?.[0]] || {}).cert}
-                      onChange={(sig) =>
-                        set({
-                          verification: { ...f.verification, signature: sig, completedBy: f.verification?.completedBy || sig?.staffId || '', verifyStatus: sig ? 'verified' : f.verification?.verifyStatus },
-                        })
-                      }
-                    />
+                    {staffSigRequired && (
+                      <div className={`am-note ${signed ? 'ok' : 'warn'}`} data-testid="am-staffsig-note">
+                        {signed ? 'Staff verification signature captured — the practice completion requirement is met.' : 'The practice requires a staff verification signature before this appointment can be completed.'}
+                      </div>
+                    )}
+                    <div data-testid="am-staff-sig">
+                      <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Staff verification signature — who verified this session</div>
+                      <SignaturePad
+                        value={f.verification?.signature}
+                        staffName={(verifier || staffById[f.staffIds?.[0]] || {}).name}
+                        staffId={verifier?.id || f.staffIds?.[0] || ''}
+                        certification={(verifier || staffById[f.staffIds?.[0]] || {}).cert}
+                        onChange={(sig) =>
+                          set({
+                            verification: { ...f.verification, signature: sig, completedBy: f.verification?.completedBy || sig?.staffId || '', verifyStatus: sig ? 'verified' : f.verification?.verifyStatus },
+                          })
+                        }
+                      />
+                    </div>
+                    {payerSigRequired && (
+                      <div style={{ marginTop: 10 }} data-testid="am-client-sig">
+                        <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>{billPayer?.name} requires a client/guardian signature — {guardianName}</div>
+                        <SignaturePad
+                          value={f.verification?.clientSignature}
+                          staffName={guardianName}
+                          staffId=""
+                          certification=""
+                          onChange={(sig) => set({ verification: { ...f.verification, clientSignature: sig ? { ...sig, kind: 'client' } : null } })}
+                        />
+                      </div>
+                    )}
                   </>
                 )}
 

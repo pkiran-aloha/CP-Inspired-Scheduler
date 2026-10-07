@@ -267,16 +267,18 @@ function OvertimeRules({ state, actions, toast, readOnly, payroll }) {
           {mult === 1.5 ? ' At 1.5× the premium is half the regular rate, the federal standard.' : ` At ${mult}× the premium is ${(mult - 1).toFixed(2)}× the regular rate.`}
         </Banner>
       </Section>
-      <Section title="Daily overtime (state rules)" sub="Only needed for states that require it — off by default" testId="set-ot-daily">
+      <Section title="Daily overtime (state rules)" sub="Informational policy note only — never priced by the wage engine" testId="set-ot-daily">
         <div className="set-grid2">
           <Row label="Apply daily overtime"><Toggle on={!!payroll.dailyOt} disabled={readOnly} testid="set-ot-daily-on" onChange={(v) => set({ dailyOt: v, ...(v && !payroll.dailyOtHours ? { dailyOtHours: 8, dailyOtMultiplier: 1.5 } : {}) })} /></Row>
-          <Row label="Daily overtime after"><NumberField value={payroll.dailyOtHours ?? 8} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-hours" onCommit={(v) => set({ dailyOtHours: v })} /></Row>
-          <Row label="Daily multiplier"><NumberField value={payroll.dailyOtMultiplier ?? 1.5} min={1.5} max={3} step={0.1} suffix="×" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-mult" onCommit={(v) => set({ dailyOtMultiplier: v })} /></Row>
-          <Row label="Double time after"><NumberField value={payroll.doubleTimeHours ?? 12} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-double-hours" onCommit={(v) => set({ dailyOtHours: payroll.dailyOtHours ?? 8, doubleTimeHours: v })} /></Row>
+          <Row label="Daily overtime after" hint="Informational — not priced"><NumberField value={payroll.dailyOtHours ?? 8} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-hours" onCommit={(v) => set({ dailyOtHours: v })} /></Row>
+          <Row label="Daily multiplier" hint="Informational — not priced"><NumberField value={payroll.dailyOtMultiplier ?? 1.5} min={1.5} max={3} step={0.1} suffix="×" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-mult" onCommit={(v) => set({ dailyOtMultiplier: v })} /></Row>
+          <Row label="Double time after" hint="Informational — not priced"><NumberField value={payroll.doubleTimeHours ?? 12} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-double-hours" onCommit={(v) => set({ dailyOtHours: payroll.dailyOtHours ?? 8, doubleTimeHours: v })} /></Row>
         </div>
-        <p className="set-hint">
-          Daily rules are stored with the workspace and shown on the register as a policy note. The engine prices weekly and office-level overtime rules.
-        </p>
+        <Banner tone="warn" testid="set-ot-daily-note">
+          These thresholds are <b>saved as a policy note only</b>. The wage engine prices weekly overtime — the global threshold
+          and each office's Weekly OT — and nothing else. Daily overtime, double time and seventh-day rules never change a
+          calculated wage. Do not rely on these controls for payroll until the calculator and a legal review cover them.
+        </Banner>
       </Section>
       <Section title="Office overtime rules" sub="Per-office overtime thresholds and effective windows" testId="set-ot-offices">
         <DataTable
@@ -313,15 +315,19 @@ function OvertimeRules({ state, actions, toast, readOnly, payroll }) {
             )
           }}
         />
+        <p className="set-hint" data-testid="set-ot-offices-note">
+          Only <b>Weekly OT</b> is priced (per office, else the global threshold). Daily OT, Daily DT, 7th Day OT and 7th Day DT
+          are informational policy notes — saved with the workspace, never fed to wage calculations.
+        </p>
         {officeEditor && (
           <div className="set-editor" data-testid="set-ot-office-editor">
             <div className="set-editor-head"><b>Overtime rules — {officeEditor.officeName}</b><button className="iconbtn" onClick={() => setOfficeEditor(null)} aria-label="Close">{Icon.x({ size: 13 })}</button></div>
             <div className="set-grid2">
-              <Row label="Daily Overtime (hrs)"><NumberField value={officeEditor.dailyOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-dot" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyOtHours: v })} /></Row>
-              <Row label="Daily Double Time (hrs)"><NumberField value={officeEditor.dailyDtHours ?? 12} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-ddt" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyDtHours: v })} /></Row>
-              <Row label="Weekly Overtime (hrs)"><NumberField value={officeEditor.weeklyOtHours ?? 40} min={1} max={168} step={1} suffix="hrs" testid="set-ot-off-wot" onCommit={(v) => setOfficeEditor({ ...officeEditor, weeklyOtHours: v })} /></Row>
-              <Row label="7th Day Overtime (hrs)"><NumberField value={officeEditor.seventhDayOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7ot" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayOtHours: v })} /></Row>
-              <Row label="7th Day Double Time (hrs)"><NumberField value={officeEditor.seventhDayDtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7dt" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayDtHours: v })} /></Row>
+              <Row label="Daily Overtime (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.dailyOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-dot" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyOtHours: v })} /></Row>
+              <Row label="Daily Double Time (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.dailyDtHours ?? 12} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-ddt" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyDtHours: v })} /></Row>
+              <Row label="Weekly Overtime (hrs)" hint="Priced — hours above this in a workweek earn the overtime premium"><NumberField value={officeEditor.weeklyOtHours ?? 40} min={1} max={168} step={1} suffix="hrs" testid="set-ot-off-wot" onCommit={(v) => setOfficeEditor({ ...officeEditor, weeklyOtHours: v })} /></Row>
+              <Row label="7th Day Overtime (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.seventhDayOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7ot" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayOtHours: v })} /></Row>
+              <Row label="7th Day Double Time (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.seventhDayDtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7dt" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayDtHours: v })} /></Row>
               <Row label="Effective Date"><TextField value={officeEditor.effectiveDate || ''} wide={140} testid="set-ot-off-eff" onCommit={(v) => setOfficeEditor({ ...officeEditor, effectiveDate: v })} /></Row>
               <Row label="Expiration Date"><TextField value={officeEditor.expirationDate || ''} wide={140} testid="set-ot-off-exp" onCommit={(v) => setOfficeEditor({ ...officeEditor, expirationDate: v })} /></Row>
             </div>

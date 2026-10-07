@@ -184,27 +184,27 @@ export const INTEGRATION_STATUSES = {
 }
 
 export const DEFAULT_INTEGRATIONS = [
-  { id: 'int-calendar', name: 'Calendar feed (ICS)', vendor: 'Local export', status: 'local-export', direction: 'One-way export',
+  { id: 'int-calendar', name: 'Calendar feed (ICS)', vendor: 'Local export', category: 'operations', status: 'local-export', direction: 'One-way export',
     detail: 'Exports upcoming bookings as an .ics file you can import into Outlook, Apple or Google Calendar. It is a one-off file, not a subscription: nothing syncs.', lastRunAt: null, note: '' },
-  { id: 'int-qbo', name: 'QuickBooks (desktop import)', vendor: 'Intuit', status: 'local-export', direction: 'One-way export',
+  { id: 'int-qbo', name: 'QuickBooks (desktop import)', vendor: 'Intuit', category: 'operations', status: 'local-export', direction: 'One-way export',
     detail: 'Produces the QBO import CSV and the payroll journal with an import guide. Nothing is posted into QuickBooks from here.', lastRunAt: null, note: '' },
-  { id: 'int-ensora', name: 'Ensora Data Collection', vendor: 'Ensora Health', status: 'local-export', direction: 'Clinical data sync',
+  { id: 'int-ensora', name: 'Ensora Data Collection', vendor: 'Ensora Health', category: 'clinical', status: 'local-export', direction: 'Clinical data sync',
     detail: 'Maps ABA programs, skill acquisition targets and session mastery records for local clinical export.', lastRunAt: null, note: '' },
-  { id: 'int-hirasmus', name: 'Hi Rasmus', vendor: 'Hi Rasmus', status: 'off', direction: 'Clinical data sync',
+  { id: 'int-hirasmus', name: 'Hi Rasmus', vendor: 'Hi Rasmus', category: 'clinical', status: 'off', direction: 'Clinical data sync',
     detail: 'ABA curriculum, treatment fidelity checklists and session note hand-off adapter.', lastRunAt: null, note: '' },
-  { id: 'int-motivity', name: 'Motivity', vendor: 'Motivity', status: 'off', direction: 'Clinical data sync',
+  { id: 'int-motivity', name: 'Motivity', vendor: 'Motivity', category: 'clinical', status: 'off', direction: 'Clinical data sync',
     detail: 'Clinical data collection and session verification sync for RBT/BCBA caseloads.', lastRunAt: null, note: '' },
-  { id: 'int-welina', name: 'Welina', vendor: 'Welina', status: 'off', direction: 'Clinical documentation',
+  { id: 'int-welina', name: 'Welina', vendor: 'Welina', category: 'clinical', status: 'off', direction: 'Clinical documentation',
     detail: 'AI-assisted clinical documentation and payer-compliant session note verification.', lastRunAt: null, note: '' },
-  { id: 'int-fhir', name: 'EMR / FHIR hand-off', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
+  { id: 'int-fhir', name: 'EMR / FHIR hand-off', vendor: 'Configurable', category: 'clinical', status: 'off', direction: 'Out of scope',
     detail: 'A real FHIR endpoint needs credentials and a server. This demo keeps the data local; the seam is documented for a future adapter.', lastRunAt: null, note: '' },
-  { id: 'int-clearinghouse', name: 'Claims clearinghouse', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
+  { id: 'int-clearinghouse', name: 'Claims clearinghouse', vendor: 'Configurable', category: 'billing', status: 'off', direction: 'Out of scope',
     detail: 'No 837 transmission exists in this demo. Claims are staged locally and their files recorded in Billed Files.', lastRunAt: null, note: '' },
-  { id: 'int-telehealth', name: 'Telehealth room link', vendor: 'Configurable', status: 'local-export', direction: 'Reference data',
+  { id: 'int-telehealth', name: 'Telehealth room link', vendor: 'Configurable', category: 'reference', status: 'local-export', direction: 'Reference data',
     detail: 'Stores the practice’s own video room link, shows it on telehealth appointments and adds it to .ics exports. The app does not host, open or record a video session.', lastRunAt: null, note: '' },
-  { id: 'int-paylink', name: 'Online payment link (Stripe)', vendor: 'Stripe or any processor', status: 'local-export', direction: 'Reference data',
+  { id: 'int-paylink', name: 'Online payment link (Stripe)', vendor: 'Stripe or any processor', category: 'reference', status: 'local-export', direction: 'Reference data',
     detail: 'Stores the practice’s own payment link (for example a Stripe Payment Link) and prints it on client statements. The app never charges a card or reads Stripe: when a family pays, record it in the Payment Center as a patient receipt.', lastRunAt: null, note: '' },
-  { id: 'int-eligibility', name: 'Eligibility / benefits check', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
+  { id: 'int-eligibility', name: 'Eligibility / benefits check', vendor: 'Configurable', category: 'billing', status: 'off', direction: 'Out of scope',
     detail: 'Verification Forms capture what staff were told on the phone. There is no live 270/271 exchange.', lastRunAt: null, note: '' },
 ]
 
@@ -230,19 +230,22 @@ export const DEFAULT_SUBSCRIPTION = {
   invoices: [],
 }
 
+// Every key here gates a real alert source in notificationsFor (src/lib/tasks.js).
+// Older panels wrote a few alternate names (clinicalTeam, qualificationExpiration,
+// incompleteAppointments, …) — notificationsCfg folds those onto the canonical keys.
 export const DEFAULT_NOTIFICATIONS = {
-  timelyFiling: true, authExpiry: true, parkedEra: true, secondaryReady: true, intakeSla: true, browserToasts: false,
-  staffBirthday: true,
-  staffClinicalTeam: true,
-  staffSubordinate: true,
-  staffSupervisor: true,
-  staffQualExpiration: true,
-  staffQualFrequencyDays: 30,
-  staffIncompleteAppts: true,
-  staffIncompleteLookbackDays: 7,
-  staffTimesheetReminder: true,
-  staffTimesheetDaysBefore: 2,
-  staffClientAssignment: true,
+  staffTasks: true, // overdue & due-today task reminders
+  staffQualExpiration: true, // credential documents expiring (Cabinet alerts)
+  staffQualFrequencyDays: 30, // …warn this many days ahead
+  staffIncompleteAppts: true, // past sessions still awaiting completion
+  staffIncompleteLookbackDays: 7, // …look back this many days
+  timelyFiling: true, // claims past their filing window
+  authExpiry: true, // authorizations lapsed or ending soon
+  parkedEra: true, // unapplied payments waiting to be matched
+  secondaryReady: true, // primary claims ready for secondary filing
+  intakeSla: true, // intake requests past their stage deadline
+  deniedClaims: true, // denied claims to work
+  browserToasts: false, // opt-in: surface stop-tone alerts while the tab is open
 }
 
 export const VALIDATION_SEVERITIES = [
@@ -325,14 +328,16 @@ export const DEFAULT_SYSTEM_CONFIG = {
   },
   other: {
     distanceUnit: 'miles',
+    // No client portal ships in this build — the selection is saved for when one
+    // does, keyed by the column ids the settings panel edits.
     clientPortalColumns: {
-      invoiceNo: true,
-      serviceDate: true,
-      charges: true,
+      totalCharges: true,
       insurancePaid: true,
-      clientPaid: true,
-      balanceDue: true,
+      patientResponsibility: true,
+      currentBalance: true,
     },
+    // No payment gateway ships in this build either — saved for when online
+    // payments exist. One canonical shape: an object of booleans.
     paymentGatewayMethods: {
       creditCard: true,
       ach: true,
@@ -517,7 +522,26 @@ export function paymentLinkFor(settings) {
   return row && row.status !== 'off' && isWebUrl(row.payUrl) ? row.payUrl.trim() : ''
 }
 export const subscriptionCfg = (settings) => ({ ...DEFAULT_SUBSCRIPTION, ...(settings?.subscription || {}) })
-export const notificationsCfg = (settings) => ({ ...DEFAULT_NOTIFICATIONS, ...(settings?.notifications || {}) })
+export const notificationsCfg = (settings) => {
+  const raw = settings?.notifications || {}
+  const out = { ...DEFAULT_NOTIFICATIONS, ...raw }
+  // Legacy UI key names → canonical keys, only where a canonical key is absent and
+  // the legacy value actually gates something. Names with no alert source are dropped.
+  const fold = (legacyKey, canonicalKey, map) => {
+    if (raw[canonicalKey] == null && raw[legacyKey] != null) out[canonicalKey] = map ? map(raw[legacyKey]) : raw[legacyKey]
+  }
+  fold('qualificationExpiration', 'staffQualExpiration', (v) => v !== false)
+  fold('qualificationExpirationFreq', 'staffQualFrequencyDays', (v) => {
+    const d = parseInt(String(v).replace(/[^\d]/g, ''), 10)
+    return Number.isFinite(d) && d > 0 ? d : 30
+  })
+  fold('incompleteAppointments', 'staffIncompleteAppts', (v) => v !== false)
+  fold('incompleteLookbackDays', 'staffIncompleteLookbackDays', (v) => {
+    const d = Number(v)
+    return Number.isFinite(d) && d > 0 ? d : 7
+  })
+  return out
+}
 export const clearinghousesCfg = (settings) => (arr(settings?.clearinghouses).length ? settings.clearinghouses : DEFAULT_CLEARINGHOUSES)
 export const evvCfg = (settings) => ({ ...DEFAULT_EVV_CONFIG, ...(settings?.evvConfig || {}) })
 export const VALIDATION_GROUPS = ['staff', 'client', 'payer', 'aba']
@@ -547,21 +571,80 @@ export function appointmentValidationsCfg(settings) {
 }
 export function systemConfigFor(settings) {
   const sys = settings?.system || settings?.systemConfig || {}
+  // `staffSignatureRequired` was an older UI key; the canonical key is
+  // `staffSigRequiredToComplete` (the default the engine and the settings
+  // contract have always read). Preserve a legacy choice on read.
+  const genIn = sys.general || {}
+  const general = { ...DEFAULT_SYSTEM_CONFIG.general, ...genIn }
+  if (genIn.staffSigRequiredToComplete == null && genIn.staffSignatureRequired != null) {
+    general.staffSigRequiredToComplete = genIn.staffSignatureRequired === true
+  }
+  // `syncVerifTimeToAppt` was the UI's key; the canonical key is `syncVerificationTime`.
+  const apptIn = sys.appointment || {}
+  const appointment = { ...DEFAULT_SYSTEM_CONFIG.appointment, ...apptIn }
+  if (apptIn.syncVerificationTime == null && apptIn.syncVerifTimeToAppt != null) {
+    appointment.syncVerificationTime = apptIn.syncVerifTimeToAppt === true
+  }
   return {
     ...DEFAULT_SYSTEM_CONFIG,
     ...sys,
-    general: { ...DEFAULT_SYSTEM_CONFIG.general, ...(sys.general || {}) },
+    general,
     billing: { ...(sys.billing || {}) },
-    appointment: { ...DEFAULT_SYSTEM_CONFIG.appointment, ...(sys.appointment || {}) },
+    appointment,
     other: {
       ...DEFAULT_SYSTEM_CONFIG.other,
       ...(sys.other || {}),
-      clientPortalColumns: { ...DEFAULT_SYSTEM_CONFIG.other.clientPortalColumns, ...(sys.other?.clientPortalColumns || {}) },
-      paymentGatewayMethods: { ...DEFAULT_SYSTEM_CONFIG.other.paymentGatewayMethods, ...(sys.other?.paymentGatewayMethods || {}) },
+      clientPortalColumns: normalizePortalColumns(sys.other),
+      paymentGatewayMethods: normalizeGatewayMethods(sys.other?.paymentGatewayMethods),
     },
   }
 }
+
+/**
+ * One canonical shape for the portal's balance columns: an object of booleans
+ * keyed by column id. The panel's first draft wrote an array under a different
+ * key (`portalBalanceColumns`) — fold that onto the canonical object so a saved
+ * selection survives a reload.
+ */
+function normalizePortalColumns(other) {
+  const base = { ...DEFAULT_SYSTEM_CONFIG.other.clientPortalColumns }
+  const raw = other?.clientPortalColumns
+  if (Array.isArray(raw)) {
+    for (const id of raw) if (id in base) base[id] = true
+    return base
+  }
+  const merged = { ...base, ...(raw || {}) }
+  const legacy = other?.portalBalanceColumns
+  if (Array.isArray(legacy)) {
+    for (const id of legacy) if (id in base) merged[id] = true
+    else if (id === 'charges') merged.totalCharges = true
+    else if (id === 'balanceDue') merged.currentBalance = true
+  }
+  return merged
+}
 export const systemConfigCfg = systemConfigFor
+
+/**
+ * One canonical shape for the accepted payment-gateway methods: an object of
+ * booleans. Older saves (and the panel's first draft) wrote an array of method
+ * ids; map it onto the object so a saved selection survives a reload.
+ */
+function normalizeGatewayMethods(raw) {
+  const base = { ...DEFAULT_SYSTEM_CONFIG.other.paymentGatewayMethods }
+  if (Array.isArray(raw)) {
+    for (const id of raw) {
+      if (id === 'card' || id === 'creditCard') base.creditCard = true
+      else if (id === 'ach') base.ach = true
+      else if (id === 'hsaFsa') base.hsaFsa = true
+      else if (id === 'appleGooglePay') base.appleGooglePay = true
+    }
+    return base
+  }
+  return { ...base, ...(raw || {}) }
+}
+
+/** The one canonical system rule for a staff signature before completing a session. */
+export const staffSigRequiredToCompleteOf = (settings) => systemConfigFor(settings).general?.staffSigRequiredToComplete === true
 
 /**
  * Evaluates all configured Appointment Validations (`None` / `Flag` / `Warn` / `Stop`)
@@ -758,6 +841,31 @@ export function evaluateAppointmentValidations(state, draft = {}) {
     flags: items.filter((i) => i.severity === 'flag'),
   }
 }
+
+/**
+ * Write-time Stop guard for appointment writes (audit CFG-02). A draft that trips a
+ * Stop-severity validation rule is refused, never saved — on every path: booking
+ * modal, Quick Add, drag, series, import. Cancelling a session is not scheduling,
+ * so a cancellation-status draft is never blocked by an overlap-style rule.
+ */
+export function stopViolationsForDraft(state, draft) {
+  if (!draft || isCancelStatus(state?.settings, draft.status)) return []
+  return evaluateAppointmentValidations(state, draft).stops
+}
+
+/**
+ * Flag-severity items derived at save time — the persistent session badge (audit
+ * CFG-02). Stored on the appointment so the flag survives the save instead of
+ * living only in the booking dialog's draft report.
+ */
+export function validationFlagsForDraft(state, draft) {
+  if (!draft || isCancelStatus(state?.settings, draft.status)) return []
+  return evaluateAppointmentValidations(state, draft).flags.map((f) => ({ id: f.id, label: f.label }))
+}
+
+/** Fields that make a patch a scheduling write (as opposed to a status/billing/notes edit). */
+export const SCHEDULE_PATCH_FIELDS = ['date', 'start', 'end', 'staffIds', 'clientIds', 'service', 'location', 'type', 'origin', 'destination', 'unavailTarget', 'abaHr', 'abaActivity', 'recurrence', 'seriesId']
+export const touchesSchedule = (patch) => SCHEDULE_PATCH_FIELDS.some((k) => patch && Object.hasOwn(patch, k))
 
 /** Earning codes: the configured list when present, else the engine defaults.
  *  The resolvers live in payroll.js (the engine owns them); these are the names
@@ -1542,6 +1650,17 @@ export function normalizeSettingsMasters(state) {
   if (!settings.subscription) { next.subscription = { ...DEFAULT_SUBSCRIPTION }; changed = true }
   if (!settings.notifications) { next.notifications = { ...DEFAULT_NOTIFICATIONS }; changed = true }
   if (!settings.system) { next.system = { ...DEFAULT_SYSTEM_CONFIG }; changed = true }
+  else {
+    // `staffSignatureRequired` was an older UI key for the same rule — migrate it
+    // onto the canonical `staffSigRequiredToComplete` so exactly one key owns it.
+    const gen = next.system.general || {}
+    if (gen.staffSigRequiredToComplete == null && gen.staffSignatureRequired != null) {
+      const general = { ...gen, staffSigRequiredToComplete: gen.staffSignatureRequired === true }
+      delete general.staffSignatureRequired
+      next.system = { ...next.system, general }
+      changed = true
+    }
+  }
   if (!arr(settings.importLog).length) { next.importLog = []; changed = true }
 
   if (!changed) return state

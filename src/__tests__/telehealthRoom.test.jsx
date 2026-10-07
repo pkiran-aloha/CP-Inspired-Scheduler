@@ -63,4 +63,35 @@ describe('telehealth room link', () => {
     expect(room.querySelector('a').getAttribute('href')).toBe(ROOM)
     expect(room.textContent).toMatch(/does not host video/)
   })
+
+  it('a payer that hides POS-10 removes telehealth locations from the booking picker for its clients (audit CFG-06)', async () => {
+    const pickJustin = async () => {
+      fireEvent.click(screen.getByTestId('pick-Client Name'))
+      fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes('Justin Hsu')))
+      fireEvent.mouseDown(document.body)
+    }
+    // control: without the rule the telehealth location is offered
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(blankState()))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    await pickJustin()
+    fireEvent.click(screen.getByTestId('location-select'))
+    expect(await screen.findByTestId('opt-location-select-Telehealth (video)')).toBeTruthy()
+    fireEvent.mouseDown(document.body)
+    cleanup()
+
+    // with the rule: POS-10 locations leave the picker, other locations stay
+    const s = blankState()
+    const aetna = s.payers.find((x) => x.id === 'py-aetna') // Justin Hsu's insurer
+    aetna.rules = { ...(aetna.rules || {}), hideTeleHome: true }
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(s))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    await pickJustin()
+    fireEvent.click(screen.getByTestId('location-select'))
+    expect(await screen.findByTestId('opt-location-select-Main Center')).toBeTruthy()
+    expect(screen.queryByTestId('opt-location-select-Telehealth (video)')).toBeNull()
+  })
 })

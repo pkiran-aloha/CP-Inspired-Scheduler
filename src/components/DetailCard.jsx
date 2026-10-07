@@ -7,6 +7,7 @@ import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek,
 import { needsCoverFor, backfillFor } from '../lib/smart'
 import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
 import { isCancelStatus, statusFor, systemConfigFor } from '../lib/settingsMasters'
+import { payerForAppt, svcRule } from '../lib/master'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
 import { ABA_HOURS_EXPLAIN, abaActivityLabel, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 
@@ -50,7 +51,9 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   }, [appts, appt.id, appt.status, settings.smart])
   const assignCover = (c) => {
     const prev = { status: appt.status, staffIds: appt.staffIds, backfilled: appt.backfilled, backfillIgnored: appt.backfillIgnored }
-    actions.update(appt.id, { status: 'active', staffIds: [c.staff.id], backfilled: true, backfilledFrom: appt.staffIds || [], backfillIgnored: false })
+    // re-staffing is a scheduling write — a Stop rule can refuse it (audit CFG-02)
+    const res = actions.update(appt.id, { status: 'active', staffIds: [c.staff.id], backfilled: true, backfilledFrom: appt.staffIds || [], backfillIgnored: false })
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({ message: `Backfilled — ${c.staff.name.split(' ')[0]} now covers this session`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
   }
   const authOf = (cid) => {
@@ -73,11 +76,21 @@ export default function DetailCard({ appt, onClose, onEdit }) {
       toast({ message: `Status “${curStatus.label}” is configured with Allow To Complete off in Settings → Appointment Status`, kind: 'warn' })
       return
     }
+    // A payer's client-signature rule holds on every completion path — Quick Verify
+    // signs as staff and must not complete a session the family has not signed.
+    const qPayer = payerForAppt(state, appt.clientIds || [])
+    if (qPayer && svcRule(qPayer)?.appt?.sigRequired && !ver?.clientSignature) {
+      toast({ message: `${qPayer.name} requires a client signature before this session can be completed — capture it on the appointment's Verification tab`, kind: 'warn' })
+      return
+    }
     const sigCompletes = systemConfigFor(settings).appointment?.staffSigCompletesAppt !== false
     const sigStaff = staffById[ver?.completedBy || appt.staffIds?.[0]] || staff[0]
     actions.update(appt.id, {
       status: sigCompletes ? 'completed' : appt.status,
+      // keep whatever is already on the record — a client/guardian signature captured
+      // earlier must survive a quick verify, it is not replaced by the staff one
       verification: {
+        ...(ver || {}),
         completedBy: sigStaff.id,
         checks: Object.fromEntries(VERIFY_CHECKS.map((c) => [c.id, true])),
         verifyStatus: 'verified',
@@ -110,7 +123,8 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   }
   const duplicate = () => {
     const copy = { ...appt, id: uid(), title: `${appt.title} (copy)`, status: 'active', seriesId: undefined, recurrence: 'none', createdAt: Date.now() }
-    actions.create([copy])
+    const res = actions.create([copy])
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({ message: 'Duplicated on same day', kind: 'ok' })
     onClose()
   }
@@ -148,6 +162,9 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             )}
             {appt.edited && appt.seriesId && <span className="sbadge" title="This occurrence was changed independently from the series">✎ exception</span>}
             {appt.backfilled && <span className="sbadge backfilled" data-testid="backfilled-badge" title="Reassigned from a cancelled booking via smart backfill">↩ backfilled</span>}
+            {Array.isArray(appt.validationFlags) && appt.validationFlags.length > 0 && (
+              <span className="sbadge" data-testid="dc-flag-badge" title={`Flagged at booking: ${appt.validationFlags.map((f) => f.label).join(' · ')}`}>⚑ {appt.validationFlags.length} flagged</span>
+            )}
             <span className="f1" />
             <button className="modal-x" onClick={onClose} aria-label="Close">{Icon.x({ size: 13 })}</button>
           </div>
@@ -294,6 +311,11 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                     <span className="muted" style={{ fontSize: 12 }}>Verification pending</span>
                     {canEdit && isPast && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={quickVerify}>Quick verify + sign</button>}
                   </>
+                )}
+                {ver?.clientSignature && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }} data-testid="dc-client-sig">
+                    Client/guardian signed — {ver.clientSignature.staffName || ver.clientSignature.text}
+                  </div>
                 )}
               </div>
             </div>

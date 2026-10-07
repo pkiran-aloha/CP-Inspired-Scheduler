@@ -1,5 +1,5 @@
 import SectionBoundary from './components/SectionBoundary'
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { StoreProvider, useStore } from './state/store'
 import { ToastProvider, useToast } from './ui/Toast'
 import { Icon } from './ui/Icons'
@@ -54,6 +54,8 @@ import { slidePreset } from './lib/analytics'
 import { DAY_NAMES, addDays, addMonths, isoDate, parseISO, rangeLabel, startOfWeek, todayISO, weekNum } from './lib/date'
 import { uid } from './lib/model'
 import { areaForSection, firstAccessibleSection } from './lib/security'
+import { notificationsFor } from './lib/tasks'
+import { notificationsCfg } from './lib/settingsMasters'
 
 export function rangeDays(view, anchor, weekStart) {
   const a = parseISO(anchor)
@@ -115,6 +117,20 @@ function Shell() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
   }, [settings.theme])
+
+  // Browser toasts (opt-in, Settings → System → Notifications): surface stop-tone
+  // inbox alerts once per session while the tab is open. The inbox always shows the
+  // full feed; this only repeats the urgent ones. Nothing is sent to anyone.
+  const toastedAlertsRef = useRef(false)
+  useEffect(() => {
+    if (toastedAlertsRef.current || !notificationsCfg(settings).browserToasts) return
+    const me = state.currentAccount?.staffId || null
+    const stops = notificationsFor(state, me, todayISO(), (area) => state.canAccess(area, 'view')).filter((n) => n.tone === 'stop')
+    if (!stops.length) return
+    toastedAlertsRef.current = true
+    toast({ message: `Inbox: ${stops.map((s) => s.text).join(' · ')}`, kind: 'warn', duration: 8000 })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.notifications, state.appts, state.tasks, state.claims, state.payments, state.cabinet, state.intakeRequests])
 
   // older saves stored analytics as a calendar view — migrate it to the section
   useEffect(() => {

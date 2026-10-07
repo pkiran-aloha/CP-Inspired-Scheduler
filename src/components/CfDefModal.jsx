@@ -112,7 +112,7 @@ export default function CfDefModal({ def, onClose }) {
           <textarea className="input py-ta" rows={2} value={f.note} data-testid="cf-note" placeholder="What is this field for, when to fill it…" onChange={(e) => set('note', e.target.value)} />
         </label>
         <div className="cf-flagrow">
-          <label className="cf-flag"><span>Required at booking</span><button type="button" className={`toggle${f.required ? ' on' : ''}`} data-testid="cf-required" aria-pressed={f.required} onClick={() => set('required', !f.required)} /></label>
+          <label className="cf-flag" title="Once this field is added to a session it must be filled in before that session can be saved. It is never added to new appointments automatically."><span>Required once added</span><button type="button" className={`toggle${f.required ? ' on' : ''}`} data-testid="cf-required" aria-pressed={f.required} onClick={() => set('required', !f.required)} /></label>
           <label className="cf-flag"><span>Template active</span><button type="button" className={`toggle${f.status === 'active' ? ' on' : ''}`} data-testid="cf-active" aria-pressed={f.status === 'active'} onClick={() => set('status', f.status === 'active' ? 'inactive' : 'active')} /></label>
         </div>
       </div>
