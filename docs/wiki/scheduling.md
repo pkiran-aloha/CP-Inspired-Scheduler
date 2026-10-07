@@ -2,9 +2,9 @@
 
 _Last synced: 2026-10-07_
 
-_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/lib/recurrence.js, src/components/RecurrenceEditor.jsx, src/state/store.jsx, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/lib/locationSources.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/lib/recurrence.js, src/components/RecurrenceEditor.jsx, src/state/store.jsx, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main 0434a5a plus the feat/smart-scheduling-picks and recurrence-series branches on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 5f99933 plus the feat/appt-location-sources branch on 2026-10-07; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -30,6 +30,14 @@ Two `.ics` downloads exist. The top bar's **Export current range (.ics)** saves 
 ### Booking an appointment
 
 Open the picker (`N`, the `+` button, or click an empty slot), choose a type (service, evaluation, supervision, drive, break, unavailable), and the booking dialog opens. The left side is the form. The right side is the **Checks rail**, one panel that replaces the old stacked banners. It re-evaluates on every change.
+
+**Location** is a search box with suggestions grouped by where they come from ([locationSources.js](../../src/lib/locationSources.js)):
+
+- **Client**: the client's usual site (their chart's home location) and their street address on file, saved as `Home · street, city, state zip`. The "Home" word keeps place of service 12 and lets the travel check use the client's coordinates.
+- **Staff**: where each picked staff member was just before: their latest session that ends by this start time on the same day ("After Ana's 9 AM"), else their most recent earlier stop. Cancelled sessions and drive, break and unavailable blocks are skipped.
+- **Office** and **Telehealth**: the practice's active offices marked as locations in Settings > Organization (a payer that hides POS-10 still removes telehealth for its clients).
+
+Type anything else and press Enter (or pick **Use "…"**) to keep it exactly as typed. Arrow keys move through the list. Under the field, **Open in Google Maps** opens a Maps search for the current value in a new tab: an office maps to its street address, the client's usual site to the client's address. The app never calls a map service: nothing is looked up, checked or sent, and the value is saved as typed. A typed address that is not an office is treated like any other unrecognized place: place of service 11 unless it says home, school, telehealth or community, and the travel check uses the client's coordinates unless it names a center, clinic or room.
 
 When the location is a telehealth location (place of service 10) and the practice has saved its own video room link in Settings > Clinical Integrations > Telehealth room link, the dialog shows that link under Location. Calendar `.ics` exports put the same link on telehealth events. The app does not host, open or record video; the link is just the practice's own room.
 

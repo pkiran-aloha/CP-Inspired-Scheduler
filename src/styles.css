@@ -4162,3 +4162,8 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .rec-k { width: auto; flex-basis: 100%; }
   .rec-date { width: 100%; }
 }
+
+/* Location suggestions: source group headings inside a dropdown */
+.pop-group { padding: 8px 10px 3px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.pop-group:first-child, .pop-search + .pop-group { padding-top: 4px; }
+.bk-loc-map a { display: inline-flex; align-items: center; gap: 3px; }
