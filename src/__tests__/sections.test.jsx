@@ -23,8 +23,13 @@ describe('practice-days setting', () => {
     const sunday = within(days).getByTestId('set-sys-practice-day-0')
     fireEvent.click(sunday)
     await waitFor(() => expect(stored().settings.practiceDays).toEqual([0, 1, 2, 3, 4, 5]))
-    for (const d of [0, 1, 2, 3, 4, 5]) fireEvent.click(within(days).getByTestId(`set-sys-practice-day-${d}`))
-    expect(within(days).getByTestId('set-sys-practice-day-5').disabled).toBe(true)
+    let remaining = [0, 1, 2, 3, 4, 5]
+    for (const d of [0, 1, 2, 3, 4]) {
+      fireEvent.click(screen.getByTestId(`set-sys-practice-day-${d}`))
+      remaining = remaining.filter((day) => day !== d)
+      await waitFor(() => expect(stored().settings.practiceDays).toEqual(remaining))
+    }
+    expect(screen.getByTestId('set-sys-practice-day-5').disabled).toBe(true)
     expect(stored().settings.practiceDays).toEqual([5])
   })
 })
