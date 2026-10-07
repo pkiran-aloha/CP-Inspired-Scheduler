@@ -1,6 +1,6 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-07** (D1 practice-days follow-up built; ramp supply now follows the practice's selected days, Monday–Friday by default). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-07** (configuration-audit remediation landed on branch `arena/e8f5fefe-cp-inspired-scheduler`; D1 practice-days follow-up built earlier the same day). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
@@ -23,6 +23,18 @@ Last updated **2026-10-07** (D1 practice-days follow-up built; ramp supply now f
 - Claude-specific: the ECC "Fact-Forcing Gate" hook blocks the first edit of every file; disable with env `ECC_GATEGUARD=off` (maintainer's call). Memory notes live in Claude's project memory dir.
 
 ## Shipped (newest first)
+
+### Audit remediation — configuration-audit findings CFG-02…CFG-12 (branch `arena/e8f5fefe-cp-inspired-scheduler`, 2026-10-07)
+
+- **What.** The open findings from `docs/audits/configuration-audit-2026-10-07.md`, fixed in six commits on the Arena branch (PR pending; `main` untouched):
+  - **CFG-04/10/11** — client/guardian and staff signatures separated (own pads, own gates, Quick Verify honours the payer rule); canonical `staffSigRequiredToComplete` key with legacy read; integration categories on all default rows; "Maximum Appointment Length" copy no longer claims a hard ceiling.
+  - **CFG-08/09** — every inbox alert gated by its preference (12 wired keys, 6 no-source toggles removed, browser toasts for stop-tone alerts); `enableEra` wired to the Payment Center; gateway methods / portal columns normalized to one shape; honest stub banners for the remaining no-ops.
+  - **CFG-02/03** — Stop-severity validation rules are a write-time invariant in the reducer (`create`/`update`/`move` refuse; cancelling is never blocked); Warn requires an acknowledgement tick (persisted as `warnsAcked`); Flag items persist as session badges; series create/edit/rebuild and CSV import validate every occurrence/row against live state plus already-accepted ones and report rejected dates/rows.
+  - **CFG-12/05** — every durable settings write is one undoable transaction (`setSettings` snapshots `settings`); daily/double-time/seventh-day payroll controls labelled informational (the wage engine prices weekly only).
+  - **CFG-06** — unimplemented Claims Settings options (Box 17/19, 33B/33B2, file grouping, appointment time, taxonomy/rendering checkboxes) disabled and labelled "not available"; "Separate Claim By" drops "Supervising Provider"; POS "Hide POS-10" now removes telehealth locations from the booking picker for that payer's clients ("Hide POS-02" disabled — no location codes POS-02).
+  - **CFG-07** — custom-field scopes enforced in both pickers (appointment / payer; legacy templates keep the old behaviour); textarea renders; saved Text Format (number/email/phone/URL) validated at save; "Required once added" labelled honestly; payer copy no longer promises automatic appointment/export propagation.
+- **Verification.** Full suite **95 files / 995 tests green**; `npm run build` green (bundle-size warning unchanged); wiki (`settings`, `payroll`, `scheduling`, `billing-and-claims`, `architecture`), the audit report (per-finding resolution statuses) and this file synced. New tests: `signatureRules.test.jsx`, `notifications.test.jsx`, `writeGuard.test.jsx`, `customFields.test.jsx` plus focused additions.
+- **Still open (by design):** CFG-01 production architecture (P0 gate, decision not code); CFG-05 jurisdictional payroll calculator + legal review; REL-01 dependency upgrades (vitest major is a dev-only project) and bundle code-splitting — triaged and documented in the audit report.
 
 ### D1 follow-up — configurable practice days (built 2026-10-07)
 
@@ -306,7 +318,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07. **Recommended next:** the `14220` mileage-code fix or a billing-form follow-up; D4 scenario planner is large.
+The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** landed the same day on branch `arena/e8f5fefe-cp-inspired-scheduler` (PR pending) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades, bundle splitting) remain open by design, documented in the audit report. **Recommended next:** the `14220` mileage-code fix or a billing-form follow-up; D4 scenario planner is large.
 
 Other open items, smaller:
 - D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).
@@ -340,7 +352,7 @@ Other open items, smaller:
 
 ## Known issues / backlog (not yet fixed)
 
-- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). Local, uncommitted Arena work has (1) added the CFG-01 integration-credential capture/scrubbing mitigation and (2) started CFG-02 by aligning Client Assignment's key, migrating legacy `clientAssignment`, exposing the `staff.travel` control, and separating provider-presence checks from qualification. CFG-02 is still open for centralized Stop enforcement across writes, Warn acknowledgement, persistent/derived Flag badges, and series/import coverage. This is only a local credential mitigation; production hosting/auth/HIPAA architecture remains an open P0 gate. In this sandbox Vitest is absent; focused custom Node checks and JS syntax checks passed for the latest verified state, but the new regression tests, JSX and build remain unverified. Pre-change baseline: 89 files / 934 tests passed; build succeeded with the bundle-size warning; dependency advisories remain unremediated.
+- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). **Remediation landed 2026-10-07 on branch `arena/e8f5fefe-cp-inspired-scheduler`** (see the Shipped entry above): CFG-02…CFG-09, CFG-11 and CFG-12 resolved with tests; CFG-05 resolved by labelling; CFG-06/CFG-07 resolved by disabling/labelling and scope enforcement; REL-01 triaged and deferred (vitest major upgrade and bundle splitting are separate projects). Still open: **CFG-01** — the production hosting/auth/HIPAA architecture gate (P0; a decision, not a code fix) — and the CFG-05 jurisdictional payroll calculator + legal review. Suite on the branch: 95 files / 995 tests green; build green with the bundle-size warning; dependency advisories unremediated by design (documented in REL-01).
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
