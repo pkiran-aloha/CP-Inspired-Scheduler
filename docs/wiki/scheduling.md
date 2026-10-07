@@ -2,9 +2,9 @@
 
 _Last synced: 2026-10-07_
 
-_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main 8a352cc plus the cancellation-notice branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main 0434a5a plus the feat/smart-scheduling-picks branch on 2026-10-07; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -53,6 +53,14 @@ The rail shows these groups, worst first:
 - **Practice rules.** Your Settings > System > Appointment Validations (qualification, overlap, missing NPI, pay rate, ABA hours, and so on).
 
 **Know before you pick.** Every person in the staff and client pickers carries a verdict chip ("Busy 9:00-10:30", "Credential", "Over authorization") so you can see what adding them would trigger before you add them. The full sentence shows on hover. Nothing appears until the slot has a date and time.
+
+**Pick fit.** Under each name the pickers also show what the workspace already knows, so you can choose the best person, not only a possible one:
+
+- **Staff:** past sessions with the client (or **New to** the client), the hours they would have this week after this booking against the target hours on their staff record (flagged when over), and an estimated drive from their previous appointment that day (straight-line estimate, as in the travel check).
+- **Clients** (clinical bookings): authorized hours already booked in this week against the authorized week (flagged when under the authorization guard's under-pace share), days to authorization expiry when inside the renewal window (otherwise the share used), and their usual weekday and time band over the last 8 weeks, marked when this slot matches it.
+- **Best fit / Most hours open:** one badge on the strongest candidate nothing stands in the way of. For staff it is the top of the same ranking as **Suggested for this client** (Settings > Smart scheduling weights). For clients it is the one with the most authorized hours still open this week. The **A–Z / Ranked** switch in the list header puts clear candidates first, strongest first; the list opens A–Z.
+
+**Schedule fit (Checks rail).** For a clinical booking, a flag group names (1) a picked clinician who has no past sessions with the client when someone else has had at least 3, and (2) a picked clinician who would go over their weekly target hours, naming a same-tier peer who is free then and under 75% of theirs. When the slot clashes, it lists up to 3 **open slots** in the next 7 practice days where everyone picked is free: inside the working day, from today on, nobody busy or blocked out, never a slot the clinician cannot reach from the neighbouring session (travel check), ranked by same day, closeness to the asked time, joining an existing block, and high cancellation risk last. Clicking a slot only changes the form's date and time; nothing is booked until you save. All of this is advisory and never blocks a save.
 
 ### Guard modes: off, flag, warn, stop
 
@@ -147,6 +155,7 @@ The Density tab is the exception that adds a pure preflight before using the nor
 
 ### Modules
 
+- [pickFit.js](../../src/lib/pickFit.js): pick fit. `staffFit` and `clientFit` (per-candidate `facts`, `score`; `candidateVerdicts` attaches them and marks `best`), `fitNotes` (continuity and caseload-balance lines), `openSlots` and `slotText` (open slots for everyone picked; reuses `suggestStaff`, `authBurn`, `travelChecksForStaffDay`, `riskFor`, `clinicianGroup`, `practiceDaysOf`). Tunables are constants: `FIT_LOOKBACK_WEEKS` 8, `USUAL_MIN` 3, `PEER_UNDER` 0.75, `SLOT_DAYS` 7, `SLOT_LIMIT` 3. Pure and read-only.
 - [authBudget.js](../../src/lib/authBudget.js): hours guard. `authGuardCfg`, `AUTH_MODES`, `consumesAuth`, `clientAuthWindow`, `authBurn`, `authBand` (`AUTH_BANDS`), `authCheckFor` (returns `{severity, blocked, headline, reasons, notes, stats}`), `authBoard`. Mode caps severity at the end of `authCheckFor`.
 - [authUnits.js](../../src/lib/authUnits.js): per-code unit ledger and payer rule pack. `unitRuleFor` (payer service override, then payer service, then service master, then code default; AMA default), `unitsFor` (rounding; the function lives in `model.js` and is re-exported here), `apptUnits`, `unitLedger`, `unitCheckFor`, `mergeAuthChecks(hours, units, settings)` (folds both verdicts under the same mode cap), `normalizeAuthUnits`, `normalizeUnitNorms` (one-time move of untouched 30-minute defaults to 15 minutes), `seedAuthUnits`, `poolFromWeeklyHours`. Kept separate from `authBudget.js` to avoid an import cycle through `master.js`.
 - [bookingChecks.js](../../src/lib/bookingChecks.js): `candidateVerdicts(state, draft, kind, opts)` returns `{personId: {tone, label, detail, count}}`; `authChip`, `TONE_RANK`.

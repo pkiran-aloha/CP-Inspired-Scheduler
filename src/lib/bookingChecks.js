@@ -11,6 +11,10 @@
 //   clients · calendar clash · authorization hours + units + payer rules
 //             (authCheckFor + unitCheckFor) · newly triggered practice rules
 //
+// Each verdict also carries `facts` (continuity, weekly hours, drive, auth pace, usual
+// slot — see pickFit.js), a fit `score`, and `best` on the strongest candidate that
+// nothing stands in the way of.
+//
 // Pure: no React, no store. Nothing here blocks a booking; the dialog's guard decides.
 
 import { findConflicts } from './model'
@@ -19,6 +23,7 @@ import { authCheckFor } from './authBudget'
 import { mergeAuthChecks, unitCheckFor } from './authUnits'
 import { evaluateAppointmentValidations, isCancelStatus } from './settingsMasters'
 import { fmtTime } from './date'
+import { staffFit, clientFit } from './pickFit'
 
 export const TONE_RANK = { ok: 0, flag: 1, warn: 2, stop: 3 }
 const CLINICAL = ['service', 'evaluation', 'supervision']
@@ -94,5 +99,16 @@ export function candidateVerdicts(state, draft, kind, { today, h24 = false } = {
       ? { tone: w.tone, label: w.label, detail: issues.map((x) => x.detail).join(' '), count: issues.length }
       : { tone: 'ok', label: kind === 'staff' ? 'Free' : 'Clear', detail: 'Nothing on the calendar, authorization or practice rules stands in the way.', count: 0 }
   }
+
+  // what the workspace knows about each candidate, and the strongest clear pick
+  const fit = kind === 'staff' ? staffFit(state, draft, { today }) : clientFit(state, draft, { today })
+  let best = null
+  for (const p of people) {
+    const f = fit[p.id]
+    if (!f) continue
+    Object.assign(out[p.id], { facts: f.facts, score: f.score, reason: f.reason })
+    if (f.score > 0 && TONE_RANK[out[p.id].tone] <= TONE_RANK.flag && (!best || f.score > best.score)) best = out[p.id]
+  }
+  if (best) Object.assign(best, { best: kind === 'staff' ? 'Best fit' : 'Most hours open' })
   return out
 }

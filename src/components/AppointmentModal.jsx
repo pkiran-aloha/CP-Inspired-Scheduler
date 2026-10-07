@@ -26,7 +26,8 @@ import {
   planSeriesRebuild,
   isServiceAppt,
 } from '../lib/model'
-import { suggestStaff, smartCfg } from '../lib/smart'
+import { suggestStaff, smartCfg, weekLoad } from '../lib/smart'
+import { fitNotes, openSlots, slotText } from '../lib/pickFit'
 import { AUTH_BANDS, authGuardCfg, authCheckFor } from '../lib/authBudget'
 import { mergeAuthChecks, unitCheckFor, unitRuleFor, unitsFor } from '../lib/authUnits'
 import {
@@ -111,7 +112,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       end: f.end,
       exclude: f.staffIds,
       ignoreIds: initial.id ? [initial.id] : [],
-      load: Object.fromEntries(staff.map((x) => [x.id, 0])),
+      load: weekLoad(appts, wk),
       limit: cfg.suggest.count,
       cfg,
       code: svcById(state, f.service)?.code || '',
@@ -336,6 +337,27 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       title: 'This block usually loses a session', sub: `${DAY_SHORT[obBlock.dow]} · ${RISK_TIME_LABEL[obBlock.band]}`,
       lines: [{ text: `In ${c.hit} of the last ${obBlock.weeks} weeks at least ${obBlock.safeK === 1 ? 'one session was' : 'two sessions were'} lost here (${Math.round((obBlock.lost / Math.max(1, obBlock.sessions)) * 100)}% lost, ${Math.round(obBlock.rateNoShow * 100)}% no-shows).` }],
       foot: 'An extra session here belongs on a clinician who is free then, never as a second client on the same clinician. Advisory only; see Scheduler Insights → Overbooking.',
+    })
+  }
+  // Schedule fit: continuity + caseload balance for the people picked, and open slots
+  // when this one clashes. Advisory; a slot button only fills the form.
+  const fitLines = useMemo(() => (showClinic ? fitNotes(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }) : []), verdictDeps)
+  const slotsFor = useMemo(() => (conflicts.length ? openSlots(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }) : []), [...verdictDeps, conflicts.length])
+  if (fitLines.length || slotsFor.length) {
+    checkGroups.push({
+      key: 'fit', tone: 'flag', icon: 'spark', testid: 'bk-fit',
+      title: 'Schedule fit', sub: slotsFor.length ? 'Open slots for everyone picked' : 'Continuity and caseload',
+      lines: fitLines,
+      extra: slotsFor.length ? (
+        <div className="bk-slots" data-testid="bk-slots">
+          {slotsFor.map((sl, k) => (
+            <button key={k} type="button" className="bk-slot" data-testid={`bk-slot-${k}`} onClick={() => setTime({ date: sl.date, start: sl.start, end: sl.end })}>
+              {Icon.cal({ size: 12 })}<span>{slotText(sl, settings.h24)}</span>
+            </button>
+          ))}
+        </div>
+      ) : null,
+      foot: `From this workspace's calendar, staff target hours and past sessions${slotsFor.length ? `; slots are inside the working day on practice days, with nobody picked busy or blocked out` : ''}. Nothing is booked until you save.`,
     })
   }
   if (valReport.items.length) {

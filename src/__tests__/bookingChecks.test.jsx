@@ -1,6 +1,6 @@
 import React from 'react'
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState } from '../state/store'
 import { candidateVerdicts, authChip } from '../lib/bookingChecks'
@@ -69,5 +69,74 @@ describe('the booking dialog', () => {
     fireEvent.click(screen.getByTestId('save-appt'))
     expect((await within(panel).findByTestId('booking-checks-status')).textContent).toMatch(/Fix before booking/)
     expect(within(panel).getByTestId('appt-check-todo').textContent).toMatch(/Fix to save/)
+  })
+})
+
+describe('pick fit in the booking dialog', () => {
+  // a weekday at least a week out; one clinician booked 10:00–12:00 with another client
+  const shift = (iso, n) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+  let DATE = shift(today, 7)
+  while ([0, 6].includes(new Date(`${DATE}T00:00:00`).getDay())) DATE = shift(DATE, 1)
+  const BASE = blankState()
+  const S1 = BASE.staff.find((s) => /RBT/.test(s.role))
+  const [C, C2] = BASE.clients
+  const seed = () => {
+    const state = {
+      ...BASE,
+      appts: { blk: { id: 'blk', title: 'Busy block', date: DATE, start: 600, end: 720, type: 'service', status: 'active', staffIds: [S1.id], clientIds: [C2.id], location: '' } },
+    }
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(state))
+  }
+  const openAt = async () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: DATE } })
+    const [start, end] = document.querySelectorAll('input[type="time"]')
+    fireEvent.change(start, { target: { value: '10:00' } })
+    fireEvent.change(end, { target: { value: '12:00' } })
+    fireEvent.click(screen.getByTestId('pick-Client Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes(C.name)))
+    fireEvent.mouseDown(document.body)
+  }
+
+  it('shows facts on each staff row, one best fit, and can rank the list', async () => {
+    seed()
+    await openAt()
+    fireEvent.click(screen.getByTestId('pick-Staff Name'))
+    const items = await screen.findAllByTestId('people-item')
+    expect(items.every((el) => within(el).queryByTestId('bk-pick-facts'))).toBe(true)
+    expect(screen.getAllByTestId('bk-best-fit')).toHaveLength(1)
+    const busyRow = items.find((b) => b.textContent.includes(S1.name))
+    expect(within(busyRow).queryByTestId('bk-best-fit')).toBeNull()
+    fireEvent.click(screen.getByTestId('bk-pick-sort'))
+    expect(screen.getByTestId('bk-pick-sort').textContent).toBe('Ranked')
+    const ranked = screen.getAllByTestId('people-item')
+    expect(within(ranked[0]).queryByTestId('bk-best-fit')).toBeTruthy()
+  })
+
+  it('offers open slots when the pick clashes, and a slot only fills the form until saved', async () => {
+    seed()
+    await openAt()
+    fireEvent.click(screen.getByTestId('pick-Staff Name'))
+    fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes(S1.name)))
+    fireEvent.mouseDown(document.body)
+    const fit = await screen.findByTestId('bk-fit')
+    expect(within(fit).getByTestId('bk-slot-0').textContent).toMatch(/· \d/)
+    expect(Object.keys(JSON.parse(localStorage.getItem('aloha-aba.v3')).appts)).toEqual(['blk'])
+    fireEvent.click(within(fit).getByTestId('bk-slot-0'))
+    const picked = document.querySelectorAll('input[type="time"]')[0].value
+    expect(picked).not.toBe('10:00')
+    expect(screen.queryByTestId('appt-check-clash')).toBeNull()
+    fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Moved to open slot' } })
+    const ack = screen.queryByTestId('appt-ack-warns') // the RBT-renders-97151 rule still warns
+    if (ack) fireEvent.click(ack)
+    fireEvent.click(screen.getByTestId('save-appt'))
+    await screen.findByText('Appointment created')
+    const savedOf = () => Object.values(JSON.parse(localStorage.getItem('aloha-aba.v3')).appts).find((a) => a.title === 'Moved to open slot')
+    await waitFor(() => expect(savedOf()).toBeTruthy())
+    const saved = savedOf()
+    const [h, m] = picked.split(':').map(Number)
+    expect(saved).toMatchObject({ start: h * 60 + m, end: h * 60 + m + 120 })
   })
 })
