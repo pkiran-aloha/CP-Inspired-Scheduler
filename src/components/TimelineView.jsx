@@ -178,7 +178,9 @@ export default function TimelineView({ days, onPickSlot, onQuickCreate, onOpenDe
       return
     }
     const prev = { id: d.id, date: d.a.date, start: d.a.start, end: d.a.end }
-    actions.move(d.id, { date, start, end })
+    // a Stop rule can refuse the drop (audit CFG-02) — the drag snaps back and says why
+    const res = actions.move(d.id, { date, start, end })
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     const a2 = { ...d.a, date, start, end }
     const clash = findConflicts(appts, a2, staffById, clientsById, (k) => isCancelStatus(settings, k))
     toast({

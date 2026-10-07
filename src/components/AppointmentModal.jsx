@@ -126,6 +126,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const [confirmClose, setConfirmClose] = useState(false)
   const [scope, setScope] = useState('one') // one | following | all
   const [rebuild, setRebuild] = useState(false)
+  // Warn acknowledgement (audit CFG-02): a Warn-severity rule never blocks on its
+  // own, but saving with warnings outstanding requires an explicit tick in the
+  // Checks rail. The tick is bound to the exact warnings it acknowledged, so editing
+  // the slot re-arms the gate.
+  const [warnAckSig, setWarnAckSig] = useState(null)
   const fileRef = useRef(null)
 
   const set = (patch) => {
@@ -190,6 +195,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     () => evaluateAppointmentValidations(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }),
     [state, f.type, f.date, f.start, f.end, f.service, f.status, JSON.stringify(f.staffIds), JSON.stringify(f.clientIds), f.id, f.abaHr, f.abaActivity],
   )
+  // Warn acknowledgement (audit CFG-02): the tick in the Checks rail is bound to the
+  // exact warnings it acknowledged, so editing the slot re-arms the gate.
+  const warnSig = JSON.stringify((valReport.warns || []).map((w) => w.id))
+  const warnsAcked = Boolean(valReport.warns.length) && warnAckSig === warnSig
   const errors = []
   if (!f.date) errors.push('Pick a date')
   if (dur < SNAP) errors.push('End time must be after start time')
@@ -329,6 +338,21 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       key: 'rules', tone: top, icon: 'clipboard', testid: 'appt-validation-banner',
       title: 'Practice rules', sub: top === 'stop' ? 'A stop rule blocks this booking' : top === 'warn' ? 'Warnings from Settings → Validations' : 'Flags from Settings → Validations',
       lines: valReport.items.map((item) => ({ tone: toneOf(item.severity), text: `${item.label}: ${item.message}` })),
+      extra: valReport.warns.length ? (
+        <label
+          className={`checkrow ${warnsAcked ? 'on' : ''}`}
+          data-testid="appt-ack-warns"
+          style={{ marginTop: 6, cursor: 'pointer', alignItems: 'center' }}
+          onClick={() => setWarnAckSig(warnsAcked ? null : warnSig)}
+        >
+          <span className="cb">{warnsAcked && Icon.check({ size: 10, strokeWidth: 3 })}</span>
+          <span style={{ fontSize: 12, fontWeight: 600 }}>
+            {warnsAcked
+              ? `Warnings reviewed — saving is allowed`
+              : `I've reviewed these ${valReport.warns.length} warning${valReport.warns.length === 1 ? '' : 's'} — save anyway`}
+          </span>
+        </label>
+      ) : null,
     })
   }
   const checksHint = !f.staffIds.length || !f.clientIds.length
@@ -388,16 +412,36 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     custom: f.custom || {},
     documents: f.documents || [],
     verification: f.verification,
+    // the warn acknowledgement is recorded so the audit trail shows it was seen
+    ...(valReport.warns.length && warnsAcked ? { warnsAcked: { n: valReport.warns.length, at: new Date().toISOString() } } : {}),
     billing: isBillable ? { code: code.id, unitMins: unitRule.unitMins, rounding: unitRule.rounding, minutes: dur, units, rate, mileage, distance, mileageRate: mileRate } : null,
   })
 
-  const clashFor = (draft, ignoreIds) =>
-    Object.values(appts).some((b) => {
+  const clashFor = (draft, ignoreIds, apptsMap = appts) =>
+    Object.values(apptsMap).some((b) => {
       if (b.date !== draft.date || b.status === 'cancelled') return false
       if (ignoreIds?.has(b.id)) return false
       if (!timeOverlap(draft.start, draft.end, b.start, b.end)) return false
       return (draft.staffIds || []).some((s) => (b.staffIds || []).includes(s)) || (draft.clientIds || []).some((c) => (b.clientIds || []).includes(c))
     })
+
+  // CFG-03: every occurrence of a series is validated against the calendar view it
+  // will land in — live bookings plus the occurrences already accepted above it.
+  // Validation stops and authorization blocks reject that date only.
+  const occurrenceReasons = (viewState, draft) => {
+    const reasons = []
+    if (clashFor(draft, undefined, viewState.appts)) reasons.push('time clash with an existing booking')
+    for (const s of evaluateAppointmentValidations(viewState, draft).stops) reasons.push(s.label)
+    if (showClinic && (draft.clientIds || []).length) {
+      for (const cid of draft.clientIds) {
+        const client = clientsById[cid]
+        if (!client) continue
+        const merged = mergeAuthChecks(authCheckFor(viewState, client, draft), unitCheckFor(viewState, client, draft, { today: todayISO() }), settings)
+        if (merged.blocked) reasons.push(`authorization for ${client.name}: ${merged.reasons[0] || 'past the hours on file'}`)
+      }
+    }
+    return reasons
+  }
 
   const save = (andNew) => {
     setShowErrs(true)
@@ -424,25 +468,66 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       setTab('verify')
       return
     }
+    if (valReport.warns.length && !warnsAcked) {
+      toast({ message: `Review the ${valReport.warns.length} warning${valReport.warns.length === 1 ? '' : 's'} from Settings → Validations, then tick “I've reviewed these warnings” in the Checks rail to save`, kind: 'warn' })
+      return
+    }
     if (mode === 'edit') {
       const patch = buildAppt(f.date)
       if (isSeries && scope !== 'one') {
         const { updates } = planScopedPatch(appts, { id: f.id, seriesId: initial.seriesId, date: initial.date }, scope, patch)
-        actions.create(updates.map((u) => ({ ...u, edited: false })))
-        onSaved(scope === 'all' ? `Updated all ${updates.length} occurrences` : `Updated this & ${updates.length - 1} following`, { id: f.id })
+        // each rewritten occurrence is validated against the live calendar plus the
+        // occurrences already accepted (audit CFG-03) — rejected ones are skipped, not forced
+        const cumulative = { ...appts }
+        for (const u of updates) delete cumulative[u.id]
+        const applied = []
+        const rejectedOcc = []
+        for (const u of updates) {
+          const next = { ...u, edited: false }
+          const view = { ...cumulative, ...Object.fromEntries(applied.map((a) => [a.id, a])) }
+          const reasons = occurrenceReasons({ ...state, appts: view }, next)
+          if (reasons.length) { rejectedOcc.push({ date: next.date, reasons }); continue }
+          applied.push(next)
+          cumulative[next.id] = next
+        }
+        if (!applied.length) {
+          toast({ message: `No occurrence can be updated — ${rejectedOcc[0].date}: ${rejectedOcc[0].reasons[0]}`, kind: 'warn' })
+          return
+        }
+        const res = actions.create(applied)
+        if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
+        onSaved(
+          rejectedOcc.length
+            ? (scope === 'all'
+              ? `Updated ${applied.length} of ${updates.length} occurrences · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})`
+              : `Updated this & ${applied.length - 1} following · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})`)
+            : (scope === 'all' ? `Updated all ${updates.length} occurrences` : `Updated this & ${updates.length - 1} following`),
+          { id: f.id },
+        )
         return
       }
       actions.update(f.id, { ...patch, ...(isSeries ? { edited: true } : {}) })
       // repeat-rule rebuild: regenerate future occurrences of the series
       if (isSeries && rebuild && f.repeat !== (initial.recurrence || 'none')) {
         const { deleteIds, newDates } = planSeriesRebuild(appts, initial, f.repeat, f.repeatCount)
+        // every regenerated occurrence is validated like a fresh booking (audit CFG-03)
+        const cumulative = { ...appts }
+        for (const id of deleteIds) delete cumulative[id]
+        const created = []
+        const rejectedOcc = []
+        for (const date of newDates) {
+          const draft = { ...buildAppt(date), id: uid(), seriesId: initial.seriesId, recurrence: f.repeat, date }
+          const reasons = occurrenceReasons({ ...state, appts: cumulative }, draft)
+          if (reasons.length) { rejectedOcc.push({ date, reasons }); continue }
+          created.push(draft)
+          cumulative[draft.id] = draft
+        }
         actions.remove(deleteIds)
-        const skip = new Set(deleteIds)
-        const created = newDates
-          .map((date) => ({ ...buildAppt(date), id: uid(), seriesId: initial.seriesId, recurrence: f.repeat, date }))
-          .filter((d) => !clashFor(d, skip))
-        if (created.length) actions.create(created)
-        onSaved(`Series rebuilt — ${created.length + 1} occurrences under “${RECURRENCES.find((r) => r.id === f.repeat)?.label}”`, { id: f.id })
+        if (created.length) {
+          const res = actions.create(created)
+          if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
+        }
+        onSaved(`Series rebuilt — ${created.length + 1} occurrence${created.length === 1 ? '' : 's'} under “${RECURRENCES.find((r) => r.id === f.repeat)?.label}”${rejectedOcc.length ? ` · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})` : ''}`, { id: f.id })
         return
       }
       onSaved('Appointment updated', { id: f.id })
@@ -451,18 +536,21 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // ----- create -----
     const dates = seriesDatesFor(f.date, f.repeat, f.repeatCount)
     const created = []
-    let skipped = 0
+    const rejected = [] // { date, reasons } — dates a Stop rule or the authorization guard refuses
     const seriesId = f.repeat === 'none' ? undefined : uid()
+    // occurrences already accepted join the calendar the next dates are checked against
+    const cumulative = { ...appts }
     for (const date of dates) {
-      const draft = { ...buildAppt(date), date }
-      if (dates.length > 1 && clashFor(draft)) {
-        skipped++
-        continue
-      }
-      created.push({ id: uid(), seriesId, recurrence: f.repeat, ...draft })
+      const draft = { ...buildAppt(date), date, id: '__draft__' }
+      const reasons = dates.length > 1 ? occurrenceReasons({ ...state, appts: cumulative }, draft) : []
+      if (reasons.length) { rejected.push({ date, reasons }); continue }
+      const occ = { id: uid(), seriesId, recurrence: f.repeat, ...buildAppt(date), date }
+      created.push(occ)
+      cumulative[occ.id] = occ
     }
     if (!created.length) {
-      toast({ message: 'All occurrences conflict with existing bookings', kind: 'warn' })
+      const why = rejected[0] ? ` — ${rejected[0].date}: ${rejected[0].reasons[0]}` : ''
+      toast({ message: `No occurrence can be booked${why}`, kind: 'warn' })
       return
     }
     if (onCreate) {
@@ -471,16 +559,18 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       onSaved(result.msg, created[0])
       return
     }
-    actions.create(created)
+    const res = actions.create(created)
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
+    const rejectedNote = rejected.length ? ` · ${rejected.length} rejected (${rejected.slice(0, 3).map((r) => r.date).join(', ')})` : ''
     if (andNew) {
       setF(fresh({ id: uid(), date: f.date }))
       setTitleTouched(false)
       setDirty(false)
       setTab('info')
-      toast({ message: `Created${created.length > 1 ? ` ${created.length} occurrences` : ''} — ready for the next one`, kind: 'ok' })
+      toast({ message: `Created${created.length > 1 ? ` ${created.length} occurrences` : ''}${rejectedNote} — ready for the next one`, kind: 'ok' })
       return
     }
-    onSaved(created.length > 1 ? `Created ${created.length} occurrences${skipped ? ` · ${skipped} skipped (conflict)` : ''}` : `Appointment created${skipped ? ` · ${skipped} skipped (conflict)` : ''}`, created[0])
+    onSaved(created.length > 1 ? `Created ${created.length} occurrences${rejectedNote}` : `Appointment created${rejectedNote}`, created[0])
   }
 
   const requestClose = () => (dirty ? setConfirmClose(true) : onClose())

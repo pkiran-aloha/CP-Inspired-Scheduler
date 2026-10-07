@@ -17,7 +17,7 @@ import { seedRecords } from '../lib/demoRecords'
 import { planPduEntry } from '../lib/credentials'
 import { planTask, planTaskDone } from '../lib/tasks'
 import { planMessage, readUpdates } from '../lib/messages'
-import { planSettingsOp, normalizeSettingsMasters, appendImportLog, evaluateAppointmentValidations } from '../lib/settingsMasters'
+import { planSettingsOp, normalizeSettingsMasters, appendImportLog, evaluateAppointmentValidations, isCancelStatus, stopViolationsForDraft, validationFlagsForDraft, touchesSchedule } from '../lib/settingsMasters'
 import { hasIntegrationSecrets, stripIntegrationSecrets } from '../lib/integrationSecrets'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
@@ -824,13 +824,44 @@ function createActions(state, dispatch, rawState = state) {
       const decision = dispatch({ type: 'handoffSessionTx', clientId, appt })
       return decision?.ok === false ? decision : { ok: true, msg: plan.msg }
     },
+    // Stop-severity validation rules are a write-time invariant across every booking
+    // path (audit CFG-02): the booking modal, Quick Add, drag, series and duplicate
+    // all land here, so a draft that trips a Stop rule is refused — and the
+    // flag-severity items it would carry are derived and stored as the session badge.
     create: (apptsIn) => {
-      const appts = apptsIn.map((a) => ({ id: a.id || uid(), createdAt: Date.now(), updatedAt: Date.now(), status: 'active', custom: {}, clientIds: [], staffIds: [], notes: '', documents: [], verification: null, ...a }))
-      dispatch({ type: 'upsertMany', appts })
-      return appts
+      const list = (Array.isArray(apptsIn) ? apptsIn : [apptsIn]).map((a) => ({ id: a.id || uid(), createdAt: Date.now(), updatedAt: Date.now(), status: 'active', custom: {}, clientIds: [], staffIds: [], notes: '', documents: [], verification: null, ...a }))
+      const prepared = []
+      for (const a of list) {
+        const next = state.appts[a.id] ? { ...state.appts[a.id], ...a } : a
+        const stops = stopViolationsForDraft(state, next)
+        if (stops.length) return { ok: false, msg: `“${next.title || 'Appointment'}” is blocked by a Stop rule: ${stops.map((s) => s.label).join('; ')}` }
+        prepared.push({ ...a, validationFlags: validationFlagsForDraft(state, next) })
+      }
+      dispatch({ type: 'upsertMany', appts: prepared })
+      return { ok: true, appts: prepared }
     },
-    update: (id, patch) => dispatch({ type: 'patch', id, patch }),
-    move: (id, { date, start, end }) => dispatch({ type: 'patch', id, patch: { date, start, end } }),
+    update: (id, patch) => {
+      const cur = state.appts[id]
+      if (!cur) return { ok: false, msg: 'Appointment not found.' }
+      const next = { ...cur, ...patch }
+      // Only scheduling writes are guarded — completing, cancelling or billing a
+      // session that already carries a flag never trips the guard.
+      const reschedules = touchesSchedule(patch) || (patch.status !== undefined && !isCancelStatus(state.settings, next.status) && isCancelStatus(state.settings, cur.status))
+      if (!reschedules) { dispatch({ type: 'patch', id, patch }); return { ok: true } }
+      const stops = stopViolationsForDraft(state, next)
+      if (stops.length) return { ok: false, msg: `“${next.title || 'Appointment'}” is blocked by a Stop rule: ${stops.map((s) => s.label).join('; ')}` }
+      dispatch({ type: 'patch', id, patch: { ...patch, validationFlags: validationFlagsForDraft(state, next) } })
+      return { ok: true }
+    },
+    move: (id, { date, start, end }) => {
+      const cur = state.appts[id]
+      if (!cur) return { ok: false, msg: 'Appointment not found.' }
+      const next = { ...cur, date, start, end }
+      const stops = stopViolationsForDraft(state, next)
+      if (stops.length) return { ok: false, msg: `Cannot move “${next.title || 'Appointment'}” — a Stop rule blocks that slot: ${stops.map((s) => s.label).join('; ')}` }
+      dispatch({ type: 'patch', id, patch: { date, start, end, validationFlags: validationFlagsForDraft(state, next) } })
+      return { ok: true }
+    },
     remove: (ids) => dispatch({ type: 'deleteMany', ids: Array.isArray(ids) ? ids : [ids] }),
     removeSeries: (appt, scope) => {
       if (scope === 'one' || !appt.seriesId) return dispatch({ type: 'deleteMany', ids: [appt.id] })

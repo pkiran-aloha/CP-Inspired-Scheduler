@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { isCancelStatus } from '../lib/settingsMasters'
+import { useToast } from '../ui/Toast'
 import { Icon } from '../ui/Icons'
 import { Dropdown } from './fields'
 import { fmtDur, fmtTime } from '../lib/date'
@@ -15,6 +16,7 @@ import { unitRuleFor, unitsFor } from '../lib/authUnits'
 export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
   const state = useStore()
   const { clients, staff, settings, appts, ui, actions } = state
+  const toast = useToast()
   const T = TYPES.service
   const [clientId, setClientId] = useState(ui.clientSel.length === 1 ? ui.clientSel[0] : '')
   const [serviceId, setServiceId] = useState('')
@@ -76,7 +78,10 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
       documents: [],
       verification: null,
     }
-    actions.create([appt])
+    // Stop rules are a write-time invariant (audit CFG-02) — Quick Add cannot book
+    // past one; the clash warnbox above stays advisory, the Stop rule is not.
+    const res = actions.create([appt])
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     onBooked(appt)
   }
 

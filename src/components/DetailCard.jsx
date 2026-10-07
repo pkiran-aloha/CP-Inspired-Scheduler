@@ -51,7 +51,9 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   }, [appts, appt.id, appt.status, settings.smart])
   const assignCover = (c) => {
     const prev = { status: appt.status, staffIds: appt.staffIds, backfilled: appt.backfilled, backfillIgnored: appt.backfillIgnored }
-    actions.update(appt.id, { status: 'active', staffIds: [c.staff.id], backfilled: true, backfilledFrom: appt.staffIds || [], backfillIgnored: false })
+    // re-staffing is a scheduling write — a Stop rule can refuse it (audit CFG-02)
+    const res = actions.update(appt.id, { status: 'active', staffIds: [c.staff.id], backfilled: true, backfilledFrom: appt.staffIds || [], backfillIgnored: false })
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({ message: `Backfilled — ${c.staff.name.split(' ')[0]} now covers this session`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
   }
   const authOf = (cid) => {
@@ -121,7 +123,8 @@ export default function DetailCard({ appt, onClose, onEdit }) {
   }
   const duplicate = () => {
     const copy = { ...appt, id: uid(), title: `${appt.title} (copy)`, status: 'active', seriesId: undefined, recurrence: 'none', createdAt: Date.now() }
-    actions.create([copy])
+    const res = actions.create([copy])
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({ message: 'Duplicated on same day', kind: 'ok' })
     onClose()
   }
@@ -159,6 +162,9 @@ export default function DetailCard({ appt, onClose, onEdit }) {
             )}
             {appt.edited && appt.seriesId && <span className="sbadge" title="This occurrence was changed independently from the series">✎ exception</span>}
             {appt.backfilled && <span className="sbadge backfilled" data-testid="backfilled-badge" title="Reassigned from a cancelled booking via smart backfill">↩ backfilled</span>}
+            {Array.isArray(appt.validationFlags) && appt.validationFlags.length > 0 && (
+              <span className="sbadge" data-testid="dc-flag-badge" title={`Flagged at booking: ${appt.validationFlags.map((f) => f.label).join(' · ')}`}>⚑ {appt.validationFlags.length} flagged</span>
+            )}
             <span className="f1" />
             <button className="modal-x" onClick={onClose} aria-label="Close">{Icon.x({ size: 13 })}</button>
           </div>

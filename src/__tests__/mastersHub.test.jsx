@@ -731,6 +731,8 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.click(screen.getByTestId('pcf-opt-cf-authdept-Behavioral Intake 2'))
     fireEvent.click(screen.getByTestId('pcf-toption-cf-present-1'))
     expect(screen.getByTestId('pcf-toption-cf-present-1').textContent).toBe('With caregiver')
+    // this booking overlaps the first one at the same slot (overlap = warn) — acknowledge before saving
+    fireEvent.click(await screen.findByTestId('appt-ack-warns'))
     fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs['cf-authdept'])
@@ -738,6 +740,10 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
       expect(created.pcfs['cf-authdept'].value).toBe('Behavioral Intake 2')
       expect(created.pcfs['cf-authdept'].label).toBe('Prior auth dept')
       expect(created.pcfs['cf-present'].value).toBe('With caregiver')
+      // the warn acknowledgement ticked in the dialog is persisted on the session
+      expect(created.warnsAcked).toBeTruthy()
+      expect(created.warnsAcked.n).toBeGreaterThan(0)
+      expect(created.warnsAcked.at).toBeTruthy()
     })
   })
 

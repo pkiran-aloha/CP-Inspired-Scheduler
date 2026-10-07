@@ -842,6 +842,31 @@ export function evaluateAppointmentValidations(state, draft = {}) {
   }
 }
 
+/**
+ * Write-time Stop guard for appointment writes (audit CFG-02). A draft that trips a
+ * Stop-severity validation rule is refused, never saved — on every path: booking
+ * modal, Quick Add, drag, series, import. Cancelling a session is not scheduling,
+ * so a cancellation-status draft is never blocked by an overlap-style rule.
+ */
+export function stopViolationsForDraft(state, draft) {
+  if (!draft || isCancelStatus(state?.settings, draft.status)) return []
+  return evaluateAppointmentValidations(state, draft).stops
+}
+
+/**
+ * Flag-severity items derived at save time — the persistent session badge (audit
+ * CFG-02). Stored on the appointment so the flag survives the save instead of
+ * living only in the booking dialog's draft report.
+ */
+export function validationFlagsForDraft(state, draft) {
+  if (!draft || isCancelStatus(state?.settings, draft.status)) return []
+  return evaluateAppointmentValidations(state, draft).flags.map((f) => ({ id: f.id, label: f.label }))
+}
+
+/** Fields that make a patch a scheduling write (as opposed to a status/billing/notes edit). */
+export const SCHEDULE_PATCH_FIELDS = ['date', 'start', 'end', 'staffIds', 'clientIds', 'service', 'location', 'type', 'origin', 'destination', 'unavailTarget', 'abaHr', 'abaActivity', 'recurrence', 'seriesId']
+export const touchesSchedule = (patch) => SCHEDULE_PATCH_FIELDS.some((k) => patch && Object.hasOwn(patch, k))
+
 /** Earning codes: the configured list when present, else the engine defaults.
  *  The resolvers live in payroll.js (the engine owns them); these are the names
  *  the settings panels read. */

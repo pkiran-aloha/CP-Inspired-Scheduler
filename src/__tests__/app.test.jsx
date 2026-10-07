@@ -344,9 +344,13 @@ describe('create wizard', () => {
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: jdates[jdates.length - 1] } })
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '5' } })
+    // the form date overlaps the seed, so its warnings need an explicit acknowledgement first
     fireEvent.click(screen.getByTestId('save-appt'))
-    const t = await screen.findByText(/skipped \(conflict\)/)
-    expect(t.textContent).toMatch(/Created \d+ occurrences · \d+ skipped \(conflict\)/)
+    fireEvent.click(await screen.findByTestId('appt-ack-warns'))
+    fireEvent.click(screen.getByTestId('save-appt'))
+    // a clashing occurrence is rejected and the report names the date (audit CFG-03)
+    const t = await screen.findByText(/rejected \(/)
+    expect(t.textContent).toMatch(/Created \d+ occurrences · \d+ rejected \(/)
   })
 
   it('unified Location dropdown: search, list, and free-text creation (no native select)', async () => {

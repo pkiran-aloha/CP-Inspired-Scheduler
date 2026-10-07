@@ -215,7 +215,9 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
       return
     }
     const prev = { id: d.id, date: d.a.date, start: d.a.start, end: d.a.end }
-    actions.move(d.id, { date, start, end })
+    // a Stop rule can refuse the drop (audit CFG-02) — the drag snaps back and says why
+    const res = actions.move(d.id, { date, start, end })
+    if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     const a2 = { ...d.a, date, start, end }
     const clash = findConflicts(appts, a2, staffById, clientsById, (k) => isCancelStatus(settings, k))
     toast({
@@ -513,6 +515,11 @@ function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayI
           {showAba && countsAsAbaHours(a) && !tiny ? (
             <div className="s" style={{ marginTop: 1 }}>
               <span className="pill" data-testid="tg-aba-pill" title={ABA_HOURS_EXPLAIN} style={{ padding: '0 5px', fontSize: 9, background: 'transparent' }}>⚡ ABA hr</span>
+            </div>
+          ) : null}
+          {Array.isArray(a.validationFlags) && a.validationFlags.length > 0 && !tiny ? (
+            <div className="s" style={{ marginTop: 1 }}>
+              <span className="pill" data-testid="tg-flag-pill" title={`Flagged at booking: ${a.validationFlags.map((f) => f.label).join(' · ')}`} style={{ padding: '0 5px', fontSize: 9, background: 'transparent' }}>⚑ {a.validationFlags.length} flagged</span>
             </div>
           ) : null}
         </>
