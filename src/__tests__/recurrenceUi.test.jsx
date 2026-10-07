@@ -136,4 +136,13 @@ describe('dragging one occurrence', () => {
     expect(a).toMatchObject({ edited: true, originalDate: plus(START, 7), date: plus(START, 8) })
     await waitFor(() => expect(stored().rp1).toMatchObject({ edited: true, originalDate: plus(START, 7) }))
   })
+
+  it('marks an exception on the calendar card with the drawn pencil, labelled for screen readers', async () => {
+    seedSeries({ rp0: { edited: true } })
+    const { container } = render(<App />)
+    const marks = await screen.findAllByRole('img', { name: 'Changed from series' })
+    expect(marks).toHaveLength(1)
+    expect(marks[0].querySelector('svg')).toBeTruthy()
+    expect(container.textContent).not.toContain('✎')
+  })
 })
