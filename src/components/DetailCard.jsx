@@ -7,6 +7,7 @@ import { addDays, fmtDayLabel, fmtDur, fmtRange, isoDate, parseISO, startOfWeek,
 import { needsCoverFor, backfillFor } from '../lib/smart'
 import { computeBilling, RECURRENCES, TYPES, VERIFY_CHECKS, findConflicts, seriesSiblings, uid } from '../lib/model'
 import { isCancelStatus, statusFor, systemConfigFor } from '../lib/settingsMasters'
+import { payerForAppt, svcRule } from '../lib/master'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
 import { ABA_HOURS_EXPLAIN, abaActivityLabel, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 
@@ -73,11 +74,21 @@ export default function DetailCard({ appt, onClose, onEdit }) {
       toast({ message: `Status “${curStatus.label}” is configured with Allow To Complete off in Settings → Appointment Status`, kind: 'warn' })
       return
     }
+    // A payer's client-signature rule holds on every completion path — Quick Verify
+    // signs as staff and must not complete a session the family has not signed.
+    const qPayer = payerForAppt(state, appt.clientIds || [])
+    if (qPayer && svcRule(qPayer)?.appt?.sigRequired && !ver?.clientSignature) {
+      toast({ message: `${qPayer.name} requires a client signature before this session can be completed — capture it on the appointment's Verification tab`, kind: 'warn' })
+      return
+    }
     const sigCompletes = systemConfigFor(settings).appointment?.staffSigCompletesAppt !== false
     const sigStaff = staffById[ver?.completedBy || appt.staffIds?.[0]] || staff[0]
     actions.update(appt.id, {
       status: sigCompletes ? 'completed' : appt.status,
+      // keep whatever is already on the record — a client/guardian signature captured
+      // earlier must survive a quick verify, it is not replaced by the staff one
       verification: {
+        ...(ver || {}),
         completedBy: sigStaff.id,
         checks: Object.fromEntries(VERIFY_CHECKS.map((c) => [c.id, true])),
         verifyStatus: 'verified',
@@ -294,6 +305,11 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                     <span className="muted" style={{ fontSize: 12 }}>Verification pending</span>
                     {canEdit && isPast && <button className="btn btn-sm" style={{ marginLeft: 8 }} onClick={quickVerify}>Quick verify + sign</button>}
                   </>
+                )}
+                {ver?.clientSignature && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 4 }} data-testid="dc-client-sig">
+                    Client/guardian signed — {ver.clientSignature.staffName || ver.clientSignature.text}
+                  </div>
                 )}
               </div>
             </div>

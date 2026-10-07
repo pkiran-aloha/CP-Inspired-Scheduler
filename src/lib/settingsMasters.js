@@ -184,27 +184,27 @@ export const INTEGRATION_STATUSES = {
 }
 
 export const DEFAULT_INTEGRATIONS = [
-  { id: 'int-calendar', name: 'Calendar feed (ICS)', vendor: 'Local export', status: 'local-export', direction: 'One-way export',
+  { id: 'int-calendar', name: 'Calendar feed (ICS)', vendor: 'Local export', category: 'operations', status: 'local-export', direction: 'One-way export',
     detail: 'Exports upcoming bookings as an .ics file you can import into Outlook, Apple or Google Calendar. It is a one-off file, not a subscription: nothing syncs.', lastRunAt: null, note: '' },
-  { id: 'int-qbo', name: 'QuickBooks (desktop import)', vendor: 'Intuit', status: 'local-export', direction: 'One-way export',
+  { id: 'int-qbo', name: 'QuickBooks (desktop import)', vendor: 'Intuit', category: 'operations', status: 'local-export', direction: 'One-way export',
     detail: 'Produces the QBO import CSV and the payroll journal with an import guide. Nothing is posted into QuickBooks from here.', lastRunAt: null, note: '' },
-  { id: 'int-ensora', name: 'Ensora Data Collection', vendor: 'Ensora Health', status: 'local-export', direction: 'Clinical data sync',
+  { id: 'int-ensora', name: 'Ensora Data Collection', vendor: 'Ensora Health', category: 'clinical', status: 'local-export', direction: 'Clinical data sync',
     detail: 'Maps ABA programs, skill acquisition targets and session mastery records for local clinical export.', lastRunAt: null, note: '' },
-  { id: 'int-hirasmus', name: 'Hi Rasmus', vendor: 'Hi Rasmus', status: 'off', direction: 'Clinical data sync',
+  { id: 'int-hirasmus', name: 'Hi Rasmus', vendor: 'Hi Rasmus', category: 'clinical', status: 'off', direction: 'Clinical data sync',
     detail: 'ABA curriculum, treatment fidelity checklists and session note hand-off adapter.', lastRunAt: null, note: '' },
-  { id: 'int-motivity', name: 'Motivity', vendor: 'Motivity', status: 'off', direction: 'Clinical data sync',
+  { id: 'int-motivity', name: 'Motivity', vendor: 'Motivity', category: 'clinical', status: 'off', direction: 'Clinical data sync',
     detail: 'Clinical data collection and session verification sync for RBT/BCBA caseloads.', lastRunAt: null, note: '' },
-  { id: 'int-welina', name: 'Welina', vendor: 'Welina', status: 'off', direction: 'Clinical documentation',
+  { id: 'int-welina', name: 'Welina', vendor: 'Welina', category: 'clinical', status: 'off', direction: 'Clinical documentation',
     detail: 'AI-assisted clinical documentation and payer-compliant session note verification.', lastRunAt: null, note: '' },
-  { id: 'int-fhir', name: 'EMR / FHIR hand-off', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
+  { id: 'int-fhir', name: 'EMR / FHIR hand-off', vendor: 'Configurable', category: 'clinical', status: 'off', direction: 'Out of scope',
     detail: 'A real FHIR endpoint needs credentials and a server. This demo keeps the data local; the seam is documented for a future adapter.', lastRunAt: null, note: '' },
-  { id: 'int-clearinghouse', name: 'Claims clearinghouse', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
+  { id: 'int-clearinghouse', name: 'Claims clearinghouse', vendor: 'Configurable', category: 'billing', status: 'off', direction: 'Out of scope',
     detail: 'No 837 transmission exists in this demo. Claims are staged locally and their files recorded in Billed Files.', lastRunAt: null, note: '' },
-  { id: 'int-telehealth', name: 'Telehealth room link', vendor: 'Configurable', status: 'local-export', direction: 'Reference data',
+  { id: 'int-telehealth', name: 'Telehealth room link', vendor: 'Configurable', category: 'reference', status: 'local-export', direction: 'Reference data',
     detail: 'Stores the practice’s own video room link, shows it on telehealth appointments and adds it to .ics exports. The app does not host, open or record a video session.', lastRunAt: null, note: '' },
-  { id: 'int-paylink', name: 'Online payment link (Stripe)', vendor: 'Stripe or any processor', status: 'local-export', direction: 'Reference data',
+  { id: 'int-paylink', name: 'Online payment link (Stripe)', vendor: 'Stripe or any processor', category: 'reference', status: 'local-export', direction: 'Reference data',
     detail: 'Stores the practice’s own payment link (for example a Stripe Payment Link) and prints it on client statements. The app never charges a card or reads Stripe: when a family pays, record it in the Payment Center as a patient receipt.', lastRunAt: null, note: '' },
-  { id: 'int-eligibility', name: 'Eligibility / benefits check', vendor: 'Configurable', status: 'off', direction: 'Out of scope',
+  { id: 'int-eligibility', name: 'Eligibility / benefits check', vendor: 'Configurable', category: 'billing', status: 'off', direction: 'Out of scope',
     detail: 'Verification Forms capture what staff were told on the phone. There is no live 270/271 exchange.', lastRunAt: null, note: '' },
 ]
 
@@ -547,21 +547,57 @@ export function appointmentValidationsCfg(settings) {
 }
 export function systemConfigFor(settings) {
   const sys = settings?.system || settings?.systemConfig || {}
+  // `staffSignatureRequired` was an older UI key; the canonical key is
+  // `staffSigRequiredToComplete` (the default the engine and the settings
+  // contract have always read). Preserve a legacy choice on read.
+  const genIn = sys.general || {}
+  const general = { ...DEFAULT_SYSTEM_CONFIG.general, ...genIn }
+  if (genIn.staffSigRequiredToComplete == null && genIn.staffSignatureRequired != null) {
+    general.staffSigRequiredToComplete = genIn.staffSignatureRequired === true
+  }
+  // `syncVerifTimeToAppt` was the UI's key; the canonical key is `syncVerificationTime`.
+  const apptIn = sys.appointment || {}
+  const appointment = { ...DEFAULT_SYSTEM_CONFIG.appointment, ...apptIn }
+  if (apptIn.syncVerificationTime == null && apptIn.syncVerifTimeToAppt != null) {
+    appointment.syncVerificationTime = apptIn.syncVerifTimeToAppt === true
+  }
   return {
     ...DEFAULT_SYSTEM_CONFIG,
     ...sys,
-    general: { ...DEFAULT_SYSTEM_CONFIG.general, ...(sys.general || {}) },
+    general,
     billing: { ...(sys.billing || {}) },
-    appointment: { ...DEFAULT_SYSTEM_CONFIG.appointment, ...(sys.appointment || {}) },
+    appointment,
     other: {
       ...DEFAULT_SYSTEM_CONFIG.other,
       ...(sys.other || {}),
       clientPortalColumns: { ...DEFAULT_SYSTEM_CONFIG.other.clientPortalColumns, ...(sys.other?.clientPortalColumns || {}) },
-      paymentGatewayMethods: { ...DEFAULT_SYSTEM_CONFIG.other.paymentGatewayMethods, ...(sys.other?.paymentGatewayMethods || {}) },
+      paymentGatewayMethods: normalizeGatewayMethods(sys.other?.paymentGatewayMethods),
     },
   }
 }
 export const systemConfigCfg = systemConfigFor
+
+/**
+ * One canonical shape for the accepted payment-gateway methods: an object of
+ * booleans. Older saves (and the panel's first draft) wrote an array of method
+ * ids; map it onto the object so a saved selection survives a reload.
+ */
+function normalizeGatewayMethods(raw) {
+  const base = { ...DEFAULT_SYSTEM_CONFIG.other.paymentGatewayMethods }
+  if (Array.isArray(raw)) {
+    for (const id of raw) {
+      if (id === 'card' || id === 'creditCard') base.creditCard = true
+      else if (id === 'ach') base.ach = true
+      else if (id === 'hsaFsa') base.hsaFsa = true
+      else if (id === 'appleGooglePay') base.appleGooglePay = true
+    }
+    return base
+  }
+  return { ...base, ...(raw || {}) }
+}
+
+/** The one canonical system rule for a staff signature before completing a session. */
+export const staffSigRequiredToCompleteOf = (settings) => systemConfigFor(settings).general?.staffSigRequiredToComplete === true
 
 /**
  * Evaluates all configured Appointment Validations (`None` / `Flag` / `Warn` / `Stop`)
@@ -1542,6 +1578,17 @@ export function normalizeSettingsMasters(state) {
   if (!settings.subscription) { next.subscription = { ...DEFAULT_SUBSCRIPTION }; changed = true }
   if (!settings.notifications) { next.notifications = { ...DEFAULT_NOTIFICATIONS }; changed = true }
   if (!settings.system) { next.system = { ...DEFAULT_SYSTEM_CONFIG }; changed = true }
+  else {
+    // `staffSignatureRequired` was an older UI key for the same rule — migrate it
+    // onto the canonical `staffSigRequiredToComplete` so exactly one key owns it.
+    const gen = next.system.general || {}
+    if (gen.staffSigRequiredToComplete == null && gen.staffSignatureRequired != null) {
+      const general = { ...gen, staffSigRequiredToComplete: gen.staffSignatureRequired === true }
+      delete general.staffSignatureRequired
+      next.system = { ...next.system, general }
+      changed = true
+    }
+  }
   if (!arr(settings.importLog).length) { next.importLog = []; changed = true }
 
   if (!changed) return state

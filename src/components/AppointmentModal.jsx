@@ -38,7 +38,7 @@ import { riskFor, RISK_TIME_LABEL } from '../lib/risk'
 import { overbookBoard, overbookBlockFor } from '../lib/overbook'
 import { apptAutoTitle } from '../lib/apptName'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
-import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, telehealthRoomFor } from '../lib/settingsMasters'
+import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, staffSigRequiredToCompleteOf, telehealthRoomFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
@@ -75,7 +75,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // chunk-37: in NO way may a NEW appointment carry custom fields — even if some entry
     // point (duplicate/series/keep) tried to pass them through, the new modal starts empty.
     if (mode !== 'edit') x.pcfs = {}
-    x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null }
+    // Two distinct signatures: `signature` is the STAFF verification signature (who
+    // verified the session); `clientSignature` is the client/guardian signature a
+    // payer's rule asks for. One boolean never satisfied both — see audit CFG-04.
+    x.verification = x.verification || { completedBy: '', checks: {}, verifyStatus: 'pending', note: '', signature: null, clientSignature: null }
     x.billingCode = x.billingCode || x.billing?.code || (x.type === 'drive' ? 'H2019' : svcById(state, x.service)?.code || '97151')
     x.units = x.billing ? x.billing.units : null
     x.rate = x.billing ? x.billing.rate : null
@@ -344,7 +347,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const onContract = Boolean(rateRes && /contract/.test(rateRes.source))
   const svcMod = svcOvr?.modifier || (billPayer ? (ensurePayer(billPayer).svcs || []).find((x) => x.id === f.service)?.modifier : null)
   const rate = f.rate ?? (f.type === 'drive' ? 0 : rateRes && Number.isFinite(rateRes.rate) && rateRes.rate ? rateRes.rate : code.rate)
-  const sigReq = Boolean(billRules?.appt?.sigRequired || sysCfg.general?.staffSignatureRequired || sysCfg.general?.staffSigRequiredToComplete)
+  // Two separate completion rules: the payer asks for a client/guardian signature,
+  // the practice asks for a staff verification signature. They are checked apart.
+  const payerSigRequired = Boolean(billRules?.appt?.sigRequired)
+  const staffSigRequired = staffSigRequiredToCompleteOf(settings)
   const concNote = useMemo(() => concurrentNote(state, { payer: billPayer, svcId: f.service, clientId: (f.clientIds || [])[0], date: f.date, start: f.start, end: f.end, excludeId: f.id === '__draft__' ? undefined : f.id }), [f.date, f.start, f.end, f.service, JSON.stringify(f.clientIds), billPayer?.id, state.appts])
   const mileage = f.type === 'drive' ? true : !!f.mileage
   const distance = Number(f.distance) || 0
@@ -354,6 +360,8 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   // ---------- verification ----------
   const checksDone = VERIFY_CHECKS.filter((c) => f.verification?.checks?.[c.id]).length
   const signed = Boolean(f.verification?.signature)
+  const clientSigned = Boolean(f.verification?.clientSignature)
+  const guardianName = (f.clientIds || []).map((cid) => clientsById[cid]?.guardian).find(Boolean) || clientsById[(f.clientIds || [])[0]]?.name || 'client/guardian'
 
   const buildAppt = (date) => ({
     type: f.type,
@@ -406,8 +414,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       })
       return
     }
-    if (sigReq && f.status === 'completed' && !signed) {
+    if (payerSigRequired && f.status === 'completed' && !clientSigned) {
       toast({ message: `${billPayer?.name || 'This payer'} requires a client signature to complete — capture it on the Verification tab`, kind: 'warn' })
+      setTab('verify')
+      return
+    }
+    if (staffSigRequired && f.status === 'completed' && !signed) {
+      toast({ message: 'The practice requires a staff verification signature before a session can be completed — capture it on the Verification tab', kind: 'warn' })
       setTab('verify')
       return
     }
@@ -946,22 +959,42 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       </div>
                     </div>
 
-                    {sigReq && (
-                      <div className={`am-note ${signed ? 'ok' : 'warn'}`} data-testid="am-sig-note">
-                        {signed ? `Signature captured — ${billPayer.name} completion requirement met.` : `${billPayer.name} requires a client signature to complete this appointment.`}
+                    {payerSigRequired && (
+                      <div className={`am-note ${clientSigned ? 'ok' : 'warn'}`} data-testid="am-sig-note">
+                        {clientSigned ? `Client/guardian signature captured — ${billPayer?.name || 'this payer'} completion requirement met.` : `${billPayer?.name || 'This payer'} requires a client signature to complete this appointment.`}
                       </div>
                     )}
-                    <SignaturePad
-                      value={f.verification?.signature}
-                      staffName={(verifier || staffById[f.staffIds?.[0]] || {}).name}
-                      staffId={verifier?.id || f.staffIds?.[0] || ''}
-                      certification={(verifier || staffById[f.staffIds?.[0]] || {}).cert}
-                      onChange={(sig) =>
-                        set({
-                          verification: { ...f.verification, signature: sig, completedBy: f.verification?.completedBy || sig?.staffId || '', verifyStatus: sig ? 'verified' : f.verification?.verifyStatus },
-                        })
-                      }
-                    />
+                    {staffSigRequired && (
+                      <div className={`am-note ${signed ? 'ok' : 'warn'}`} data-testid="am-staffsig-note">
+                        {signed ? 'Staff verification signature captured — the practice completion requirement is met.' : 'The practice requires a staff verification signature before this appointment can be completed.'}
+                      </div>
+                    )}
+                    <div data-testid="am-staff-sig">
+                      <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Staff verification signature — who verified this session</div>
+                      <SignaturePad
+                        value={f.verification?.signature}
+                        staffName={(verifier || staffById[f.staffIds?.[0]] || {}).name}
+                        staffId={verifier?.id || f.staffIds?.[0] || ''}
+                        certification={(verifier || staffById[f.staffIds?.[0]] || {}).cert}
+                        onChange={(sig) =>
+                          set({
+                            verification: { ...f.verification, signature: sig, completedBy: f.verification?.completedBy || sig?.staffId || '', verifyStatus: sig ? 'verified' : f.verification?.verifyStatus },
+                          })
+                        }
+                      />
+                    </div>
+                    {payerSigRequired && (
+                      <div style={{ marginTop: 10 }} data-testid="am-client-sig">
+                        <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>{billPayer?.name} requires a client/guardian signature — {guardianName}</div>
+                        <SignaturePad
+                          value={f.verification?.clientSignature}
+                          staffName={guardianName}
+                          staffId=""
+                          certification=""
+                          onChange={(sig) => set({ verification: { ...f.verification, clientSignature: sig ? { ...sig, kind: 'client' } : null } })}
+                        />
+                      </div>
+                    )}
                   </>
                 )}
 

@@ -172,8 +172,8 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
       <React.Fragment key="sys-block-general">
         <Section title="General Settings" sub="Session security, signature policies, cache refresh, and supervision job titles" testId="set-sys-general">
           <div className="set-grid2">
-            <Row label="Staff Signature Required to Complete Appointments" hint="Requires a clinician signature before a session can be marked Completed">
-              <Toggle on={sysCfg.general?.staffSignatureRequired !== false} disabled={readOnly} testid="set-sys-gen-sigreq" onChange={(v) => patchSysCfg('general', { staffSignatureRequired: v })} />
+            <Row label="Staff Signature Required to Complete Appointments" hint="Requires a staff verification signature before a session can be marked Completed">
+              <Toggle on={sysCfg.general?.staffSigRequiredToComplete === true} disabled={readOnly} testid="set-sys-gen-sigreq" onChange={(v) => patchSysCfg('general', { staffSigRequiredToComplete: v })} />
             </Row>
             <Row label="MFA Required" hint="Enforces multi-factor verification policy on user accounts">
               <Toggle on={!!sysCfg.general?.mfaRequired} disabled={readOnly} testid="set-sys-gen-mfa" onChange={(v) => patchSysCfg('general', { mfaRequired: v })} />
@@ -184,7 +184,7 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             <Row label="Locked Session Auto Logout in Minutes" hint="Time on lock screen before terminating the session">
               <NumberField value={sysCfg.general?.autoLogoutMinutes ?? 60} min={5} max={480} suffix="min" disabled={readOnly} testid="set-sys-gen-logout" onCommit={(v) => patchSysCfg('general', { autoLogoutMinutes: v })} />
             </Row>
-            <Row label="Maximum Appointment Length" hint="Hard ceiling on a single scheduled session (in minutes)">
+            <Row label="Maximum Appointment Length" hint="Warns when a single scheduled session runs longer than this (in minutes) — a warning, not a hard block">
               <NumberField value={sysCfg.general?.maxAppointmentLengthMins ?? 480} min={30} max={1440} step={15} suffix="min" disabled={readOnly} testid="set-sys-gen-maxlen" onCommit={(v) => patchSysCfg('general', { maxAppointmentLengthMins: v })} />
             </Row>
             <Row label="Refresh Cache in Seconds" hint="Schedule board polling / refresh interval">
@@ -608,7 +608,7 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
     ),
 
     'clinical-integrations': (
-      <Section key="sys-block-clinical" title="Clinical Integrations" sub="ABA clinical data-collection platforms (Ensora, Hi Rasmus, Motivity, Welina, Catalyst, Passage Health)" testId="set-sys-clinical-integrations">
+      <Section key="sys-block-clinical" title="Clinical Integrations" sub="Clinical platforms and data seams (Ensora, Hi Rasmus, Motivity, Welina, EMR/FHIR hand-off)" testId="set-sys-clinical-integrations">
         <DataTable
           testid="set-sys-clinical-table"
           empty="No clinical integrations configured."
