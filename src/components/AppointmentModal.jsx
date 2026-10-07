@@ -39,7 +39,7 @@ import { overbookBoard, overbookBlockFor } from '../lib/overbook'
 import { apptAutoTitle } from '../lib/apptName'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
 import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, staffSigRequiredToCompleteOf, telehealthRoomFor } from '../lib/settingsMasters'
-import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, rateFor } from '../lib/master'
+import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, pcfFormatErrors, customFieldsForScope, CF_TEXT_FORMAT_RULES, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
@@ -170,9 +170,10 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // readable (stored label/type) so nothing a user typed is ever destroyed
     return saved ? { id, label: saved.label || id, type: saved.type || 'text', options: saved.options || [], required: false, _stale: true } : null
   }).filter(Boolean)
-  // the picker offers EVERY active master template (plus any inactive one already
-  // captured here, so it can be removed) — not the payer's picks
-  const pickerDefs = masterDefs.filter((d) => d.status !== 'inactive' || (f.pcfs || {})[d.id] !== undefined)
+  // the picker offers the templates scoped to Schedule Appointment (audit CFG-07) —
+  // plus anything already captured here, so it can be removed — not the payer's picks
+  const appointmentDefs = customFieldsForScope(state, 'appointment')
+  const pickerDefs = masterDefs.filter((d) => (f.pcfs || {})[d.id] !== undefined || appointmentDefs.some((x) => x.id === d.id))
   const [cfEdit, setCfEdit] = useState(null) // 'new' | def — template editor, opened from INSIDE the picker
   const saveCf = (v) => {
     if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setCfEdit(null); return }
@@ -205,7 +206,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   if (dur < SNAP) errors.push('End time must be after start time')
   if (needsStaff && !f.staffIds.length) errors.push('Add at least one staff member')
   if (needsClient && !f.clientIds.length) errors.push('Add a client')
-  if (showClinic) errors.push(...pcfsErrors(apptPcfDefs.filter((d) => !d._stale), f.pcfs))
+  if (showClinic) {
+    const live = apptPcfDefs.filter((d) => !d._stale)
+    errors.push(...pcfsErrors(live, f.pcfs))
+    errors.push(...pcfFormatErrors(live, f.pcfs)) // saved textFormat is enforced at save time
+  }
   if (statusCfg?.noteRequired && !String(f.notes || '').trim()) {
     errors.push(`Status “${statusCfg.label}” requires a note`)
   }
@@ -874,7 +879,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields<i>optional · nothing pre-filled · add only what you capture</i>
                             <button type="button" className="btn btn-sm pcf-addbtn" data-testid="am-pcf-add" onClick={() => setCfPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
                           </div>
-                          {apptPcfDefs.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment yet — “Add Custom Fields” lists every field defined in the master, and you can define a new one right there.</div>}
+                          {apptPcfDefs.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment yet — “Add Custom Fields” lists the templates scoped to Schedule Appointment, and you can define a new one right there.</div>}
                           {apptPcfDefs.map((d) => (
                             d._stale ? (
                               <div className="pcf-f pcf-stale" key={d.id} data-testid={`pcf-f-${d.id}`}>
@@ -887,8 +892,9 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                               </div>
                             ) : (
                             <div className={`pcf-f pcf-f-${d.type}${(f.pcfs || {})[d.id]?.value ? ' filled' : ''}`} key={d.id} data-testid={`pcf-f-${d.id}`}>
-                              <label>{d.label}{d.required && ' *'}</label>
+                              <label>{d.label}{d.required && ' *'}{['text', 'textarea'].includes(d.type) && d.textFormat && d.textFormat !== 'any' && CF_TEXT_FORMAT_RULES[d.textFormat] ? <i className="muted"> · must be {CF_TEXT_FORMAT_RULES[d.textFormat].label}</i> : null}</label>
                               {d.type === 'text' && <input className="input" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
+                              {d.type === 'textarea' && <textarea className="input py-ta" rows={3} value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
                               {d.type === 'date' && <input className="input" type="datetime-local" value={(f.pcfs || {})[d.id]?.value || ''} data-testid={`pcf-in-${d.id}`} onChange={(e) => set({ pcfs: { ...(f.pcfs || {}), [d.id]: { label: d.label, type: d.type, value: e.target.value } } })} />}
                               {(d.type === 'select' || d.type === 'multi') && (
                                 <div className="pcf-chips" data-testid={`pcf-chips-${d.id}`}>
@@ -935,13 +941,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <div className="modal pm-modal py-modal" data-testid="am-pcf-picker" role="dialog" aria-modal="true" aria-label="Add custom fields">
                             <div className="modal-head pm-head">
                               <h3>Add custom fields</h3>
-                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>any field defined in the Custom Fields master — or define a new one below</span>
+                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>templates scoped to Schedule Appointment in the Custom Fields master — or define a new one below</span>
                               <span className="an-spacer" />
                               <button className="iconbtn modal-x" aria-label="Close" data-testid="am-pcf-picker-close" onClick={() => setCfPick(false)}>{Icon.x({ size: 14 })}</button>
                             </div>
                             <div className="modal-body">
                               <div className="cf-picklist">
-                                {pickerDefs.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No templates defined yet — create the first one with “Add template” below.</div>}
+                                {pickerDefs.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No appointment-scoped templates yet — scope one to Schedule Appointment on the master page, or create one with “Add template” below.</div>}
                                 {pickerDefs.map((d) => {
                                   const on = (f.pcfs || {})[d.id] !== undefined
                                   return (

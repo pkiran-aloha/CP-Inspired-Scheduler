@@ -180,8 +180,32 @@ export const CF_SCOPES = [
   { id: 'provider', label: 'Staff Profile' },
 ]
 export const cfTypeLabel = (t) => CF_TYPES.find((x) => x.id === t)?.label || t
+// Templates saved before scopes existed carry no `assignedTo`; they keep their old
+// behaviour (offered to appointments and payers) instead of vanishing from every picker.
+export const CF_LEGACY_SCOPES = ['appointment', 'payer']
+export const cfScopesFor = (d) => (Array.isArray(d?.assignedTo) ? d.assignedTo : CF_LEGACY_SCOPES)
 export function customFieldsForScope(state, scopeId) {
-  return (state.customFields || []).filter((d) => d.status !== 'inactive' && Array.isArray(d.assignedTo) && d.assignedTo.includes(scopeId))
+  return (state.customFields || []).filter((d) => d.status !== 'inactive' && cfScopesFor(d).includes(scopeId))
+}
+// Saved `textFormat` on a text/textarea template, enforced when the appointment saves:
+// empty stays valid — "required" is a separate rule (audit CFG-07).
+export const CF_TEXT_FORMAT_RULES = {
+  number: { re: /^-?\d+(\.\d+)?$/, label: 'a number' },
+  email: { re: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, label: 'an email address' },
+  phone: { re: /^\+?[\d\s().-]{7,}$/, label: 'a phone number' },
+  url: { re: /^https?:\/\/\S+$/i, label: 'a URL (https://…)' },
+}
+export function pcfFormatErrors(defs, vals = {}) {
+  const out = []
+  for (const d of defs) {
+    if (!['text', 'textarea'].includes(d.type)) continue
+    const fmt = d.textFormat && d.textFormat !== 'any' ? CF_TEXT_FORMAT_RULES[d.textFormat] : null
+    if (!fmt) continue
+    const v = (vals || {})[d.id]?.value
+    if (v == null || String(v).trim() === '') continue
+    if (!fmt.re.test(String(v).trim())) out.push(`“${d.label}” must be ${fmt.label}`)
+  }
+  return out
 }
 // custom-field defs may be legacy strings ("label") or plain {label,value} — migrate to typed defs
 export function cfDefs(p, defsList = []) {

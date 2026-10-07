@@ -7,7 +7,7 @@ import { Banner } from './settings/kit'
 import { CfPickRow } from './CfPick.jsx'
 import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
-import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs } from '../lib/master'
+import { ensurePayer, svcList, localSvcs, MODIFIERS, POS_CODES, ROUNDINGS, CREDENTIALS, CF_TYPES, cfTypeLabel, payerFieldDefs, cfScopesFor } from '../lib/master'
 import { BILL_CODES, QUAL_MODIFIER_KEYS, uid } from '../lib/model'
 import { PROVIDER_ID_RULES, providerIdRule, providerIdIssues } from '../lib/providerIds'
 import { PAYER_KINDS, payerPolicy } from '../lib/claims'
@@ -118,6 +118,10 @@ function ProfileTab({ p, patch }) {
   const [cfEdit, setCfEdit] = useState(null) // 'new' | def — full editor, opened from INSIDE the picker
   const fields = payerFieldDefs(state, p)
   const templates = state.customFields || []
+  // Audit CFG-07: the picker offers the templates scoped to Payer Profile (plus any
+  // this payer already picked, so they can be unlinked) — client-, authorization- or
+  // staff-scoped templates never appear here.
+  const scopedTemplates = templates.filter((t) => (p.cf || []).includes(t.id) || cfScopesFor(t).includes('payer'))
   const phone = (p.contacts || []).find((c) => c.kind === 'Main')?.number || ''
   const fax = (p.contacts || []).find((c) => c.kind === 'Fax')?.number || ''
   const portal = (p.contacts || []).find((c) => c.kind === 'Claims portal')?.number || ''
@@ -187,7 +191,7 @@ function ProfileTab({ p, patch }) {
         <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{fields.length > 0 && <span className="pd-cfn">{fields.length}</span>}<span className="an-spacer" />
           <span className="muted" style={{ fontSize: 10.6 }}>selectable · never pre-selected</span>
         </div>
-        <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. They then appear on appointments and exports automatically.</p>
+        <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. Sessions add them opt-in from the booking dialog, and captured values show on the appointment detail; no claim, CMS-1500 or export reads them yet.</p>
         {fields.length === 0 && <div className="muted pd-cfempty">No fields picked yet.</div>}
         {fields.length > 0 && (
           <div className="pcf-rows" data-testid="pd-cf-list">
@@ -218,7 +222,7 @@ function ProfileTab({ p, patch }) {
         )}
         <div className="pd-cfadd">
           <button className="btn btn-sm btn-primary" data-testid="pd-cf-pick" onClick={() => setPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
-          <span className="muted" style={{ fontSize: 11.5 }}>{templates.filter((t) => t.status !== 'inactive' && !(p.cf || []).includes(t.id)).length} template(s) not yet used by this payer</span>
+          <span className="muted" style={{ fontSize: 11.5 }}>{scopedTemplates.filter((t) => t.status !== 'inactive' && !(p.cf || []).includes(t.id)).length} template(s) not yet used by this payer</span>
         </div>
       </div>
 
@@ -233,9 +237,9 @@ function ProfileTab({ p, patch }) {
               <button className="iconbtn modal-x" aria-label="Close" data-testid="pd-cf-picker-close" onClick={() => setPick(false)}>{Icon.x({ size: 14 })}</button>
             </div>
             <div className="modal-body">
-              {templates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No templates defined yet — create the first one with “Add template” below.</div>}
+              {scopedTemplates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No payer-scoped templates yet — scope one to Payer Profile on the Custom Fields master page, or create one with “Add template” below.</div>}
               <div className="cf-picklist">
-                {templates.map((t) => {
+                {scopedTemplates.map((t) => {
                   const on = (p.cf || []).includes(t.id)
                   const used = usedBy(t.id)
                   return (
