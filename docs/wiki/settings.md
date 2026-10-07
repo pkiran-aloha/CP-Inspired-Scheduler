@@ -1,8 +1,8 @@
 # Settings
 
-_Sources: src/lib/settingsMasters.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/travel.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
+_Sources: src/lib/settingsMasters.js, src/lib/integrationSecrets.js, src/lib/workspaceBackup.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/travel.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced against main d4efe49 plus the feat/cancelled-at branch on 2026-10-06; unrelated behavior unchanged._
+_Last synced with main at 01215ef on 2026-10-07; updated for CFG-01 local integration-credential mitigation and the first CFG-02 validation-control alignment slice._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -25,7 +25,7 @@ If your account has view-only access to the Workspace settings area, every panel
 | Qualification | Degrees, certifications and licences, and expiry. "Covers" makes a higher credential satisfy a lower one (BCBA covers BCaBA and RBT). The staff qualification check reads a person's credential from their cert ("BCBA #…" counts as BCBA), from each part of a "Credential · title" role, and from job titles listed in a qualification's "Applies to" (for example "Lead RBT"). A staff member's own **Education level** (Doctoral, Master's, Bachelor's, Associate, HS — set on the staff record, optional) is what a payer's Qualification Modifiers match; a Teacher, Therapist or Specialist row instead matches a part of the role or credential |
 | Services | Service types, billing codes, unit length (new services default to 15 minutes), rates per unit, rounding, required credentials |
 | Security | Local demo accounts and role-based access (browser-local, not real authentication) |
-| Clinical Integrations | Local export seams: calendar `.ics`, the practice's own telehealth room link (must be a full `https://` address; shown on telehealth appointments and in `.ics` exports by `telehealthRoomFor`), the practice's own online payment link (for example a Stripe Payment Link; printed on client statements by `paymentLinkFor`, never charged or read), a link to the QuickBooks desk, and a record of the last local run. Link-only rows show no API key fields. A workspace saved before a new default row existed still gets it (`integrationsCfg` appends missing defaults) |
+| Clinical Integrations | Local export seams: calendar `.ics`, the practice's own telehealth room link (must be a full `https://` address; shown on telehealth appointments and in `.ics` exports by `telehealthRoomFor`), the practice's own online payment link (for example a Stripe Payment Link; printed on client statements by `paymentLinkFor`, never charged or read), a link to the QuickBooks desk, and a record of the last local run. No row accepts API keys, tokens, or other integration credentials: this browser-local prototype has no server-side secret vault, so do not enter live credentials. Legacy credential fields are removed when a workspace loads and excluded from backup files. A workspace saved before a new default row existed still gets it (`integrationsCfg` appends missing defaults) |
 | Text Messaging Services | Sender identity, quiet hours, templates, opt-outs. Off by default; **nothing is ever sent** |
 | System Settings | Nine tabs (below) |
 | Subscription Portal | A plan, seats and renewal record for this workspace |
@@ -46,7 +46,7 @@ Settings refuses invalid configuration instead of saving it, and tells you why:
 
 Because validations and the authorization guard are settings, the shared severity language applies here:
 
-- **Appointment Validations** (staff qualification, service-provider eligibility, overlap, missing NPI or Medicaid ID, pay rate, unavailable, travel feasibility, client overlap and team assignment, payer cancelled/no-show, regional center, and the ABA Hours rules) each take None, Flag, Warn or Stop. Stop refuses the booking in the dialog. `staff.travel` defaults to Warn and says “Needs about 22 min from previous; gap is 10 min” with honest copy “estimated from straight-line distance; not a map route”.
+- **Appointment Validations** (rendering-provider presence and staff qualification, overlap, missing NPI or Medicaid ID, pay rate, unavailable, travel feasibility, client overlap and team assignment, payer cancelled/no-show, regional center, and the ABA Hours rules) each take None, Flag, Warn or Stop. The Client Assignment control edits the same canonical key the evaluator reads; `staff.travel` has a visible severity control and defaults to Warn. Travel findings say “Needs about 22 min from previous; gap is 10 min” with honest copy “estimated from straight-line distance; not a map route”. Stop/Warn/Flag enforcement across all appointment write paths is still in progress (see CFG-02 in the [configuration audit](../audits/configuration-audit-2026-10-07.md)).
 - **Authorization guard** takes Off, Flag, Warn or Stop. **Warn is the default**; Stop is a choice the practice makes on purpose. Also set here: warn-at percentage (85), stop-at percentage (100, Stop mode only), renewal alert days (30), urgent days (14) and the under-pace threshold (70). **Reset guard** restores the defaults.
 
 See [Scheduling](scheduling.md) for what each finding means at booking time.
@@ -104,7 +104,7 @@ Settings writes follow action, then plan, then Tx:
 
 ## Not yet built
 
-- **No real connections.** Clearing house, EVV, clinical integrations, text messaging and the subscription portal store configuration or run local exports only. The Integrations panel keeps keys in plain local settings and needs a backend before real credentials belong there.
+- **No real connections.** Clearing house, EVV, clinical integrations, text messaging and the subscription portal store configuration or run local exports only. The Integrations panel has no API-key/token fields; recognized legacy credential fields are scrubbed on workspace load and excluded from backups. Any future live integration needs a server-side secret store first.
 - **No real authentication.** Security is browser-local role-based access for demos.
 - **Not everything is undoable.** Guard, smart-scheduling, ABA and several System Settings changes take no Undo snapshot, and neither do payer add/remove or service and custom-field master edits (see the write path). Payer edits are undoable.
 - **Qualification modifiers are billing-only.** They key off the staff record's education level and appear on claim lines; they do not drive a booking or authorization check.

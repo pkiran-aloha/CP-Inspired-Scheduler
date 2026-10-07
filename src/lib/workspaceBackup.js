@@ -1,4 +1,5 @@
 import { normalizeSecurity, validateSecurityConfig } from './security'
+import { stripIntegrationSecrets } from './integrationSecrets'
 
 // Durable workspace data. UI navigation and undo history are intentionally not backed up:
 // they are transient, and serializing 25 full undo snapshots can exhaust localStorage.
@@ -33,6 +34,11 @@ export function workspaceData(state) {
   // A staff removal/rebuild must never export dangling account-to-profile links.
   // Normalize against the exact staff roster that travels in this backup.
   data.security = normalizeSecurity(state.security, state.staff || [])
+  // Backups are plain JSON. Strip any legacy integration credentials even if a
+  // caller bypasses workspace normalization and hands us an older raw state.
+  if (record(data.settings) && Object.hasOwn(data.settings, 'clinicalIntegrations')) {
+    data.settings = { ...data.settings, clinicalIntegrations: stripIntegrationSecrets(data.settings.clinicalIntegrations) }
+  }
   return data
 }
 
@@ -204,5 +210,10 @@ export function readWorkspaceBackup(text, defaults) {
     throw new Error('Not an Aloha ABA workspace backup')
   }
 
+  // Imports may be old v1 files, so sanitize every version before handing the
+  // workspace to the restore path without re-normalizing unrelated backup data.
+  if (record(data.settings) && Object.hasOwn(data.settings, 'clinicalIntegrations')) {
+    data = { ...data, settings: { ...data.settings, clinicalIntegrations: stripIntegrationSecrets(data.settings.clinicalIntegrations) } }
+  }
   return { data, legacy, counts: { appointments: Object.keys(data.appts).length, claims: Object.keys(data.claims).length, payments: Object.keys(data.payments).length, intakeRequests: Object.keys(data.intakeRequests).length, referralSources: data.referralSources.length } }
 }

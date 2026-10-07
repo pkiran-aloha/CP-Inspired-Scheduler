@@ -1,6 +1,6 @@
 # Cross-module configuration audit — 2026-10-07
 
-**Status:** source-trace audit complete; findings remain open. **Audit only:** no runtime behavior or dependency changes were made.
+**Status:** source-trace audit complete; remediation has started. CFG-01 has a local credential-capture mitigation, and CFG-02 has a first control/evaluator-alignment slice on the current work branch. The CFG-01 production architecture gate and remaining CFG-02 enforcement gaps, along with the other findings, remain open.
 
 ## Executive result
 
@@ -22,19 +22,21 @@ This remains a local-first prototype, not a production system. Do not enter real
 
 ### CFG-01 — **P0 / production blocker: browser-local data and credentials are not production-safe**
 
-- `PRODUCT.md` says workspace data is in browser `localStorage`, there is no backend/authentication yet, and real PHI must not be entered. `src/state/store.jsx` persists the workspace locally; `src/lib/workspaceBackup.js` includes the full `settings` object in a plain JSON backup.
-- The Integrations editor exposes API-key/token fields for non-reference rows (`src/components/settings/panels-extras.jsx`, including an `sk_live_...` placeholder). Those values are saved with the integration settings and included in local persistence/backups. Nothing connects to a partner today, but the UI still invites entry of secrets that have no server-side vault or protection.
+- `PRODUCT.md` says workspace data is in browser `localStorage`, there is no backend/authentication yet, and real PHI must not be entered. `src/state/store.jsx` persists the workspace locally; `src/lib/workspaceBackup.js` includes the full `settings` object in a plain JSON backup (recognized integration credential fields are now filtered; see the local mitigation below).
+- At audit time, the Integrations editor exposed API-key/token fields for non-reference rows (`src/components/settings/panels-extras.jsx`) and those values could be saved in workspace settings and backups. Nothing connected to a partner, but the UI invited entry of secrets without a server-side vault or protection. The input and persistence paths are now mitigated as detailed below.
 - MFA, screen-lock, and auto-logout preferences are saved, but there is no sign-in/lock screen enforcing them (`src/components/settings/SystemPanel.jsx`; `docs/wiki/architecture.md` and `docs/wiki/settings.md` also record this).
 
-**Resolution gate:** choose and implement the production hosting/data/auth/HIPAA architecture; enforce MFA/session controls there; move secrets to a server-side secret store or remove those inputs. Until then, continue to block real PHI and live credentials.
+**Local mitigation started 2026-10-07:** the Integrations editor no longer offers API-key/token inputs; the settings planner rejects recognized credential fields; existing integration credential fields are stripped on workspace normalization, direct settings writes and browser serialization; and plain JSON backup export/import strips them. This prevents the supported integration-settings paths from inviting or retaining those fields, but is **not** a vault or a security boundary: browser storage remains readable and users can still put arbitrary text elsewhere.
+
+**Resolution gate remains open:** choose and implement the production hosting/data/auth/HIPAA architecture; enforce MFA/session controls there; use a server-side secret store for any future live integrations. Until then, continue to block real PHI and live credentials.
 
 ### CFG-02 — **P1 / high: Appointment Validation severity contract and write coverage do not match the settings UI**
 
 - The Validations panel says **Warn requires acknowledgement** and **Flag badges the session** (`src/components/settings/SystemPanel.jsx`). In the booking modal, warnings are displayed in the Checks rail but there is no acknowledgement state or save gate; only stop items are added to `errors` (`src/components/AppointmentModal.jsx`). Validation flags are rendered for the draft but are not saved to the appointment, so they do not become a persistent session badge.
 - The evaluator is not a central reducer/write guard. `QuickAdd.jsx` calls `actions.create` directly; calendar/timeline drag handlers call `actions.move`; appointment import plans rows without calling `evaluateAppointmentValidations`. A Stop configured in Settings can therefore be missed by those paths. Intake handoff and density-planning do call checks, so coverage is uneven rather than absent everywhere.
-- There are rule-key/meaning mismatches: the panel edits `client.clientAssignment`, while the evaluator emits `client.assignment` (both have defaults, but changing the visible control does not change the emitted rule). `staff.travel` is evaluated and defaults to Warn but has no visible rule control. `staff.serviceProvider` is emitted only alongside a qualification failure; it does not independently implement the panel hint “At least one rendering provider is assigned.”
+- At audit time there were rule-key/meaning mismatches: the panel edited `client.clientAssignment`, while the evaluator emitted `client.assignment`; `staff.travel` was evaluated and defaulted to Warn but had no visible control; and `staff.serviceProvider` was emitted only alongside a qualification failure rather than enforcing the panel hint about an assigned rendering provider. The current remediation aligns the Client Assignment control with `client.assignment` (and migrates legacy `clientAssignment` settings), exposes the `staff.travel` severity control, and evaluates rendering-provider presence separately from qualification.
 
-**Resolution:** make the policy contract explicit and test it end to end: centralize/recheck applicable rules for every create, update, move, import, and series write; add a real Warn acknowledgement if required; persist/derive Flag badges; align each visible control with one evaluator key and its stated condition. Include direct tests for Quick Add, drag, import, and rule severity changes.
+**Remediation status (2026-10-07):** the control/evaluator-key and rule-meaning slice is implemented locally and has focused regression tests added. CFG-02 remains open: Stop is not yet a centralized write-time invariant across every create/update/move/import/series path; Warn acknowledgement and persistent/derived Flag badges are not implemented. Add direct coverage for Quick Add, drag, import and series writes, then rerun the full suite/build before marking the finding resolved.
 
 ### CFG-03 — **P1 / high: recurring appointments validate only the first occurrence**
 

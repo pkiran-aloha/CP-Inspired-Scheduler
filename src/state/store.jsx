@@ -18,6 +18,7 @@ import { planPduEntry } from '../lib/credentials'
 import { planTask, planTaskDone } from '../lib/tasks'
 import { planMessage, readUpdates } from '../lib/messages'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog, evaluateAppointmentValidations } from '../lib/settingsMasters'
+import { hasIntegrationSecrets, stripIntegrationSecrets } from '../lib/integrationSecrets'
 import { planImport } from '../lib/dataImport'
 import { DEFAULT_DASH, WIDGETS } from '../lib/dash'
 import { WORKSPACE_FIELDS, workspaceData, validateWorkspaceData } from '../lib/workspaceBackup'
@@ -34,7 +35,13 @@ const LEGACY_KEYS = ['pulse-aba-scheduler.v2']
 
 // Undo lives in memory for this tab. Persisting 25 copies of the 1,000+ session
 // ledger fills browser storage and silently prevents later changes from saving.
-export const serializeForStorage = (state) => JSON.stringify({ ...state, history: [] })
+// Plain local saves also strip recognized integration credentials; this is not a vault.
+export const serializeForStorage = (state) => {
+  const settings = state.settings && hasIntegrationSecrets(state.settings.clinicalIntegrations)
+    ? { ...state.settings, clinicalIntegrations: stripIntegrationSecrets(state.settings.clinicalIntegrations) }
+    : state.settings
+  return JSON.stringify({ ...state, settings, history: [] })
+}
 const normalizeWorkspace = (state) => {
   const normalized = normalizeStaffEducation(normalizeAppealedClaims(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid))))))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
@@ -424,8 +431,13 @@ export function reducer(state, action) {
       if (patch.section === 'settings' && !Object.hasOwn(patch, 'nav')) patch.nav = false
       return { ...state, ui: { ...state.ui, ...patch } }
     }
-    case 'setSettings':
-      return { ...state, settings: { ...state.settings, ...action.patch } }
+    case 'setSettings': {
+      const settings = { ...state.settings, ...action.patch }
+      if (hasIntegrationSecrets(settings.clinicalIntegrations)) {
+        settings.clinicalIntegrations = stripIntegrationSecrets(settings.clinicalIntegrations)
+      }
+      return { ...state, settings }
+    }
     /**
      * chunk-42 — one settings transaction.
      *

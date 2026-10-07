@@ -205,7 +205,7 @@ Post-hackathon follow-ups (maintainer's order: 1 demo seed polish, 2 backlog fix
 Hackathon wave 6: Integrations, honest partial (#3, #11, #12). This wave is complete.
 - **Slice 1, telehealth room link** (`telehealthRoomFor` and `isWebUrl` in `settingsMasters.js`). Reuses the existing `int-telehealth` integration row's `roomUrl`; `integration.patch` now refuses a non-`https://` link. The booking dialog shows it for POS-10 locations and `buildICS` takes an optional `roomFor` to add it to `.ics` events. One practice-wide room; no per-staff rooms yet.
 - **Slice 2, per-staff `.ics`** (`staffCalendar` in `ics.js`, buttons `stf-ics-<id>` in `StaffView.jsx`). Next 90 days, date-ordered, telehealth room included, client names dropped without Clients access. No live feed: a subscribable URL needs a server.
-- **Slice 3, online payment link** (`int-paylink` row, `paymentLinkFor` in `settingsMasters.js`, "Pay online" row in `statementDoc`). `integrationsCfg` now appends default rows missing from a saved list, so older workspaces get the row without a migration. Recording stays the existing patient receipt (method Card); no new payment method. Link-only ("Reference data") rows hide the API key fields.
+- **Slice 3, online payment link** (`int-paylink` row, `paymentLinkFor` in `settingsMasters.js`, "Pay online" row in `statementDoc`). `integrationsCfg` now appends default rows missing from a saved list, so older workspaces get the row without a migration. Recording stays the existing patient receipt (method Card); no new payment method. Follow-up: no integration row accepts API keys/tokens; recognized legacy credential fields are scrubbed from local workspace writes and backups (no server-side vault exists).
 
 Hackathon wave 5: Inbox (#1 + #2). This wave is complete.
 - **Slice 2, messages** (`messages.js`, the Inbox's Messages tab).
@@ -340,9 +340,9 @@ Other open items, smaller:
 
 ## Known issues / backlog (not yet fixed)
 
-- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). Audit-only; no behavior changes. Local verification: 89 files / 934 tests passed, build succeeded with the bundle-size warning, and dependency advisories remain unremediated.
+- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). Local, uncommitted Arena work has (1) added the CFG-01 integration-credential capture/scrubbing mitigation and (2) started CFG-02 by aligning Client Assignment's key, migrating legacy `clientAssignment`, exposing the `staff.travel` control, and separating provider-presence checks from qualification. CFG-02 is still open for centralized Stop enforcement across writes, Warn acknowledgement, persistent/derived Flag badges, and series/import coverage. This is only a local credential mitigation; production hosting/auth/HIPAA architecture remains an open P0 gate. In this sandbox Vitest is absent; focused custom Node checks and JS syntax checks passed for the latest verified state, but the new regression tests, JSX and build remain unverified. Pre-change baseline: 89 files / 934 tests passed; build succeeded with the bundle-size warning; dependency advisories remain unremediated.
 - Recoupments: secondary / COB-linked claims refused (scope v1).
-- Integrations panel stores API keys in plain local settings (needs the backend).
+- Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
 - `impeccable detect` flags 22 thick colored left-border accents in older CSS (outside recent work).
 
 ## Resume prompts (paste into a new session; any agent)

@@ -6,7 +6,7 @@ import {
   customLists, listOptions, qualificationList, qualificationSatisfactionFor, staffSatisfiesCredentials,
   evaluateAppointmentValidations, messagesCfg, integrationsCfg, subscriptionCfg, notificationsCfg,
   earningCodes, masterUsage, officeUsage, statusUsage, codeUsage, planSettingsOp, officeCascade,
-  normalizeSettingsMasters, appendImportLog, IMPORT_LOG_LIMIT,
+  normalizeSettingsMasters, appointmentValidationsCfg, appendImportLog, IMPORT_LOG_LIMIT,
 } from '../lib/settingsMasters'
 import { stagedAppts } from '../lib/claims'
 import { scheduleLines, earningsFor, periodFor } from '../lib/payroll'
@@ -251,6 +251,48 @@ describe('system settings hierarchy & upstream/downstream integration', () => {
 
     expect(staffSatisfiesCredentials(s.settings, { role: 'BCBA · Supervisor', credentials: ['BCBA'] }, ['RBT'])).toBe(true)
     expect(staffSatisfiesCredentials(s.settings, { role: 'RBT · Line Tech', credentials: ['RBT'] }, ['BCBA'])).toBe(false)
+  })
+
+  it('migrates the legacy clientAssignment setting to the evaluator’s canonical assignment key', () => {
+    const s = fresh()
+    s.settings.appointmentValidations.client = {
+      overlap: 'warn',
+      assignment: 'flag', // older saved defaults also contained the never-exposed canonical key
+      clientAssignment: 'stop',
+      duplicateOverlap: 'warn',
+    }
+
+    const normalized = normalizeSettingsMasters(s)
+    expect(normalized.settings.appointmentValidations.client.assignment).toBe('stop')
+    expect(normalized.settings.appointmentValidations.client).not.toHaveProperty('clientAssignment')
+    expect(appointmentValidationsCfg(normalized.settings).client.assignment).toBe('stop')
+
+    const aliasWrite = planSettingsOp(normalized, 'appointmentValidations.patch', {
+      group: 'client', key: 'clientAssignment', severity: 'warn',
+    })
+    expect(aliasWrite.patch.appointmentValidations.client.assignment).toBe('warn')
+    expect(aliasWrite.patch.appointmentValidations.client).not.toHaveProperty('clientAssignment')
+  })
+
+  it('checks a missing rendering provider independently from qualification', () => {
+    const s = fresh()
+    const draft = {
+      id: 'provider-rule-test', type: 'service', service: 'dtt', date: '2026-10-01',
+      start: 540, end: 600, staffIds: [], clientIds: [], status: 'active',
+    }
+    const missingProvider = evaluateAppointmentValidations(s, draft)
+    expect(missingProvider.warns.some((item) => item.id === 'staff.serviceProvider')).toBe(true)
+
+    const provider = s.staff[0]
+    const assigned = evaluateAppointmentValidations(s, { ...draft, staffIds: [provider.id] })
+    expect(assigned.items.some((item) => item.id === 'staff.serviceProvider')).toBe(false)
+
+    const stopPlan = planSettingsOp(s, 'appointmentValidations.patch', {
+      group: 'staff', key: 'serviceProvider', severity: 'stop',
+    })
+    const strictState = { ...s, settings: { ...s.settings, ...stopPlan.patch } }
+    const strictResult = evaluateAppointmentValidations(strictState, draft)
+    expect(strictResult.stops.some((item) => item.id === 'staff.serviceProvider')).toBe(true)
   })
 
   it('evaluates Staff, Client, and Payer appointment validation rules across None, Flag, Warn, and Stop', () => {
