@@ -11,7 +11,6 @@ import {
   BILL_CODES,
   MILEAGE_RATE,
   PAY_TAGS,
-  RECURRENCES,
   SERVICES,
   SNAP,
   STATUSES,
@@ -21,9 +20,6 @@ import {
   timeOverlap,
   uid,
   seriesSiblings,
-  seriesDatesFor,
-  planScopedPatch,
-  planSeriesRebuild,
   isServiceAppt,
 } from '../lib/model'
 import { suggestStaff, smartCfg } from '../lib/smart'
@@ -45,6 +41,8 @@ import { CfPickRow } from './CfPick.jsx'
 import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
 import { posFor } from '../lib/claims'
 import SignaturePad from '../ui/SignaturePad'
+import RecurrenceEditor from './RecurrenceEditor'
+import { expandRule, legacyRecurrenceOf, retargetRule, ruleOf, sameRule, screenOccurrences, screenNote } from '../lib/recurrence'
 
 export default function AppointmentModal({ mode, initial, onClose, onSaved, onBack, onCreate }) {
   const state = useStore()
@@ -70,6 +68,11 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const showClientPicker = showClinic
   const isSeries = Boolean(initial.seriesId)
   const siblings = useMemo(() => (initial.seriesId ? seriesSiblings(appts, initial) : []), [appts, initial.id])
+  // the repeat rule being edited (null = doesn't repeat); a legacy series reads its old label
+  const origRule = useMemo(() => (initial.seriesId ? ruleOf(initial, seriesSiblings(appts, initial)) : null), [initial.id])
+  const [rule, setRuleState] = useState(origRule)
+  const setRule = (r) => { setRuleState(r); setDirty(true) }
+  const ruleChanged = !sameRule(rule, origRule)
 
   const fresh = (keep = {}) => {
     const x = { repeat: 'none', repeatCount: 8, status: 'active', verification: null, custom: {}, pcfs: {}, documents: [], ...initial, ...keep }
@@ -125,8 +128,9 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const [cfPick, setCfPick] = useState(false) // chunk-34: opt-in custom-field picker
   const [dirty, setDirty] = useState(false)
   const [confirmClose, setConfirmClose] = useState(false)
-  const [scope, setScope] = useState('one') // one | following | all
-  const [rebuild, setRebuild] = useState(false)
+  const [scopePick, setScope] = useState('one') // one | following | all
+  // a new repeat rule never applies to one occurrence alone (Google offers this & following, or all)
+  const scope = ruleChanged && scopePick === 'one' ? 'following' : scopePick
   // Warn acknowledgement (audit CFG-02): a Warn-severity rule never blocks on its
   // own, but saving with warnings outstanding requires an explicit tick in the
   // Checks rail. The tick is bound to the exact warnings it acknowledged, so editing
@@ -414,7 +418,6 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     // activity), so switching type cannot smuggle behavior-analytic hours onto a session.
     abaHr: isServiceAppt(f) ? false : Boolean(f.abaHr),
     abaActivity: isServiceAppt(f) || !f.abaHr ? undefined : f.abaActivity || undefined,
-    recurrence: f.repeat,
     custom: f.custom || {},
     documents: f.documents || [],
     verification: f.verification,
@@ -422,32 +425,6 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     ...(valReport.warns.length && warnsAcked ? { warnsAcked: { n: valReport.warns.length, at: new Date().toISOString() } } : {}),
     billing: isBillable ? { code: code.id, unitMins: unitRule.unitMins, rounding: unitRule.rounding, minutes: dur, units, rate, mileage, distance, mileageRate: mileRate } : null,
   })
-
-  const clashFor = (draft, ignoreIds, apptsMap = appts) =>
-    Object.values(apptsMap).some((b) => {
-      if (b.date !== draft.date || b.status === 'cancelled') return false
-      if (ignoreIds?.has(b.id)) return false
-      if (!timeOverlap(draft.start, draft.end, b.start, b.end)) return false
-      return (draft.staffIds || []).some((s) => (b.staffIds || []).includes(s)) || (draft.clientIds || []).some((c) => (b.clientIds || []).includes(c))
-    })
-
-  // CFG-03: every occurrence of a series is validated against the calendar view it
-  // will land in — live bookings plus the occurrences already accepted above it.
-  // Validation stops and authorization blocks reject that date only.
-  const occurrenceReasons = (viewState, draft) => {
-    const reasons = []
-    if (clashFor(draft, undefined, viewState.appts)) reasons.push('time clash with an existing booking')
-    for (const s of evaluateAppointmentValidations(viewState, draft).stops) reasons.push(s.label)
-    if (showClinic && (draft.clientIds || []).length) {
-      for (const cid of draft.clientIds) {
-        const client = clientsById[cid]
-        if (!client) continue
-        const merged = mergeAuthChecks(authCheckFor(viewState, client, draft), unitCheckFor(viewState, client, draft, { today: todayISO() }), settings)
-        if (merged.blocked) reasons.push(`authorization for ${client.name}: ${merged.reasons[0] || 'past the hours on file'}`)
-      }
-    }
-    return reasons
-  }
 
   const save = (andNew) => {
     setShowErrs(true)
@@ -480,80 +457,36 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     }
     if (mode === 'edit') {
       const patch = buildAppt(f.date)
-      if (isSeries && scope !== 'one') {
-        const { updates } = planScopedPatch(appts, { id: f.id, seriesId: initial.seriesId, date: initial.date }, scope, patch)
-        // each rewritten occurrence is validated against the live calendar plus the
-        // occurrences already accepted (audit CFG-03) — rejected ones are skipped, not forced
-        const cumulative = { ...appts }
-        for (const u of updates) delete cumulative[u.id]
-        const applied = []
-        const rejectedOcc = []
-        for (const u of updates) {
-          const next = { ...u, edited: false }
-          const view = { ...cumulative, ...Object.fromEntries(applied.map((a) => [a.id, a])) }
-          const reasons = occurrenceReasons({ ...state, appts: view }, next)
-          if (reasons.length) { rejectedOcc.push({ date: next.date, reasons }); continue }
-          applied.push(next)
-          cumulative[next.id] = next
-        }
-        if (!applied.length) {
-          toast({ message: `No occurrence can be updated — ${rejectedOcc[0].date}: ${rejectedOcc[0].reasons[0]}`, kind: 'warn' })
-          return
-        }
-        const res = actions.create(applied)
+      // series-wide edits, rule changes, and turning a single session into a series
+      // are one scoped transaction (planSeriesTx): one Undo, locked sessions kept
+      if ((isSeries && scope !== 'one') || ruleChanged) {
+        const res = actions.seriesTx({ op: 'edit', id: f.id, scope: isSeries ? scope : 'all', draft: patch, ...(ruleChanged ? { rule } : {}) })
         if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
-        onSaved(
-          rejectedOcc.length
-            ? (scope === 'all'
-              ? `Updated ${applied.length} of ${updates.length} occurrences · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})`
-              : `Updated this & ${applied.length - 1} following · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})`)
-            : (scope === 'all' ? `Updated all ${updates.length} occurrences` : `Updated this & ${updates.length - 1} following`),
-          { id: f.id },
-        )
+        onSaved(res.msg, res.firstId ? { id: res.firstId } : null)
         return
       }
-      actions.update(f.id, { ...patch, ...(isSeries ? { edited: true } : {}) })
-      // repeat-rule rebuild: regenerate future occurrences of the series
-      if (isSeries && rebuild && f.repeat !== (initial.recurrence || 'none')) {
-        const { deleteIds, newDates } = planSeriesRebuild(appts, initial, f.repeat, f.repeatCount)
-        // every regenerated occurrence is validated like a fresh booking (audit CFG-03)
-        const cumulative = { ...appts }
-        for (const id of deleteIds) delete cumulative[id]
-        const created = []
-        const rejectedOcc = []
-        for (const date of newDates) {
-          const draft = { ...buildAppt(date), id: uid(), seriesId: initial.seriesId, recurrence: f.repeat, date }
-          const reasons = occurrenceReasons({ ...state, appts: cumulative }, draft)
-          if (reasons.length) { rejectedOcc.push({ date, reasons }); continue }
-          created.push(draft)
-          cumulative[draft.id] = draft
-        }
-        actions.remove(deleteIds)
-        if (created.length) {
-          const res = actions.create(created)
-          if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
-        }
-        onSaved(`Series rebuilt — ${created.length + 1} occurrence${created.length === 1 ? '' : 's'} under “${RECURRENCES.find((r) => r.id === f.repeat)?.label}”${rejectedOcc.length ? ` · ${rejectedOcc.length} rejected (${rejectedOcc[0].reasons[0]})` : ''}`, { id: f.id })
-        return
-      }
+      // one occurrence of a series: an exception that remembers its original slot
+      const exception = isSeries ? { edited: true, ...(f.date !== initial.date ? { originalDate: initial.originalDate || initial.date } : {}) } : {}
+      const res = actions.update(f.id, { ...patch, ...exception })
+      if (res && res.ok === false) { toast({ message: res.msg, kind: 'warn' }); return }
       onSaved('Appointment updated', { id: f.id })
       return
     }
     // ----- create -----
-    const dates = seriesDatesFor(f.date, f.repeat, f.repeatCount)
-    const created = []
-    const rejected = [] // { date, reasons } — dates a Stop rule or the authorization guard refuses
-    const seriesId = f.repeat === 'none' ? undefined : uid()
-    // occurrences already accepted join the calendar the next dates are checked against
-    const cumulative = { ...appts }
-    for (const date of dates) {
-      const draft = { ...buildAppt(date), date, id: '__draft__' }
-      const reasons = dates.length > 1 ? occurrenceReasons({ ...state, appts: cumulative }, draft) : []
-      if (reasons.length) { rejected.push({ date, reasons }); continue }
-      const occ = { id: uid(), seriesId, recurrence: f.repeat, ...buildAppt(date), date }
-      created.push(occ)
-      cumulative[occ.id] = occ
-    }
+    const repeating = Boolean(rule) && !onCreate
+    const { dates, capped } = repeating ? expandRule(rule, f.date, { weekStart: settings.weekStart || 0 }) : { dates: [f.date], capped: false }
+    const seriesId = dates.length > 1 ? uid() : undefined
+    const drafts = dates.map((date) => ({
+      id: uid(), ...buildAppt(date), date,
+      recurrence: seriesId ? legacyRecurrenceOf(rule) : 'none',
+      ...(seriesId ? { seriesId, rrule: { ...rule, dtstart: f.date } } : {}),
+    }))
+    // every occurrence is screened against the calendar plus those already accepted
+    // (audit CFG-03): Stop rules, clashes and the authorization guard refuse a date,
+    // warnings are named in the result; the dialog's own checks cover a single booking
+    const screened = dates.length > 1 ? screenOccurrences(state, drafts) : { accepted: drafts, rejected: [], warns: {} }
+    const created = screened.accepted.map(({ validationFlags, ...a }) => a)
+    const rejected = screened.rejected
     if (!created.length) {
       const why = rejected[0] ? ` — ${rejected[0].date}: ${rejected[0].reasons[0]}` : ''
       toast({ message: `No occurrence can be booked${why}`, kind: 'warn' })
@@ -567,7 +500,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     }
     const res = actions.create(created)
     if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
-    const rejectedNote = rejected.length ? ` · ${rejected.length} rejected (${rejected.slice(0, 3).map((r) => r.date).join(', ')})` : ''
+    const rejectedNote = `${screenNote(screened)}${capped ? ' · capped at 12 months ahead' : ''}`
     if (andNew) {
       setF(fresh({ id: uid(), date: f.date }))
       setTitleTouched(false)
@@ -674,13 +607,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                   <div className="panel" style={{ borderColor: 'color-mix(in srgb, var(--accent) 40%, var(--line))', background: 'var(--accent-soft)', padding: '9px 12px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12 }}>{Icon.repeat({ size: 13 })} Repeating series — apply changes to:</span>
                     {[['one', 'This occurrence'], ['following', 'This & following'], ['all', `All ${siblings.length}`]].map(([v, l]) => (
-                      <button key={v} type="button" data-testid={`scope-${v}`} className={`checkbox ${scope === v ? 'on' : ''}`} onClick={() => setScope(v)}>{l}</button>
+                      <button key={v} type="button" data-testid={`scope-${v}`} className={`checkbox ${scope === v ? 'on' : ''}`} disabled={v === 'one' && ruleChanged} aria-pressed={scope === v} onClick={() => setScope(v)}>{l}</button>
                     ))}
-                    {f.repeat !== (initial.recurrence || 'none') && (
-                      <label className={`checkbox ${rebuild ? 'on' : ''}`} style={{ marginLeft: 'auto' }} onClick={() => setRebuild((r) => !r)}>
-                        ↻ Rebuild future occurrences with “{RECURRENCES.find((r) => r.id === f.repeat)?.label}”
-                      </label>
-                    )}
+                    <span className="rec-scope-note" data-testid="scope-note">
+                      {scope === 'one'
+                        ? 'Only this session changes; it becomes an exception to the series.'
+                        : `${scope === 'following' && siblings[0]?.id !== initial.id ? 'Splits the series here: earlier sessions keep the old pattern. ' : ''}${ruleChanged || f.date !== initial.date ? 'Upcoming sessions are rebuilt from the repeat rule and single-session changes in that range are replaced. ' : 'Changed fields are copied; each session keeps its own other changes. '}Completed, cancelled, billed and payroll-approved sessions are never changed${ruleChanged || f.date !== initial.date ? ', and nothing dated before today is created or deleted' : ''}.`}
+                    </span>
                   </div>
                 )}
 
@@ -734,7 +667,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <label>
                             Date <em>*</em>
                           </label>
-                          <input data-testid="appt-date" type="date" className={inputCls(showE('date'))} value={f.date} onChange={(e) => set({ date: e.target.value })} />
+                          <input data-testid="appt-date" type="date" className={inputCls(showE('date'))} value={f.date} onChange={(e) => { if (mode !== 'edit' && rule && e.target.value) setRuleState(retargetRule(rule, f.date, e.target.value)); set({ date: e.target.value }) }} />
                         </div>
                         <div className="field">
                           <label>
@@ -757,32 +690,8 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           </button>
                         ))}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '190px 110px 1fr auto', gap: 10, marginTop: 12, alignItems: 'end' }}>
-                        <div className="field">
-                          <label>Repeats</label>
-                          <Dropdown
-                            testid="repeat-select"
-                            value={f.repeat}
-                            onChange={(v) => set({ repeat: v })}
-                            options={RECURRENCES.filter((r) => !onCreate || r.id === 'none').map((r) => ({ value: r.id, label: r.label }))}
-                          />
-                        </div>
-                        {f.repeat !== 'none' ? (
-                          <>
-                            <div className="field">
-                              <label>Occurrences</label>
-                              <input data-testid="repeat-count" type="number" min={1} max={104} className="input" value={f.repeatCount} onChange={(e) => set({ repeatCount: Number(e.target.value) })} />
-                            </div>
-                            <div className="field">
-                              <label>Through</label>
-                              <div className={inputCls()} style={{ display: 'grid', placeItems: 'center', borderStyle: 'dashed' }}>
-                                {seriesDatesFor(f.date, f.repeat, f.repeatCount).slice(-1)[0] || '—'}
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          <span />
-                        )}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10, marginTop: 12, alignItems: 'start' }}>
+                        {onCreate ? <span /> : <RecurrenceEditor date={f.date} rule={rule} onChange={setRule} weekStart={settings.weekStart || 0} />}
                         {isServiceAppt(f) ? (
                           <span />
                         ) : (
@@ -1248,7 +1157,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                   <span className="muted">{title} · {fmtDur(dur)}</span>
                   <span className="muted">
                     {f.staffIds.length} staff · {f.clientIds.length} client{f.clientIds.length === 1 ? '' : 's'}
-                    {f.repeat !== 'none' ? ` · ×${seriesDatesFor(f.date, f.repeat, f.repeatCount).length}` : ''}
+                    {rule && mode !== 'edit' && !onCreate ? ` · ×${expandRule(rule, f.date, { weekStart: settings.weekStart || 0 }).dates.length}` : ''}
                   </span>
                   {isBillable && <span style={{ color: 'var(--ok)', fontWeight: 700 }}>Billable ${charge.toFixed(2)}</span>}
                   {signed && <span style={{ color: 'var(--ok)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>{Icon.check({ size: 12, strokeWidth: 2.4 })} Signed by {f.verification.signature.staffName}</span>}

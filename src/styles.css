@@ -4120,3 +4120,23 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .si-hire-thin { border-style: dashed; }
 .si-hire-head { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; }
 .si-hire-reason { margin: 6px 0 0; font-size: 12px; }
+
+/* ---- Recurrence editor (booking dialog) + series scope note ---- */
+.rec-ed { display: grid; gap: 8px; min-width: 0; }
+.rec-ed > .field { max-width: 320px; }
+.rec-detail { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--panel-2); }
+.rec-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.rec-row .dd { min-width: 150px; }
+.rec-k { width: 44px; font-size: 12px; font-weight: 650; color: var(--text-2); }
+.rec-num { width: 64px; }
+.rec-date { width: 150px; }
+.rec-day { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--panel); color: var(--text-2); font-size: 11.5px; font-weight: 700; cursor: pointer; }
+.rec-day.on { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.rec-day:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+.rec-opt { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; margin-right: 6px; }
+.rec-sum { margin: 0; font-size: 12px; color: var(--text); }
+.rec-scope-note { flex-basis: 100%; font-size: 11.5px; color: var(--text-2); }
+@media (max-width: 560px) {
+  .rec-k { width: auto; flex-basis: 100%; }
+  .rec-date { width: 100%; }
+}

@@ -1,5 +1,4 @@
 // ---- Domain constants & pure helpers for the ABA scheduler ----
-import { addDays, daysInMonth, isoDate, parseISO } from './date'
 
 export const SNAP = 15 // minutes — grid granularity
 
@@ -139,13 +138,6 @@ export const DEFAULT_QM = [
 export const MILEAGE_RATE = 0.7 // $ / mile default for drive time
 export const PAY_TAGS = ['Assessment report', 'Session note', 'IEP / IFSP', 'Consent / auth', 'Medical', 'Data export', 'Insurance']
 
-export const RECURRENCES = [
-  { id: 'none', label: "Doesn't repeat" },
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'biweekly', label: 'Every 2 weeks' },
-  { id: 'monthly', label: 'Monthly' },
-]
-
 export const VERIFY_CHECKS = [
   { id: 'data', label: 'Session data captured in EHR' },
   { id: 'safety', label: 'Safety & environment check' },
@@ -212,56 +204,3 @@ export function findConflicts(appts, a, allStaff = {}, allClients = {}, isCancel
 
 export const seriesSiblings = (appts, a) =>
   a.seriesId ? Object.values(appts).filter((x) => x.seriesId === a.seriesId).sort((x, y) => (x.date < y.date ? -1 : 1)) : []
-
-// keep each sibling's week offset, but move to the weekday of the new date
-export function mapSeriesDate(sDate, anchorDate, newDate) {
-  if (!newDate || newDate === anchorDate) return sDate
-  const weekDelta = Math.round((parseISO(sDate) - parseISO(anchorDate)) / (7 * 86400000))
-  const target = parseISO(newDate)
-  target.setDate(target.getDate() + weekDelta * 7)
-  return isoDate(target)
-}
-
-export function seriesDatesFor(startISO, rule, count) {
-  if (rule === 'none') return [startISO]
-  const base = parseISO(startISO)
-  const n = Math.max(1, Math.min(104, count || 8))
-  const out = []
-  for (let i = 0; i < n; i++) {
-    let d
-    if (rule === 'monthly') {
-      const y = base.getFullYear() + Math.floor((base.getMonth() + i) / 12)
-      const m = (base.getMonth() + i) % 12
-      d = new Date(y, m, Math.min(base.getDate(), daysInMonth(y, m)))
-    } else {
-      d = addDays(base, i * (rule === 'biweekly' ? 14 : 7))
-    }
-    out.push(isoDate(d))
-  }
-  return out
-}
-
-// returns { updates:[{id, ...patch}], deleteIds:[] } for a scoped edit
-export function planScopedPatch(appts, appt, scope, patch) {
-  const isSeries = Boolean(appt.seriesId)
-  if (!isSeries || scope === 'one') {
-    return { updates: [{ id: appt.id, ...patch, ...(isSeries ? { edited: true } : {}) }], deleteIds: [] }
-  }
-  const sibs = seriesSiblings(appts, appt).filter((s) => (scope === 'following' ? s.date >= appt.date : true))
-  const updates = sibs.map((s) => ({
-    ...patch,
-    id: s.id,
-    date: mapSeriesDate(s.date, appt.date, patch.date),
-    ...(scope === 'one' ? { edited: true } : {}),
-  }))
-  return { updates, deleteIds: [] }
-}
-
-// rebuild future occurrences with a new repeat rule; returns { deleteIds, newDates }
-export function planSeriesRebuild(appts, appt, newRule, count) {
-  const sibs = seriesSiblings(appts, appt)
-  const keep = sibs.filter((s) => s.date <= appt.date)
-  const deleteIds = sibs.filter((s) => s.date > appt.date).map((s) => s.id)
-  const dates = seriesDatesFor(appt.date, newRule, count).slice(1) // occurrence itself keeps its date
-  return { keep, deleteIds, newDates: dates, seriesId: appt.seriesId }
-}

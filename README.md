@@ -20,6 +20,23 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### Repeating sessions and series edits
+
+The booking dialog's **Repeats** picker offers Google Calendar's options:
+- daily, weekdays, weekly on any days, every N days/weeks/months/years;
+- monthly by day or by Nth/last weekday, and yearly;
+- ends never (capped at 12 months ahead, said in the picker), on a date, or after N times.
+
+Months without a 29th–31st are skipped. Every generated date is screened for clashes, Stop rules and the authorization guard: refused dates and warnings are named in the result.
+
+Edit, Delete and Cancel on a series offer **This occurrence**, **This & following** and **All**:
+- "This & following" splits the series.
+- Field edits copy only the changed fields and keep each session's own changes.
+- A new date or rule rebuilds upcoming sessions.
+- A dragged occurrence becomes an exception that remembers its original date.
+
+Completed, cancelled, billed or claimed, and payroll-approved sessions are never changed. Rebuilds never create or delete past dates. Each scoped change is one `seriesTx` transaction and one Undo. Code: `src/lib/recurrence.js`, `src/components/RecurrenceEditor.jsx`; `normalizeRecurrence` migrates legacy weekly, every-2-weeks and monthly series. Tests: `recurrence.test.js`, `recurrenceUi.test.jsx`.
+
 ### Access holdout (B4)
 
 Scheduler Insights → Coverage keeps a share of each hour's bookable staff time (Off, 10%, 15% or 20%; default 10%) for new starts and same-day needs, from today on. It says how many hours that holds back in the range and how many are already booked, and outlines the weekday hours where bookings eat into it. The share is saved for the practice (`settings.risk.holdoutPct`). It never blocks a booking. Code: `coverageBoard` in `src/lib/insights.js`.

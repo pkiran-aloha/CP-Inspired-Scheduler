@@ -11,6 +11,7 @@ import { countsAsAbaHours, normalizeAbaHours } from '../lib/abaHours'
 import { normalizeAuthUnits, normalizeUnitNorms, seedAuthUnits } from '../lib/authUnits'
 import { planHandoffSession } from '../lib/intakeHandoff'
 import { stampCancelledAt } from '../lib/cancelReasons'
+import { normalizeRecurrence, planSeriesTx } from '../lib/recurrence'
 import { planStatement, planStatementSent, planStatementVoid } from '../lib/statements'
 import { planCabinetDoc, planCabinetArchive } from '../lib/cabinet'
 import { seedRecords } from '../lib/demoRecords'
@@ -43,7 +44,7 @@ export const serializeForStorage = (state) => {
   return JSON.stringify({ ...state, settings, history: [] })
 }
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeStaffEducation(normalizeAppealedClaims(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid))))))))))))))
+  const normalized = normalizeRecurrence(normalizeStaffEducation(normalizeAppealedClaims(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid)))))))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 
@@ -123,7 +124,7 @@ export function blankState() {
     },
   })
   // Demo Cabinet documents, CEU log, tasks and messages, built against the finished workspace.
-  return { ...ws, ...seedRecords(ws, todayISO()) }
+  return normalizeRecurrence({ ...ws, ...seedRecords(ws, todayISO()) })
 }
 
 export function initial() {
@@ -374,6 +375,15 @@ export function reducer(state, action) {
     // ---- intake manager: one transaction per pipeline move, so a single Undo
     // steps the record back — including a conversion that also created a client
     // chart and re-pointed an appointment at it.
+    // One series change (edit / delete / cancel with a scope) = one Undo step.
+    case 'seriesTx': {
+      const plan = planSeriesTx(state, action.input, { today: action.today, ids: action.ids })
+      if (!plan.ok) return state
+      const appts = { ...state.appts }
+      for (const id of plan.deleteIds) delete appts[id]
+      for (const a of plan.upserts) appts[a.id] = stampCancelledAt(state.appts[a.id], { ...a, updatedAt: Date.now() }, state.settings)
+      return { ...state, appts, history: pushSnap(state, ['appts']) }
+    }
     case 'handoffSessionTx': {
       const plan = planHandoffSession(state, action.clientId, action.appt)
       if (!plan.ok) return state
@@ -862,17 +872,20 @@ function createActions(state, dispatch, rawState = state) {
       const next = { ...cur, date, start, end }
       const stops = stopViolationsForDraft(state, next)
       if (stops.length) return { ok: false, msg: `Cannot move “${next.title || 'Appointment'}” — a Stop rule blocks that slot: ${stops.map((s) => s.label).join('; ')}` }
-      dispatch({ type: 'patch', id, patch: { date, start, end, validationFlags: validationFlagsForDraft(state, next) } })
+      // dragging one occurrence of a series makes it an exception that remembers its slot
+      const exception = cur.seriesId && (date !== cur.date || start !== cur.start || end !== cur.end)
+        ? { edited: true, ...(date !== cur.date ? { originalDate: cur.originalDate || cur.date } : {}) } : {}
+      dispatch({ type: 'patch', id, patch: { date, start, end, ...exception, validationFlags: validationFlagsForDraft(state, next) } })
       return { ok: true }
     },
     remove: (ids) => dispatch({ type: 'deleteMany', ids: Array.isArray(ids) ? ids : [ids] }),
-    removeSeries: (appt, scope) => {
-      if (scope === 'one' || !appt.seriesId) return dispatch({ type: 'deleteMany', ids: [appt.id] })
-      const ids = Object.values(state.appts)
-        .filter((a) => a.seriesId === appt.seriesId)
-        .filter((a) => (scope === 'following' ? a.date >= appt.date : true))
-        .map((a) => a.id)
-      dispatch({ type: 'deleteMany', ids })
+    /** Scoped series change (see planSeriesTx): planned on live state, one transaction, one Undo. */
+    seriesTx: (input) => {
+      const today = todayISO()
+      const plan = planSeriesTx(rawState, input, { today })
+      if (!plan.ok) return plan
+      const decided = dispatch({ type: 'seriesTx', input, today, ids: plan.newIds })
+      return decided?.ok === false ? decided : { ok: true, msg: plan.msg, firstId: plan.firstId }
     },
     undo: () => dispatch({ type: 'undo' }),
     clearSel: () => dispatch({ type: 'setUI', patch: { staffSel: [], clientSel: [], teamSel: [] } }),

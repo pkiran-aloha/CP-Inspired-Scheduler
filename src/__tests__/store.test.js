@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { initial, reducer, visibleApptsFor, layoutLanes, weekStats, groupOverlaps } from '../state/store'
-import { computeBilling, findConflicts, mapSeriesDate, planScopedPatch, planSeriesRebuild, seriesDatesFor, seriesSiblings } from '../lib/model'
+import { computeBilling, findConflicts, seriesSiblings } from '../lib/model'
 import { fmtTime, snap, minToHM, hmToMin, fmtDur, startOfWeek, addDays, isoDate, todayISO } from '../lib/date'
 
 beforeEach(() => localStorage.clear())
@@ -213,36 +213,6 @@ describe('domain logic', () => {
       return appts
     }
     const parse = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
-
-    it('maps sibling dates onto the new weekday keeping week offset', () => {
-      // anchor Mon 2026-10-05 → next occurrence Mon 10-12. New day = Fri 10-09 → sibling becomes Fri 10-16
-      expect(mapSeriesDate('2026-10-12', '2026-10-05', '2026-10-09')).toBe('2026-10-16')
-      expect(mapSeriesDate('2026-10-05', '2026-10-05', '2026-10-05')).toBe('2026-10-05')
-    })
-
-    it('scoped patch: one → exception flag, following/all → whole tail', () => {
-      const appts = mkSeries()
-      const one = planScopedPatch(appts, { ...appts.a1, seriesId: 'S' }, 'one', { title: 'X' })
-      expect(one.updates.length).toBe(1)
-      expect(one.updates[0].edited).toBe(true)
-      const following = planScopedPatch(appts, { ...appts.a1 }, 'following', { title: 'X' })
-      expect(following.updates.map((u) => u.id)).toEqual(['a1', 'a2', 'a3', 'a4'])
-      const all = planScopedPatch(appts, { ...appts.a1 }, 'all', { title: 'X' })
-      expect(all.updates.length).toBe(5)
-    })
-
-    it('rebuild deletes future occurrences and regenerates by the new rule', () => {
-      const appts = mkSeries()
-      const { deleteIds, newDates } = planSeriesRebuild(appts, { ...appts.a1 }, 'biweekly', 4)
-      expect(deleteIds).toEqual(['a2', 'a3', 'a4'])
-      expect(newDates).toEqual(['2026-10-26', '2026-11-09', '2026-11-23'])
-    })
-
-    it('seriesDatesFor honors weekly/biweekly/monthly', () => {
-      expect(seriesDatesFor('2026-10-05', 'weekly', 3)).toEqual(['2026-10-05', '2026-10-12', '2026-10-19'])
-      expect(seriesDatesFor('2026-10-05', 'biweekly', 3)).toEqual(['2026-10-05', '2026-10-19', '2026-11-02'])
-      expect(seriesDatesFor('2026-10-31', 'monthly', 2)).toEqual(['2026-10-31', '2026-11-30'])
-    })
 
     it('seriesSiblings sorted by date', () => {
       const appts = mkSeries()
