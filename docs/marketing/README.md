@@ -1,6 +1,6 @@
 # Aloha ABA Practice Suite — marketing copy
 
-_Last synced against main 5f99933 plus the appointment location suggestions on 2026-10-07._
+_Last synced against main beabf9e plus the appointment location suggestions on 2026-10-07._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
