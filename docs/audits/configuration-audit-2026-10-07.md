@@ -1,6 +1,6 @@
 # Cross-module configuration audit — 2026-10-07
 
-**Status:** source-trace audit complete; remediation delivered as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (2026-10-07; build CI green, landing on `main`). CFG-02 through CFG-09, CFG-11 and CFG-12 are resolved with tests; CFG-05 is resolved by labelling the unpriced controls informational (the calculator/legal review gate stays); CFG-06 and CFG-07 are resolved by disabling/labelling unsupported options and enforcing scopes; REL-01 is triaged and deferred (documented below). CFG-01 remains open as a production-architecture decision — the local credential-capture mitigation stays as-is.
+**Status:** source-trace audit complete; remediation delivered as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (2026-10-07; build CI green, landing on `main`). CFG-02 through CFG-09, CFG-11 and CFG-12 are resolved with tests; CFG-05 is resolved by labelling the unpriced controls informational (the calculator/legal review gate stays); CFG-06 and CFG-07 are resolved by disabling/labelling unsupported options and enforcing scopes; REL-01's dependency half is triaged and deferred (documented below); its bundle half is resolved by code-splitting on `perf/lazy-views`. CFG-01 remains open as a production-architecture decision — the local credential-capture mitigation stays as-is.
 
 ## Executive result
 
@@ -140,11 +140,19 @@ The System panel writes Smart scheduling, Authorization guard, ABA Hours and sev
 
 **Remediation status (2026-10-07, triaged and deferred):** counts re-verified on the remediation branch — `npm audit` reports 8 advisories (2 critical, 2 high, 3 moderate, 1 low), all in the dev/test tree (vitest 2.1.9 / tinypool / nested vite 5.4.21, plus esbuild ≤0.24.2); `npm audit --omit=dev` leaves the single low-severity DOMPurify advisory (dompurify ≤3.4.15 via jsPDF 4.2.1). DOMPurify path reviewed: the app never imports DOMPurify and never calls jsPDF's `html()` method (all PDF output uses the text/table API), so the two IN_PLACE-sanitization advisories are not reachable from this codebase; the fix is a jsPDF/dompurify patch release, not an app change. The suggested Vitest remediation is a major upgrade (vitest 5.x) — deferred: it is a dev-only dependency, the suite is green at 95 files / 995 tests, and a major test-runner upgrade is its own project with full verification, not a line-item inside an audit-remediation branch. The bundle warning (≈2,461 kB minified, ≈738 kB gzip) is unchanged; code-splitting the largest views is likewise deferred as a separate performance task. No dependency changes were made on this branch.
 
+**Remediation status (2026-10-07, bundle half resolved on `perf/lazy-views`):** real code-splitting, not `manualChunks`. Measured with `npm run build` at `5f99933`: the single entry chunk was **2,525.24 kB minified / 759.32 kB gzip** (2,916 kB of JS in total). After: the entry chunk is **1,015.46 kB / 322.06 kB gzip** (−60% minified, −58% gzip); total JS is about the same (≈2,924 kB, now in 40 files) because the rest moved into chunks fetched on demand.
+
+- `src/App.jsx`: every non-calendar section (dashboard, analytics, reports, clients, intake, masters, staff, cabinet, all billing and payroll screens, Help & Wiki, Settings) is a `React.lazy` chunk behind a `role="status"` "Loading this section…" fallback inside the existing section error boundary. The calendar, its dialogs and the global overlays stay eager. The bundled `docs/wiki/*.md` now ships inside the Help chunk (≈229 kB), not the entry.
+- `src/lib/exportKit.js`: jsPDF (≈391 kB, plus its optional html2canvas/DOMPurify chunks) is a dynamic `import()` through `loadPdf()`. The six PDF builders keep their synchronous API through `newPdf()`; every PDF button awaits `loadPdf()` first and, if the fetch fails, says nothing was downloaded.
+- What remains in the entry is the calendar plus `store.jsx` and the domain engines its reducer and seed import (`settingsMasters`, `seed`, `reports`, `security`, `payroll`, `claims`, `intake`, …) and `react-dom`. Splitting further means decoupling the reducer from those engines, which is an architecture change, not a lazy-load. `build.chunkSizeWarningLimit` is set to 1,100 kB as a regrowth tripwire (documented in `vite.config.js`), so the build no longer warns.
+- `npm run share` (single file) is unchanged: `SHARE_INLINE=1` already sets `inlineDynamicImports`, so every chunk folds back into `share/Aloha-ABA.html` (verified, ≈3.1 MB, no external asset references).
+- Tests: `src/test/setup.js` (Vitest `setupFiles`) preloads every section chunk and the PDF engine via `preloadViews()`/`loadPdf()`, so the existing UI tests still render sections synchronously; four PDF-download tests now `await waitFor(...)` the download. Full suite **99 files / 1,039 tests green**.
+
 ## Verification and scope
 
 - `npm test` (audit time): **89 test files, 934 tests passed**.
 - `npm test` (after remediation, 2026-10-07): **95 test files, 995 tests passed**.
-- `npm run build`: succeeded both times, with the bundle-size warning above (unchanged).
+- `npm run build`: succeeded both times, with the bundle-size warning above; resolved by the REL-01 bundle pass (`perf/lazy-views`), which builds without the warning.
 - PR #37 (`arena/e8f5fefe-cp-inspired-scheduler` → `main`): GitHub CI `build` job green on the final head; the `deploy` job runs on `main` only and fires after the merge.
 - `npm audit`: results recorded under REL-01; no dependency remediation attempted (deferred, triaged above).
 - The build changed only generated `public/version.json`; it was restored before handoff. No behavior changes were made by the audit itself.

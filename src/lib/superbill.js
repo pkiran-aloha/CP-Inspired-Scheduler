@@ -6,8 +6,7 @@
 // diagnosis, procedure codes, charges) plus the NPI, place of service, units and
 // modifiers most plans also expect. Claims already billed to an insurer are left out so
 // the family cannot submit the same services twice. Nothing here is sent anywhere.
-import { jsPDF } from 'jspdf'
-import { winAnsi } from './exportKit'
+import { newPdf } from './exportKit'
 import { dxFor, lineApptIds, posFor } from './claims'
 import { longDate } from './statements'
 
@@ -84,7 +83,7 @@ export function superbillView(state, clientId, { from, to, at = Date.now() } = {
 export function superbillPdf(state, clientId, range) {
   const v = superbillView(state, clientId, range)
   if (!v.ok) throw new Error(v.msg)
-  const doc = winAnsi(new jsPDF({ unit: 'pt', format: 'letter' }))
+  const doc = newPdf({ unit: 'pt', format: 'letter' })
   doc.setProperties({ title: `Superbill ${v.patient.name} ${v.from} to ${v.to}`, author: v.provider.name })
   doc.setLanguage('en-US')
   const L = 48

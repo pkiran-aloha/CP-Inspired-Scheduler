@@ -6,8 +6,7 @@
 // model notice. The estimate is a document the practice downloads and hands over or
 // mails; the app sends nothing and does not keep issued estimates, so the practice
 // saves the PDF with the client's record (retention: 6 years).
-import { jsPDF } from 'jspdf'
-import { winAnsi } from './exportKit'
+import { newPdf } from './exportKit'
 import { BILL_CODES } from './model'
 import { dxFor } from './claims'
 import { longDate } from './statements'
@@ -106,7 +105,7 @@ export function planGfe(state, clientId, { start, months, rows, separately = '',
 /** The estimate as a PDF (letter portrait), laid out after the CMS model notice. */
 export function gfePdf(est) {
   if (!est?.ok) throw new Error(est?.msg || 'Nothing to estimate.')
-  const doc = winAnsi(new jsPDF({ unit: 'pt', format: 'letter' }))
+  const doc = newPdf({ unit: 'pt', format: 'letter' })
   doc.setProperties({ title: `Good Faith Estimate ${est.patient.name}`, author: est.provider.name })
   doc.setLanguage('en-US')
   const L = 48
