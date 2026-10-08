@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, feat/local-screen-lock and feat/reports-revamp branches on 2026-10-08; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 
@@ -46,7 +46,7 @@ Pick any **metric** (sessions, client hours, billable units, gross revenue, util
 
 ### Reports (key `6`)
 
-Pick a report from the catalogue, set a range preset and an optional **scope** (one staff member, client or care team), and the table runs live. You get summary tiles, a note explaining what the report means, a comparison against the prior equal window, and a trend chart when the table has a date column. Click a row to jump to the underlying record. **Export** as CSV, XLS (a styled HTML workbook that Excel and Sheets open) or PDF (landscape, nothing clipped), each stamped with the organisation, range, scope and generation time. **Save** keeps a report plus its range and scope as a shortcut (the most recent 24 are kept).
+Pick a report from the catalogue on the left: reports are grouped by category, each with a one-line description, and **Find a report** narrows the list (saved reports sit on top under **Saved**). The selected report's toolbar stays pinned while you scroll and holds the range preset and an optional **scope** (one staff member, client or care team). Below it: up to four stat tiles from the report's summary, each with its change against the previous equal window (green or red by whether that rise is good news; **N more** shows the rest), a collapsed **Totals vs previous window** comparison, a row filter (plus severity and one-click-fixable filters on the Data Quality report), and the table. Click a column header to sort it (descending, ascending, then back to the report's order); numbers are right-aligned with a totals row. When nothing matches, the table says so and offers **Clear filters**. The report's note sits under the table as a footnote. Click a row to jump to the underlying record. **Export** (one menu) downloads CSV, XLS (a styled HTML workbook that Excel and Sheets open) or PDF (landscape, nothing clipped) of exactly the rows on screen, each stamped with the organisation, range, scope and generation time, or prints the page. **Save preset** keeps a report plus its range and scope as a shortcut (the most recent 24 are kept).
 
 The Data Quality report adds one-click, undoable fixes for some rows (for example auto-filling billable units from the session length, or verifying and signing a session from the reports desk).
 
@@ -76,7 +76,7 @@ Catalogue (19 reports):
 - To add a report: append an object to `REPORTS_RAW` with a unique id and an existing category id; the palette and the Reports screen read the registry, so nothing else is needed.
 - [rpTrends.js](../../src/lib/rpTrends.js): `priorResult` (re-runs a report over the preceding equal window), `numericTotals`, `deltaPct`, `pickDateCol`, `numCols`, `seriesFor`.
 - [exportKit.js](../../src/lib/exportKit.js): `buildSpec`, `specToXls`, `specToPdf` (jsPDF), `downloadDoc`, and `loadPdf`, which fetches jsPDF on the first PDF export (every PDF button awaits it; the builders stay synchronous through `newPdf`). The payroll register reuses it ([Payroll](payroll.md)). `downloadDoc` accepts text, a Blob or a jsPDF document. `winAnsi` wraps every jsPDF document the app builds (reports, payroll, statements, intake, CMS-1500) so text outside the PDF fonts' WinAnsi set (arrows, minus signs, emoji) is mapped to ASCII or dropped instead of printing as garbled UTF-16. On a multi-page export only the later pages say "continued".
-- [ReportsView.jsx](../../src/components/ReportsView.jsx): range, scope, saved reports, in-place fixes via `actions.update`. Saved reports use `saveReport` / `deleteReport` (`addSavedReport` and `removeSavedReport` actions, area `reports`); `reports.saved` is in the backup.
+- [ReportsView.jsx](../../src/components/ReportsView.jsx): catalogue, pinned toolbar (range, scope), stat strip, row filters, column sort, export menu, saved reports, in-place fixes via `actions.update`. Styles are the `rpv-` block at the end of `src/styles.css`. Saved reports use `saveReport` / `deleteReport` (`addSavedReport` and `removeSavedReport` actions, area `reports`); `reports.saved` is in the backup.
 
 ### Analytics
 

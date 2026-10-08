@@ -153,7 +153,8 @@ A configurable dashboard and a report library share one metrics engine, so the s
 - **Billing Health:** clean claim rate, denial rate, net collection rate, cash posted, days in A/R, A/R over 90 days, charge lag and recoupments. Each shows its formula and target on hover, plus a delta against the previous period.
 - **19 reports** across Operations, Clinical & Compliance, Billing & Claims, People & Payroll and Data Quality. Examples: Authorization Utilization, Staff Utilization vs Target, Claims Register, BCBA Supervision Coverage and Behavior-Analytic Hours.
 - **Authorization Utilization:** used, scheduled and remaining units per client and code over the authorization's own window, with a renewal flag at 30 days left or 75% committed.
-- Exports to CSV, styled Excel and PDF, each stamped with when it was generated, the date range and the scope.
+- **A calm report desk:** find a report by name, read its headline numbers first, sort any column and filter rows; the detail stays one click away instead of on screen all at once.
+- One Export menu: CSV, styled Excel and PDF of exactly the rows on screen, each stamped with when it was generated, the date range and the scope.
 
 ### Settings and payer rules: configure the practice without filing a ticket
 
