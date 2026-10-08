@@ -183,7 +183,7 @@ describe('store wiring for the new sections', () => {
   it('older saves (missing new keys) merge with defaults instead of crashing', () => {
     localStorage.setItem('aloha-aba.v3', JSON.stringify({ appts: {}, ui: { view: 'week' } }))
     const s = initial()
-    expect(s.ui.section).toBe('calendar')
+    expect(s.ui.section).toBe('dashboard') // an older save without a section lands on the Dashboard
     expect(s.settings.analytics.preset).toBe('last4')
     expect(s.settings.org.name).toBeTruthy()
     expect(s.reports.saved).toEqual([])

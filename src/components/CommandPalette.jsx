@@ -34,12 +34,12 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
     out.push({ g: 'Actions', k: '?', icon: 'info', t: 'Keyboard shortcuts', hint: 'everything is a keystroke away', run: () => { onClose(); onHelp() } })
     out.push({ g: 'Navigate', icon: 'info', t: 'Help & Wiki', hint: 'workflows, FAQs and screen guides', run: go({ section: 'help' }) })
     const secs = [
-      ['calendar', 'Cal', 'Calendar board', 'cal'], ['clients', 'Cli', 'Clients roster', 'user'],
+      ['dashboard', 'Dash', 'Analytics dashboard', 'dashboard'], ['calendar', 'Cal', 'Calendar board', 'cal'], ['clients', 'Cli', 'Clients roster', 'user'],
       ['staff', 'Stf', 'Staff directory', 'team'], ['billing', 'Bil', 'Billing & claims desk', 'dollar'],
       ['analytics', 'An', 'Analytics', 'spark'], ['reports', 'Rep', 'Reports desk', 'clipboard'],
-      ['masters', 'Mst', 'Masters — payers & service types', 'clipboard'], ['dashboard', 'Dash', 'Analytics dashboard', 'dashboard'],
+      ['masters', 'Mst', 'Masters — payers & service types', 'clipboard'],
     ]
-    secs.filter(([id]) => can(id)).forEach(([id, key, label, icon], i) => out.push({ g: 'Jump to', k: key === 'Cal' ? String(i + 1) : undefined, icon, t: label, hint: 'section', run: go({ section: id }) }))
+    secs.filter(([id]) => can(id)).forEach(([id, key, label, icon]) => out.push({ g: 'Jump to', k: key === 'Dash' ? '1' : undefined, icon, t: label, hint: 'section', run: go({ section: id }) }))
     // chunk-42: every Settings sub-module is one search away, opened on its own panel
     if (can('settings')) {
       const openSettings = (module, sub) => () => { actions.setUI({ settings: true, settingsModule: module, settingsSub: sub ?? null }); onClose() }

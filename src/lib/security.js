@@ -514,7 +514,7 @@ export function canAccessSection(state, section, minimum = 'view') {
 }
 
 export function firstAccessibleSection(state) {
-  const order = ['calendar', 'clients', 'intake', 'staff', 'masters', 'billing', 'payroll', 'pay-qbo', 'analytics', 'reports', 'dashboard', 'settings', 'security']
+  const order = ['dashboard', 'calendar', 'clients', 'intake', 'staff', 'masters', 'billing', 'payroll', 'pay-qbo', 'analytics', 'reports', 'settings', 'security']
   return order.find((section) => canAccessSection(state, section, 'view')) || null
 }
 

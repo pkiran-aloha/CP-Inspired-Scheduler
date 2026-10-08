@@ -30,6 +30,7 @@ describe('command palette', () => {
 
   it('runs a report template straight from the palette (and Esc closes)', async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByTestId('palette-open'))
     const input = screen.getByTestId('palette-input')
     fireEvent.change(input, { target: { value: 'attendance' } })

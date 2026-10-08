@@ -17,8 +17,9 @@ const RANGE_PRESET_OPTS = RANGE_PRESETS
 // (billing badge = completed billable lines with units that are not marked billed yet)
 
 export const SECTIONS = [
-  { id: 'calendar', label: 'Calendar', icon: 'cal', kbd: '1', desc: 'Scheduling board, timeline & agenda' },
-  { id: 'clients', label: 'Clients', icon: 'pin', kbd: '2', desc: 'Caseloads, authorizations & programs', subs: [
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '1', desc: 'Widget analytics board — build your own' },
+  { id: 'calendar', label: 'Calendar', icon: 'cal', kbd: '2', desc: 'Scheduling board, timeline & agenda' },
+  { id: 'clients', label: 'Clients', icon: 'pin', kbd: '3', desc: 'Caseloads, authorizations & programs', subs: [
     { id: 'roster', to: 'clients', label: 'Client List' },
     { id: 'client-new', to: 'clients', label: 'Add New', patch: { cliNew: true } },
     { group: 'Intake Manager' },
@@ -27,13 +28,13 @@ export const SECTIONS = [
     { id: 'referrals', to: 'referrals', label: 'Referral Sources' },
   ] },
   { id: 'masters', label: 'Masters', icon: 'clipboard', kbd: '8', desc: 'Payers, service types & billing masters', subs: [{ id: 'payers', label: 'Payers' }, { id: 'svcs', label: 'Service Types' }, { id: 'cfdefs', label: 'Custom Fields' }] },
-  { id: 'staff', label: 'Staff', icon: 'team', kbd: '3', desc: 'Roster, credentials & workload', subs: [
+  { id: 'staff', label: 'Staff', icon: 'team', kbd: '4', desc: 'Roster, credentials & workload', subs: [
     { id: 'staff-roster', to: 'staff', label: 'Staff Roster' },
     { id: 'cabinet', to: 'cabinet', label: 'Cabinet' },
   ] },
-  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '4', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
-  { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '5', desc: 'Trends, utilization & outcomes' },
-  { id: 'reports', label: 'Reports', icon: 'file', kbd: '6', desc: 'Exportable PMS reports & validations' },
+  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '5', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
+  { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '6', desc: 'Trends, utilization & outcomes' },
+  { id: 'reports', label: 'Reports', icon: 'file', kbd: '7', desc: 'Exportable PMS reports & validations' },
   { id: 'payroll', label: 'Payroll', icon: 'badge', kbd: '9', desc: 'Timesheets, pay runs & provider export', subs: [
     { id: 'pay-cycle', to: 'payroll', label: 'Cycle Overview' },
     { id: 'pay-process', to: 'pay-process', label: 'Process Payroll' },
@@ -44,7 +45,6 @@ export const SECTIONS = [
     { id: 'pay-qbo', to: 'pay-qbo', label: 'QuickBooks Payroll' },
     { id: 'pay-setup', to: 'pay-setup', label: 'Payroll Setup' },
   ] },
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '7', desc: 'Widget analytics board — build your own' },
   { id: 'settings', label: 'Settings', icon: 'dots', kbd: '0', desc: 'Practice configuration, masters, rules & system settings', subs: SETTINGS_MODULES.map((m) => ({
     id: `set-${m.id}`,
     to: 'settings',
@@ -71,7 +71,7 @@ export default function NavRail() {
   const { ui, actions, appts } = state
   const toast = useToast()
   const [previewOpen, setPreviewOpen] = useState(false)
-  const section = ui.section || 'calendar'
+  const section = ui.section || 'dashboard'
   // context-adaptive: the scheduling board gets the extra width, so the rail rests
   // as an icon strip there by default (tooltips carry the labels). Any explicit
   // collapse/expand click wins and persists across sections and reloads.

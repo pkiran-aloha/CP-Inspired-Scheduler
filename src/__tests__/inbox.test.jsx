@@ -84,6 +84,7 @@ describe('inbox — store and screen', () => {
   it('the top-bar inbox adds a task for me, shows it overdue, and marks it done', async () => {
     localStorage.setItem(KEY, JSON.stringify(BASE))
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(await screen.findByTestId('inbox-open'))
     const panel = await screen.findByTestId('inbox-panel')
     fireEvent.click(within(panel).getByTestId('inbox-tab-tasks'))

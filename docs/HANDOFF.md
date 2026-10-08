@@ -32,6 +32,13 @@ Last updated **2026-10-08** (configuration-audit and architecture-mismatch clean
 
 ## Shipped (newest first)
 
+### Dashboard is the landing page (`feat/dashboard-landing`, 2026-10-08)
+
+- **What.** Fresh workspaces and app loads open on the Dashboard. It is first in the NavRail, the command palette's "Jump to" list and `firstAccessibleSection` (so a role without Dashboard access falls back to its first permitted section). Digit keys follow sidebar order: `1` Dashboard, `2` Calendar, `3` Clients, `4` Staff, `5` Billing, `6` Analytics, `7` Reports, `8` Masters, `9` Payroll (`0` Settings). Keyboard sheet, wiki and marketing copy updated.
+- **Persisted section (decision).** `ui.section` is still persisted. `loadWorkspace` maps a missing section, or `calendar` on a save without the new `meta.dashLanding` flag (the old default), to `dashboard`, and sets the flag; any other saved section is kept, and Calendar is kept once the flag is saved. Fresh workspaces carry the flag. No storage rewrite at load: the flag lands with the next normal save.
+- **Known.** The inbox and profile-menu buttons still live on the Calendar top bar only (unchanged design); the palette (Cmd/Ctrl+K) works everywhere.
+- **Tests.** `app.test.jsx` (landing on Dashboard + nav order, one-time old-save mapping, keys 1/2), `security.test.js` (fallback order); calendar UI tests now open the Calendar from the nav first.
+
 ### Reports desk revamp (`feat/reports-revamp`, 2026-10-08)
 
 - **What.** `ReportsView.jsx` rebuilt for a calm read: plain header (title, one meta line, **Save preset**, one **Export** menu holding Excel / PDF / CSV / Print); a grouped, searchable catalogue with one-line descriptions and **Saved** on top (empty search says so); the report title and blurb, then a toolbar pinned on scroll (range picker + three compact scope selects); at most four summary stat tiles with polarity-coloured deltas (**N more** for the rest); the prior-window totals collapsed into a **Totals vs previous window** disclosure; a row filter / severity / one-click-fixable bar with a live row count; a table with sticky header, header-button sorting with `aria-sort`, right-aligned tabular numbers, hairline row dividers, a sticky totals row and a real empty state; the note as a footnote.

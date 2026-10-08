@@ -32,6 +32,7 @@ describe('booking dialog Location field', () => {
   it('offers client and staff-previous suggestions by source, takes free text, links to Maps, and saves the value as typed', async () => {
     seed()
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: DATE } })

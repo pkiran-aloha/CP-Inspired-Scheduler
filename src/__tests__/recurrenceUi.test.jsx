@@ -44,6 +44,7 @@ function openProbe(container) {
 describe('recurrence editor in the booking dialog', () => {
   it('books a custom Mon + Wed series with an occurrence count and stores its rule', async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     fireEvent.click(screen.getByTestId('pick-Staff Name'))
@@ -70,6 +71,7 @@ describe('recurrence editor in the booking dialog', () => {
   it('changing the rule of a series disables “this occurrence” and rebuilds as one Undo', async () => {
     seedSeries()
     const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(within(openProbe(container)).getByRole('button', { name: /Edit/ }))
     expect(screen.getByTestId('repeat-summary').textContent).toMatch(/Weekly on Mon, 4 times/)
     fireEvent.change(screen.getByTestId('rec-interval'), { target: { value: '2' } })
@@ -89,6 +91,7 @@ describe('series delete and cancel from the detail card', () => {
   it('delete all keeps a completed session, names it, and Undo brings the series back', async () => {
     seedSeries({ rp2: { status: 'completed' } })
     const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     const card = openProbe(container)
     expect(within(card).getByTestId('dc-series-rule').textContent).toMatch(/Weekly on Mon, 4 times · 4 occurrences/)
     fireEvent.click(within(card).getByRole('button', { name: /Delete/ }))
@@ -102,6 +105,7 @@ describe('series delete and cancel from the detail card', () => {
   it('cancel this & following asks for a reason, then a scope, and stores both', async () => {
     seedSeries()
     const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     const card = openProbe(container)
     fireEvent.click(within(card).getByTestId('dc-cancel'))
     fireEvent.click(within(card).getByTestId('cx-reason-opt-cancel-reasons-5')) // Weather
@@ -140,6 +144,7 @@ describe('dragging one occurrence', () => {
   it('marks an exception on the calendar card with the drawn pencil, labelled for screen readers', async () => {
     seedSeries({ rp0: { edited: true } })
     const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     const marks = await screen.findAllByRole('img', { name: 'Changed from series' })
     expect(marks).toHaveLength(1)
     expect(marks[0].querySelector('svg')).toBeTruthy()

@@ -4,7 +4,7 @@ _Last synced: 2026-10-08 (feat/reports-revamp checked: only the Reports styles c
 
 _Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/lib/locationSources.js, src/lib/railGlance.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/lib/recurrence.js, src/components/RecurrenceEditor.jsx, src/state/store.jsx, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main a0142d0 plus the fix/workspace-persistence branch on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main a0142d0 plus the fix/workspace-persistence branch on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -17,7 +17,7 @@ Converted intake requests and linked client profiles offer **Plan first week**. 
 
 ### The calendar
 
-The Calendar section has five views, switched from the top bar or with a key: Day (`D`), Week (`W`), Timeline (`H`), Month (`M`) and Agenda (`G`). `T` jumps to today and the arrow keys move the anchor. `N` or `A` opens the booking picker. `?` lists every shortcut and `U` undoes the last change. Cmd/Ctrl+K opens the command palette: jump to a section, run a report, find a client or staff member, or open the needs-cover inbox.
+The Calendar section (key `2`; the app opens on the Dashboard) has five views, switched from the top bar or with a key: Day (`D`), Week (`W`), Timeline (`H`), Month (`M`) and Agenda (`G`). `T` jumps to today and the arrow keys move the anchor. `N` or `A` opens the booking picker. `?` lists every shortcut and `U` undoes the last change. Cmd/Ctrl+K opens the command palette: jump to a section, run a report, find a client or staff member, or open the needs-cover inbox.
 
 Dragging on the Day or Week grid opens **Quick Add** (client, service, then book). It shows time clashes but runs none of the authorization or practice-rule guards below; use **More options** to get the full dialog with the Checks rail.
 

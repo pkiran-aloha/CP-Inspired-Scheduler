@@ -99,7 +99,7 @@ describe('settings sidebar — every module and sub-tab renders once', () => {
   })
 
   it.each(['rail', 'keyboard shortcut', 'profile menu', 'command palette'])('expands a saved collapsed sidebar when Settings opens from the %s', async (entry) => {
-    saveUI({ nav: true })
+    saveUI({ nav: true, section: 'calendar' }) // the profile menu lives on the calendar top bar
     R(<App />)
     expect(screen.getByTestId('navrail').classList.contains('collapsed')).toBe(true)
 

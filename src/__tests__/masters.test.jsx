@@ -197,7 +197,8 @@ describe('profile sheets & faces everywhere', () => {
 
   it('faces ride along everywhere people appear — sidebar roster included', async () => {
     const { container } = render(<App />)
-    // landing view is the calendar; its sidebar roster lists staff with critters
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
+    // on the calendar, its sidebar roster lists staff with critters
     await waitFor(() => expect(container.querySelectorAll('.pav').length).toBeGreaterThan(4))
     fireEvent.click(screen.getByTestId('nav-clients'))
     fireEvent.click(screen.getByTestId('cli-mode-table'))
