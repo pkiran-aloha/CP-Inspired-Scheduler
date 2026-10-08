@@ -16,7 +16,7 @@
 //                  review copy because a laser-printed replica is not OCR dropout ink.
 // The electronic standard is ANSI 837P; nothing here transmits anything.
 import { newPdf } from './exportKit'
-import { posFor, memberIdOf, authNoOf, dxFor, lineApptIds, mileageCodeIssue } from './claims'
+import { posFor, memberIdOf, authNoOf, dxFor, lineApptIds, mileageCodeIssue, claimChartIssues } from './claims'
 import { providerIdRule } from './providerIds'
 
 export const LINES_PER_PAGE = 6 // the paper grid carries six service lines
@@ -77,6 +77,9 @@ export function cms1500Data(state, claim) {
       throw new Error(`${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings, or remove mileage if it is not covered, then rebuild this draft.`)
     }
   }
+  // never print an invented member ID, diagnosis or required auth number: refuse instead
+  const chartGaps = claimChartIssues(state, claim)
+  if (chartGaps.length) throw new Error(`${claim.no} cannot print on a CMS-1500 yet. ${chartGaps.join(' ')}`)
   const secondaryFiling = claim.method === 'secondary'
   const rule = providerIdRule(payerRec).id
   const wantNpi = rule !== 'medicaid'
@@ -89,12 +92,11 @@ export function cms1500Data(state, claim) {
   // patient (5) and insured (4, 7): a child is insured under the guardian's policy
   const addr = { street: plain(client.street), city: plain(client.city), state: up(client.state).slice(0, 2), zip: String(client.zip || '').replace(/\D/g, '').slice(0, 9) }
   const insuredName = client.guardian ? nameLFM(client.guardian) : nameLFM(client.name, client.middleName)
-  const memberFor = (insurer, memberId) => compact(memberIdOf({ id: client.id, insurer, memberId }))
 
   // other coverage: on a primary claim the secondary plan, on a secondary claim the primary
   const secondaryPayer = (state.payers || []).find((p) => p.id === client.secondary?.payerId) || null
   const other = secondaryFiling
-    ? { name: insuredName, policy: memberFor(client.insurer, client.memberId), plan: plain(client.insurer).slice(0, 28) }
+    ? { name: insuredName, policy: compact(memberIdOf(client)), plan: plain(client.insurer).slice(0, 28) }
     : secondaryPayer ? { name: insuredName, policy: compact(client.secondary?.memberId), plan: plain(secondaryPayer.name).slice(0, 28) } : null
 
   // providers: billing (33), service facility (32), rendering per line (24J)
@@ -134,7 +136,8 @@ export function cms1500Data(state, claim) {
     ? Number(Object.values(state.claims || {}).find((c) => c.no === claim.parentNo)?.paid || 0)
     : Number(claim.patientPaid || 0)
   const today = new Date().toISOString().slice(0, 10)
-  const authNo = authNoOf(secondaryFiling ? { ...client, authNo: client.secondary?.authNo } : client)
+  // item 23: the chart's authorization number, or blank; never derived
+  const authNo = authNoOf(secondaryFiling ? client.secondary : client)
 
   return {
     claimNo: claim.no,
@@ -143,7 +146,7 @@ export function cms1500Data(state, claim) {
     items: {
       carrier: payerRec ? [plain(payerRec.name), plain(payerRec.street), cityLine(payerRec)].filter(Boolean) : [plain(claim.payer)],
       1: program,
-      '1a': secondaryFiling ? memberFor(claim.payer, client.secondary?.memberId) : memberFor(claim.payer, client.memberId),
+      '1a': compact(memberIdOf(secondaryFiling ? client.secondary : client)),
       2: nameLFM(client.name, client.middleName),
       3: { dob: dateParts(client.dob), sex: client.sex === 'F' ? 'F' : client.sex === 'M' ? 'M' : '' },
       4: insuredName,
@@ -161,6 +164,7 @@ export function cms1500Data(state, claim) {
       22: claim.version > 1 ? { code: '7', ref: compact(claim.payerClaimCtrl || claim.parentNo).slice(0, 17) } : null,
       23: compact(authNo).slice(0, 29),
       25: { tin: String(org.taxId || '').replace(/\D/g, ''), ein: true },
+      // item 26 is the practice's own patient account number: the client id unless one is set
       26: compact(client.accountNo || client.id).slice(0, 14),
       27: true,
       28: Number(claim.charges || 0),

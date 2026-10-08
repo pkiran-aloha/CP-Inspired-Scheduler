@@ -716,6 +716,8 @@ export function planConversion(state, id, opts = {}) {
     groupNumber: String(req.groupNumber || '').trim(),
     authNo: String(req.auth?.authNo || '').trim(),
     diagnosis: req.diagnosis || '',
+    // ICD-10 codes typed into the intake diagnosis carry to the chart; prose alone carries none
+    dxCodes: String(req.diagnosis || '').toUpperCase().match(/\b[A-Z][0-9][0-9A-Z](?:\.[0-9A-Z]{1,4})?\b/g) || [],
     bcbaId: req.bcbaAssignedId || null,
     emergency: req.emergency?.name ? { ...req.emergency } : null,
     authStart: req.auth?.windowStart || todayISO(),

@@ -95,13 +95,28 @@ export const CLIENTS = [
 ].map((c, i) => ({ ...c, street: `${120 + i * 37} ${['Orchard', 'Willow', 'Cedar', 'Linden', 'Maple', 'Juniper', 'Aspen', 'Hazel'][i % 8]} Ln`, city: 'San Jose', state: 'CA', zip: `951${String(10 + i).padStart(2, '0')}` }))
 export const CLIENTS_BY_ID = Object.fromEntries(CLIENTS.map((c) => [c.id, c]))
 // attach payer + authorization window (deterministic by index) + birth demographics for claims
-CLIENTS.forEach((c, i) => Object.assign(c, {
-  insurer: INSURERS[(i * 5 + 1) % INSURERS.length],
-  status: 'active',
-  ...authWin(i),
-  dob: isoDate(new Date(2015 + (i % 6), (i * 7 + 2) % 12, 1 + ((i * 41) % 27))),
-  sex: i % 2 ? 'F' : 'M',
-}))
+// Fictional chart identifiers so demo claims pass the claim gate: a member ID and an
+// authorization number for insured clients, and ICD-10 codes picked by program.
+const MEMBER_PREFIX = { 'Blue Shield CA': 'BSC', Aetna: 'AE', 'Regence BCBS': 'RGN', UnitedHealthcare: 'UHC', 'Medicaid (CA)': 'MC' }
+const DEMO_DX = [
+  [/EIBI/, ['F84.0', 'R41.82']], [/Day program/, ['F84.0', 'F81.0']], [/Home program/, ['F84.0']],
+  [/Behavior reduction/, ['F84.0', 'F90.1']], [/Group ·/, ['F84.5', 'F83']], [/School-based/, ['F84.0', 'F81.0']],
+  [/Adaptive/, ['F84.0', 'F82']], [/Speech/, ['F80.89', 'F84.0']], [/Center-based/, ['F84.0', 'F90.0']],
+]
+CLIENTS.forEach((c, i) => {
+  const insurer = INSURERS[(i * 5 + 1) % INSURERS.length]
+  const prefix = MEMBER_PREFIX[insurer]
+  Object.assign(c, {
+    insurer,
+    status: 'active',
+    ...authWin(i),
+    dob: isoDate(new Date(2015 + (i % 6), (i * 7 + 2) % 12, 1 + ((i * 41) % 27))),
+    sex: i % 2 ? 'F' : 'M',
+    memberId: prefix ? `${prefix}-${String(5210337 + i * 70913).slice(-7)}` : '',
+    authNo: prefix ? `PA-26-${String(4100 + i * 37)}` : '',
+    dxCodes: (DEMO_DX.find(([re]) => re.test(c.program)) || [null, ['F84.0']])[1],
+  })
+})
 
 // ---- Care teams: randomized (deterministic) distribution of staff & clients ----
 const teamRng = mulberry32(777)

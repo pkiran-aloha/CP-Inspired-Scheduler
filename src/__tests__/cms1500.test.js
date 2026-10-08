@@ -205,3 +205,28 @@ describe('cms1500 pdf', () => {
     expect(doc.getNumberOfPages()).toBe(pages)
   })
 })
+
+describe('cms1500Data: chart values only', () => {
+  it('refuses to print a claim whose chart lacks a member ID or diagnosis, naming what to fill in and where', () => {
+    const gaps = withClient({ memberId: '', dxCodes: [] })
+    expect(() => cms1500Data(gaps, claim)).toThrow(/Needs member ID: .*Member ID \(claims\).*Needs diagnosis: .*Diagnosis codes \(ICD-10\)/)
+    expect(() => claimsTo1500(gaps, [claim])).toThrow(new RegExp(`^${claim.no} cannot print on a CMS-1500 yet`))
+  })
+
+  it('prints the charted member ID, diagnosis and auth number; leaves item 23 blank when no auth number is on file', () => {
+    const d = cms1500Data(withClient({ memberId: 'AE-7710223', dxCodes: ['F84.0', 'F90.1'], authNo: 'PA-26-4100' }), claim)
+    expect(d.items['1a']).toBe('AE7710223')
+    expect(d.items[21].codes).toEqual(['F840', 'F901'])
+    expect(d.items[23]).toBe('PA264100')
+    expect(cms1500Data(withClient({ authNo: '' }), claim).items[23]).toBe('')
+  })
+
+  it('refuses a missing auth number when strict authorization is on', () => {
+    const strict = { ...withClient({ authNo: '' }), settings: { ...st.settings, billing: { ...st.settings.billing, strictAuth: true } } }
+    expect(() => cms1500Data(strict, claim)).toThrow(/Needs authorization number/)
+  })
+
+  it('item 26 is the practice-assigned patient account number (the client id)', () => {
+    expect(cms1500Data(st, claim).items[26]).toBe(compact(client.id).slice(0, 14))
+  })
+})

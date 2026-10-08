@@ -33,6 +33,15 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### CMS-1500 chart values only — architecture mismatch #10 (`fix/cms1500-derived-values`, 2026-10-08)
+
+- **Root cause.** `memberIdOf` / `authNoOf` (`claims.js`) fell back to hash-derived placeholders and `dxFor` mapped the client's program to ICD-10 codes, so CMS-1500 items 1a, 21 and 23, the claim form tiles, the claim CSV, the superbill and the GFE could carry invented values. (The Billing claim tile even ignored the chart's member ID.)
+- **Fix.** The helpers return only chart values (`dxFor` reads the new `client.dxCodes`). `claimChartIssues(state, claim)` feeds the claim gate as whole-claim holds (`line: null`): **Needs member ID**, **Needs diagnosis** (or a malformed ICD-10 code), and **Needs authorization number** only when Settings → strict authorization is on; each names Clients > Edit > the field (Secondary insurance for a secondary claim). `cms1500Data` throws `"<claim no> cannot print on a CMS-1500 yet. …"` with the same messages; item 23 is blank when no auth number is on file; item 26 stays the client id (practice-assigned account number, documented). Self-pay invoices are exempt. Superbill prints a fill-in line when no diagnosis is charted; GFE leaves the dx column blank.
+- **UI.** Client editor gains "Diagnosis codes (ICD-10)" (`cm-dxCodes`, validated, stored as an array); member/auth hints updated; profile shows the diagnosis. Claim form shows `clm-member` / `clm-authno` from the chart ("Needs member ID" / "not on file").
+- **Data.** Seed `CLIENTS` carry fictional `memberId` (payer prefix + 7 digits), `authNo` (`PA-26-####`) and program-based `dxCodes` for insured clients, so demo drafts pass the gate. Intake conversion copies ICD-10 codes typed in the intake diagnosis. No migration: a saved workspace from before this change keeps its client rows, so its drafts show the new holds until the chart is filled in or the workspace is reset.
+- **Verification.** New tests in `claims.test.js` (6), `cms1500.test.js` (4) and `chartIdentifiers.test.jsx` (2: seed values; held draft → CMS-1500 refusal → fill chart in client editor → persisted `dxCodes` → gate clears). Full suite 104 files / 1,074 tests green; `npm run build` green.
+- **Not done.** `npiOf` still generates the seed's demo staff NPIs (seed-only, valid check digit). The payer service override Dx 1/Dx 2 fields are still stored but not read by claims.
+
 ### Billing documents — one builder per download (`fix/billingdocs-wiring`, 2026-10-08)
 
 - **Problem (architecture mismatch #12).** Four `billingDocs.js` builders were imported only by tests while their screens built files inline, so the tested file was not the file users got.

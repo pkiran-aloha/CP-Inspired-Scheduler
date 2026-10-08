@@ -1,7 +1,7 @@
 # Billing and claims
 
 _Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/QuickBooksView.jsx, src/components/VerificationFormsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence and fix/billingdocs-wiring branches on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, fix/billingdocs-wiring and fix/cms1500-derived-values branches on 2026-10-08; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -38,6 +38,7 @@ The desk has a range picker, a payer filter, KPI cards (In Staging, Drafts, Awai
    - an RBT-only session has a BCBA present (when the supervision check is on)
    - the payer's provider-ID rule is satisfied for every rendering staff member (only once the payer has chosen a rule)
    - every insurance mileage line has its payer-approved 5-character CPT/HCPCS code; missing codes and CPT 14220 are refused
+   - the client chart holds what the claim prints (insurance claims only, `claimChartIssues`): a member ID (**Needs member ID**), at least one valid ICD-10 code (**Needs diagnosis**), and, when strict authorization is on, an authorization number (**Needs authorization number**). Each hold names where to fill it in: Clients > Edit > Member ID (claims), Diagnosis codes (ICD-10) or Authorization # (claims); for a secondary claim, Secondary insurance. These hold the whole claim, not one line. Nothing is derived to fill a gap.
 4. **Submit.** Submit on one claim, "Submit N ready" (all gate-clean drafts), or "Process". A gated claim is held and the toast says how many were held. Process also records a billed file (see below). Submitting sets the claim to Submitted and stamps the sessions as claimed. It does not contact anyone.
 5. **Record the outcome.** From a Submitted claim you can post a payment, record a denial, or void. See [era-and-payments](era-and-payments.md) for payments.
 
@@ -90,16 +91,17 @@ A secondary (COB) claim is refused with a caution because its service lines are 
 What prints, item by item (NUCC formats: uppercase, no punctuation, no `$` or decimal point, dates in their `MM DD YY` sub-fields):
 
 - **Carrier block:** the payer's name and mailing address from the payer master.
-- **1 / 1a:** the program box from the payer's CMS type; the member ID with no hyphens or spaces.
+- **1 / 1a:** the program box from the payer's CMS type; the chart's member ID with no hyphens or spaces.
+- **Refusal:** a claim whose chart lacks a member ID or diagnosis (or an authorization number while strict authorization is on) does not print. The export toast names the claim and each gap and where to fill it in, and a batch export stops at that claim.
 - **2-7:** patient and insured names as `LAST, FIRST, M` (accents folded, e.g. BERGSTROM); birth date `MM DD YYYY` and sex; the patient's home address from the client chart (Clients > Edit > Home address, or carried from intake); ZIP without the hyphen. A client with a guardian is insured under the guardian's policy: item 4 is the guardian, item 6 is Child, item 7 repeats the home address.
 - **9 / 9a / 9d and 11d:** filled only when the client has secondary coverage (11d YES): the other plan's insured, policy number and plan name.
 - **10a-c:** NO. **11 / 11c:** the payer's group number and plan name.
 - **12 / 13 / 31:** SIGNATURE ON FILE; item 31 also carries the date.
-- **21:** ICD indicator 0 and up to 12 ICD-10-CM codes without the decimal point (F84.0 prints as F840). Every service line points at A, the primary diagnosis.
+- **21:** ICD indicator 0 and up to 12 of the chart's ICD-10-CM codes (Clients > Edit > Diagnosis codes, primary first) without the decimal point (F84.0 prints as F840). Every service line points at A, the primary diagnosis. Intake conversion carries any ICD-10 codes typed in the intake diagnosis; prose alone carries none.
 - **22:** a replacement claim prints frequency code 7 and the original reference number.
-- **23:** the prior authorization number, no hyphens or spaces.
+- **23:** the chart's prior authorization number, no hyphens or spaces; blank when none is on file.
 - **24, six lines a page:** dates of service, place of service, CPT/HCPCS and up to four modifiers in their own slots, pointer, charges split into dollars and cents, units, and the rendering provider. 24J carries the rendering NPI and the shaded 24I/24J the qualifier G2 plus the Medicaid ID, as the payer's provider-ID rule asks. Both are left blank when they match the billing provider (NUCC). Qualifier 1D no longer exists on the 02/12 form.
-- **25-30:** tax ID with EIN marked, the patient account number, accept assignment YES, total charge, and in 29 what the patient or other payers paid. A claim's own payer payment never goes in 29. Item 30 is reserved and stays blank.
+- **25-30:** tax ID with EIN marked, the patient account number (the practice-assigned client id), accept assignment YES, total charge, and in 29 what the patient or other payers paid. A claim's own payer payment never goes in 29. Item 30 is reserved and stays blank.
 - **32:** follows the payer's box 32 rule; the default leaves it blank because the practice is also the billing provider.
 - **33 / 33a / 33b:** the billing provider's name, street and `CITY ST ZIP`, the phone in the parentheses, its NPI, and G2 plus its Medicaid ID under a Medicaid ID rule.
 - **More than six lines:** each page repeats the claim data and prints `PAGE 1 OF 2` on line 8; the total charge prints on the last page only, so the pages read as one claim.
@@ -183,9 +185,8 @@ Claim numbers are `<prefix>-<YYYYMM>-<nnn>`; rebills append `-R<n>`; secondary d
 ## Not yet built
 
 - No transmission of any kind: no 837P X12, no clearinghouse, no payer portal, no eligibility check. The "837P" billed file is a pipe-delimited summary.
-- The CMS-1500 still has derived or missing values.
-  - **Member ID and authorization number:** item 1a (`memberIdOf`) and item 23 (`authNoOf`) print the client chart's own values. Intake conversion carries them, or you enter them under Clients > Edit. A hash-derived demo placeholder prints only when the chart has none.
-  - **Diagnosis** comes from the client's program (`dxFor`), not a clinical record. **Item 26** is the client id. Items 12, 13 and 31 assume signatures are on file. Item 17 (referring or supervising provider) is blank: there is no referring-provider data, and sessions record no supervisor. Item 22's original reference is the prior claim number, because the payer's claim control number from an ERA is not stored on the claim.
+- The CMS-1500 still has assumed or missing values.
+  - **Assumed:** items 12, 13 and 31 assume signatures are on file. Item 17 (referring or supervising provider) is blank: there is no referring-provider data, and sessions record no supervisor. Item 22's original reference is the prior claim number, because the payer's claim control number from an ERA is not stored on the claim.
   - **No print calibration:** the red-form print has no X/Y offset setting yet; a printer that shifts the page needs its own margin adjustment.
   - **Per-payer page rules:** the total always prints on the last page; a payer that wants each page totalled on its own (or no more than six lines per claim) is not configurable yet.
 - Modifiers: a rendering provider whose staff record has no education level recorded gets no qualification modifier from the payer's Qualification Modifiers rows — the panel in Payer > Billing Rules says how many staff that is. Saved payer place-of-service rows keyed `06` (the old home code) need re-picking as `12`; default qualification rows are the education code alone, so a saved workspace keeps whatever rows it had.

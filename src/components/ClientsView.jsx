@@ -11,7 +11,7 @@ import { pivotRows, rangeMetrics, resolveRange } from '../lib/analytics'
 import { addDays, fmtDayLabel, fmtTime, isoDate, parseISO, todayISO } from '../lib/date'
 import { uid, BILL_CODES } from '../lib/model'
 import { cleanPool } from '../lib/authUnits'
-import { memberIdOf } from '../lib/claims'
+import { memberIdOf, dxCodesOf, ICD10_RE } from '../lib/claims'
 
 const AV_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#ef4444']
 const PROGRAMS = ['EIBI · Day program', 'EIBI · Home program', 'Home program · NET', 'Center-based · 1:1', 'School-based · Inclusion', 'Behavior reduction', 'Group · Social skills', 'Group · Play readiness', 'Adaptive skills · Center', 'Speech co-treatment', 'Assessment / intake']
@@ -118,10 +118,12 @@ function ClientModal({ client, dup, onClose }) {
   const unitCodes = unitRows.map((r) => r.code)
   if (new Set(unitCodes).size !== unitCodes.length) errs.authUnits = 'Each code can appear once — combine the units into one row'
   else if (unitRows.some((r) => !(Number(r.units) > 0))) errs.authUnits = 'Every code needs a unit count above zero (remove the row instead)'
+  const badDx = dxCodesOf(form.dxCodes).find((c) => !ICD10_RE.test(c))
+  if (badDx) errs.dxCodes = `${badDx} is not an ICD-10 code (for example F84.0)`
   const save = () => {
     if (Object.keys(errs).length) return
     // the unit pool is the payer letter; saving the client confirms a converted pool
-    const saving = { ...form, authUnits: cleanPool(Object.fromEntries(unitRows.map((r) => [r.code, r.units]))), authUnitsConverted: false }
+    const saving = { ...form, dxCodes: dxCodesOf(form.dxCodes), authUnits: cleanPool(Object.fromEntries(unitRows.map((r) => [r.code, r.units]))), authUnitsConverted: false }
     if (editing) {
       const sec = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
       actions.updateRoster('clients', { ...saving, secondary: sec && sec.payerId ? sec : null })
@@ -179,8 +181,11 @@ function ClientModal({ client, dup, onClose }) {
               <F k="insurer" label="Payer / insurer" icon="shield">
                 <select className="input" value={form.insurer} onChange={(e) => set('insurer', e.target.value)} data-testid="cm-insurer">{[...new Set([...(state.payers || []).filter((pp) => pp.status === 'active').map((pp) => pp.name), ...(form.insurer && !(state.payers || []).some((pp) => pp.name === form.insurer) ? [form.insurer] : [])])].map((pr) => <option key={pr}>{pr}</option>)}</select>
               </F>
-              <F k="memberId" label="Member ID (claims)" icon="badge" hint={form.memberId ? null : 'Blank prints a demo placeholder on claims'} />
-              <F k="authNo" label="Authorization # (claims)" icon="shield" />
+              <F k="memberId" label="Member ID (claims)" icon="badge" hint={String(form.memberId || '').trim() ? null : 'Required on insurance claims: a blank holds the claim'} />
+              <F k="authNo" label="Authorization # (claims)" icon="shield" hint="CMS-1500 item 23; required when strict authorization is on" />
+              <F k="dxCodes" label="Diagnosis codes (ICD-10)" icon="badge" wide hint="Comma-separated, primary first, e.g. F84.0. Required on insurance claims">
+                <input className="input" value={Array.isArray(form.dxCodes) ? form.dxCodes.join(', ') : form.dxCodes ?? ''} placeholder="F84.0" data-testid="cm-dxCodes" onChange={(e) => set('dxCodes', e.target.value)} />
+              </F>
               <F k="home" label="Primary site" icon="house" />
               <F k="authWeekly" label="Authorized hrs / week" icon="clock" type="number" />
               <F k="authStart" label="Auth start" icon="cal" type="date" />
@@ -459,7 +464,7 @@ export default function ClientsView() {
                             <div style={{ marginTop: 8, fontSize: 11.3 }} className="muted">
                               Payer: <b style={{ color: 'var(--text)' }}>{c.insurer}</b> · Guardian: {c.guardian} · Auth {c.authStart?.slice(5)} → {c.authEnd?.slice(5)}
                               <br />
-                              {Icon.dollar({ size: 11 })} Claims: DOB <b style={{ color: 'var(--text)' }}>{c.dob || 'missing'}</b> · Sex <b style={{ color: 'var(--text)' }}>{c.sex || '—'}</b> · Member <span className="ln-code">{memberIdOf(c)}</span>{(!c.dob || !c.sex) && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> — add both before CMS-1500 filing</span>}
+                              {Icon.dollar({ size: 11 })} Claims: DOB <b style={{ color: 'var(--text)' }}>{c.dob || 'missing'}</b> · Sex <b style={{ color: 'var(--text)' }}>{c.sex || '—'}</b> · Member <span className="ln-code">{memberIdOf(c) || 'missing'}</span>{(!c.dob || !c.sex) && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> — add both before CMS-1500 filing</span>}
                               {c.intakeId && <><br />{Icon.zap({ size: 11 })} Converted from intake <b style={{ color: 'var(--text)' }}>{c.intakeNo}</b>{c.intakeSourceLabel ? <> · referred by <b style={{ color: 'var(--text)' }}>{c.intakeSourceLabel}</b></> : null}{c.intakeConvertedAt ? <> on {new Date(c.intakeConvertedAt).toLocaleDateString()}</> : null}
                                 <button className="btn btn-sm" style={{ height: 20, marginLeft: 6 }} data-testid={`cli-intake-${c.id}`} onClick={() => actions.setUI({ section: 'intake', intakeSel: c.intakeId })}>Open intake request</button></>}
                             </div>
@@ -504,7 +509,8 @@ export default function ClientsView() {
               { icon: 'shield', label: 'Payer', value: c.insurer || '—' },
               ...(c.secondary ? [{ icon: 'shield', label: 'Secondary', value: `${(state.payers||[]).find((pp)=>pp.id===c.secondary.payerId)?.name||c.secondary.payerId} · ${c.secondary.memberId||'no member'}${c.secondary.authNo?' · '+c.secondary.authNo:''}` }] : []),
               { icon: 'cake', label: 'DOB', value: c.dob || 'missing' },
-              { icon: 'badge', label: 'Claims member', value: memberIdOf(c) },
+              { icon: 'badge', label: 'Claims member', value: memberIdOf(c) || 'Not on file' },
+              { icon: 'badge', label: 'Diagnosis (ICD-10)', value: dxCodesOf(c.dxCodes).join(', ') || 'Not on file' },
               ...(c.intakeId ? [{ icon: 'zap', label: 'Intake origin', value: `${c.intakeNo || 'request'}${c.intakeSourceLabel ? ` · ${c.intakeSourceLabel}` : ''}` }] : []),
             ]}
             meter={{ label: 'Auth burn-down · last 4 weeks', pct: burn, tone: burn > 105 ? 'bad' : burn >= 80 ? 'ok' : 'warn', caption: `${m.hours}h delivered of ${(c.authWeekly || 0) * 4}h authorized — ${c.authStart ? c.authStart.slice(0, 10) : '—'} → ${c.authEnd ? c.authEnd.slice(0, 10) : '—'}` }}

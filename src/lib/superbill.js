@@ -71,7 +71,7 @@ export function superbillView(state, clientId, { from, to, at = Date.now() } = {
     },
     // only real plan data: a blank prints as a line for the family to fill in
     subscriber: { name: client.guardian || client.name, relation: client.guardian ? 'Child' : 'Self', plan: insured ? client.insurer : '', memberId: insured ? String(client.memberId || '') : '' },
-    diagnoses: dxFor(client),
+    diagnoses: dxFor(client), // charted codes only; none prints a line to fill in
     lines,
     renderers: [...renderers.values()],
     totals: { charges, paid, balance: r2(charges - paid) },
@@ -118,7 +118,8 @@ export function superbillPdf(state, clientId, range) {
   // ---- diagnoses and rendering providers
   rule(226)
   font(9, 'bold', MUTED); text('DIAGNOSIS (ICD-10-CM)', L, 242); text('RENDERING PROVIDERS', 318, 242)
-  font(9.5, 'normal'); v.diagnoses.forEach((d, i) => text(`${'ABCDEFGHIJKL'[i]}. ${d}`, L + (i % 3) * 86, 256 + Math.floor(i / 3) * 12))
+  font(9.5, 'normal'); if (!v.diagnoses.length) text(`A. ${fillIn('')}`, L, 256)
+  v.diagnoses.forEach((d, i) => text(`${'ABCDEFGHIJKL'[i]}. ${d}`, L + (i % 3) * 86, 256 + Math.floor(i / 3) * 12))
   let ry = 256
   v.renderers.slice(0, 4).forEach((r) => { font(9.5, 'normal'); text(`${r.name}${r.credential ? `, ${r.credential}` : ''}`, 318, ry); font(8, 'normal', MUTED); text(`NPI ${r.npi || '__________'}`, 318, ry + 10); ry += 24 })
 
