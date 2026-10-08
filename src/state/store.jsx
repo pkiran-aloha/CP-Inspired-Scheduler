@@ -781,6 +781,7 @@ export function StoreProvider({ children }) {
   }, [state, loadError])
   useEffect(() => {
     // A reload, close or tab switch inside the 250 ms debounce must not drop the last change.
+    // (Not on unmount: that would write a stale copy over storage edited since.)
     const flush = () => pending.current?.()
     const onHide = () => { if (document.visibilityState === 'hidden') flush() }
     // Another tab saved: adopt its workspace, or this tab's next change would overwrite it.
@@ -796,7 +797,6 @@ export function StoreProvider({ children }) {
     document.addEventListener('visibilitychange', onHide)
     window.addEventListener('storage', onStorage)
     return () => {
-      flush()
       window.removeEventListener('pagehide', flush)
       document.removeEventListener('visibilitychange', onHide)
       window.removeEventListener('storage', onStorage)

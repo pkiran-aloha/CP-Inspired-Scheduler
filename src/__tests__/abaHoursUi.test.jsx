@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState, initial, STORAGE_KEY } from '../state/store'
+// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
+const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
 
 const stored = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) } catch { return null } }
 let _r = null
@@ -80,7 +82,7 @@ describe('⚡ ABA Hours in the booking dialog', () => {
     // the same block, marked as real behavior-analytic work, saves
     fireEvent.click(screen.getByTestId('aba-activity'))
     fireEvent.click(await screen.findByTestId('opt-aba-activity-group-training'))
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => expect(Object.keys(stored().appts).length).toBe(before.length + 1))
     const newId = Object.keys(stored().appts).find((id) => !before.includes(id))
     const saved = stored().appts[newId]
@@ -110,7 +112,7 @@ describe('⚡ ABA Hours in the booking dialog', () => {
     fireEvent.mouseDown(document.body)
     await pickStaff()
     const before = Object.keys(stored().appts)
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => expect(Object.keys(stored().appts).length).toBe(before.length + 1))
     const newId = Object.keys(stored().appts).find((id) => !before.includes(id))
     const saved = stored().appts[newId]

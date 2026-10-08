@@ -63,15 +63,6 @@ describe('workspace persistence in the app', () => {
     expect(stored().ui.nav).not.toBe(before)
   })
 
-  it('flushes a pending save when the app unmounts', async () => {
-    const { unmount } = render(<App />)
-    await wait(300)
-    const before = stored().ui.nav
-    fireEvent.click(screen.getByTestId('nav-collapse'))
-    unmount()
-    expect(stored().ui.nav).not.toBe(before)
-  })
-
   it('leaves an unreadable saved workspace untouched and says so', async () => {
     localStorage.setItem(STORAGE_KEY, '{not json')
     render(<App />)

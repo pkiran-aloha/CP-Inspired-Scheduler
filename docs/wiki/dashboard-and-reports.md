@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views and fix/workspace-persistence branches on 2026-10-08; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 

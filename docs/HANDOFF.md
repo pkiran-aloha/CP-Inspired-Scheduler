@@ -33,6 +33,15 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Workspace persistence — saves survive reloads and second tabs (`fix/workspace-persistence`, 2026-10-08)
+
+- **Root cause (reproduced in Edge against the dev server).** (1) A second open tab kept the workspace it loaded and, on its next change of any kind (even a nav click), wrote that stale copy over everything another tab had saved. (2) A reload or close within the 250 ms save debounce dropped the last change: the timer was cleared on unload and nothing flushed it. Quota was not the cause: the fresh workspace is 1.38 M chars against Edge's ~5.24 M-char localStorage quota.
+- **Fix (`src/state/store.jsx`).** A `storage` event re-loads and adopts the other tab's save in one `hydrate` step (keeps this tab's navigation, clears its now-stale Undo; adopted states are not written back). The pending save is armed in a layout effect and flushed on `pagehide` and hidden `visibilitychange`. `loadWorkspace()` returns `{ state, error }`: a save that cannot be read is no longer silently replaced by a fresh seed; the tab does not write until the user chooses "Replace it with this workspace". A failed write names its reason (storage full, with the size needed).
+- **Tests.** `persistence.test.jsx` (8): `loadWorkspace` read / unreadable / empty, `hydrate` reducer, stale-tab overwrite, flush on pagehide, unreadable save left untouched, quota reason. Before/after browser repro: a reload 50 ms after creating an appointment lost it before the fix and keeps it after; the two-tab overwrite is gone.
+- **Also fixed: date-dependent tests on main.** On 2026-10-08 the seed puts a Warn (staff overlap) on the default 9 AM slot, so 13 UI tests in `abaHoursUi`, `app`, `customFields`, `mastersHub` and `signatureRules` could not save (CFG-03 needs the acknowledgement tick) and one assumed the seed had no Justin session 14 days out. They now tick `appt-ack-warns` when it is shown and compare against the count before the save. Full suite 100 files / 1,047 tests green; build green.
+- **Not done.** Two tabs editing within the same 250 ms window: the later tab's unsaved edit yields to the other tab's save. Storage compaction was not needed at today's size; a workspace past ~5 M chars still hits the quota alert.
+
+
 ### Bundle code-splitting — REL-01 bundle half (`perf/lazy-views`, 2026-10-07)
 
 - **What.** Entry JS **2,525 → 1,015 kB minified (759 → 322 kB gzip)**. Non-calendar sections in `App.jsx` are `React.lazy` chunks behind a "Loading this section…" status inside the section error boundary; the wiki markdown rides in the Help chunk; jsPDF is a dynamic import via `loadPdf()` in `exportKit.js` (builders stay sync through `newPdf()`, every PDF button awaits `loadPdf()` and toasts honestly if the fetch fails). `chunkSizeWarningLimit` is 1,100 kB as a tripwire; the rest of the entry is the store plus the domain engines the reducer imports.

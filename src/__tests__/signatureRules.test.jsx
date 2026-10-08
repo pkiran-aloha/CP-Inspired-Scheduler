@@ -5,6 +5,8 @@ import App from '../App'
 import { blankState } from '../state/store'
 import { systemConfigFor, staffSigRequiredToCompleteOf } from '../lib/settingsMasters'
 import { addDays, isoDate, todayISO } from '../lib/date'
+// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
+const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
@@ -81,18 +83,20 @@ describe('signature rules (audit CFG-04)', () => {
     const targetDate = isoDate(addDays(todayISO(), 14))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: targetDate } })
     await pickDropdown('status-select', 'completed')
+    const justin = stored().clients.find((c) => c.name === 'Justin Hsu')
+    const onTarget = () => Object.values(stored().appts).filter((a) => (a.clientIds || []).includes(justin.id) && a.date === targetDate).length
+    const before = onTarget() // the seed may already hold a session that day
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Aetna requires a client signature to complete this appointment.')).toBeTruthy()
     // nothing was written for this booking
-    const justin = stored().clients.find((c) => c.name === 'Justin Hsu')
-    expect(Object.values(stored().appts).some((a) => (a.clientIds || []).includes(justin.id) && a.date === targetDate)).toBe(false)
+    expect(onTarget()).toBe(before)
     // the Verification tab offers a distinct client/guardian pad next to the staff pad
     fireEvent.click(screen.getByRole('button', { name: /Verification/ }))
     const clientBox = await screen.findByTestId('am-client-sig')
     expect(clientBox.textContent).toContain('L. Hsu')
     expect(screen.getByTestId('am-sig-note').textContent).toContain('Aetna')
     await captureSignature('am-client-sig', 'L. Hsu')
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     const a = await waitFor(() => {
       const found = Object.values(stored().appts).find((x) => x.verification?.clientSignature)
@@ -122,7 +126,7 @@ describe('signature rules (audit CFG-04)', () => {
     expect(await screen.findByTestId('am-staffsig-note')).toBeTruthy()
     expect(screen.queryByTestId('am-sig-note')).toBeNull()
     await captureSignature('am-staff-sig', 'Verifier')
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await screen.findByTestId('detail-card')
     const a = Object.values(stored().appts).find((x) => (x.clientIds || []).includes(client.id) && x.verification?.signature)
     expect(a).toBeTruthy()

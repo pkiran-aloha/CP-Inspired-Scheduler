@@ -44,6 +44,8 @@ async function bookJustin() {
   fireEvent.mouseDown(document.body)
   await screen.findByTestId('am-pcf')
 }
+// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
+const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
 
 describe('custom-field scopes (audit CFG-07)', () => {
   it('customFieldsForScope filters by scope, with the legacy default for old templates', () => {
@@ -147,6 +149,7 @@ describe('custom-field types and formats (audit CFG-07)', () => {
     // a good value saves, and the answer persists with the appointment
     fireEvent.change(screen.getByTestId('pcf-in-cf-email'), { target: { value: 'guardian@example.com' } })
     fireEvent.change(notes.querySelector('textarea'), { target: { value: 'Parent asked about sleep routine.' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     await waitFor(() => {
@@ -181,6 +184,7 @@ describe('custom-field required semantics (audit CFG-07)', () => {
     render(<App />)
     await bookJustin()
     // not added → the save is not blocked by it
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     // added but empty → blocked; filled → saves
@@ -192,7 +196,8 @@ describe('custom-field required semantics (audit CFG-07)', () => {
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Payer field “Must capture” is required/)).toBeTruthy()
     fireEvent.change(screen.getByTestId('pcf-in-cf-must'), { target: { value: 'captured' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
-    expect(await screen.findByText('Appointment created')).toBeTruthy()
+    await waitFor(() => expect(Object.values(stored().appts).some((a) => a.pcfs?.['cf-must']?.value === 'captured')).toBe(true))
   })
 })

@@ -4,6 +4,8 @@ import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-li
 import App from '../App'
 import { startOfWeek, addDays, isoDate, parseISO, todayISO } from '../lib/date'
 import { blankState } from '../state/store'
+// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
+const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
 
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
@@ -456,7 +458,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
     render(<App />)
     await openServiceWizard()
     await addPeople()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     fireEvent.click(within(detail).getByRole('button', { name: /^Cancel$/ }))
     // cancelling asks why first; a sick technician is the classic backfill case

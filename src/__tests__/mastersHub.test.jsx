@@ -3,6 +3,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import App from '../App'
 import { ensurePayer, svcList, rateFor, concurrentNote, payerForAppt, svcOptionsFor, svcById } from '../lib/master'
+// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
+const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
@@ -746,7 +748,7 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     expect(panel.textContent).toContain('add only what you capture')
     expect(screen.queryByTestId('pcf-f-cf-authdept')).toBeNull()
     expect(screen.getByTestId('am-pcf-empty')).toBeTruthy()
-    fireEvent.click(screen.getByTestId('save-appt')) // no added fields → not blocked
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt')) // no added fields → not blocked
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     // reopen… simpler: a fresh booking to exercise the picker flow
     fireEvent.click(screen.getByTestId('nav-calendar'))
@@ -1045,7 +1047,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     fireEvent.click(screen.getByTestId('am-pcf-pick-cf-waiver').querySelector('input'))
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
     fireEvent.click(screen.getByTestId('pcf-toption-cf-waiver-1')) // "Yes"
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     const id = await waitFor(() => {
       const a = Object.values(stored().appts).find((x) => x.pcfs && x.pcfs['cf-waiver'])
@@ -1077,7 +1079,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     // the new template is offered in the SAME picker — tick it, save the appointment
     fireEvent.click((await screen.findByTestId(`am-pcf-pick-${nid}`)).querySelector('input'))
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const a = Object.values(stored().appts).find((x) => x.pcfs && x.pcfs[nid])
       expect(a).toBeTruthy()
@@ -1095,7 +1097,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
     fireEvent.click(screen.getByTestId('pcf-toption-cf-waiver-1')) // "Yes"
     fireEvent.click(screen.getByTestId('pcf-toption-cf-present-1')) // "Present"
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     // reopen in edit and delete the cf-waiver template from the picker
     fireEvent.click(within(detail).getByRole('button', { name: /Edit/ }))
@@ -1108,7 +1110,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     expect(screen.queryByTestId('pcf-f-cf-waiver')).toBeNull() // gone from this draft
     expect(screen.getByTestId('pcf-f-cf-present')).toBeTruthy() // the other capture survived
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const a = Object.values(stored().appts).find((x) => x.pcfs && x.pcfs['cf-present'])
       expect(a).toBeTruthy()
@@ -1124,7 +1126,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     fireEvent.click(screen.getByTestId('am-pcf-pick-cf-waiver').querySelector('input'))
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
     fireEvent.click(screen.getByTestId('pcf-toption-cf-waiver-1')) // "Yes"
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     fireEvent.click(detail.querySelector('.modal-x'))
     await waitFor(() => expect(screen.queryByTestId('detail-card')).toBeNull())
