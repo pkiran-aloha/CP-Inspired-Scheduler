@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/gfe.js, src/components/GfeDialog.jsx, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -85,7 +85,7 @@ It carries what payers ask for on member claims (Cigna's behavioral-health membe
 
 - **Provider:** practice name, address and phone, tax ID (EIN) and billing NPI.
 - **Patient and subscriber:** patient name, date of birth and home address, the account number, the guardian as subscriber (relationship Child), and the insurance plan and member ID. The plan and member ID print only when the client chart has real ones, otherwise blank lines for the family to fill in.
-- **Diagnosis:** the ICD-10-CM codes, lettered A, B, …
+- **Diagnosis:** the client chart's ICD-10-CM codes, lettered A, B, …; a blank line for the family to fill in when none are on file.
 - **Rendering providers:** each clinician's name, certification and NPI.
 - **Services:** one row per session line: date, place of service, CPT/HCPCS, modifiers, units, diagnosis pointer, rendering provider and charge.
 - **Totals:** total charges, paid by the patient, balance (or "Paid in full"), an attestation and a provider signature and date line.

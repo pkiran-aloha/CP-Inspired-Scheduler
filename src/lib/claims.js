@@ -122,36 +122,46 @@ export function planReasonLists({ denialReasons = [], carcHints = [] } = {}) {
   return { ok: true, msg: 'Denial reasons and remittance hints saved', denialReasons: reasons, carcHints: hints }
 }
 
-// ---------- deterministic pseudo-fields for members (kept out of the client schema) ----------
+// ---------- chart identifiers on claims (plus the seed's demo staff NPIs) ----------
 function hashNum(s) {
   let h = 2166136261
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
   return Math.abs(h)
 }
-// The chart's own member ID / authorization number when on file (intake carries them);
-// otherwise a deterministic demo placeholder.
-export const memberIdOf = (c) => String(c.memberId || '').trim() || `${(c.insurer || 'SP').replace(/[^A-Z]/gi, '').slice(0, 3).toUpperCase()}${String(1000000 + (hashNum(c.id) % 8999999))}`
-export const authNoOf = (c) => String(c.authNo || '').trim() || `AUTH-${c.authStart?.slice(0, 4) || '2026'}-${String(40000 + (hashNum(c.id) % 9999)).padStart(5, '0')}`
+// Claim identifiers come from the chart only. A blank stays blank: the claim gate holds an
+// insurance claim that lacks one, and the CMS-1500 export refuses it (`claimChartIssues`).
+export const memberIdOf = (c) => String(c?.memberId || '').trim()
+export const authNoOf = (c) => String(c?.authNo || '').trim()
 export const npiOf = (staffId) => {
   const base = ('1' + String(12000000 + (hashNum(staffId || 'x') % 79999999)).padStart(8, '0')).slice(0, 9)
   return base + npiCheck(base)
 }
 
-const DX_POOL = [
-  [/EIBI/, ['F84.0', 'R41.82']],
-  [/Day program/, ['F84.0', 'F81.0']],
-  [/Home program/, ['F84.0']],
-  [/Behavior reduction/, ['F84.0', 'F90.1']],
-  [/Group ·/, ['F84.5', 'F83']],
-  [/School-based/, ['F84.0', 'F81.0']],
-  [/Adaptive/, ['F84.0', 'F82']],
-  [/Speech/, ['F80.89', 'F84.0']],
-  [/Assessment/, ['F84.0']],
-  [/Center-based/, ['F84.0', 'F90.0']],
-]
-export const dxFor = (client) => {
-  for (const [re, codes] of DX_POOL) if (re.test(client?.program || '')) return codes
-  return ['F84.0']
+// ICD-10-CM shape: letter, digit, digit-or-letter, then an optional dot and up to 4 more.
+export const ICD10_RE = /^[A-Z][0-9][0-9A-Z](\.[0-9A-Z]{1,4})?$/
+/** Diagnosis codes as typed (array or "F84.0, R41.82"), trimmed and upper-cased. */
+export const dxCodesOf = (v) => (Array.isArray(v) ? v : String(v || '').split(/[\s,;]+/)).map((x) => String(x).trim().toUpperCase()).filter(Boolean)
+/** The client's charted ICD-10 codes. Never derived from the program: none on file → []. */
+export const dxFor = (client) => dxCodesOf(client?.dxCodes)
+
+/**
+ * What the chart must hold before an insurance claim can go out or print on a CMS-1500:
+ * member ID (item 1a), at least one ICD-10 code (item 21), and the authorization number
+ * (item 23) when strict authorization is on (Settings → System → Billing). Returns one
+ * message per gap, each naming where to fill it in. Self-pay invoices need none of them.
+ */
+export function claimChartIssues(state, claim) {
+  if (claim.mode === 'selfpay') return []
+  const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
+  const coverage = claim.method === 'secondary' ? client.secondary || {} : client
+  const where = `Clients → ${client.name || 'client'} → Edit`
+  const out = []
+  if (!memberIdOf(coverage)) out.push(`Needs member ID: add the ${claim.payer} member ID in ${where}${claim.method === 'secondary' ? ' → Secondary insurance' : ' → Member ID (claims)'}.`)
+  const dx = dxFor(client)
+  if (!dx.length) out.push(`Needs diagnosis: add the ICD-10 code(s) in ${where} → Diagnosis codes (ICD-10).`)
+  else if (dx.some((c) => !ICD10_RE.test(c))) out.push(`Diagnosis code ${dx.find((c) => !ICD10_RE.test(c))} is not an ICD-10 code: fix it in ${where} → Diagnosis codes (ICD-10).`)
+  if (state.settings?.billing?.strictAuth === true && !authNoOf(coverage)) out.push(`Needs authorization number: strict authorization is on, so add it in ${where}${claim.method === 'secondary' ? ' → Secondary insurance' : ' → Authorization # (claims)'}.`)
+  return out
 }
 
 // ---------- staging: everything claim-ready right now ----------
@@ -386,7 +396,8 @@ export function claimGate(state, claim) {
   const supCheck = state.settings.billing?.supervisionCheck !== false
   const today = isoDate(new Date())
   const idPayer = claim.mode === 'selfpay' ? null : (state.payers || []).find((p) => p.id === claim.payerId || p.name === claim.payer) || null
-  const bad = []
+  // chart gaps hold the whole claim, not one line
+  const bad = claimChartIssues(state, claim).map((why) => ({ line: null, why }))
   for (const [l, apptId] of claim.lines.flatMap((x) => lineApptIds(x).map((id) => [x, id]))) {
     const a = state.appts[apptId]
     if (!a) { bad.push({ line: l, why: 'Source appointment no longer exists — drop this line' }); continue }
@@ -729,7 +740,7 @@ export function claimCsv(state, claim) {
   const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
   const L = [
     `# ${org.name || 'Practice'} — Claim ${claim.no} (${claim.status}) · ${claim.mode === 'selfpay' ? 'Self-pay invoice' : claim.payer}`,
-    `# Client ${client.name || claim.clientId} · member ${memberIdOf(claim.method === 'secondary' ? { id: claim.clientId, insurer: claim.payer, memberId: client.secondary?.memberId } : { ...client, id: claim.clientId, insurer: claim.payer })} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(client)}`,
+    `# Client ${client.name || claim.clientId} · member ${memberIdOf(claim.method === 'secondary' ? client.secondary : client) || 'not on file'} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(claim.method === 'secondary' ? client.secondary : client) || 'not on file'}`,
     `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Primary payer paid ${(claim.paid || 0).toFixed(2)} · Secondary received ${(claim.secondaryPaid || 0).toFixed(2)} · Patient received ${(claim.patientPaid || 0).toFixed(2)} · ${claim.method === 'secondary' ? 'Filing balance (not additional A/R)' : 'Primary A/R'} ${dueOf(claim).toFixed(2)}`,
     'line,date_of_service,hcpcs,mod,description,units,rate,charge,rendered_by',
     ...claim.lines.map((l, i) => `${i + 1},${l.dos},${l.code}${l.mod ? ',' + l.mod : ','},"${l.desc}",${l.units},${l.rate},${l.charge},"${l.staff}"`),
