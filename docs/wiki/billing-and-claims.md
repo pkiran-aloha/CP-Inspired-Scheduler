@@ -1,7 +1,7 @@
 # Billing and claims
 
-_Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
+_Sources: src/lib/claims.js, src/lib/cms1500.js, src/lib/providerIds.js, src/lib/billingDocs.js, src/components/BillingView.jsx, src/components/BilledFilesView.jsx, src/components/AppealsView.jsx, src/components/QuickBooksView.jsx, src/components/VerificationFormsView.jsx, src/components/ProviderIdView.jsx, src/components/PayerDetail.jsx, src/components/settings/SystemPanel.jsx, src/state/store.jsx, src/lib/master.js_
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, fix/billingdocs-wiring and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
 
 This page covers the claim lifecycle up to the point a payer's money arrives: staging, assembly, submission gates, denial, rebill, void, the CMS-1500 PDF, billed files, appeals, provider IDs and per-payer payment terms. Payments, ERAs and secondary filings are in [era-and-payments](era-and-payments.md). Aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -11,7 +11,7 @@ Nothing in this module reaches a payer. "Submit" changes a claim's status in thi
 
 ### Where to find it
 
-The Billing nav item opens the desk (`Billing`). Its sub-items, in order, are AR Manager, Payment Center, Generate Invoice, Verification Forms, QuickBooks, Secondary Queue, Appeals, Billed Files and Provider Identifier. This page covers the desk, Appeals, Billed Files and Provider Identifier.
+The Billing nav item opens the desk (`Billing`). Its sub-items, in order, are AR Manager, Payment Center, Generate Invoice, Verification Forms, QuickBooks, Secondary Queue, Appeals, Billed Files and Provider Identifier. This page covers the desk, Verification Forms, QuickBooks, Appeals, Billed Files and Provider Identifier.
 
 ### The desk and its tabs
 
@@ -117,6 +117,16 @@ Billed Files lists the files recorded by Process, with range, format and status 
 
 Appeals lists denied claims and claims that have an appeal. Pick a claim, choose a template (medical necessity, authorization not found, timely filing), add a note and press File Appeal. The template is draft wording for you to reuse; the app does not send it. Filing keeps the claim in its own status — a denial stays Denied and stays in A/R — and marks it with the appeal. Mark Won records the outcome and returns the claim to Submitted, awaiting the payer's payment: post the money when it arrives. Mark Lost leaves the claim Denied. Neither outcome posts money, and both are local record-keeping; see "Not yet built".
 
+**Letter** downloads `Appeal-<claim no>.txt`: the practice name and address, the payer, the claim number, client and dates of service, the denial reason recorded on the claim, the chosen template wording plus your note, and a confidentiality line. The toast says nothing was sent to the payer; print or upload the letter yourself. Downloading does not file the appeal.
+
+### Verification Forms
+
+A register of eligibility checks (client, payer, date, status, notes). **+ New Form** adds a pending record; Mark Verified and Mark Expired change its status. **Download** saves `Verification-<client>.txt` with the record's client, payer, status, date and notes. Nothing is checked with the payer: the record is what you noted.
+
+### QuickBooks (billing)
+
+No QuickBooks connection exists. **Download import CSV** writes the open primary claims whose date of service falls in the selected range as QuickBooks invoice rows (`Invoice Number, Customer, Invoice Date, Due Date, Product/Service, Qty, Unit Price, Amount, Memo, Tax Code`): one invoice per client, one row per service line, charges only. Claims with an active secondary filing are left out, and a file splits at 1,000 rows or 100 invoices (`QBO-<from>-to-<to>-<n>.csv`). The toast counts the rows and says nothing was sent to QuickBooks; import the file yourself. The table below lists local export records, which you can mark reviewed or return to pending; marking does not confirm anything in QuickBooks.
+
 ### Provider Identifier
 
 The provider master (settings providers) holds each rendering provider's NPI, taxonomy, license, role and any Medicaid ID. Add or edit needs a name and an NPI. The KPI strip counts providers missing an NPI.
@@ -140,8 +150,8 @@ Filing days resolve in one order everywhere: the payer record, then the practice
 - [`claims.js`](../../src/lib/claims.js) is the pure lifecycle engine. Staging and assembly: `stagedAppts`, `planClaims`, `lineFor`, `nextClaimSeq`, `claimNoAt`, `assembleClaims`, plus `posFor`, `lineModifiers`, `mergeSameDayLines` and `lineApptIds`. Gate: `claimGate`. Transitions return patches: `submitPatch`, `denyPatch`, `releasePatch`, `dropLinePatch`, `rebillPatch`. Money helpers and aging live here too and are documented in [accounts-receivable](accounts-receivable.md) and [era-and-payments](era-and-payments.md). Provider helpers: `npiCheck`, `validNpi`, `resolveProviders`, `credentialIssue`. Payer terms: `payerPolicy`, `filingDaysOf`, `PAYER_KINDS`, `planPayerTerms`. Mileage configuration and consistency checks: `normalizeMileageCode`, `mileageCodeFor`, `mileageCodeIssue`. Exports: `claimCsv`, `claimsCsv`.
 - [`cms1500.js`](../../src/lib/cms1500.js): three layers. `cms1500Data` returns the NUCC item values (`items`, keyed by item number) and the service lines in pages of six (`LINES_PER_PAGE`). `layout1500` turns them into `{ line, col, text }` placements on the pica grid (`colX`, `lineY`). `claimTo1500` / `claimsTo1500` draw the PDF with jsPDF, with `{ mode: 'copy' | 'data' }`. The NUCC format helpers (`nameLFM`, `plain`, `compact`, `moneyParts`, `splitAddress`) are exported for tests. `posFor` is re-exported from `claims.js`.
 - [`providerIds.js`](../../src/lib/providerIds.js): `providerIdRule`, `providerFor`, `providerIdsFor`, `providerIdIssues`, `PROVIDER_ID_RULES`. It reads the rule from `payer.rules.providerId`.
-- [`billingDocs.js`](../../src/lib/billingDocs.js): `buildInvoices`, `buildQboCsv`, `buildVerificationForm`, `buildAppealLetter`, `build835ErrorReport`. These are pure builders that return file name and content. Only `build835ErrorReport` is called from a screen (the Payment Center); the other four are imported only by tests, so no screen calls them today.
-- Screens: [`BillingView.jsx`](../../src/components/BillingView.jsx), [`BilledFilesView.jsx`](../../src/components/BilledFilesView.jsx), [`AppealsView.jsx`](../../src/components/AppealsView.jsx), [`ProviderIdView.jsx`](../../src/components/ProviderIdView.jsx). Payment Terms is a tab inside [`PayerDetail.jsx`](../../src/components/PayerDetail.jsx).
+- [`billingDocs.js`](../../src/lib/billingDocs.js): the pure builder behind each billing download, returning file name and content. Each is the only implementation of its file: `patientShareRows` / `buildPatientShareDraft` (Generate Invoice preview and draft statement), `buildQboCsv` (QuickBooks), `buildVerificationForm` (Verification Forms), `buildAppealLetter` (Appeals) and `build835ErrorReport` (Payment Center).
+- Screens: [`BillingView.jsx`](../../src/components/BillingView.jsx), [`BilledFilesView.jsx`](../../src/components/BilledFilesView.jsx), [`AppealsView.jsx`](../../src/components/AppealsView.jsx), [`VerificationFormsView.jsx`](../../src/components/VerificationFormsView.jsx), [`QuickBooksView.jsx`](../../src/components/QuickBooksView.jsx), [`ProviderIdView.jsx`](../../src/components/ProviderIdView.jsx). Payment Terms is a tab inside [`PayerDetail.jsx`](../../src/components/PayerDetail.jsx).
 
 ### Action path
 

@@ -1,5 +1,5 @@
 import React from 'react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { blankState, StoreProvider, useStore } from '../state/store'
 import { ToastProvider } from '../ui/Toast'
@@ -9,6 +9,8 @@ import GenerateInvoiceView from '../components/GenerateInvoiceView'
 import SecondaryBillingView from '../components/SecondaryBillingView'
 import { arOf } from '../lib/claims'
 
+// jsdom Blob has no text(); FileReader reads what the download saved.
+const readBlob = (blob) => new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsText(blob) })
 const KEY = 'aloha-aba.v3'
 const saved = () => JSON.parse(localStorage.getItem(KEY))
 const primaryId = 'patient-ui-primary'
@@ -90,6 +92,12 @@ describe('patient receipt workflow — manual and local only', () => {
     fireEvent.click(screen.getByTestId('gi-client-c1'))
     expect(screen.getByTestId('gi-row-c1').textContent).toMatch(/\$10.*reported share remaining/)
     expect(screen.getByTestId('gi-row-c1').textContent).not.toContain('CLM-UI-PATIENT-S1')
+    window.URL.createObjectURL = vi.fn(() => 'blob:gi-test')
+    window.URL.revokeObjectURL = vi.fn()
+    fireEvent.click(screen.getByTestId('gi-generate'))
+    const draft = await readBlob(window.URL.createObjectURL.mock.calls[0][0])
+    expect(draft).toMatch(/Remaining reported patient share \$10/)
+    expect(draft).not.toContain('CLM-UI-PATIENT-S1')
     fireEvent.click(screen.getByTestId(`gi-patient-${primaryId}`))
     await screen.findByTestId('pc-man-modal')
     expect(screen.getByTestId('pc-man-claim').value).toBe(primaryId)

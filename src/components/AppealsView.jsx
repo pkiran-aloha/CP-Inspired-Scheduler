@@ -7,6 +7,8 @@ import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
 import { dueOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
+import { buildAppealLetter } from '../lib/billingDocs'
+import { download } from '../lib/ics'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -107,7 +109,7 @@ export default function AppealsView() {
               return (
                 <div key={c.id} className={`py-trow ${isSel ? 'on' : ''}`} data-testid={`appeal-row-${c.id}`} onClick={() => setSelId(c.id)} style={{ gridTemplateColumns: '1.2fr 1fr 100px 120px 1fr', minHeight: 56, padding: '12px 16px', cursor: 'pointer', background: isSel ? 'color-mix(in srgb, var(--danger) 8%, var(--panel))' : undefined }}>
                   <div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl} size={26} /><div><b style={{ fontSize: 13 }}>{cl?.name || c.clientId}</b><div style={{ fontSize: 11, color: 'var(--muted)' }}><span className="ln-code">{c.no}</span> · {c.dosFrom}</div></div></div></div>
-                  <div className="py-cell"><div><div style={{ fontSize: 12 }}>{c.payer}</div><div style={{ fontSize: 11, color: '#b91c1c' }}>{c.denials?.[0]?.reason || c.denialReason || 'Denied'}</div></div></div>
+                  <div className="py-cell"><div><div style={{ fontSize: 12 }}>{c.payer}</div><div style={{ fontSize: 11, color: '#b91c1c' }}>{c.denial?.reason || 'Denied'}</div></div></div>
                   <div className="py-cell"><b style={{ fontSize: 13, color: '#b91c1c' }}>{money(dueOf(c))}</b></div>
                   <div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: c.appeal ? '#eff6ff' : '#fef2f2' }}>{c.appeal ? `Appealed ${c.appeal.date || ''}` : c.status}</span></div>
                   <div className="py-cell"><button className="btn btn-xs btn-primary" data-testid={`appeal-open-${c.id}`} onClick={(e) => { e.stopPropagation(); setSelId(c.id) }} style={{ borderRadius: 8 }}>Work</button></div>
@@ -131,13 +133,14 @@ export default function AppealsView() {
               </div>
               <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px' }}>
-                  <b style={{ fontSize: 12, color: '#991b1b' }}>Denial reason</b><div style={{ fontSize: 13, marginTop: 4 }}>{sel.denials?.[0]?.reason || sel.denialReason || '—'} {sel.denials?.[0]?.code ? `(${sel.denials[0].code})` : ''}</div>
+                  <b style={{ fontSize: 12, color: '#991b1b' }}>Denial reason</b><div style={{ fontSize: 13, marginTop: 4 }}>{sel.denial?.reason || '—'}</div>
                 </div>
                 <label className="field"><span style={{ fontSize: 12, fontWeight: 700 }}>Template</span><select value={tplId} onChange={(e) => setTplId(e.target.value)} data-testid="appeal-template" style={{ fontSize: 13, borderRadius: 10, padding: '10px 12px' }}>{APPEAL_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</select></label>
                 <div style={{ background: 'var(--panel-2)', border: '1px solid var(--line)', borderRadius: 10, padding: '12px 14px', fontSize: 13, lineHeight: 1.5 }}>{tpl?.body}</div>
                 <label className="field"><span style={{ fontSize: 12, fontWeight: 700 }}>Additional notes</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="Add clinical justification, auth numbers, dates..." data-testid="appeal-note" style={{ fontSize: 13, borderRadius: 10, padding: '10px 12px' }} /></label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-sm btn-primary" data-testid="appeal-submit" onClick={() => { actions.fileAppeal(sel.id, { template: tplId, note, date: todayISO() }); toast({ message: `Appeal filed for ${sel.no}`, kind: 'ok' }); setNote('') }} style={{ borderRadius: 10 }}>File Appeal</button>
+                  <button className="btn btn-sm" data-testid="appeal-letter" title="Download the appeal letter as a text file" onClick={() => { const letter = buildAppealLetter(state, { claimId: sel.id, narrative: [tpl?.body, note.trim()].filter(Boolean).join('\n\n') }); download(letter.fileName, letter.content, 'text/plain;charset=utf-8'); toast({ message: `${letter.fileName} downloaded. Nothing was sent to ${sel.payer}.`, kind: 'ok' }) }} style={{ borderRadius: 10 }}>{Icon.download({ size: 11 })} Letter</button>
                   <button className="btn btn-sm" data-testid="appeal-mark-won" onClick={() => { const res = actions.appealOutcome(sel.id, 'won'); toast({ message: res.msg || 'Could not update the claim', kind: res.ok ? 'ok' : 'warn' }) }} style={{ borderRadius: 10 }}>Mark Won</button>
                   <button className="btn btn-sm" data-testid="appeal-mark-lost" onClick={() => { const res = actions.appealOutcome(sel.id, 'lost'); toast({ message: res.ok ? `${sel.no} marked lost — claim stays denied` : res.msg || 'Could not update the claim', kind: res.ok ? 'ok' : 'warn' }) }} style={{ borderRadius: 10 }}>Mark Lost</button>
                 </div>
