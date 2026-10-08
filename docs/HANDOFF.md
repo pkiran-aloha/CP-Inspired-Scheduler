@@ -43,6 +43,7 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 - **Code.** `src/lib/railGlance.js` (pure: `railDecision`, `authMeter`, `loadMeter`, `riskChip`); `staffFit` in `pickFit.js` now also returns raw `hours`, `target`, `travelMin`, `past`; `slotParts` splits a slot for the chip. CSS appended at the end of `styles.css` (both themes via the tone tokens; reduced motion respected).
 - **Visual check.** Built app screenshotted with Playwright (Edge) at 1400px in light and dark; the <1180px stacked layout was not captured (the rail placement CSS is unchanged).
 - **Verification.** `railGlance.test.js` (8) + one UI case in `bookingChecks.test.jsx` (decision line, week-load meter value text, continuity chip, Details disclosure, nothing saved). Full suite 100 files / 1,047 tests green before the merge of `origin/main`; `npm run build` green (chunk-size warning only).
+- **Date-dependent tests fixed along the way.** On 2026-10-08, 13 booking-dialog tests failed on plain `origin/main` (`beabf9e`): the seed put the first clinician in the dialog's default slot, so the Warn gate held the save. `abaHoursUi`, `app`, `customFields`, `mastersHub` and `signatureRules` now tick the gate when it shows (one test counts sessions instead of assuming none; one checks the write, not a toast). After merging `origin/main`: 100 files / 1,048 tests green; build green.
 
 ### Bundle code-splitting — REL-01 bundle half (`perf/lazy-views`, 2026-10-07)
 
