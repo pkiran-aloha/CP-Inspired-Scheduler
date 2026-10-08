@@ -22,6 +22,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 - The build is code-split: the calendar, store and domain engines load first (≈1,015 kB minified, 322 kB gzip, down from 2,525 / 759 kB); every other section, the bundled wiki and jsPDF load on first use. `src/test/setup.js` preloads them so UI tests render synchronously. `npm run share` still produces one self-contained file.
 - **Help & Wiki** (rail footer, Cmd/Ctrl+K) shows `docs/wiki/` inside the app with search; the pages are bundled at build time, so the wiki and Help never drift. `docs/marketing/README.md` holds the marketing copy. Both are kept current by the landing rule in `AGENTS.md`.
 
+### A visual Checks rail in the booking dialog
+
+The booking dialog's Checks rail now leads with one decision line (*Fix before booking*, *Review before booking*, *Almost there*, *Clear to book*, *Ready to book*) and a glyph count per severity. An **at a glance** block draws the numbers behind the checks: authorized hours as used / booked / left (with the overage and cap mark when over) plus the authorization week, each picked clinician's week load against target, and chips for cancellation risk, drive time and past sessions together. Every meter carries its numbers in text and as an accessible meter value. Each check shows its headline and one line; the rest sits behind **Details**. Open slots are clickable time chips. Same checks, same rules, nothing new is estimated. Code: `src/lib/railGlance.js`, `src/components/BookingChecks.jsx`; tests `railGlance.test.js` and `bookingChecks.test.jsx`.
+
 ### UI rule cleanup
 
 Calendar cards draw their small markers (series exception pencil, ABA hr, flagged, conflict) from the shared icon set instead of text glyphs; the exception pencil reads "Changed from series" to screen readers. Cards, rows and hints that used a thick colored left stripe now show tone with a 1px tinted border and, for warnings, a light tinted background, in both themes.

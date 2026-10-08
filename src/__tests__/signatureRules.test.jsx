@@ -5,8 +5,12 @@ import App from '../App'
 import { blankState } from '../state/store'
 import { systemConfigFor, staffSigRequiredToCompleteOf } from '../lib/settingsMasters'
 import { addDays, isoDate, todayISO } from '../lib/date'
-// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
-const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
+
+// The seed is dated relative to today, so on some days the picked clinician already has a
+// session in the default slot and the Warn gate asks for its tick before saving. Tick it
+// when shown, so these flows test what they name on any date.
+const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a && !a.classList.contains('on')) fireEvent.click(a) }
+
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
@@ -83,13 +87,14 @@ describe('signature rules (audit CFG-04)', () => {
     const targetDate = isoDate(addDays(todayISO(), 14))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: targetDate } })
     await pickDropdown('status-select', 'completed')
+    // the seed may already hold a session for Justin that day, so count rather than look for none
     const justin = stored().clients.find((c) => c.name === 'Justin Hsu')
-    const onTarget = () => Object.values(stored().appts).filter((a) => (a.clientIds || []).includes(justin.id) && a.date === targetDate).length
-    const before = onTarget() // the seed may already hold a session that day
-    fireEvent.click(screen.getByTestId('save-appt'))
+    const onDay = () => Object.values(stored().appts).filter((a) => (a.clientIds || []).includes(justin.id) && a.date === targetDate).length
+    const before = onDay()
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Aetna requires a client signature to complete this appointment.')).toBeTruthy()
     // nothing was written for this booking
-    expect(onTarget()).toBe(before)
+    expect(onDay()).toBe(before)
     // the Verification tab offers a distinct client/guardian pad next to the staff pad
     fireEvent.click(screen.getByRole('button', { name: /Verification/ }))
     const clientBox = await screen.findByTestId('am-client-sig')
@@ -119,7 +124,7 @@ describe('signature rules (audit CFG-04)', () => {
     await openWizard(client.name)
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: isoDate(addDays(todayISO(), 14)) } })
     await pickDropdown('status-select', 'completed')
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect((await screen.findAllByText(/practice requires a staff verification signature/)).length).toBeGreaterThan(0)
     // the verification tab renders the staff rule without touching the missing payer
     fireEvent.click(screen.getByRole('button', { name: /Verification/ }))

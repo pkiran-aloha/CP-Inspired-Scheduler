@@ -3,8 +3,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState, initial, STORAGE_KEY } from '../state/store'
-// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
-const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
+
+// The seed is dated relative to today, so on some days the picked clinician already has a
+// session in the default slot and the Warn gate asks for its tick before saving. Tick it
+// when shown, so these flows test what they name on any date.
+const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a && !a.classList.contains('on')) fireEvent.click(a) }
+
 
 const stored = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) } catch { return null } }
 let _r = null
@@ -75,7 +79,7 @@ describe('⚡ ABA Hours in the booking dialog', () => {
     expect(banner.textContent).toMatch(/not behavior-analytic time/)
 
     const before = Object.keys(stored().appts)
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Fix \d+ item/)).toBeTruthy()
     expect(Object.keys(stored().appts).length).toBe(before.length)
 

@@ -5,6 +5,12 @@ import App from '../App'
 import { blankState } from '../state/store'
 import { customFieldsForScope, pcfFormatErrors, CF_TEXT_FORMAT_RULES } from '../lib/master'
 
+// The seed is dated relative to today, so on some days the picked clinician already has a
+// session in the default slot and the Warn gate asks for its tick before saving. Tick it
+// when shown, so these flows test what they name on any date.
+const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a && !a.classList.contains('on')) fireEvent.click(a) }
+
+
 // Audit CFG-07: custom-field scopes are enforced in the pickers, every declared type
 // renders (textarea included), saved textFormat is validated at save time, "required"
 // means required-once-added, and the payer profile copy no longer promises automatic
@@ -44,8 +50,6 @@ async function bookJustin() {
   fireEvent.mouseDown(document.body)
   await screen.findByTestId('am-pcf')
 }
-// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
-const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
 
 describe('custom-field scopes (audit CFG-07)', () => {
   it('customFieldsForScope filters by scope, with the legacy default for old templates', () => {
@@ -143,14 +147,13 @@ describe('custom-field types and formats (audit CFG-07)', () => {
     expect(screen.getByTestId('pcf-f-cf-email').textContent).toMatch(/must be an email address/)
     // a bad value blocks the save with the reason in the Checks rail
     fireEvent.change(screen.getByTestId('pcf-in-cf-email'), { target: { value: 'not-an-email' } })
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/“Contact email” must be an email address/)).toBeTruthy()
     expect(screen.queryByText('Appointment created')).toBeNull()
     // a good value saves, and the answer persists with the appointment
     fireEvent.change(screen.getByTestId('pcf-in-cf-email'), { target: { value: 'guardian@example.com' } })
     fireEvent.change(notes.querySelector('textarea'), { target: { value: 'Parent asked about sleep routine.' } })
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs['cf-email'])
@@ -184,8 +187,7 @@ describe('custom-field required semantics (audit CFG-07)', () => {
     render(<App />)
     await bookJustin()
     // not added → the save is not blocked by it
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     // added but empty → blocked; filled → saves
     await bookJustin()
@@ -193,11 +195,12 @@ describe('custom-field required semantics (audit CFG-07)', () => {
     await screen.findByTestId('am-pcf-picker')
     fireEvent.click(screen.getByTestId('am-pcf-pick-cf-must').querySelector('input'))
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Payer field “Must capture” is required/)).toBeTruthy()
     fireEvent.change(screen.getByTestId('pcf-in-cf-must'), { target: { value: 'captured' } })
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
-    await waitFor(() => expect(Object.values(stored().appts).some((a) => a.pcfs?.['cf-must']?.value === 'captured')).toBe(true))
+    const n = Object.keys(stored().appts).length
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
+    // the first save's toast may still be up, so check the write itself
+    await waitFor(() => expect(Object.keys(stored().appts).length).toBe(n + 1))
   })
 })

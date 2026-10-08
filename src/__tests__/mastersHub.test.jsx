@@ -3,8 +3,12 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import App from '../App'
 import { ensurePayer, svcList, rateFor, concurrentNote, payerForAppt, svcOptionsFor, svcById } from '../lib/master'
-// Seed data can put a Warn item on today's slot; Warn saves need the acknowledgement tick (CFG-03).
-const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
+
+// The seed is dated relative to today, so on some days the picked clinician already has a
+// session in the default slot and the Warn gate asks for its tick before saving. Tick it
+// when shown, so these flows test what they name on any date.
+const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a && !a.classList.contains('on')) fireEvent.click(a) }
+
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
@@ -531,7 +535,7 @@ describe('masters — platform relationships', () => {
     expect(note.textContent).toContain('$19.00')
     expect(note.textContent).toContain('Aetna')
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.date === '2026-12-23' && a.service === 'dtt')
       expect(created).toBeTruthy()
@@ -553,7 +557,7 @@ describe('masters — platform relationships', () => {
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-24' } })
     await pickDropdown('status-select', 'completed')
     // Aetna requires a signature; block and route to the Verification tab
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Aetna requires a client signature to complete this appointment.')).toBeTruthy()
     expect(await screen.findByTestId('am-sig-note')).toBeTruthy()
     expect(screen.getByTestId('am-sig-note').textContent).toContain('Aetna')
@@ -776,7 +780,7 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     fireEvent.click(await screen.findByTestId('am-pcf-pick-cf-present').then((el) => el.querySelector('input')))
     fireEvent.click(screen.getByTestId('am-pcf-picker-done'))
     expect(screen.getByTestId('pcf-f-cf-present')).toBeTruthy()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Payer field “Prior auth dept” is required/)).toBeTruthy()
     // answer via radio chips; toggle offers the template's labelled options
     fireEvent.click(screen.getByTestId('pcf-opt-cf-authdept-Behavioral Intake 2'))
@@ -784,7 +788,7 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     expect(screen.getByTestId('pcf-toption-cf-present-1').textContent).toBe('With caregiver')
     // this booking overlaps the first one at the same slot (overlap = warn) — acknowledge before saving
     fireEvent.click(await screen.findByTestId('appt-ack-warns'))
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.pcfs && a.pcfs['cf-authdept'])
       expect(created).toBeTruthy()
@@ -987,7 +991,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
     await screen.findByTestId('am-pcf-empty')
     expect(screen.queryAllByTestId(/^pcf-f-cf-/)).toHaveLength(0)
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-27' } })
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const created = Object.values(stored().appts).find((a) => a.date === '2026-12-27')
       expect(created).toBeTruthy()
