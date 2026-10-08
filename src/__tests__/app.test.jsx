@@ -5,6 +5,10 @@ import App from '../App'
 import { startOfWeek, addDays, isoDate, parseISO, todayISO } from '../lib/date'
 import { blankState } from '../state/store'
 
+// The seeded schedule can put a Warn item (e.g. Staff Overlap) on the default slot on some
+// days; Warn saves need the acknowledgement tick (CFG-03). Tick it only when it is shown.
+const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
+
 beforeEach(() => localStorage.clear())
 afterEach(() => cleanup())
 
@@ -273,6 +277,7 @@ describe('create wizard', () => {
   it('validation blocks empty save', async () => {
     render(<App />)
     await openServiceWizard()
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Add a client')).toBeTruthy()
     expect(screen.getByText('Add at least one staff member')).toBeTruthy()
@@ -287,6 +292,7 @@ describe('create wizard', () => {
     await addPeople()
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
     fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Autism Home Support' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBe(before + 1))
@@ -313,6 +319,7 @@ describe('create wizard', () => {
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: startISO } })
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '3' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/^Created 3 occurrences/)).toBeTruthy()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBe(before + 3))
@@ -407,6 +414,7 @@ describe('type-aware create forms', () => {
     fireEvent.change(await screen.findByPlaceholderText('Search…'), { target: { value: 'Eastside Elementary' } })
     fireEvent.click(await screen.findByTestId('dd-create'))
     fireEvent.change(screen.getByTestId('drive-distance'), { target: { value: '14' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     await waitFor(() => {
@@ -439,12 +447,14 @@ describe('type-aware create forms', () => {
     expect(screen.getByText('Unavailable For')).toBeTruthy()
     expect(screen.getByTestId('pick-Staff Name')).toBeTruthy()
     expect(screen.queryByTestId('pick-Client Name')).toBeNull()
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Add at least one staff member')).toBeTruthy()
     const seg = screen.getByTestId('unavail-target')
     fireEvent.click(within(seg).getByRole('button', { name: /Clients/ }))
     expect(await screen.findByTestId('pick-Client Name')).toBeTruthy()
     expect(screen.queryByTestId('pick-Staff Name')).toBeNull()
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Add a client')).toBeTruthy()
   })
@@ -456,6 +466,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
     render(<App />)
     await openServiceWizard()
     await addPeople()
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     fireEvent.click(within(detail).getByRole('button', { name: /^Cancel$/ }))
@@ -589,6 +600,7 @@ describe('billing, verification & signature', () => {
     // and persist through save
     fireEvent.click(screen.getByText('Appointment Info'))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: '2026-12-23' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Appointment created')).toBeTruthy()
     await waitFor(() => {
@@ -610,6 +622,7 @@ describe('series editing end-to-end', () => {
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: isoDate(addDays(new Date(), 100)) } })
     await pickDropdown('repeat-select', 'weekly')
     fireEvent.change(screen.getByTestId('repeat-count'), { target: { value: '3' } })
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/^Created 3 occurrences/)).toBeTruthy()
     // detail card auto-opens → edit → scope all
@@ -617,6 +630,7 @@ describe('series editing end-to-end', () => {
     expect(await screen.findByText(/Repeating series — apply changes to/)).toBeTruthy()
     fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Renamed session' } })
     fireEvent.click(screen.getByTestId('scope-all'))
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/^Updated all 3 occurrences/)).toBeTruthy()
     await waitFor(() => {
@@ -628,6 +642,7 @@ describe('series editing end-to-end', () => {
     await screen.findByText(/Repeating series — apply changes to/)
     fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Only this one' } })
     fireEvent.click(screen.getByTestId('scope-one'))
+    ackWarns()
     fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => {
       const single = Object.values(apptsInStorage()).filter((a) => a.title === 'Only this one')
