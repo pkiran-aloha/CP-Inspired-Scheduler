@@ -110,12 +110,12 @@ export function staffFit(state, draft, { today = todayISO() } = {}) {
     facts.push(after > target ? { text: `${after} of ${target} h this week`, tone: 'flag' } : { text: `${after} of ${target} h this week` })
     const p = prev[s.id]
     const from = p && here ? resolveApptLocation(state, p) : null
-    if (from) {
-      const leg = travelLeg([from.lat, from.lng], [here.lat, here.lng])
-      if (leg && leg.straightMi > 0.1) facts.push({ text: `~${leg.travelMin} min from previous` })
-    }
+    const leg = from ? travelLeg([from.lat, from.lng], [here.lat, here.lng]) : null
+    const travelMin = leg && leg.straightMi > 0.1 ? leg.travelMin : null
+    if (travelMin != null) facts.push({ text: `~${travelMin} min from previous` })
     const r = rank[s.id]
-    out[s.id] = { score: r ? r.score : null, facts, reason: r ? [...r.reasons, ...(r.warnings || [])].join(' · ') : '' }
+    // raw numbers too, so the Checks rail can draw them (week-load bar, drive and continuity chips)
+    out[s.id] = { score: r ? r.score : null, facts, reason: r ? [...r.reasons, ...(r.warnings || [])].join(' · ') : '', hours: after, target, travelMin, past: client ? hist[s.id] || 0 : null }
   }
   return out
 }
@@ -286,11 +286,16 @@ export function openSlots(state, draft, { today = todayISO(), days = SLOT_DAYS, 
 
 /** Words for a slot row: "Tue Oct 13 · 9:00 AM–10:00 AM · joins an existing block". */
 export function slotText(slot, h24 = false) {
-  const d = parseISO(slot.date)
-  const day = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-  const bits = [`${day} · ${fmtTime(slot.start, h24)}–${fmtTime(slot.end, h24)}`]
-  if (slot.joins) bits.push('joins an existing block')
-  if (slot.tight) bits.push('tight drive from the neighbouring session')
-  if (slot.band === 'high' || slot.band === 'watch') bits.push(`${slot.band === 'high' ? 'high' : 'watch'} cancellation risk`)
-  return bits.join(' · ')
+  const { day, time, notes } = slotParts(slot, h24)
+  return [`${day} · ${time}`, ...notes].join(' · ')
+}
+
+/** The same words split for a time chip: day, time range, and any qualifiers. */
+export function slotParts(slot, h24 = false) {
+  const day = parseISO(slot.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
+  const notes = []
+  if (slot.joins) notes.push('joins an existing block')
+  if (slot.tight) notes.push('tight drive from the neighbouring session')
+  if (slot.band === 'high' || slot.band === 'watch') notes.push(`${slot.band === 'high' ? 'high' : 'watch'} cancellation risk`)
+  return { day, time: `${fmtTime(slot.start, h24)}–${fmtTime(slot.end, h24)}`, notes }
 }

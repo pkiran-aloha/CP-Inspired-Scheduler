@@ -4162,3 +4162,66 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
   .rec-k { width: auto; flex-basis: 100%; }
   .rec-date { width: 100%; }
 }
+
+/* ---- Booking rail at a glance (feat/visual-booking-rail) ----
+   Decision line, meters and chips in the booking dialog's Checks panel. Meter tones
+   reuse the shared severity tokens (--tn / --tn-ink); every bar has its numbers in text. */
+.bk-panel h3.bk-top { margin: 0; font-size: 13px; letter-spacing: -0.01em; display: block; }
+.bk-decision { display: flex; align-items: flex-start; gap: 10px; padding: 10px 11px; border-radius: var(--r-md); background: color-mix(in srgb, var(--tn) 9%, var(--panel)); }
+.bk-decision-ic { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border-radius: 50%; color: var(--tn-ink); background: color-mix(in srgb, var(--tn) 16%, var(--panel)); }
+.bk-decision-txt { min-width: 0; display: flex; flex-direction: column; gap: 5px; padding-top: 1px; }
+.bk-decision .bk-status { display: block; padding: 0; background: none; box-shadow: none; font-size: 14px; font-weight: 750; letter-spacing: -0.01em; color: var(--tn-ink); text-wrap: balance; }
+.bk-decision .bk-tally { gap: 4px; }
+.bk-decision .bk-count { background: color-mix(in srgb, var(--tn) 12%, var(--panel)); }
+
+.bk-glance { display: flex; flex-direction: column; gap: 10px; padding: 10px 11px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--panel-2); }
+.bk-gl-row { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bk-gl-lab { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 10.8px; color: var(--muted); }
+.bk-gl-lab b { font-weight: 650; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-bar { position: relative; display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; background: color-mix(in srgb, var(--text) 8%, transparent); }
+.bk-bar + .bk-gl-key + .bk-bar { height: 5px; margin-top: 2px; }
+.bk-bar > i { display: block; height: 100%; flex: none; border-radius: 4px; transition: width .35s cubic-bezier(.16, 1, .3, 1); }
+.bk-bar > i:empty[style*='width: 0%'] { display: none; }
+.bk-bar-used { background: var(--tn); }
+.bk-bar-booked { background: color-mix(in srgb, var(--tn) 42%, var(--panel)); }
+.bk-bar-cap { position: absolute; top: -1px; bottom: -1px; width: 2px; margin-left: -1px; background: var(--text); border-radius: 1px; }
+.bk-gl-key { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 10.6px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+.bk-gl-key > span { display: inline-flex; align-items: center; gap: 4px; }
+.bk-gl-over { color: var(--tn-ink); font-weight: 650; }
+.bk-sw { width: 8px; height: 8px; border-radius: 2px; flex: none; background: color-mix(in srgb, var(--text) 10%, transparent); }
+.bk-gl-row .bk-sw-used { background: var(--ok); }
+.bk-gl-row .bk-sw-booked { background: color-mix(in srgb, var(--ok) 42%, var(--panel)); }
+.bk-gl-row:has(.bk-bar.tone-warn) .bk-sw-used { background: var(--warn); }
+.bk-gl-row:has(.bk-bar.tone-warn) .bk-sw-booked { background: color-mix(in srgb, var(--warn) 42%, var(--panel)); }
+.bk-gl-row:has(.bk-bar.tone-flag) .bk-sw-used { background: var(--accent); }
+.bk-gl-row:has(.bk-bar.tone-flag) .bk-sw-booked { background: color-mix(in srgb, var(--accent) 42%, var(--panel)); }
+.bk-gl-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.bk-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px 3px 6px; border-radius: 999px; font-size: 10.8px; font-weight: 650;
+  color: var(--text-2); background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); font-variant-numeric: tabular-nums;
+}
+.bk-chip > svg { color: var(--tn-ink); flex: none; }
+.bk-chip.tone-warn, .bk-chip.tone-flag { color: var(--tn-ink); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tn) 35%, var(--line)); }
+
+/* one line in view, the rest behind Details */
+.bk-item .bk-more {
+  display: inline-flex; align-items: center; gap: 3px; margin: 7px 0 0 37px; padding: 2px 6px 2px 3px; border-radius: 6px;
+  text-decoration: none; color: var(--tn-ink); font-size: 10.6px; font-weight: 700;
+}
+.bk-item .bk-more:hover { background: color-mix(in srgb, var(--tn) 10%, transparent); }
+.bk-item .bk-more > svg { transition: transform .2s ease; }
+.bk-item .bk-more.on > svg { transform: rotate(180deg); }
+.bk-detail[hidden] { display: none; }
+.bk-detail > .bk-lines { margin-top: 6px; }
+.bk-basis { margin: 0; font-size: 10.4px; line-height: 1.45; color: var(--muted); }
+
+/* open slots as time chips */
+.bk-item .bk-slots { flex-direction: row; flex-wrap: wrap; gap: 5px; }
+.bk-item .bk-slot { flex-direction: column; align-items: flex-start; gap: 1px; padding: 5px 9px; border-radius: 9px; font-size: 11px; line-height: 1.3; }
+.bk-slot b { font-weight: 700; color: var(--text); }
+.bk-slot > span { font-variant-numeric: tabular-nums; color: var(--text-2); }
+.bk-slot em { font-style: normal; font-size: 10px; color: var(--muted); }
+
+@media (prefers-reduced-motion: reduce) {
+  .bk-bar > i, .bk-item .bk-more > svg { transition: none; }
+}

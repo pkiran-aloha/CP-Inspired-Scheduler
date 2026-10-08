@@ -2,9 +2,9 @@
 
 _Last synced: 2026-10-07_
 
-_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/lib/recurrence.js, src/components/RecurrenceEditor.jsx, src/state/store.jsx, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
+_Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/lib/authBudget.js, src/lib/authUnits.js, src/lib/bookingChecks.js, src/lib/pickFit.js, src/lib/railGlance.js, src/components/fields.jsx, src/lib/risk.js, src/lib/insights.js, src/lib/density.js, src/lib/overbook.js, src/lib/ramp.js, src/lib/hire.js, src/lib/cancelReasons.js, src/lib/smart.js, src/lib/abaHours.js, src/lib/travel.js, src/lib/settingsMasters.js, src/lib/model.js, src/lib/recurrence.js, src/components/RecurrenceEditor.jsx, src/state/store.jsx, src/components/AppointmentModal.jsx, src/components/BookingChecks.jsx, src/components/SchedulerInsights.jsx, src/components/NeedsCover.jsx, src/components/CommandPalette.jsx, src/components/KeysHelp.jsx, src/components/DetailCard.jsx, src/components/QuickAdd.jsx, src/components/TimeGrid.jsx, src/components/TimelineView.jsx, src/components/MonthView.jsx, src/components/AgendaView.jsx, src/components/settings/SystemPanel.jsx, src/App.jsx, src/lib/ics.js, src/components/StaffView.jsx, src/styles.css, docs/specs/scheduling-intelligence-ideas.md_
 
-_Last synced against main 0434a5a plus the feat/smart-scheduling-picks and recurrence-series branches on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 5f99933 plus the feat/visual-booking-rail branch on 2026-10-07; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md), [Payroll](payroll.md)
 
@@ -42,6 +42,16 @@ Severity language is shared across the whole app:
 | Flag | Noted | Recorded on the session as a badge and shown; no action needed |
 | Pencil | To fill in | A required field is still empty (turns into Stop sign after a failed save attempt) |
 | Check | Clear | Nothing in the way |
+
+**How the rail reads.** From the top:
+
+1. **Decision line.** One headline for the whole booking: *Fix before booking* (a stop item), *Review before booking* (a caution), *Almost there* (a required field is still empty), *Clear to book* (only notes) or *Ready to book*. Under it, a glyph count per severity ("2 to review", "1 noted").
+2. **At a glance.** The numbers behind the checks, drawn small, each with its value in text (screen readers get it as a meter):
+   - **Authorized hours** for the first client: a bar split into hours already delivered, hours booked (this session included) and hours left. When the booking goes past the authorization, the bar shows the overage and a mark where the cap is. A thinner bar under it shows this authorization week against the authorized week.
+   - **Week load** for each picked clinician: hours this week after this booking against the target hours on their staff record, flagged when over.
+   - **Chips:** the modelled cancellation risk (score out of 100 and band), the estimated drive from the clinician's previous appointment that day, and how many past sessions the clinician has had with the client (or "first session together").
+3. **The checks.** Each group shows its headline and one line of why or what to do. The rest (more lines, the exact numbers, how it is worked out) sits behind **Details**. Required fields show in full, and practice rules show their first two items. Open slots are time chips you can click, and the warning acknowledgement tick always stays in view.
+4. A one-line note at the bottom: everything is worked out on this device from the workspace's own data, and nothing is sent or booked until you save.
 
 The rail shows these groups, worst first:
 
