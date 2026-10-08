@@ -4227,3 +4227,19 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .pop-group { padding: 8px 10px 3px; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .pop-group:first-child, .pop-search + .pop-group { padding-top: 4px; }
 .bk-loc-map a { display: inline-flex; align-items: center; gap: 3px; }
+
+/* Local screen lock (ScreenLock.jsx): opaque, so nothing behind it is painted or readable */
+body.is-locked > *:not(.lock-root) { visibility: hidden !important; }
+.lock-root { position: fixed; inset: 0; z-index: 2147483647; display: grid; place-items: center; padding: 16px; background: var(--bg); color: var(--text); animation: lock-in .18s ease-out; }
+.lock-card { width: min(380px, 100%); display: flex; flex-direction: column; gap: 10px; padding: 28px 24px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-2); }
+.lock-card h2 { margin: 0; font-size: 18px; }
+.lock-ic { display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+.lock-sub, .lock-note { margin: 0; font-size: 13px; color: var(--text-2); }
+.lock-note { font-size: 12px; color: var(--muted); }
+.lock-ended { margin: 0; padding: 8px 10px; font-size: 12.5px; border: 1px solid color-mix(in srgb, var(--warn) 45%, var(--line)); border-radius: var(--r-sm); background: color-mix(in srgb, var(--warn) 10%, var(--panel)); }
+.lock-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+.lock-card input { font: inherit; font-size: 18px; letter-spacing: .3em; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r-sm); background: var(--panel-2); color: var(--text); }
+.lock-card input:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--accent); }
+.lock-error { margin: 0; font-size: 12.5px; color: var(--danger); }
+@keyframes lock-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .lock-root { animation: none; } }

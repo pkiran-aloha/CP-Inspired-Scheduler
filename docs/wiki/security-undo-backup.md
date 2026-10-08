@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
-_Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced against main 73e0236 plus the perf/lazy-views and fix/workspace-persistence branches on 2026-10-08; unrelated behavior unchanged._
+_Sources: src/lib/security.js, src/lib/screenLock.js, src/components/ScreenLock.jsx, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -28,7 +28,13 @@ Open Settings, Security (also reachable from the nav for accounts with access). 
 - Removing a staff member suspends the linked account.
 - Every change writes an audit entry (last 200 kept).
 
-**Policy fields that are stored but not enforced.** Settings, System also holds MFA required, screen lock minutes and auto-logout minutes. They are saved with the workspace but nothing in the app reads them; there is no sign-in or lock screen.
+**Screen lock (a privacy screen, not a sign-in).** Settings, System → Screen lock:
+- **Lock When Idle** (off by default) covers this tab after the screen-lock minutes (default 15) without pointer, keyboard or wheel activity. Coming back to a hidden tab counts as activity only after the idle time is checked. **Lock now** in the navigation rail locks at any time.
+- The lock screen is opaque: everything else on the page is hidden (not blurred), keys typed on it never reach the app's shortcuts, and focus stays on it.
+- With a **Lock PIN** (4 to 12 digits, set per browser in the same section), it unlocks only with that PIN; a wrong PIN says "That PIN does not match." The PIN is kept only as a salted PBKDF2-SHA-256 hash under its own browser key, never in the workspace, a backup or Undo. Without a PIN the lock only hides the screen: anyone can press "I'm back".
+- **Auto logout:** after the auto-logout minutes on the lock screen (default 60), the tab's session ends: Undo history is cleared, open dialogs close and unsaved drafts are discarded. Saved work is never deleted. The lock screen says so.
+- The lock belongs to one tab (it survives a reload of that tab); another tab's save never unlocks it, and a newly opened tab starts unlocked. Forgot the PIN? Close the tab and reopen the app.
+- **MFA Required** is kept for the production sign-in but disabled: "Needs the production sign-in; not enforced locally". The settings planner refuses to turn it on.
 
 ### Undo
 
@@ -98,11 +104,11 @@ If the workspace saved in this browser cannot be read, the alert says so, the sa
 
 ### Tests
 
-[`security.test.js`](../../src/__tests__/security.test.js), [`securityUi.test.jsx`](../../src/__tests__/securityUi.test.jsx), [`workspaceBackup.test.js`](../../src/__tests__/workspaceBackup.test.js) (round trip, legacy import, rejection, atomic Undo of billing and reseed), [`store.test.js`](../../src/__tests__/store.test.js), [`palette.test.jsx`](../../src/__tests__/palette.test.jsx) (storage-warning alert) and [`persistence.test.jsx`](../../src/__tests__/persistence.test.jsx) (cross-tab adoption, flush on hide, unreadable save left untouched, quota reason).
+[`security.test.js`](../../src/__tests__/security.test.js), [`securityUi.test.jsx`](../../src/__tests__/securityUi.test.jsx), [`workspaceBackup.test.js`](../../src/__tests__/workspaceBackup.test.js) (round trip, legacy import, rejection, atomic Undo of billing and reseed), [`store.test.js`](../../src/__tests__/store.test.js), [`palette.test.jsx`](../../src/__tests__/palette.test.jsx) (storage-warning alert) [`persistence.test.jsx`](../../src/__tests__/persistence.test.jsx) (cross-tab adoption, flush on hide, unreadable save left untouched, quota reason), [`screenLock.test.js`](../../src/__tests__/screenLock.test.js) (PIN hashing, settings validation, migration, PIN never in a backup) and [`screenLock.test.jsx`](../../src/__tests__/screenLock.test.jsx) (idle lock, PIN unlock, auto-logout keeps data, another tab's save does not unlock).
 
 ## Not yet built
 
-- No authentication, passwords, MFA, lock screen, session timeout or server-side authorization. The Security page says so and means it. MFA, screen-lock and auto-logout settings are stored values only.
+- No authentication, passwords, MFA, server-side session timeout or server-side authorization. The Security page says so and means it. The local screen lock is a privacy screen for one tab, not a security boundary: browser storage stays readable and a new tab starts unlocked. MFA is a stored value only.
 - Office scoping is a view filter in this browser; the full data is still in localStorage and in any backup an administrator exports.
 - The audit trail covers security changes only (200 entries) and is not tamper-evident. There is no audit of financial or clinical edits beyond each claim's own history.
 - Undo does not cover every change (see the list above), is limited to 25 steps and is lost on reload.

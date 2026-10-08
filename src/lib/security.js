@@ -580,6 +580,7 @@ function actionAreas(state, action) {
     case 'clearDemo': case 'reseed': return DEMO_RESET_AREAS
     case 'replace': return SECURITY_AREAS.map(({ id }) => id)
     case 'meta': return [] // migration/read-state bookkeeping; contains no user records
+    case 'endSession': return [] // screen-lock auto-logout: clears this tab's Undo, touches no records
     case 'undo': return areasForUndo(state)
     case 'setSettings': {
       const patch = action.patch || {}
@@ -840,6 +841,7 @@ function actionWithinOfficeScope(state, action) {
         return canAccessRecord(state, 'provider', provider)
       })
     }
+    case 'endSession': return true // no records change
     case 'clearDemo': case 'reseed': case 'replace': return false
     case 'undo': {
       const snapshot = state.history?.[state.history.length - 1]

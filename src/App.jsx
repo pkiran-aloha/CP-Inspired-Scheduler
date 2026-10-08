@@ -58,6 +58,7 @@ const SettingsModal = view(() => import('./components/SettingsModal'))
 import SecurityRedirect from './components/SecurityRedirect'
 import CommandPalette from './components/CommandPalette'
 import KeysHelp from './components/KeysHelp'
+import ScreenLock from './components/ScreenLock'
 import { slidePreset } from './lib/analytics'
 import { DAY_NAMES, addDays, addMonths, isoDate, parseISO, rangeLabel, startOfWeek, todayISO, weekNum } from './lib/date'
 import { uid } from './lib/model'
@@ -427,11 +428,22 @@ import BuildWatcher from './components/BuildWatcher.jsx'
 
 export const preloadViews = () => Promise.all([...viewLoaders.keys()].map((load) => load().then((mod) => viewLoaders.set(load, mod))))
 
+// Auto-logout remounts the shell: open dialogs close and unsaved drafts are dropped; saved data stays.
+function Session() {
+  const [epoch, setEpoch] = useState(0)
+  return (
+    <>
+      <Shell key={epoch} />
+      <ScreenLock onSessionEnd={() => setEpoch((n) => n + 1)} />
+    </>
+  )
+}
+
 export default function App() {
   return (
     <ToastProvider>
       <StoreProvider>
-        <Shell />
+        <Session />
         <BuildWatcher />
       </StoreProvider>
     </ToastProvider>

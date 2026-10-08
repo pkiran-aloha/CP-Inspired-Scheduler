@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
+import { requestLock } from './ScreenLock'
 import { scanNeedsCover } from '../lib/smart'
 import { intakeKpis } from '../lib/intake'
 import { stagedAppts } from '../lib/claims'
@@ -250,6 +251,10 @@ export default function NavRail() {
         >
           <span className="nr-ic">{Icon.info({ size: 15 })}</span>
           {!collapsed && <span className="nr-label">Help &amp; Wiki</span>}
+        </button>
+        <button className="nr-item" type="button" onClick={requestLock} data-testid="lock-now" title="Lock this tab now: hides the workspace until you unlock">
+          <span className="nr-ic">{Icon.lock({ size: 15 })}</span>
+          {!collapsed && <span className="nr-label">Lock now</span>}
         </button>
         <button className="nr-item" onClick={() => actions.setSettings({ theme: state.settings.theme === 'dark' ? 'light' : 'dark' })} title="Toggle light / dark theme">
           <span className="nr-ic">{state.settings.theme === 'dark' ? Icon.sun({ size: 15 }) : Icon.moon({ size: 15 })}</span>

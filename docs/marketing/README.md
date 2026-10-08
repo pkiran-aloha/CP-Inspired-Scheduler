@@ -175,6 +175,7 @@ Every financial or compound change is one reducer transaction, so one Undo rever
 - **One action, one Undo:** claim submissions with their files, ERA postings, recoupments, intake conversions and most settings changes each reverse in one step (25 steps, kept in the open tab).
 - **Versioned backup and restore (JSON):** covers ledgers, masters, settings, saved reports and dashboards. Import validates the file and previews its counts before you confirm the replace.
 - **Roles and office scoping:** role templates, per-area permission levels, office-scoped access and an audit trail, with at least one active administrator always kept. These are local access controls, not authentication, and the app says so.
+- **Screen lock for the shared desk:** turn on Lock When Idle or press Lock now, and the tab is covered until someone unlocks it with this browser's PIN (or "I'm back" if no PIN is set). After a long lock the tab's session ends: Undo history clears and open dialogs close, while saved work stays. It is a privacy screen, not a sign-in, and the app says so; MFA waits for the production sign-in.
 - **Storage-failure warning:** if the browser refuses a save, an on-screen alert says your edits are in memory only and points you to an immediate export.
 
 ---
@@ -238,7 +239,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/AnalyticsView.jsx` |
 | Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |
 | Help & Wiki (Settings section bullet) | `src/components/HelpView.jsx`, `src/lib/wiki.js`, `docs/wiki/*` |
-| Security, Undo & backup | `src/state/store.jsx` (reducer, Undo, persistence), `src/lib/security.js`, `src/components/SecurityView.jsx`, `src/lib/workspaceBackup.js` |
+| Security, Undo & backup | `src/state/store.jsx` (reducer, Undo, persistence), `src/lib/security.js`, `src/lib/screenLock.js`, `src/components/ScreenLock.jsx`, `src/components/SecurityView.jsx`, `src/lib/workspaceBackup.js` |
 | Why practices trust it | `PRODUCT.md` (Product Principles), `AGENTS.md` (Non-negotiables 2–4), `src/lib/security.js` (`authorizeAction`) |
 | Short-form assets | Derived from the sections above; refresh whenever any of them changes |
 | Honesty limits (all sections) | `README.md` ("Current development context"), `docs/HANDOFF.md` (Shipped; Known issues / backlog) |

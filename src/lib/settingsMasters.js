@@ -313,7 +313,10 @@ export const DEFAULT_SYSTEM_CONFIG = {
   weekStartSetting: true,
   general: {
     staffSigRequiredToComplete: false,
+    // Kept for the production sign-in; nothing local can enforce MFA (mismatch #13).
     mfaRequired: false,
+    // Local screen lock for this tab (ScreenLock.jsx). Off until a practice turns it on.
+    screenLockEnabled: false,
     screenLockMinutes: 15,
     autoLogoutMinutes: 60,
     maxAppointmentLengthMinutes: 480,
@@ -1459,6 +1462,14 @@ export function planSettingsOp(state, op, payload = {}) {
         appointment: { ...cur.appointment, ...(p.appointment || {}) },
         other: { ...cur.other, ...(p.other || {}) },
       }
+      // Validate only what this patch changes, so an odd legacy value never blocks other edits.
+      const g = p.general || {}
+      const changed = (k) => k in g && g[k] !== cur.general[k]
+      const minutes = (v, lo, hi) => Number.isInteger(Number(v)) && Number(v) >= lo && Number(v) <= hi
+      if (changed('mfaRequired') && g.mfaRequired === true) return fail('MFA needs the production sign-in. This browser-only app has no accounts to verify, so it cannot be required here.')
+      if (changed('screenLockEnabled') && typeof g.screenLockEnabled !== 'boolean') return fail('Screen lock must be on or off.')
+      if (changed('screenLockMinutes') && !minutes(g.screenLockMinutes, 1, 240)) return fail('Screen lock must be a whole number of minutes from 1 to 240.')
+      if (changed('autoLogoutMinutes') && !minutes(g.autoLogoutMinutes, 5, 480)) return fail('Auto logout must be a whole number of minutes from 5 to 480.')
       return done('System configuration updated', { patch: { system: next } })
     }
     case 'subscription.patch': {
@@ -1660,8 +1671,13 @@ export function normalizeSettingsMasters(state) {
       next.system = { ...next.system, general }
       changed = true
     }
+    // Screen lock (mismatch #13): older saves predate the on/off switch; it starts off.
+    if (typeof next.system.general?.screenLockEnabled !== 'boolean') {
+      next.system = { ...next.system, general: { ...(next.system.general || {}), screenLockEnabled: false } }
+      changed = true
+    }
   }
-  if (!arr(settings.importLog).length) { next.importLog = []; changed = true }
+  if (!Array.isArray(settings.importLog)) { next.importLog = []; changed = true }
 
   if (!changed) return state
   return { ...state, settings: next }

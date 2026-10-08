@@ -33,6 +33,16 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Local screen lock — architecture mismatch #13 (`feat/local-screen-lock`, 2026-10-08)
+
+- **What.** Settings, System → **Screen lock** (new section after General Settings): Lock When Idle (`screenLockEnabled`, **off by default**), screen-lock minutes (1–240), auto-logout minutes on the lock screen (5–480), a per-browser Lock PIN, and MFA Required shown disabled ("Needs the production sign-in; not enforced locally"; `systemConfig.patch` refuses to turn it on, and only validates fields a patch changes so a legacy value never blocks other edits). **Lock now** sits in the navigation rail footer.
+- **Lock screen (`src/components/ScreenLock.jsx`).** Opaque full-page overlay (portal) plus `body.is-locked` hiding every other body child (`visibility: hidden`), `aria-modal`, focus trapped, keys typed on it stopped before the app's shortcuts. Idle = pointer/keyboard/wheel/touch; returning to a hidden tab checks idle first. Unlocks with the PIN, or "I'm back" when none is set. Lock state is tab-local in `sessionStorage` (survives a reload of that tab; storage events never unlock it).
+- **Auto-logout.** After the auto-logout minutes locked: `endSession` (new reducer action, in `actionAreas` and the record-scope switch, no records touched) clears Undo, and `App.jsx` remounts the shell so open dialogs close and unsaved drafts drop. The lock screen says so. Workspace data is never deleted.
+- **PIN (`src/lib/screenLock.js`).** 4–12 digits, salted PBKDF2-SHA-256 (100k iterations, Web Crypto) under its own device key `aloha-aba.lock-pin`, never in the workspace, so never in a backup, Undo step or cross-tab hydrate.
+- **Migration.** `normalizeSettingsMasters` adds `screenLockEnabled: false` to older saves. Also fixed: an empty `importLog` made the migration rewrite storage on every load (it now only fills a missing array), so `normalizeSettingsMasters` is idempotent on a fresh workspace.
+- **Not protected (honest).** Not a security boundary: browser storage stays readable, each tab locks on its own and a newly opened tab starts unlocked, no wrong-PIN rate limit, MFA is unenforced. CFG-01 stays open.
+- **Verification.** `screenLock.test.js` (10: PIN rules, hash/verify, record parsing, PIN never in backup, defaults, migration idempotence, settings validation, backup round-trip, `endSession` authorization, session storage) + `screenLock.test.jsx` (5, fake timers: idle lock + "I'm back", lock off by default, wrong/right PIN and storage event, auto-logout clears Undo and drops a draft but keeps saved data, PIN set from Settings stored as hash only). After merging `origin/main` (billingDocs wiring, CMS-1500 chart values): full suite 106 files / 1,090 tests green; `npm run build` green (entry 1,035 kB, under the 1,100 kB tripwire).
+
 ### CMS-1500 chart values only — architecture mismatch #10 (`fix/cms1500-derived-values`, 2026-10-08)
 
 - **Root cause.** `memberIdOf` / `authNoOf` (`claims.js`) fell back to hash-derived placeholders and `dxFor` mapped the client's program to ICD-10 codes, so CMS-1500 items 1a, 21 and 23, the claim form tiles, the claim CSV, the superbill and the GFE could carry invented values. (The Billing claim tile even ignored the chart's member ID.)

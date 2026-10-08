@@ -15,6 +15,7 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 ## Current development context
 
+- **Local screen lock (2026-10-08):** Settings, System → Screen lock now enforces the screen-lock and auto-logout minutes per tab (off by default), with Lock now in the navigation and an optional per-browser PIN kept as a salted hash outside the workspace and backups. A privacy screen, not a sign-in; MFA stays unenforced and is shown disabled (architecture mismatch #13).
 - **Billing documents, one builder each (2026-10-08):** every billing download comes from its tested builder in `src/lib/billingDocs.js` — Generate Invoice's draft statement, Verification Forms, the new QuickBooks **Download import CSV** and the new Appeals **Letter** — so the tested file is the file users get. Unused builder variants were removed.
 
 - **Dependencies (2026-10-08):** test runner upgraded to Vitest 4, unused Playwright packages removed, `npm audit` reports 0 vulnerabilities. Run `npm ci` after pulling.
