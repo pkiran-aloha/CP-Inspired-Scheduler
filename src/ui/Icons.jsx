@@ -69,6 +69,14 @@ export const Icon = {
   more: (p) => wrap(<path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="2.8" strokeLinecap="round" />, p),
   grip: (p) => wrap(<path d="M9 5.5v.01M15 5.5v.01M9 12v.01M15 12v.01M9 18.5v.01M15 18.5v.01" strokeWidth="2.6" strokeLinecap="round" />, p),
   zap: (p) => wrap(<path d="M13 2.5L4.5 13.5H11L10 21.5l9-11.5h-6.5l0.5-7.5z" />, p),
+  building: (p) => wrap(<><path d="M4.5 21V5a1.5 1.5 0 011.5-1.5h8A1.5 1.5 0 0115.5 5v16M15.5 9.5H18a1.5 1.5 0 011.5 1.5v10M3 21h18" /><path d="M8 7.5h3.5M8 11h3.5M8 14.5h3.5" /></>, p),
+  // chart-kind glyphs (Reports catalogue) + delta arrows
+  chartBars: (p) => wrap(<><path d="M4 5h11M4 10h16M4 15h8M4 20h13" strokeWidth="2.6" /></>, p),
+  chartCols: (p) => wrap(<><path d="M3.5 20.5h17" /><path d="M7 17V11M12 17V5M17 17v-8" strokeWidth="3" /></>, p),
+  chartStack: (p) => wrap(<><rect x="3" y="8.5" width="18" height="7" rx="2" /><path d="M10 8.5v7M15.5 8.5v7" /></>, p),
+  chartHeat: (p) => wrap(<><rect x="3.5" y="3.5" width="7.5" height="7.5" rx="1.6" fill="currentColor" /><rect x="13" y="3.5" width="7.5" height="7.5" rx="1.6" /><rect x="3.5" y="13" width="7.5" height="7.5" rx="1.6" /><rect x="13" y="13" width="7.5" height="7.5" rx="1.6" fill="currentColor" opacity=".45" /></>, p),
+  arrowUp: (p) => wrap(<path d="M12 19V5M6 11l6-6 6 6" />, p),
+  arrowDown: (p) => wrap(<path d="M12 5v14M6 13l6 6 6-6" />, p),
   expand: (p) => wrap(<path d="M9 21H3.5V15.5M15 3h5.5V8.5M21 9v6M9 21H3M9 3H3.5V8.5M15 21h5.5V15.5" />, p),
 }
 

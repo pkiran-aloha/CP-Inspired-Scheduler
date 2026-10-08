@@ -144,28 +144,60 @@ describe('reports desk', () => {
     expect(screen.getByTestId('navrail')).toBeTruthy()
   })
 
-  it('reports landing: a short stat strip with polarity deltas, zero graphing', async () => {
+  it('reports landing: KPI tiles with icons, polarity deltas and sparklines, one primary chart', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-reports'))
     await screen.findByTestId('rp-table')
     // at most four stat tiles up front; the rest of the summary is one click away
     expect(container.querySelectorAll('.rp-kpi').length).toBeLessThanOrEqual(4)
+    expect(container.querySelector('.rp-kpi .rp-kpi-ic svg')).toBeTruthy()
     // deltas are polarity-colored for issue counts (Errors up = bad)
     const delta = container.querySelector('.rp-kpi .rp-kpi-delta')
     expect(delta).toBeTruthy()
     expect(['good', 'bad', 'flat'].includes(delta.classList[1])).toBe(true)
-    // ALL charting/graphing is gone from the landing — bars, sparks, svg of any kind
-    expect(container.querySelector('.rp-trends')).toBeFalsy()
-    expect(container.querySelector('.rt-bars')).toBeFalsy()
-    expect(container.querySelector('.rp-spark')).toBeFalsy()
-    expect(container.querySelector('.rp-kpi svg.rp-spark')).toBeFalsy()
-    expect(container.querySelector('section[data-testid="rp-trends"]')).toBeFalsy()
-    // the trend numbers live on as a slim text strip (no graphics)
+    // the default (data quality) report draws one share-of-total chart with an accessible name
+    const chart = screen.getByTestId('rp-chart')
+    expect(chart.dataset.kind).toBe('stack')
+    expect(chart.getAttribute('aria-label')).toMatch(/Open validations by severity/)
+    expect(container.querySelectorAll('[data-testid="rp-chart"]').length).toBe(1)
+    // every mark is keyboard-focusable with its value spoken
+    const seg = chart.querySelector('.rpc-seg')
+    expect(seg.getAttribute('tabindex')).toBe('0')
+    expect(seg.getAttribute('aria-label')).toMatch(/: \d+ · \d+%/)
+    // the prior-window totals stay as a text strip
     const strip = screen.getByTestId('rp-deltas')
-    expect(strip).toBeTruthy()
     expect(strip.textContent).toMatch(/vs previous \d+-day window/i)
     expect(screen.getByTestId('rp-delta-rows')).toBeTruthy()
-    expect(strip.querySelector('.rp-spark, .rt-chart, .rt-bars')).toBeFalsy() // chips are pure type — no plots
+  })
+
+  it('reports: chart / table toggle, a heatmap for attendance and KPI sparklines with a text label', async () => {
+    const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-reports'))
+    await screen.findByTestId('rp-table')
+    fireEvent.click(screen.getByTestId('rp-def-attendance'))
+    await waitFor(() => expect(screen.getByTestId('rp-chart').dataset.kind).toBe('heat'))
+    expect(container.querySelectorAll('.rpc-cell[tabindex="0"]').length).toBeGreaterThan(0)
+    // sparkline: only where the KPI moved across the last windows; always titled when drawn
+    for (const sp of container.querySelectorAll('.rp-kpi svg.rp-spark')) {
+      expect(sp.getAttribute('role')).toBe('img')
+      expect(sp.querySelector('title').textContent).toMatch(/over the last \d+ windows/)
+    }
+    // table only hides the chart; the table never goes away
+    fireEvent.click(screen.getByTestId('rp-view-table'))
+    expect(screen.queryByTestId('rp-chart')).toBeNull()
+    expect(screen.getByTestId('rp-table')).toBeTruthy()
+    expect(screen.getByTestId('rp-view-table').getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(screen.getByTestId('rp-view-chart'))
+    expect(screen.getByTestId('rp-chart')).toBeTruthy()
+    // bullet bars with a target marker for authorization burn, status pills in the table
+    fireEvent.click(screen.getByTestId('rp-def-auth'))
+    await waitFor(() => expect(screen.getByTestId('rp-chart').dataset.kind).toBe('bars'))
+    expect(container.querySelector('.rpc-target')).toBeTruthy()
+    expect(container.querySelector('.rpv-pill .bk-glyph')).toBeTruthy()
+    expect(container.querySelector('.rpv-meter')).toBeTruthy()
+    // catalogue cards carry a report icon and the chart kind
+    expect(screen.getByTestId('rp-def-auth').querySelector('.rpv-ic svg')).toBeTruthy()
+    expect(screen.getByTestId('rp-def-auth').querySelector('.rpv-kind').getAttribute('title')).toBe('Ranked bars')
   })
 
   it('agenda shows a per-day session count badge (including days with no sessions)', async () => {
