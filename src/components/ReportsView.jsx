@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
@@ -22,43 +22,18 @@ const fmtCell = (v, t) => {
   return String(v)
 }
 
-const CAT_ICON = { operations: 'cal', clinical: 'clipboard', billing: 'dollar', people: 'team', quality: 'checkCircle' }
-const KPI_ICON = [
-  [/error|block|denied|fail/i, 'alert'], [/warn|expir|flag|overdue|due/i, 'info'], [/notice|pending/i, 'eye'],
-  [/fix|auto/i, 'zap'], [/revenue|charge|dollar|\$|paid|billed/i, 'dollar'], [/rate|%|attend|complet|clean/i, 'checkCircle'],
-  [/no-show|cancel|miss/i, 'ban'], [/session|row|visit|line|occurrence/i, 'cal'], [/hour|util|pace|target|mins|h\b/i, 'clock'],
-  [/auth|verif|sign|doc/i, 'clipboard'], [/staff|people|team|caseload/i, 'team'],
-]
-const kpiIcon = (label) => (KPI_ICON.find(([re]) => re.test(label)) || [, 'spark'])[1]
+// a rise in these counts is bad news, so their delta reads red when it goes up
 const BAD_RISING = /error|warn|no-show|denied|cancel|flag|overdue|gap|expir|lapse/i
-/** Counts roll to their new value instead of snapping — small but it makes switching reports feel alive */
-function CountNum({ v }) {
-  const num = typeof v === 'number' && Number.isFinite(v) ? Math.round(v) : null
-  const [shown, setShown] = useState(num ?? v)
-  const from = useRef(num)
-  useEffect(() => {
-    if (num == null || from.current === num) { if (num != null) from.current = num; setShown(v); return }
-    const a = from.current ?? 0
-    const t0 = performance.now()
-    let raf
-    const tick = (t) => {
-      const pr = Math.min(1, (t - t0) / 380)
-      setShown(Math.round(a + (num - a) * (1 - Math.pow(1 - pr, 3))))
-      if (pr < 1) raf = requestAnimationFrame(tick)
-      else from.current = num
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [num])
-  return <>{shown}</>
-}
+// stat tiles shown before "more" — the rest of the summary is one click away
+const KPI_FIRST = 4
+const signed = (d) => `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d)}%`
 
 /**
- * Reports desk — every report is derived live from the PMS ledger.
- * Trends panel (bucketed chart + prior-window deltas), severity / fixable /
- * within-results filters, inline resolve actions on issue rows, and exports
- * (Excel / PDF / CSV) that carry exactly the rows currently on screen.
+ * Reports desk — every report is derived live from the workspace ledger.
+ * Catalogue (grouped, searchable) on the left; the selected report gets a sticky
+ * toolbar (window + scope), a short stat strip, an optional prior-window
+ * comparison, result filters, a sortable table and inline fixes. Exports
+ * (Excel / PDF / CSV) carry exactly the rows on screen.
  */
 export default function ReportsView() {
   const state = useStore()
@@ -66,10 +41,11 @@ export default function ReportsView() {
   const toast = useToast()
   const sel = ui.repSel || 'quality'
   const [search, setSearch] = useState('')
-  const [cat, setCat] = useState(null)
   const [sort, setSort] = useState(null) // {k, dir}
   const [saveOpen, setSaveOpen] = useState(false)
   const [saveName, setSaveName] = useState('')
+  const [kpiAll, setKpiAll] = useState(false)
+  const exportRef = useRef(null)
   const [fsev, setFsev] = useState('all') // quality-style severity filter
   const [fq, setFq] = useState('') // search within results
   const [fixOnly, setFixOnly] = useState(false)
@@ -142,6 +118,7 @@ export default function ReportsView() {
     setFsev('all')
     setFq('')
     setFixOnly(false)
+    setKpiAll(false)
   }
 
   const drill = (r) => {
@@ -220,268 +197,254 @@ export default function ReportsView() {
 
   const hasRowActions = result.rows.some((r) => r._link?.kind === 'appt')
   const cols = hasRowActions ? [...result.columns, { k: '_act', label: '' }] : result.columns
+  const clearFilters = () => { setFsev('all'); setFq(''); setFixOnly(false) }
+  const q = search.trim().toLowerCase()
+  const matches = REPORTS.filter((r) => !q || `${r.name} ${r.blurb}`.toLowerCase().includes(q))
+  const saved = (state.reports.saved || []).filter((sv) => !q || `${sv.name} ${REPORT_BY_ID[sv.reportId]?.name || ''}`.toLowerCase().includes(q))
+  const kpis = kpiAll ? result.summary : result.summary.slice(0, KPI_FIRST)
+  const kpiMore = result.summary.length - KPI_FIRST
+  const runExport = (fn) => () => { if (exportRef.current) exportRef.current.open = false; fn() }
+  // desc first, then asc, then back to the report's own order
+  const sortBy = (k) => setSort((s) => (s?.k !== k ? { k, dir: 'desc' } : s.dir === 'desc' ? { k, dir: 'asc' } : null))
+  const ariaSort = (k) => (sort?.k !== k ? 'none' : sort.dir === 'asc' ? 'ascending' : 'descending')
+
   return (
-    <div className="sectionpage">
-      <header className="rp-hero no-print">
-        <span className="rph-ic">{Icon.spark({ size: 20 })}</span>
-        <div className="rph-t">
+    <div className="sectionpage rpv">
+      <header className="rpv-head no-print">
+        <div className="rpv-title">
           <h1>Reports</h1>
-          <p>
-            Live from the ledger · {rows.length} rows in view{anyFilter ? ` of ${result.rows.length}` : ''} · {range.label} · {prior ? 'deltas compare to the previous ' + ctx.days.length + ' days' : 'exports carry the same totals'}
-          </p>
+          <p>Built in this browser from the workspace ledger · {range.label}</p>
         </div>
-        {errors > 0 && (
-          <button className="rph-err" data-testid="rp-errors" onClick={() => pick('quality')} title="Open the data-quality report">
-            {Icon.alert({ size: 13 })} {errors} validation {errors === 1 ? 'error' : 'errors'}
+        <div className="rpv-head-actions">
+          {errors > 0 && (
+            <button className="rpv-errlink" data-testid="rp-errors" onClick={() => pick('quality')} title="Open the data-quality report">
+              {Icon.alert({ size: 13 })} {errors} validation {errors === 1 ? 'error' : 'errors'}
+            </button>
+          )}
+          <button className="btn btn-sm" data-testid="rp-save" onClick={() => setSaveOpen(true)} title="Save this report and window as a preset">
+            Save preset
           </button>
-        )}
-        <div className="rph-actions">
-          <div className="rp-exports" role="group" aria-label="Export current report">
-            <button className="exp-btn xl" data-testid="rp-xls" onClick={exportXls} title="Excel workbook — brand header, zebra rows, number formats, totals footer">{Icon.table({ size: 13 })} Excel</button>
-            <button className="exp-btn pdf" data-testid="rp-pdf" onClick={exportPdf} title="Formatted PDF — letter landscape, repeating header, page numbers">{Icon.file({ size: 13 })} PDF</button>
-            <button className="exp-btn csv" data-testid="rp-csv" onClick={exportCSV} title="Raw CSV with metadata preamble">{Icon.copy({ size: 13 })} CSV</button>
-            <button className="exp-btn prn" onClick={() => window.print()} title="Print this page" aria-label="Print">{Icon.print({ size: 13 })}</button>
-          </div>
-          <button className="btn btn-sm" data-testid="rp-save" onClick={() => setSaveOpen(true)} title="Save this report + window as a preset">
-            {Icon.check({ size: 12 })} Save preset
-          </button>
+          <details className="rpv-menu" ref={exportRef}>
+            <summary className="btn btn-sm btn-primary" data-testid="rp-export">
+              {Icon.download({ size: 13 })} Export {Icon.chevDown({ size: 12 })}
+            </summary>
+            <div className="rpv-menu-list" role="menu" aria-label="Export current report">
+              <button role="menuitem" data-testid="rp-xls" onClick={runExport(exportXls)}>{Icon.table({ size: 13 })}<span>Excel workbook<small>Number formats and a totals row</small></span></button>
+              <button role="menuitem" data-testid="rp-pdf" onClick={runExport(exportPdf)}>{Icon.file({ size: 13 })}<span>PDF<small>Letter landscape, page numbers</small></span></button>
+              <button role="menuitem" data-testid="rp-csv" onClick={runExport(exportCSV)}>{Icon.copy({ size: 13 })}<span>CSV<small>Raw rows with a metadata preamble</small></span></button>
+              <button role="menuitem" onClick={runExport(() => window.print())}>{Icon.print({ size: 13 })}<span>Print this page</span></button>
+            </div>
+          </details>
         </div>
       </header>
 
-      <div className="rp-desk">
-        <aside className="rp-catalog no-print">
-          <div className="rp-cat-search">
-            <div className="sb-search">
-              <span className="sic">{Icon.search({ size: 13 })}</span>
-              <input placeholder="Search report templates…" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="rp-search" />
-            </div>
+      <div className="rpv-desk">
+        <nav className="rpv-cat no-print" aria-label="Report catalogue">
+          <div className="rpv-cat-search">
+            <span aria-hidden="true">{Icon.search({ size: 13 })}</span>
+            <input type="search" placeholder="Find a report" aria-label="Find a report" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="rp-search" />
           </div>
-          <div className="rp-cats" role="group" aria-label="Categories">
-            {REPORT_CATS.map((c) => (
-              <button key={c.id} className={`rp-cat-pill ${cat === c.id ? 'on' : ''}`} data-testid={`rp-cat-${c.id}`} onClick={() => setCat(cat === c.id ? null : c.id)}>
-                <span className="rc-ic">{Icon[CAT_ICON[c.id]]({ size: 12 })}</span>
-                <b>{c.label.split(' ')[0]}</b> <i>{c.label.split(' ').slice(1).join(' ')}</i>
-                <span>{REPORTS.filter((r) => (!search || (r.name + ' ' + r.blurb).toLowerCase().includes(search.toLowerCase())) && r.cat === c.id).length}</span>
-              </button>
-            ))}
-          </div>
-          <div className="rp-cat-list">
-            {REPORT_CATS.filter((c) => !cat || c.id === cat).map((catDef) => {
-              const items = REPORTS.filter((r) => (!search || (r.name + ' ' + r.blurb).toLowerCase().includes(search.toLowerCase())) && (!cat || r.cat === cat)).filter((r) => r.cat === catDef.id)
-              if (!items.length) return null
-              return (
-                <div key={catDef.id}>
-                  <div className="rp-cat-h">{catDef.label}</div>
-                  {items.map((r) => (
-                    <button key={r.id} className={`rp-def ${sel === r.id ? 'on' : ''}`} data-testid={`rp-def-${r.id}`} onClick={() => pick(r.id)}>
-                      <span className="pi">{Icon[r.icon]?.({ size: 13 }) || Icon.file({ size: 13 })}</span>
-                      <span>
-                        <b>{r.name}</b>
-                        <span>{r.blurb}</span>
-                      </span>
-                    </button>
-                  ))}
+          {saved.length > 0 && (
+            <section className="rpv-group">
+              <h3>Saved</h3>
+              {saved.map((sv) => (
+                <div key={sv.id} className="rpv-saved" data-testid={`rp-saved-${sv.id}`}>
+                  <button className="rpv-item" onClick={() => { pick(sv.reportId); actions.setUI({ repPreset: sv.preset, repDim: sv.dim || null, repKey: sv.key || null, anchor: todayISO() }) }} title={`Run “${sv.name}”${sv.note ? ` (${sv.note})` : ''}`}>
+                    <b>{sv.name}</b>
+                    <span>{REPORT_BY_ID[sv.reportId]?.name}</span>
+                  </button>
+                  <button className="iconbtn" onClick={() => actions.deleteReport(sv.id)} aria-label={`Delete saved report ${sv.name}`}>{Icon.trash({ size: 12 })}</button>
                 </div>
-              )
-            })}
-            {(state.reports.saved || []).length > 0 && (
-              <div className="rp-saved">
-                <div className="rp-cat-h">Saved reports</div>
-                {state.reports.saved.map((sv) => (
-                  <div key={sv.id} className="rp-saved-item" data-testid={`rp-saved-${sv.id}`}>
-                    <button style={{ all: 'unset', cursor: 'pointer', flex: 1, fontWeight: 700 }} onClick={() => { pick(sv.reportId); actions.setUI({ repPreset: sv.preset, repDim: sv.dim || null, repKey: sv.key || null, anchor: todayISO() }) }} title={`Run “${sv.name}” — ${sv.note || ''}`}>
-                      {Icon.checkCircle({ size: 12 })} {sv.name}
-                    </button>
-                    <em>{REPORT_BY_ID[sv.reportId]?.name.slice(0, 14)}</em>
-                    <button onClick={() => actions.deleteReport(sv.id)} aria-label="Delete saved report">{Icon.trash({ size: 12 })}</button>
-                  </div>
+              ))}
+            </section>
+          )}
+          {REPORT_CATS.map((c) => {
+            const items = matches.filter((r) => r.cat === c.id)
+            if (!items.length) return null
+            return (
+              <section className="rpv-group" key={c.id} data-testid={`rp-cat-${c.id}`}>
+                <h3>{c.label}</h3>
+                {items.map((r) => (
+                  <button key={r.id} className={`rpv-item ${sel === r.id ? 'on' : ''}`} aria-current={sel === r.id ? 'true' : undefined} data-testid={`rp-def-${r.id}`} onClick={() => pick(r.id)} title={r.blurb}>
+                    <b>{r.name}</b>
+                    <span>{r.blurb}</span>
+                  </button>
                 ))}
-              </div>
-            )}
-          </div>
-        </aside>
-
-        <div className="rp-main">
-          <div className="sec-toolbar" style={{ borderRadius: 0, border: 0, borderBottom: '1px solid var(--line)', boxShadow: 'none', background: 'var(--panel)' }}>
-            <div className="fld" style={{ maxWidth: 340 }}>
-              <span>{def.name}</span>
-              <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.35 }}>{def.blurb}</span>
+              </section>
+            )
+          })}
+          {!matches.length && !saved.length && (
+            <div className="rpv-cat-empty" data-testid="rp-cat-empty">
+              <span>No report matches “{search.trim()}”.</span>
+              <button className="rpv-link" onClick={() => setSearch('')}>Show all reports</button>
             </div>
+          )}
+        </nav>
+
+        <div className="rpv-main">
+          <div className="rpv-report-h">
+            <h2>{def.name}</h2>
+            <p>{def.blurb}</p>
+          </div>
+
+          <div className="rpv-toolbar no-print" data-testid="rp-toolbar">
             <RangePicker
               preset={preset}
               onPreset={(p) => actions.setUI({ repPreset: p })}
               onSlide={(dir) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), dir * range.days.length)) })}
               label={range.label}
             />
-            {(scope.staff || scope.client || scope.team) && (
-              <button className="btn btn-sm" data-testid="rp-clearscope" onClick={() => actions.setUI({ repDim: null, repKey: null })}>
-                Scoped from Analytics {Icon.x({ size: 11 })}
-              </button>
-            )}
-            {[
-              ['staff', 'Staff', state.staff],
-              ['client', 'Client', state.clients],
-              ['team', 'Team', state.teams],
-            ].map(([k, label, pool]) => (
-              <label className="fld" key={k}>
-                <span>{label}</span>
-                <select
-                  className="input"
-                  data-testid={`rp-scope-${k}`}
-                  value={scope[k] || ''}
-                  onChange={(e) => actions.setUI({ repDim: e.target.value ? k : null, repKey: e.target.value || null })}
-                >
-                  <option value="">All</option>
-                  {pool.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
+            <div className="rpv-scope" role="group" aria-label="Scope">
+              {[
+                ['staff', 'All staff', state.staff],
+                ['client', 'All clients', state.clients],
+                ['team', 'All teams', state.teams],
+              ].map(([k, all, pool]) => (
+                <select key={k} className={`input ${scope[k] ? 'on' : ''}`} aria-label={`Scope by ${k}`} data-testid={`rp-scope-${k}`} value={scope[k] || ''} onChange={(e) => actions.setUI({ repDim: e.target.value ? k : null, repKey: e.target.value || null })}>
+                  <option value="">{all}</option>
+                  {pool.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
-              </label>
-            ))}
-            <div className="f1" />
-            <button className="btn btn-sm" onClick={() => { toast({ message: 'Re-run against the live ledger', kind: 'info' }) }} title="Recompute from current data">
-              {Icon.repeat({ size: 12 })} Run
-            </button>
+              ))}
+              {(scope.staff || scope.client || scope.team) && (
+                <button className="rpv-link" data-testid="rp-clearscope" onClick={() => actions.setUI({ repDim: null, repKey: null })}>
+                  Scoped from Analytics · clear
+                </button>
+              )}
+            </div>
           </div>
 
-          <div style={{ padding: '11px 14px 18px', display: 'flex', flexDirection: 'column', gap: 10, overflow: 'auto', flex: 1 }}>
-            <div className="rp-summary" data-testid="rp-summary" key={sel}>
-              {result.summary.map((s, si) => {
+          {result.summary.length > 0 && (
+            <div className="rpv-kpis" data-testid="rp-summary">
+              {kpis.map((s) => {
                 const ps = prior?.summary?.find((p) => p.label === s.label)
                 const d = typeof s.value === 'number' && typeof ps?.value === 'number' ? deltaPct(s.value, ps.value) : null
                 const cls = d == null || d === 0 ? 'flat' : (d > 0) !== BAD_RISING.test(s.label) ? 'good' : 'bad'
-                const KIcon = Icon[kpiIcon(s.label)] || Icon.spark
                 return (
-                  <div className={`rp-kpi ${d != null && cls !== 'flat' ? `is-${cls}` : ''}`} style={{ '--i': si }} key={s.label} data-testid={`rp-kpi-${s.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} title={d != null ? `${s.label}: ${d > 0 ? '+' : ''}${d}% vs the previous ${ctx.days.length}-day window` : s.label}>
-                    <div className="rp-kpi-top">
-                      <span className="rp-kpi-ic">{KIcon({ size: 14 })}</span>
-                      {d != null && <i className={`rp-kpi-delta ${cls}`}>{d > 0 ? '▲' : d < 0 ? '▼' : '•'} {Math.abs(d)}%</i>}
-                    </div>
-                    <b><CountNum v={s.value} /></b>
-                    <div className="rp-kpi-foot">
-                      <span>{s.label}</span>
-                    </div>
+                  <div className="rp-kpi" key={s.label} data-testid={`rp-kpi-${s.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+                    <span className="rp-kpi-label">{s.label}</span>
+                    <b>{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</b>
+                    {d != null && (
+                      <span className={`rp-kpi-delta ${cls}`} title={`Compared with the previous ${ctx.days.length} days`}>
+                        {d === 0 ? 'No change' : signed(d)} <i>vs prior</i>
+                      </span>
+                    )}
                   </div>
                 )
               })}
-              {fixable > 0 && (
-                <button className={`rp-kpi act ${fixOnly ? 'on' : ''}`} style={{ '--i': result.summary.length }} data-testid="rp-fixable-jump" onClick={() => setFixOnly((v) => !v)} title="Show only the rows one click can fix">
-                  <div className="rp-kpi-top"><span className="rp-kpi-ic zap">{Icon.zap({ size: 14 })}</span></div>
-                  <b>{fixOnly ? 'showing all' : fixable}</b>
-                  <div className="rp-kpi-foot"><span>{fixOnly ? 'clear auto-fix filter' : 'auto-fixable now'}</span></div>
+              {kpiMore > 0 && (
+                <button className="rpv-link rpv-kpi-more" data-testid="rp-kpi-more" aria-expanded={kpiAll} onClick={() => setKpiAll((v) => !v)}>
+                  {kpiAll ? 'Fewer' : `${kpiMore} more`}
                 </button>
               )}
-              <span className="rp-runmeta" style={{ marginLeft: 'auto' }}>
-                <span className="ok">●</span> ran in {result.ms}ms
-              </span>
             </div>
+          )}
 
-            <div className="rp-deltaslim no-print" data-testid="rp-deltas">
-              <span className="rpd-label">{Icon.repeat({ size: 11 })} vs previous {ctx.days.length}-day window</span>
-              <span className="rpd-chip" data-testid="rp-delta-rows"><em>Rows</em><b>{result.rows.length}</b>{prior && <DeltaChip d={deltaPct(result.rows.length, prior.rows.length)} />}</span>
+          <details className="rpv-compare no-print" data-testid="rp-deltas">
+            <summary>{Icon.chevronR({ size: 12 })} Totals vs previous {ctx.days.length}-day window</summary>
+            <dl>
+              <div data-testid="rp-delta-rows"><dt>Rows</dt><dd>{result.rows.length}</dd>{prior && <DeltaText d={deltaPct(result.rows.length, prior.rows.length)} />}</div>
               {nCols.map((c) => (
-                <span className="rpd-chip" key={c.k} data-testid={`rp-delta-${c.k}`}>
-                  <em>{c.label}</em>
-                  <b>{curTot[c.k] != null ? fmtVal(curTot[c.k], c.t) : '—'}</b>
-                  {prior && <DeltaChip d={curTot[c.k] != null && prevTot?.[c.k] != null ? deltaPct(curTot[c.k], prevTot[c.k]) : null} />}
-                </span>
-              ))}
-            </div>
-
-            <div className="rp-filters no-print" role="search">
-              <span className="rp-fi">{Icon.filter({ size: 12 })}</span>
-              <input className="rp-fq" placeholder="Search within results…" value={fq} onChange={(e) => setFq(e.target.value)} data-testid="rp-f-q" aria-label="Search within results" />
-              {hasSev && (
-                <div className="rp-sevset" role="group" aria-label="Severity">
-                  {['all', 'error', 'warn', 'notice'].map((s) => (
-                    <button key={s} className={`rp-fpill ${s !== 'all' ? `sev-${s}` : ''} ${fsev === s ? 'on' : ''}`} data-testid={s === 'all' ? 'rp-f-sev-all' : `rp-f-sev-${s}`} onClick={() => setFsev(s)}>
-                      {s === 'all' ? 'All' : s === 'error' ? `Errors ${sevCounts.error}` : s === 'warn' ? `Warnings ${sevCounts.warn}` : `Notices ${sevCounts.notice}`}
-                    </button>
-                  ))}
+                <div key={c.k} data-testid={`rp-delta-${c.k}`}>
+                  <dt>{c.label}</dt>
+                  <dd>{curTot[c.k] != null ? fmtVal(curTot[c.k], c.t) : '—'}</dd>
+                  {prior && <DeltaText d={curTot[c.k] != null && prevTot?.[c.k] != null ? deltaPct(curTot[c.k], prevTot[c.k]) : null} />}
                 </div>
-              )}
-              {fixable > 0 && (
-                <button className={`rp-fpill fix ${fixOnly ? 'on' : ''}`} data-testid="rp-f-fixable" onClick={() => setFixOnly((v) => !v)}>
-                  ⚡ {fixable} auto-fixable
-                </button>
-              )}
-              {anyFilter && (
-                <button className="rp-fclear" data-testid="rp-f-clear" onClick={() => { setFsev('all'); setFq(''); setFixOnly(false) }}>
-                  Clear filters
-                </button>
-              )}
-              {anyFilter && <span className="rp-fcount">{rows.length} / {result.rows.length} rows</span>}
-            </div>
+              ))}
+            </dl>
+          </details>
 
-            <div className="rp-tablewrap">
-              <table className="rp-table" data-testid="rp-table">
-                <thead>
-                  <tr>
-                    {cols.map((c) => (
-                      <th
-                        key={c.k}
-                        className={`${c.align === 'r' ? 'r' : ''} ${sort?.k === c.k ? 'sorted' : ''}`}
-                        onClick={c.k === '_act' ? undefined : () => setSort((s) => (s?.k === c.k ? (s.dir === 'asc' ? { k: c.k, dir: 'desc' } : null) : { k: c.k, dir: 'desc' }))}
-                        title={c.k === '_act' ? undefined : 'Sort'}
-                      >
-                        {c.label} {sort?.k === c.k ? (sort.dir === 'asc' ? '↑' : '↓') : ''}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => (
-                    <tr key={i} className={r._link ? 'anv-hit' : undefined} onClick={() => drill(r)} data-testid={`rp-row-${i}`}>
-                      {cols.map((c) => (
-                        <td key={c.k} className={`${c.align === 'r' ? 'r' : ''}${c.k === '_act' ? ' rp-actcell' : ''}`}>
-                          {c.k === '_act' ? (
-                            r._link?.kind === 'appt' && (
-                              <>
-                                {fixOf(r).startsWith('Auto') && (
-                                  <button data-testid={`rp-fix-${i}`} onClick={(e) => { e.stopPropagation(); autoFill(r) }} title={fixOf(r)}>⚡ Fix</button>
-                                )}
-                                {/verify/i.test(fixOf(r)) && r.sev !== 'notice' && (
-                                  <button data-testid={`rp-vfy-${i}`} onClick={(e) => { e.stopPropagation(); verify(r) }} title="Mark verified & signed (undoable)">✓ Verify & sign</button>
-                                )}
-                              </>
-                            )
-                          ) : c.k === 'sev' ? (
-                            <span className={`sev-pill sev-${r.sev}`}>{r.sev}</span>
-                          ) : (
-                            fmtCell(r[c.k], c.t)
-                          )}
-                        </td>
-                      ))}
-                    </tr>
+          <div className="rpv-filters no-print" role="search">
+            <div className="rpv-fq">
+              <span aria-hidden="true">{Icon.filter({ size: 12 })}</span>
+              <input type="search" placeholder="Filter rows" value={fq} onChange={(e) => setFq(e.target.value)} data-testid="rp-f-q" aria-label="Filter rows in this report" />
+            </div>
+            {hasSev && (
+              <div className="viewseg" role="group" aria-label="Severity">
+                {[['all', 'All'], ['error', `Errors ${sevCounts.error}`], ['warn', `Warnings ${sevCounts.warn}`], ['notice', `Notices ${sevCounts.notice}`]].map(([s, label]) => (
+                  <button key={s} className={fsev === s ? 'on' : ''} aria-pressed={fsev === s} data-testid={`rp-f-sev-${s}`} onClick={() => setFsev(s)}>{label}</button>
+                ))}
+              </div>
+            )}
+            {fixable > 0 && (
+              <button className={`rpv-chip ${fixOnly ? 'on' : ''}`} aria-pressed={fixOnly} data-testid="rp-f-fixable" onClick={() => setFixOnly((v) => !v)}>
+                {Icon.zap({ size: 12 })} {fixable} fixable in one click
+              </button>
+            )}
+            {anyFilter && <button className="rpv-link" data-testid="rp-f-clear" onClick={clearFilters}>Clear filters</button>}
+            <span className="rpv-count" data-testid="rp-count">{anyFilter ? `${rows.length} of ${result.rows.length} rows` : `${rows.length} rows`}</span>
+          </div>
+
+          <div className="rpv-tablewrap">
+            <table className="rpv-table" data-testid="rp-table">
+              <thead>
+                <tr>
+                  {cols.map((c) => (
+                    <th key={c.k} className={c.align === 'r' ? 'r' : undefined} aria-sort={c.k === '_act' ? undefined : ariaSort(c.k)} scope="col">
+                      {c.k === '_act' ? <span className="rpv-sr">Actions</span> : (
+                        <button className={`rpv-sort ${sort?.k === c.k ? `on ${sort.dir}` : ''}`} data-testid={`rp-sort-${c.k}`} onClick={() => sortBy(c.k)}>
+                          {c.label}
+                          <span className="rpv-sort-ic" aria-hidden="true">{Icon.chevDown({ size: 11 })}</span>
+                        </button>
+                      )}
+                    </th>
                   ))}
-                  {!rows.length && (
-                    <tr>
-                      <td colSpan={cols.length} style={{ textAlign: 'center', padding: 28 }}>
-                        <span className="muted">{anyFilter ? 'No rows match the filters — ' : 'No rows for this window — try a longer range or clear the scope. '}</span>
-                        {anyFilter && (
-                          <button className="rp-fclear" onClick={() => { setFsev('all'); setFq(''); setFixOnly(false) }}>
-                            clear filters
-                          </button>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className={r._link ? 'is-link' : undefined} onClick={() => drill(r)} data-testid={`rp-row-${i}`}>
+                    {cols.map((c) => (
+                      <td key={c.k} className={`${c.align === 'r' ? 'r' : ''}${c.k === '_act' ? ' rpv-act' : ''}`}>
+                        {c.k === '_act' ? (
+                          r._link?.kind === 'appt' && (
+                            <>
+                              {fixOf(r).startsWith('Auto') && (
+                                <button data-testid={`rp-fix-${i}`} onClick={(e) => { e.stopPropagation(); autoFill(r) }} title={fixOf(r)}>{Icon.zap({ size: 11 })} Fix</button>
+                              )}
+                              {/verify/i.test(fixOf(r)) && r.sev !== 'notice' && (
+                                <button data-testid={`rp-vfy-${i}`} onClick={(e) => { e.stopPropagation(); verify(r) }} title="Mark verified and signed (undoable)">{Icon.check({ size: 11 })} Verify &amp; sign</button>
+                              )}
+                            </>
+                          )
+                        ) : c.k === 'sev' ? (
+                          <span className={`sev-pill sev-${r.sev}`}>{r.sev}</span>
+                        ) : (
+                          fmtCell(r[c.k], c.t)
                         )}
                       </td>
-                    </tr>
-                  )}
-                </tbody>
-                {Object.keys(totals).length > 0 && (
-                  <tfoot>
-                    <tr>
-                      {cols.map((c, ci) => (
-                        <td key={c.k} className={c.align === 'r' ? 'r' : ''}>
-                          {ci === 0 ? 'Total' : totals[c.k] != null ? fmtCell(Math.round(totals[c.k] * 100) / 100, c.t) : ''}
-                        </td>
-                      ))}
-                    </tr>
-                  </tfoot>
+                    ))}
+                  </tr>
+                ))}
+                {!rows.length && (
+                  <tr className="rpv-empty-row">
+                    <td colSpan={cols.length}>
+                      <div className="rpv-empty" data-testid="rp-empty">
+                        <b>{anyFilter ? 'No rows match these filters' : 'Nothing to report for this window'}</b>
+                        <span>{anyFilter ? 'Loosen the filters to see the full report.' : 'Try a longer range or clear the scope.'}</span>
+                        {anyFilter && <button className="btn btn-sm" onClick={clearFilters}>Clear filters</button>}
+                      </div>
+                    </td>
+                  </tr>
                 )}
-              </table>
-            </div>
-            {(result.note || def.note) && <div className="rp-note">{Icon.info({ size: 12 })} {result.note || def.note}</div>}
+              </tbody>
+              {rows.length > 0 && Object.keys(totals).length > 0 && (
+                <tfoot>
+                  <tr>
+                    {cols.map((c, ci) => (
+                      <td key={c.k} className={c.align === 'r' ? 'r' : undefined}>
+                        {ci === 0 ? 'Total' : totals[c.k] != null ? fmtCell(Math.round(totals[c.k] * 100) / 100, c.t) : ''}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
           </div>
+
+          <footer className="rpv-foot">
+            {(result.note || def.note) && <p className="rp-note">{result.note || def.note}</p>}
+            <p className="rpv-meta">Computed locally in {result.ms}ms{prior ? ` · comparisons use the previous ${ctx.days.length} days` : ''}</p>
+          </footer>
 
           {saveOpen && (
             <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && setSaveOpen(false)}>
@@ -510,12 +473,7 @@ export default function ReportsView() {
   )
 }
 
-function DeltaChip({ d }) {
-  if (d == null) return <span className="rt-delta flat">—</span>
-  const dir = d > 0 ? 'up' : d < 0 ? 'down' : 'flat'
-  return (
-    <span className={`rt-delta ${dir}`} title="Change vs the previous window">
-      {d > 0 ? '▲' : d < 0 ? '▼' : '='} {Math.abs(d)}%
-    </span>
-  )
+function DeltaText({ d }) {
+  if (d == null) return <span className="rpv-delta flat">—</span>
+  return <span className={`rpv-delta ${d > 0 ? 'up' : d < 0 ? 'down' : 'flat'}`} title="Change vs the previous window">{d === 0 ? 'no change' : signed(d)}</span>
 }

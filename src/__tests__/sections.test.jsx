@@ -144,12 +144,13 @@ describe('reports desk', () => {
     expect(screen.getByTestId('navrail')).toBeTruthy()
   })
 
-  it('reports landing: chart-free KPI cards with polarity deltas, zero graphing', async () => {
+  it('reports landing: a short stat strip with polarity deltas, zero graphing', async () => {
     const { container } = render(<App />)
     fireEvent.click(screen.getByTestId('nav-reports'))
     await screen.findByTestId('rp-table')
-    expect(container.querySelector('.rp-kpi .rp-kpi-ic')).toBeTruthy()
-    // delta pills exist and are polarity-colored for issue counts (Errors up = bad)
+    // at most four stat tiles up front; the rest of the summary is one click away
+    expect(container.querySelectorAll('.rp-kpi').length).toBeLessThanOrEqual(4)
+    // deltas are polarity-colored for issue counts (Errors up = bad)
     const delta = container.querySelector('.rp-kpi .rp-kpi-delta')
     expect(delta).toBeTruthy()
     expect(['good', 'bad', 'flat'].includes(delta.classList[1])).toBe(true)
@@ -235,6 +236,49 @@ describe('reports desk', () => {
     expect(await screen.findByText(/Excel workbook exported/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('rp-pdf'))
     expect(await screen.findByText(/PDF exported/)).toBeTruthy()
+  })
+
+  it('report desk: catalogue search, more stats, column sort, empty state and export menu', async () => {
+    const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-reports'))
+    await screen.findByTestId('rp-table')
+    // catalogue search narrows the grouped list and says so when nothing matches
+    fireEvent.change(screen.getByTestId('rp-search'), { target: { value: 'payer mix' } })
+    expect(container.querySelectorAll('[data-testid^="rp-def-"]').length).toBeLessThan(5)
+    fireEvent.change(screen.getByTestId('rp-search'), { target: { value: 'zzz-no-such-report' } })
+    expect(screen.getByTestId('rp-cat-empty').textContent).toMatch(/No report matches/)
+    fireEvent.change(screen.getByTestId('rp-search'), { target: { value: '' } })
+    // intake has ten summary stats: four show, the rest behind "more"
+    fireEvent.click(screen.getByTestId('rp-def-intake'))
+    await waitFor(() => expect(container.querySelectorAll('.rp-kpi').length).toBe(4))
+    fireEvent.click(screen.getByTestId('rp-kpi-more'))
+    expect(container.querySelectorAll('.rp-kpi').length).toBeGreaterThan(4)
+    // the attendance ledger sorts by a column: desc, then asc, with aria-sort on the header
+    fireEvent.click(screen.getByTestId('rp-def-attendance'))
+    await waitFor(() => expect(screen.getByTestId('rp-summary').textContent).toMatch(/Ledger lines/))
+    const rowCount = container.querySelectorAll('[data-testid^="rp-row-"]').length
+    expect(rowCount).toBeGreaterThan(1)
+    const th = (k) => screen.getByTestId(`rp-sort-${k}`).closest('th')
+    const first = container.querySelector('[data-testid^="rp-sort-"]').dataset.testid.replace('rp-sort-', '')
+    fireEvent.click(screen.getByTestId(`rp-sort-${first}`))
+    expect(th(first).getAttribute('aria-sort')).toBe('descending')
+    fireEvent.click(screen.getByTestId(`rp-sort-${first}`))
+    expect(th(first).getAttribute('aria-sort')).toBe('ascending')
+    const col = [...container.querySelectorAll('[data-testid^="rp-row-"]')].map((r) => r.children[0].textContent)
+    expect(col).toEqual([...col].sort((a, b) => a.localeCompare(b)))
+    expect(container.querySelectorAll('[data-testid^="rp-row-"]').length).toBe(rowCount)
+    fireEvent.click(screen.getByTestId(`rp-sort-${first}`))
+    expect(th(first).getAttribute('aria-sort')).toBe('none')
+    // filtering to nothing shows the empty state with a way back
+    fireEvent.change(screen.getByTestId('rp-f-q'), { target: { value: 'zzz-no-such-row' } })
+    expect(screen.getByTestId('rp-empty').textContent).toMatch(/No rows match these filters/)
+    expect(screen.getByTestId('rp-count').textContent).toBe(`0 of ${rowCount} rows`)
+    fireEvent.click(screen.getByTestId('rp-f-clear'))
+    await waitFor(() => expect(container.querySelectorAll('[data-testid^="rp-row-"]').length).toBe(rowCount))
+    // export lives in one menu; CSV carries the rows on screen
+    fireEvent.click(screen.getByTestId('rp-export'))
+    fireEvent.click(screen.getByTestId('rp-csv'))
+    expect(await screen.findByText(new RegExp(`${rowCount} rows exported as CSV`))).toBeTruthy()
   })
 
   it('scoping by staff narrows the ledger report', async () => {
