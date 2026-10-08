@@ -39,6 +39,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     include: ['src/**/*.test.{js,jsx}'],
+    // Long App-level UI flows run near Vitest's 5 s default on CI runners.
+    testTimeout: 20000,
     restoreMocks: true,
     setupFiles: ['src/test/setup.js'],
   },
