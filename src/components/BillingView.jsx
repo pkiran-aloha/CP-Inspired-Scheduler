@@ -489,7 +489,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
   const client = clientOf(claim.clientId)
   const org = settings.org || {}
   const gate = claim.status === 'draft' ? claimGate(state, claim) : { ok: true, bad: [] }
-  const badIds = new Set(gate.bad.map((b) => b.line.apptId))
+  const badIds = new Set(gate.bad.map((b) => b.line?.apptId).filter(Boolean))
   const age = agingOf(claim, undefined, state)
   const due = dueOf(claim)
   const copay = copayOf(claim, client, state)
@@ -540,8 +540,8 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: 'var(--line)' }}>
         <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Billing provider</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{org.name || 'Practice'}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{org.address} · {org.phone}</span></div>
-        <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Patient</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{client.name || '—'}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>Member {memberIdOf({ id: client.id, insurer: claim.payer })}</span></div>
-        <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Payer</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{claim.mode === 'selfpay' ? 'Self-pay' : claim.payer}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>Auth {authNoOf(client)}</span></div>
+        <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Patient</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{client.name || '—'}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{claim.mode === 'selfpay' ? 'Self-pay' : <>Member <span data-testid="clm-member">{memberIdOf(claim.method === 'secondary' ? client.secondary : client) || 'Needs member ID'}</span></>}</span></div>
+        <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Payer</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{claim.mode === 'selfpay' ? 'Self-pay' : claim.payer}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>Auth <span data-testid="clm-authno">{authNoOf(claim.method === 'secondary' ? client.secondary : client) || 'not on file'}</span></span></div>
         <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Service period</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{claim.dosFrom} → {claim.dosTo}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{claim.lines.length} lines · {claim.units} units</span></div>
       </div>
 

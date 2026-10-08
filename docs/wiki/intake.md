@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/components/AppointmentModal.jsx, src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced against main a0142d0 plus the fix/workspace-persistence and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main a0142d0 plus the fix/workspace-persistence, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 
@@ -78,7 +78,7 @@ Mapping notes:
 - **Approved units:** the payer's approved units (15-minute units, the Medicaid norm) become the client's authorization pool under 97153. They are marked *converted, verify against the payer letter*, because the request does not record which codes the units cover. Split them by code under Clients > Edit; saving confirms them. The unit guard in [Scheduling](scheduling.md) uses this pool.
 - **Weekly hours:** `authWeekly` is the units × 15 minutes ÷ the window's weeks, capped at 80.
 - **Window and payer:** `authStart` and `authEnd` come from the window, and the payer name becomes `insurer`.
-- **Other fields carried:** the chart also gets the member ID, group number, authorization number, diagnosis, assigned BCBA and emergency contact. Claims and the CMS-1500 print that member ID and authorization number (see [Billing and claims](billing-and-claims.md)).
+- **Other fields carried:** the chart also gets the member ID, group number, authorization number, diagnosis, assigned BCBA and emergency contact. Any ICD-10 codes typed in the intake diagnosis (for example F84.0) become the chart's diagnosis codes; a description alone does not. Claims and the CMS-1500 print only these chart values, and an insurance claim is held until the member ID and diagnosis codes are on file (see [Billing and claims](billing-and-claims.md)).
 
 ### Plan the first week after conversion
 

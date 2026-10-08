@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   stagedAppts, planClaims, assembleClaims, nextClaimSeq, claimGate, submitPatch, payPatch,
   denyPatch, rebillPatch, dropLinePatch, dueOf, agingOf, claimStats, claimCsv, claimNoAt, PAYER_POLICY, arOf,
-  lineFor, mileageCodeFor, normalizeMileageCode,
+  lineFor, mileageCodeFor, normalizeMileageCode, claimChartIssues, memberIdOf, authNoOf, dxFor,
 } from '../lib/claims'
 import { addDays, addMonths, isoDate } from '../lib/date'
 
@@ -23,7 +23,7 @@ const appt = (id, clientId, over = {}) => ({
 const state = (appts) => ({
   appts: Object.fromEntries(appts.map((a) => [a.id, a])),
   clients: [
-    { id: 'c1', name: 'Alpha Kid', insurer: 'Aetna', program: 'Center-based · 1:1', authStart: d(-120) },
+    { id: 'c1', name: 'Alpha Kid', insurer: 'Aetna', program: 'Center-based · 1:1', authStart: d(-120), memberId: 'AE-1000001', dxCodes: ['F84.0'] },
     { id: 'c2', name: 'Beta Kid', insurer: 'Self-pay', program: 'Home program · NET', authStart: d(-90) },
   ],
   staff: [{ id: 's3', name: 'Rae Tech' }, { id: 's1', name: 'Boss BCBA' }],
@@ -55,7 +55,7 @@ describe('claims engine', () => {
     const draft = assembleClaims(base, [plan]).claims[0]
     expect(draft.lines[0].kind).toBe('mileage')
     expect(draft.lines[0].code).toBe('')
-    const missing = claimGate(base, draft).bad.find((b) => b.line.kind === 'mileage')
+    const missing = claimGate(base, draft).bad.find((b) => b.line?.kind === 'mileage')
     expect(missing.why).toMatch(/No payer-specific mileage code/)
     expect(missing.why).toMatch(/rebuild this draft/)
 
@@ -64,25 +64,25 @@ describe('claims engine', () => {
     expect(mileageCodeFor(payer)).toBe('X1234')
     expect(lineFor(mileage, configured, plan).code).toBe('X1234')
     const codedDraft = { ...draft, lines: [{ ...draft.lines[0], code: 'X1234' }] }
-    expect(claimGate(configured, codedDraft).bad.some((b) => b.line.kind === 'mileage')).toBe(false)
+    expect(claimGate(configured, codedDraft).bad.some((b) => b.line?.kind === 'mileage')).toBe(false)
     const unconfiguredCode = { ...draft, lines: [{ ...draft.lines[0], code: 'X1234' }] }
-    expect(claimGate(base, unconfiguredCode).bad.find((b) => b.line.kind === 'mileage').why).toMatch(/No payer-specific mileage code is configured/)
+    expect(claimGate(base, unconfiguredCode).bad.find((b) => b.line?.kind === 'mileage').why).toMatch(/No payer-specific mileage code is configured/)
     const changedSetting = { ...configured, payers: [{ ...payer, rules: { claims: { mileageCode: 'Y1234' } } }] }
-    expect(claimGate(changedSetting, codedDraft).bad.find((b) => b.line.kind === 'mileage').why).toMatch(/current mileage code is Y1234/)
+    expect(claimGate(changedSetting, codedDraft).bad.find((b) => b.line?.kind === 'mileage').why).toMatch(/current mileage code is Y1234/)
 
     expect(normalizeMileageCode('14220').ok).toBe(false)
     expect(normalizeMileageCode('x123').ok).toBe(false)
     expect(normalizeMileageCode('x12345').ok).toBe(false)
     expect(mileageCodeFor({ rules: { claims: { mileageCode: '14220' } } })).toBe('')
     const legacy = { ...draft, lines: [{ ...draft.lines[0], code: '14220' }] }
-    expect(claimGate(base, legacy).bad.find((b) => b.line.kind === 'mileage').why).toMatch(/surgery code, not a mileage code/)
+    expect(claimGate(base, legacy).bad.find((b) => b.line?.kind === 'mileage').why).toMatch(/surgery code, not a mileage code/)
 
     const selfPayTrip = appt('selfpay-trip', 'c2', { type: 'drive', billing: { units: 0, rate: 0, mileage: true, distance: 12 } })
     const selfPayState = state([selfPayTrip])
     const selfPayPlan = planClaims(selfPayState, [selfPayTrip])[0]
     const selfPayDraft = assembleClaims(selfPayState, [selfPayPlan]).claims[0]
     expect(selfPayDraft.lines[0].code).toBe('')
-    expect(claimGate(selfPayState, selfPayDraft).bad.some((b) => b.line.kind === 'mileage')).toBe(false)
+    expect(claimGate(selfPayState, selfPayDraft).bad.some((b) => b.line?.kind === 'mileage')).toBe(false)
   })
 
   it('plans group by client × payer × DOS-month and fold self-pay into one invoice', () => {
@@ -264,5 +264,56 @@ describe('claims engine', () => {
   it('payer policies drive the numbers behind quick posts', () => {
     expect(PAYER_POLICY['Self-pay'].kind).toBe('selfpay')
     expect(PAYER_POLICY['Aetna'].copay).toBe(25)
+  })
+})
+
+describe('chart identifiers: never derived, held when missing', () => {
+  const draftFor = (st) => assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 1 }).claims.find((c) => c.clientId === 'c1')
+  const without = (patch, settings) => {
+    const st = state([appt('a1', 'c1')])
+    return { ...st, clients: st.clients.map((c) => (c.id === 'c1' ? { ...c, ...patch } : c)), settings: { ...st.settings, billing: { ...st.settings.billing, ...settings } } }
+  }
+
+  it('helpers return only what the chart holds', () => {
+    expect(memberIdOf({ id: 'c9', insurer: 'Aetna' })).toBe('')
+    expect(authNoOf({ id: 'c9', authStart: '2026-01-01' })).toBe('')
+    expect(dxFor({ program: 'EIBI · Day program' })).toEqual([])
+    expect(dxFor({ dxCodes: ' f84.0, r41.82 ' })).toEqual(['F84.0', 'R41.82'])
+  })
+
+  it('a missing member ID or diagnosis holds the insurance claim and names where to fix it', () => {
+    const st = without({ memberId: '', dxCodes: [] })
+    const gate = claimGate(st, draftFor(st))
+    expect(gate.ok).toBe(false)
+    const whys = gate.bad.map((b) => b.why)
+    expect(whys.some((w) => /^Needs member ID: .*Clients → Alpha Kid → Edit → Member ID \(claims\)/.test(w))).toBe(true)
+    expect(whys.some((w) => /^Needs diagnosis: .*Diagnosis codes \(ICD-10\)/.test(w))).toBe(true)
+    expect(gate.bad.every((b) => b.line === null || b.line.apptId)).toBe(true)
+  })
+
+  it('a malformed diagnosis code holds the claim', () => {
+    const st = without({ dxCodes: ['AUTISM'] })
+    expect(claimChartIssues(st, draftFor(st))).toEqual([expect.stringMatching(/AUTISM is not an ICD-10 code/)])
+  })
+
+  it('the authorization number is required only when strict authorization is on', () => {
+    const loose = without({ authNo: '' })
+    expect(claimChartIssues(loose, draftFor(loose))).toEqual([])
+    const strict = without({ authNo: '', authEnd: d(30) }, { strictAuth: true })
+    expect(claimChartIssues(strict, draftFor(strict))).toEqual([expect.stringMatching(/^Needs authorization number/)])
+    const filed = without({ authNo: 'PA-26-4100', authEnd: d(30) }, { strictAuth: true })
+    expect(claimChartIssues(filed, draftFor(filed))).toEqual([])
+  })
+
+  it('self-pay invoices need none of them', () => {
+    const st = state([appt('b1', 'c2')])
+    const inv = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 1 }).claims[0]
+    expect(inv.mode).toBe('selfpay')
+    expect(claimChartIssues(st, inv)).toEqual([])
+  })
+
+  it('the claim CSV says "not on file" instead of inventing values', () => {
+    const st = without({ memberId: '' })
+    expect(claimCsv(st, draftFor(st))).toMatch(/member not on file .* Auth not on file/)
   })
 })
