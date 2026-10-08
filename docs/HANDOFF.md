@@ -1,14 +1,13 @@
 # HANDOFF — where the work stands and what's next
 
-Last updated **2026-10-07** (payer-specific mileage-code follow-up started after the configuration-audit remediation and D1 practice-days follow-up). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
+Last updated **2026-10-08** (configuration-audit and architecture-mismatch clean-up finished: REL-01 fully resolved, mismatches #10, #12 and #13 fixed; only decisions remain open — see "Next"). Any agent resuming work: read this file, then `AGENTS.md`, then act. Update this file whenever a feature lands.
 
 - Repo: `https://github.com/pkiran-aloha/CP-Inspired-Scheduler` · branch `main` · live: `https://pkiran-aloha.github.io/CP-Inspired-Scheduler/`
 - Local clones (maintainer), both tracking `main`:
   - `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`: the main checkout. Git works there, but node/npm cannot write under `Documents` (see below).
   - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
-- State at handoff (2026-10-06): `origin/main` is `83ba96c` — PR #32 (cancellation notice in the risk model, C4 follow-up) merged, CI green (run 37491879917, deployed); before it `8a352cc` (PR #31, C4 confidence-threshold picker). Newest first today: cancellation notice (this branch), C4 confidence-threshold picker, Windows test fix, D2 hire/contract, D1 caseload ramp, B4 access holdout, `cancelledAt`, C4 booking-dialog overbooking flag, C4 overbooking guidance, Good Faith Estimate, superbill, family statement, CMS-1500 rebuild. Either local clone may sit behind: run `git pull --ff-only` in it before building.
-- State at handoff (2026-10-07, audit remediation): `origin/main` is `0411c2c` (PR #36). Branch `arena/e8f5fefe-cp-inspired-scheduler` holds the seven remediation commits; PR #37 is open with the `build` CI job green on the final head and lands on `main` as a merge commit (the `deploy` job runs on `main` only, so it fires after the merge).
+- State at handoff (2026-10-08): `origin/main` contains every branch; all feature, fix, docs and arena branches were verified merged (or patch-identical / superseded) and deleted, local and remote. Landed 2026-10-07/08, newest first: local screen lock (#13), CMS-1500 chart values only (#10), billing builders wired (#12), Vitest 4 + clean `npm audit` (REL-01), workspace persistence fix, appointment location sources, visual booking rail, bundle code-splitting (REL-01), UI rule cleanup, recurrence series, smart scheduling picks.
 
 ## How the maintainer works
 
@@ -141,7 +140,7 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
   - A series cancel only touches today and later sessions.
   - Status, verification, documents and billing state never propagate across a series.
   - Completed, cancelled/no-show, billed or claimed sessions and sessions in approved/processed pay sheets are kept and counted.
-- **Not done:** no holiday calendar exists (closed weekdays are only warned). Yearly rules inside the 12-month cap yield one date. The ✎ glyph on TimeGrid/TimelineView exception markers is unchanged.
+- **Not done:** no holiday calendar exists (closed weekdays are only warned). Yearly rules inside the 12-month cap yield one date. The exception marker now draws `Icon.edit` (fixed on `fix/ui-rule-violations`).
 - **Verification.** `recurrence.test.js` (24) + `recurrenceUi.test.jsx` (5); existing app/store tests updated. Full suite 98 files / 1,025 tests green; `vite build` green (bundle-size warning unchanged).
 
 ### Audit remediation — configuration-audit findings CFG-02…CFG-12 (branch `arena/e8f5fefe-cp-inspired-scheduler`, 2026-10-07)
@@ -282,7 +281,7 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 ### Docs — mismatches #1–6 (`docs/mismatch-nits`)
 
 - `AGENTS.md` names the real Python history files (`c33-*` to `c37-*`) and the two live scripts; the README says backup v3 (v2 still imports) at Settings → System → Data & backup; `docs/wiki/architecture.md` documents the `deploy.yml` legacy install fallback and the redundant `--run` flag. Docs only, no code or CI change.
-- Still open from that list: #4 (unused `playwright` devDependencies; removal needs npm to regenerate the lock file), #8 (stored keys only), #10, #12, #13.
+- Still open from that list at the time: #4, #8, #10, #12, #13. Since resolved: #4 (`chore/vitest4`), #10, #12, #13 (2026-10-08). #8 stays as documented internal keys.
 
 ### Fix — small mismatches #7 and #9 (`fix/small-mismatches`)
 
@@ -438,18 +437,19 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 ## Next
 
-The C4 threshold picker (PR #31) and its cancellation-notice follow-up have shipped, so **C4 has no open items left**. The D1 practice-days follow-up also shipped 2026-10-07, and the **configuration-audit remediation** was delivered the same day as PR #37 from branch `arena/e8f5fefe-cp-inspired-scheduler` (build CI green, merged to `main`) — CFG-02…CFG-09, CFG-11, CFG-12 resolved; CFG-01 (production architecture) and REL-01 (dependency upgrades) remains open by design — its bundle half shipped on `perf/lazy-views`, documented in the audit report. The payer-specific mileage-code follow-up is implemented and verified locally but not yet landed; see above. **Recommended next after it:** printer X/Y calibration for red-form print or another billing-form follow-up; D4 scenario planner is large.
+**No code issues remain from the configuration audit or the architecture mismatch list** (checked 2026-10-08). What is left is decisions or new features:
 
-Other open items, smaller:
-- D1 follow-up: intake conversion tracking once enough history exists (still never a forecast knob).
-- D4 scenario planner (L).
-- Billing-form follow-ups (each "Not done" in the CMS-1500, statement and GFE entries above):
-  - printer X/Y calibration for the red-form print;
-  - a secondary (COB) 1500 profile;
-  - Section 1557 language taglines on statements (a settings block with a per-family opt-out);
-  - a per-guarantor confidential "send to" address;
-  - comparing statements against an issued GFE (the $400 dispute threshold).
-- Architecture mismatches still listed in `docs/wiki/architecture.md`: #10; #12 `build*` helpers that only tests import; #13 unenforced MFA/lock settings.
+- **Decisions for the maintainer (not code):**
+  - **CFG-01** — production hosting / sign-in / HIPAA architecture (P0 gate). The local screen lock and secret scrubbing are mitigations, not a security boundary.
+  - **CFG-05** — jurisdictional payroll calculator (daily / double-time / seventh-day rules) with legal review; the controls are labelled informational until then.
+  - **Old workspaces after #10:** no migration back-fills member ID / diagnosis / auth number, so insurance drafts in a workspace saved before 2026-10-08 show holds until the charts are filled in or the workspace is reset. Back-fill only if the maintainer asks.
+- **Documented by design:** architecture mismatch #8 (internal `sent` / `billedThrough: 'ch'` keys) and #14 (stored-but-unused Claims Settings options, shown disabled).
+- **Feature candidates:**
+  - practice holiday / closure calendar (recurrence skips closed days; Ramp supply drops them);
+  - Quick Add parity with the booking dialog (repeat-rule editor, picker facts, best-fit badge);
+  - billing-form follow-ups: printer X/Y calibration for the red-form print; a secondary (COB) 1500 profile; Section 1557 language taglines on statements; a per-guarantor confidential "send to" address; statement-vs-GFE $400 dispute check; payer service "Dx 1 / Dx 2" overrides (stored, unread);
+  - Generate Invoice: the date range only labels the file (claims are picked by client);
+  - D1 follow-up: intake conversion tracking once enough history exists; D4 scenario planner (L).
 - "Known issues / backlog" below.
 
 **How this session built safely alongside a parallel agent:** every feature was built in a scratch git worktree from `origin/main` (`git worktree add -b feat/x <scratch>/dir origin/main`), never in the shared checkout; before landing, `git merge origin/main` into the branch (README/HANDOFF/wiki "Last synced" lines conflict often: keep both new sections, take the newer sync line), then `git checkout --detach origin/main && git merge --no-ff feat/x && git push origin feat/x HEAD:main`, then poll `actions/runs?head_sha=<sha>` until green. Since the end of this session the full suite, JSX included, also runs locally in the `dev` clone (see "How the maintainer works").
@@ -471,7 +471,8 @@ Other open items, smaller:
 
 ## Known issues / backlog (not yet fixed)
 
-- Cross-module configuration audit completed 2026-10-07: see [prioritized findings](audits/configuration-audit-2026-10-07.md). **Remediation landed 2026-10-07 on branch `arena/e8f5fefe-cp-inspired-scheduler`** (see the Shipped entry above): CFG-02…CFG-09, CFG-11 and CFG-12 resolved with tests; CFG-05 resolved by labelling; CFG-06/CFG-07 resolved by disabling/labelling and scope enforcement; REL-01 triaged and deferred (vitest major upgrade and bundle splitting are separate projects). Still open: **CFG-01** — the production hosting/auth/HIPAA architecture gate (P0; a decision, not a code fix) — and the CFG-05 jurisdictional payroll calculator + legal review. Suite on the branch: 95 files / 995 tests green; build green with the bundle-size warning; dependency advisories unremediated by design (documented in REL-01).
+- Configuration audit (2026-10-07): every finding is resolved except **CFG-01** and **CFG-05** (decisions, see "Next"). See [the report](audits/configuration-audit-2026-10-07.md).
+- Two tabs editing within the same 250 ms window: the later tab's unsaved edit yields to the other tab's save (workspace persistence fix, 2026-10-08).
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
 
