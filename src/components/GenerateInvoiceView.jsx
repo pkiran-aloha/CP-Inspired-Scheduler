@@ -12,6 +12,8 @@ import { downloadDoc, loadPdf } from '../lib/exportKit'
 import { SEND_METHODS, statementBalance, statementStatus, statementPdf } from '../lib/statements'
 import { superbillClaims, superbillPdf } from '../lib/superbill'
 import { buildPatientShareDraft, patientShareRows } from '../lib/billingDocs'
+// One glyph per metric (no two tiles on a screen share one).
+const TILE_ICON = { 'gi-kpi-clients': 'users', 'gi-kpi-claims': 'file', 'gi-kpi-charges': 'dollar', 'gi-kpi-due': 'user' }
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -72,7 +74,7 @@ export default function GenerateInvoiceView() {
           ['Reported patient share', money(kpis.due), 'Verify COB', '#f59e0b', 'gi-kpi-due'],
         ].map(([label, val, sub, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 14 })}</span>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon[TILE_ICON[testId]]({ size: 16 })}</span>
             <div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div>
           </div>
         ))}

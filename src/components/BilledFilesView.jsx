@@ -6,6 +6,8 @@ import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO } from '../lib/date'
+// One glyph per metric (no two tiles on a screen share one).
+const TILE_ICON = { 'bf-kpi-total': 'folder', 'bf-kpi-sent': 'download', 'bf-kpi-pending': 'clock', 'bf-kpi-837': 'file' }
 
 // Stored status `sent` only means the file was recorded here; nothing is transmitted.
 const STATUS_LABEL = { sent: 'Exported', pending: 'Pending', failed: 'Failed', void: 'Void' }
@@ -99,7 +101,7 @@ export default function BilledFilesView() {
           ['837P', kpis.byFmt['837p'] || 0, 'Summary, not X12', '#0ea5e9', 'bf-kpi-837'],
         ].map(([label, val, sub, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 14 })}</span>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon[TILE_ICON[testId]]({ size: 16 })}</span>
             <div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div>
           </div>
         ))}

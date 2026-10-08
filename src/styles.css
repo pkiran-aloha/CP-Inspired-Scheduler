@@ -4282,3 +4282,11 @@ tr:hover .rpv-act button, .rpv-act button:focus-visible { opacity: 1; }
 @media print {
   .rpc [data-tip]::after { display: none; }
 }
+
+/* ================= profile selector avatar + Billing stat-tile glyphs ================= */
+/* The nav rail's account avatar also carries .nr-ic (inline-flex, no alignment), which
+   pinned the initials to the tile's top-left corner. Centre them explicitly. */
+.nr-preview-avatar { display: inline-grid; place-items: center; flex: none; line-height: 1; font-size: 10px; letter-spacing: 0.02em; }
+/* Top-bar chip: keep "Name · Org" on one line beside the avatar and caret. */
+.userchip .uc-name { white-space: nowrap; }
+.userchip > svg { flex: none; color: var(--muted); }
