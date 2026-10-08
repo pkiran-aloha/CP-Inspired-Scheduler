@@ -2,7 +2,7 @@
 
 _Sources: src/lib/settingsMasters.js, src/lib/integrationSecrets.js, src/lib/workspaceBackup.js, src/components/SettingsModal.jsx, src/components/settings/kit.jsx, src/components/settings/panels-practice.jsx, src/components/settings/panels-extras.jsx, src/components/settings/PayrollPanel.jsx, src/components/settings/SystemPanel.jsx, src/components/settings/DataImportPanel.jsx, src/components/PayerDetail.jsx, src/components/PayersView.jsx, src/lib/master.js, src/lib/providerIds.js, src/lib/dataImport.js, src/lib/abaHours.js, src/lib/authBudget.js, src/lib/travel.js, src/lib/security.js, src/state/store.jsx, src/components/NavRail.jsx, src/components/MastersView.jsx_
 
-_Last synced against main 0434a5a plus the recurrence-series branch on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views and fix/workspace-persistence branches on 2026-10-08; unrelated behavior unchanged._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Dashboard and reports](dashboard-and-reports.md)
 

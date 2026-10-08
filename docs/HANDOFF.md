@@ -33,6 +33,13 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Workspace persistence — saves survive reloads and second tabs (`fix/workspace-persistence`, 2026-10-08)
+
+- **Root cause (reproduced in Edge against the dev server).** (1) A second open tab kept the workspace it loaded and, on its next change of any kind (even a nav click), wrote that stale copy over everything another tab had saved. (2) A reload or close within the 250 ms save debounce dropped the last change: the timer was cleared on unload and nothing flushed it. Quota was not the cause: the fresh workspace is 1.38 M chars against Edge's ~5.24 M-char localStorage quota.
+- **Fix (`src/state/store.jsx`).** A `storage` event re-loads and adopts the other tab's save in one `hydrate` step (keeps this tab's navigation, clears its now-stale Undo; adopted states are not written back). The pending save is armed in a layout effect and flushed on `pagehide` and hidden `visibilitychange`. `loadWorkspace()` returns `{ state, error }`: a save that cannot be read is no longer silently replaced by a fresh seed; the tab does not write until the user chooses "Replace it with this workspace". A failed write names its reason (storage full, with the size needed).
+- **Tests.** `persistence.test.jsx` (8): `loadWorkspace` read / unreadable / empty, `hydrate` reducer, stale-tab overwrite, flush on pagehide, unreadable save left untouched, quota reason. Before/after browser repro: a reload 50 ms after creating an appointment lost it before the fix and keeps it after; the two-tab overwrite is gone.
+- **Not done.** Two tabs editing within the same 250 ms window: the later tab's unsaved edit yields to the other tab's save. Storage compaction was not needed at today's size; a workspace past ~5 M chars still hits the quota alert.
+
 ### Appointment location suggestions (`feat/appt-location-sources`, 2026-10-07)
 
 - **What.** `src/lib/locationSources.js`: `locationSuggestions(state, draft)` runs a plain array of source functions (`SOURCES`) and returns `{ value, label, sub, group, source }`, de-duplicated in source order: client usual site (`client-site`) and street address (`client-home`, saved as `Home · street, city, state zip`), each picked staff member's previous stop (`staff-prev`: latest non-cancelled session ending by the draft start the same day, else the most recent earlier one; drive/break/unavailable skipped), active location offices (`office`) and the telehealth row (`telehealth`). `mapsUrlFor` builds a Google Maps search URL (office → its address, client usual site → client address, telehealth/address-less office → none).

@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views and fix/workspace-persistence branches on 2026-10-08; unrelated behavior unchanged._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -53,7 +53,9 @@ Settings, System, "Data & backup" shows storage use and three actions.
 
 ### Storage-full alert
 
-Changes are saved to localStorage about a quarter of a second after the last edit. If the browser refuses a write, a red alert across the screen says "Changes aren't saved in this browser (storage full or unavailable). Export a backup before closing this tab." with an Open Settings button that jumps to the backup screen. Until the next successful save, the edit exists only in this tab's memory.
+Changes are saved to localStorage about a quarter of a second after the last edit, and at once when the tab is hidden, reloaded or closed. With the app open in two tabs, each tab picks up the other's saves, so the older tab never overwrites newer work (it keeps its own screen and starts a fresh Undo). If the browser refuses a write, a red alert says "Changes aren't saved in this browser:" and why (for example "browser storage is full (this workspace needs about 2.7 MB)"), with an Open Settings button that jumps to the backup screen. Until the next successful save, the edit exists only in this tab's memory.
+
+If the workspace saved in this browser cannot be read, the alert says so, the saved copy is left untouched and nothing from the tab is saved over it until you click **Replace it with this workspace**.
 
 ## How it works
 
@@ -79,8 +81,10 @@ Changes are saved to localStorage about a quarter of a second after the last edi
 
 ### Persistence
 
-- `StoreProvider` runs an effect that debounces 250 ms, then `localStorage.setItem('aloha-aba.v3', serializeForStorage(state))`. A thrown write sets `saveError` and renders the `storage-warning` alert; a later successful write clears it.
-- `initial()` reads `aloha-aba.v3`, falling back to the legacy key `pulse-aba-scheduler.v2`, merges every sub-object over current defaults, runs `normalizeWorkspace`, and writes back immediately only when a migration changed something or an old save carried history. `normalizeWorkspace` chains the migrations (the latest is the one-time `normalizeUnitNorms`, flag `meta.unitNorm15`) and then `normalizeSecurity`; it must be idempotent and return the same object when nothing changed so storage is not rewritten for no reason.
+- `StoreProvider` runs a layout effect that debounces 250 ms, then `localStorage.setItem('aloha-aba.v3', serializeForStorage(state))`; the pending save is flushed on `pagehide` and `visibilitychange` (hidden). A thrown write sets `saveError` to the reason and renders the `storage-warning` alert; a later successful write clears it.
+- A `storage` event for the key re-runs `loadWorkspace()` and dispatches `hydrate` (this tab's `ui` kept, `history` cleared); states adopted this way are not written back.
+- `loadWorkspace()` returns `{ state, error }`; `error` is set when a save exists but cannot be read, and the provider then skips every write until the user chooses to replace it (`storage-overwrite`).
+- `initial()` (the state of `loadWorkspace()`) reads `aloha-aba.v3`, falling back to the legacy key `pulse-aba-scheduler.v2`, merges every sub-object over current defaults, runs `normalizeWorkspace`, and writes back immediately only when a migration changed something or an old save carried history. `normalizeWorkspace` chains the migrations (the latest is the one-time `normalizeUnitNorms`, flag `meta.unitNorm15`) and then `normalizeSecurity`; it must be idempotent and return the same object when nothing changed so storage is not rewritten for no reason.
 - A new durable collection must be added to `WORKSPACE_FIELDS`, validated on import and covered by a round-trip test and an Undo test (see [architecture](architecture.md)).
 
 ### Backup
@@ -94,7 +98,7 @@ Changes are saved to localStorage about a quarter of a second after the last edi
 
 ### Tests
 
-[`security.test.js`](../../src/__tests__/security.test.js), [`securityUi.test.jsx`](../../src/__tests__/securityUi.test.jsx), [`workspaceBackup.test.js`](../../src/__tests__/workspaceBackup.test.js) (round trip, legacy import, rejection, atomic Undo of billing and reseed), [`store.test.js`](../../src/__tests__/store.test.js), and [`palette.test.jsx`](../../src/__tests__/palette.test.jsx) (storage-warning alert).
+[`security.test.js`](../../src/__tests__/security.test.js), [`securityUi.test.jsx`](../../src/__tests__/securityUi.test.jsx), [`workspaceBackup.test.js`](../../src/__tests__/workspaceBackup.test.js) (round trip, legacy import, rejection, atomic Undo of billing and reseed), [`store.test.js`](../../src/__tests__/store.test.js), [`palette.test.jsx`](../../src/__tests__/palette.test.jsx) (storage-warning alert) and [`persistence.test.jsx`](../../src/__tests__/persistence.test.jsx) (cross-tab adoption, flush on hide, unreadable save left untouched, quota reason).
 
 ## Not yet built
 
