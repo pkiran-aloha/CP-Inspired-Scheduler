@@ -14,11 +14,11 @@ import { cancelReasonRows, cancelSide } from './cancelReasons'
 import { unitLedger, unitRuleFor } from './authUnits'
 
 export const REPORT_CATS = [
-  { id: 'operations', label: 'Operations & Capacity' },
-  { id: 'clinical', label: 'Clinical & Compliance' },
-  { id: 'billing', label: 'Billing & Claims' },
-  { id: 'people', label: 'People & Payroll' },
-  { id: 'quality', label: 'Data Quality' },
+  { id: 'operations', label: 'Operations & Capacity', icon: 'cal' },
+  { id: 'clinical', label: 'Clinical & Compliance', icon: 'clipboard' },
+  { id: 'billing', label: 'Billing & Claims', icon: 'dollar' },
+  { id: 'people', label: 'People & Payroll', icon: 'users' },
+  { id: 'quality', label: 'Data Quality', icon: 'checkCircle' },
 ]
 
 const rawList = (state, days) => {

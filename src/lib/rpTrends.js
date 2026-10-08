@@ -83,3 +83,22 @@ export function seriesFor({ rows, dateCol, metric = 'rows', days, weekStart = 0 
   if (metric === 'rows') for (const b of m.values()) b.value = b.count
   return { buckets: [...m.values()], weekly, outside }
 }
+
+/**
+ * The same report over the `n` windows before this one (oldest first), each the
+ * length of the current window — the history behind KPI sparklines. The last
+ * entry is the immediately-prior window (what the delta chips compare against).
+ */
+export function priorResults(state, sel, ctx, weekStart, n = 5) {
+  if (!ctx.days?.length) return []
+  const out = []
+  for (let i = n; i >= 1; i--) {
+    const days = shiftDays(ctx.days, ctx.days.length * i)
+    try {
+      out.push(runReport(state, sel, { ...ctx, days, buckets: bucketize(days, ctx.gran, weekStart) }))
+    } catch {
+      out.push(null)
+    }
+  }
+  return out
+}

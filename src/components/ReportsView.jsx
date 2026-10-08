@@ -4,7 +4,10 @@ import { RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { REPORTS, REPORT_CATS, REPORT_BY_ID, runReport, toCSV, validationIssues } from '../lib/reports'
-import { numCols, priorResult, numericTotals, deltaPct } from '../lib/rpTrends'
+import { numCols, priorResults, numericTotals, deltaPct } from '../lib/rpTrends'
+import { vizFor, VIZ_KIND, statusTone, STATUS_COLS, kpiNumber } from '../lib/reportViz'
+import { ReportChart, Sparkline } from './reports/Charts'
+import { ToneGlyph } from './BookingChecks'
 import { fmtVal } from '../lib/exportKit'
 import { VERIFY_CHECKS, unitsFor } from '../lib/model'
 import { unitRuleFor } from '../lib/authUnits'
@@ -27,6 +30,10 @@ const BAD_RISING = /error|warn|no-show|denied|cancel|flag|overdue|gap|expir|laps
 // stat tiles shown before "more" — the rest of the summary is one click away
 const KPI_FIRST = 4
 const signed = (d) => `${d > 0 ? '+' : d < 0 ? '−' : ''}${Math.abs(d)}%`
+const KIND_ICON = { bars: 'chartBars', columns: 'chartCols', stack: 'chartStack', heat: 'chartHeat' }
+const KIND_WORD = { bars: 'Ranked bars', columns: 'Columns over time', stack: 'Share of total', heat: 'Weekday by hour heatmap' }
+// a KPI tile's icon follows what the number is: an issue count, money, a rate, hours or a count
+const kpiIcon = (label, value) => (BAD_RISING.test(label) ? 'caution' : /\$/.test(String(value)) || /revenue|charge|cost/i.test(label) ? 'dollar' : /%$/.test(String(value)) ? 'pie' : /h$/.test(String(value)) || /hour/i.test(label) ? 'clock' : 'pulse')
 
 /**
  * Reports desk — every report is derived live from the workspace ledger.
@@ -70,7 +77,9 @@ export default function ReportsView() {
   const hasSev = result.columns.some((c) => c.k === 'sev')
   const fixOf = (r) => String(r.fix || r.action || '')
   const fixable = useMemo(() => result.rows.filter((r) => fixOf(r).startsWith('Auto') && r._link?.kind === 'appt').length, [result])
-  const prior = useMemo(() => priorResult(state, sel, ctx, settings.weekStart), [state, sel, ctx, settings.weekStart])
+  const [view, setView] = useState('chart') // chart + table, or table only
+  const history = useMemo(() => priorResults(state, sel, ctx, settings.weekStart, 5), [state, sel, ctx, settings.weekStart])
+  const prior = history[history.length - 1] || null
   const curTot = useMemo(() => numericTotals(result.columns, result.rows), [result])
   const prevTot = useMemo(() => (prior ? numericTotals(prior.columns, prior.rows) : null), [prior])
 
@@ -83,6 +92,14 @@ export default function ReportsView() {
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [result.rows, fsev, fixOnly, fq])
+
+  // the chart draws the rows the table shows (filters apply to both)
+  const viz = useMemo(() => vizFor(sel, { ...result, rows: filtered }, { days: ctx.days, weekStart: settings.weekStart }), [sel, result, filtered, ctx.days, settings.weekStart])
+  const colMax = useMemo(() => {
+    const out = {}
+    for (const c of result.columns) if (c.t === 'money') out[c.k] = Math.max(0, ...filtered.map((r) => (typeof r[c.k] === 'number' ? r[c.k] : 0)))
+    return out
+  }, [result.columns, filtered])
 
   const rows = useMemo(() => {
     if (!sort) return filtered
@@ -263,11 +280,15 @@ export default function ReportsView() {
             if (!items.length) return null
             return (
               <section className="rpv-group" key={c.id} data-testid={`rp-cat-${c.id}`}>
-                <h3>{c.label}</h3>
+                <h3><span aria-hidden="true">{Icon[c.icon]({ size: 13 })}</span>{c.label}</h3>
                 {items.map((r) => (
-                  <button key={r.id} className={`rpv-item ${sel === r.id ? 'on' : ''}`} aria-current={sel === r.id ? 'true' : undefined} data-testid={`rp-def-${r.id}`} onClick={() => pick(r.id)} title={r.blurb}>
-                    <b>{r.name}</b>
-                    <span>{r.blurb}</span>
+                  <button key={r.id} className={`rpv-item rpv-item-ic ${sel === r.id ? 'on' : ''}`} aria-current={sel === r.id ? 'true' : undefined} data-testid={`rp-def-${r.id}`} onClick={() => pick(r.id)} title={r.blurb}>
+                    <span className={`rpv-ic cat-${r.cat}`} aria-hidden="true">{Icon[r.icon]({ size: 15 })}</span>
+                    <span className="rpv-item-t">
+                      <b>{r.name}</b>
+                      <span>{r.blurb}</span>
+                    </span>
+                    {VIZ_KIND[r.id] && <span className="rpv-kind" title={KIND_WORD[VIZ_KIND[r.id]]}>{Icon[KIND_ICON[VIZ_KIND[r.id]]]({ size: 13 })}</span>}
                   </button>
                 ))}
               </section>
@@ -283,8 +304,11 @@ export default function ReportsView() {
 
         <div className="rpv-main">
           <div className="rpv-report-h">
-            <h2>{def.name}</h2>
-            <p>{def.blurb}</p>
+            <span className={`rpv-ic rpv-ic-lg cat-${def.cat}`} aria-hidden="true">{Icon[def.icon]({ size: 20 })}</span>
+            <div>
+              <h2>{def.name}</h2>
+              <p>{def.blurb}</p>
+            </div>
           </div>
 
           <div className="rpv-toolbar no-print" data-testid="rp-toolbar">
@@ -319,12 +343,18 @@ export default function ReportsView() {
                 const ps = prior?.summary?.find((p) => p.label === s.label)
                 const d = typeof s.value === 'number' && typeof ps?.value === 'number' ? deltaPct(s.value, ps.value) : null
                 const cls = d == null || d === 0 ? 'flat' : (d > 0) !== BAD_RISING.test(s.label) ? 'good' : 'bad'
+                const cur = kpiNumber(s.value)
+                const trend = cur == null ? [] : [...history.map((h) => kpiNumber(h?.summary?.find((p) => p.label === s.label)?.value)), cur]
                 return (
                   <div className="rp-kpi" key={s.label} data-testid={`rp-kpi-${s.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-                    <span className="rp-kpi-label">{s.label}</span>
-                    <b>{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</b>
+                    <span className="rp-kpi-label"><span className="rp-kpi-ic" aria-hidden="true">{Icon[kpiIcon(s.label, s.value)]({ size: 13 })}</span>{s.label}</span>
+                    <span className="rp-kpi-row">
+                      <b>{typeof s.value === 'number' ? s.value.toLocaleString() : s.value}</b>
+                      <Sparkline values={trend} label={`${s.label} over the last ${trend.length} windows of ${ctx.days.length} days: ${trend.join(', ')}`} />
+                    </span>
                     {d != null && (
                       <span className={`rp-kpi-delta ${cls}`} title={`Compared with the previous ${ctx.days.length} days`}>
+                        {d !== 0 && Icon[d > 0 ? 'arrowUp' : 'arrowDown']({ size: 11, strokeWidth: 2.4 })}
                         {d === 0 ? 'No change' : signed(d)} <i>vs prior</i>
                       </span>
                     )}
@@ -371,8 +401,16 @@ export default function ReportsView() {
               </button>
             )}
             {anyFilter && <button className="rpv-link" data-testid="rp-f-clear" onClick={clearFilters}>Clear filters</button>}
+            {viz && (
+              <div className="viewseg rpv-viewseg" role="group" aria-label="Show">
+                <button className={view === 'chart' ? 'on' : ''} aria-pressed={view === 'chart'} data-testid="rp-view-chart" onClick={() => setView('chart')}>{Icon[KIND_ICON[viz.kind]]({ size: 12 })} Chart</button>
+                <button className={view === 'table' ? 'on' : ''} aria-pressed={view === 'table'} data-testid="rp-view-table" onClick={() => setView('table')}>{Icon.table({ size: 12 })} Table only</button>
+              </div>
+            )}
             <span className="rpv-count" data-testid="rp-count">{anyFilter ? `${rows.length} of ${result.rows.length} rows` : `${rows.length} rows`}</span>
           </div>
+
+          {viz && view === 'chart' && <ReportChart spec={viz} />}
 
           <div className="rpv-tablewrap">
             <table className="rpv-table" data-testid="rp-table">
@@ -408,6 +446,12 @@ export default function ReportsView() {
                           )
                         ) : c.k === 'sev' ? (
                           <span className={`sev-pill sev-${r.sev}`}>{r.sev}</span>
+                        ) : STATUS_COLS.has(c.k) && statusTone(r[c.k]) ? (
+                          <span className={`rpv-pill tone-${statusTone(r[c.k])}`}><ToneGlyph tone={statusTone(r[c.k])} size={11} />{r[c.k]}</span>
+                        ) : c.t === 'pct' && typeof r[c.k] === 'number' ? (
+                          <span className={`rpv-meter ${r[c.k] > 100 ? 'over' : ''}`}><span className="rpv-meter-t" aria-hidden="true"><i style={{ width: `${Math.min(100, Math.max(0, r[c.k]))}%` }} /></span>{fmtCell(r[c.k], c.t)}</span>
+                        ) : c.t === 'money' && colMax[c.k] > 0 && typeof r[c.k] === 'number' && r[c.k] > 0 ? (
+                          <span className="rpv-dbar" style={{ '--w': `${Math.round((r[c.k] / colMax[c.k]) * 100)}%` }}>{fmtCell(r[c.k], c.t)}</span>
                         ) : (
                           fmtCell(r[c.k], c.t)
                         )}
