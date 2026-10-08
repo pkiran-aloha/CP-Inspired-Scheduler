@@ -6,6 +6,8 @@ import SectionBoundary from '../components/SectionBoundary'
 import { blankState, initial, STORAGE_KEY } from '../state/store'
 import { normalizeVerificationForms } from '../lib/verificationForms'
 
+// jsdom Blob has no text(); FileReader reads what the download saved.
+const readBlob = (blob) => new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsText(blob) })
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks() })
 
 it('renders the map-backed route, searches, filters, creates and updates forms', async () => {
@@ -17,6 +19,11 @@ it('renders the map-backed route, searches, filters, creates and updates forms',
   expect(view.getByTestId('vf-row-regression')).toBeTruthy()
   fireEvent.click(view.getByTestId('vf-open-regression'))
   fireEvent.click(view.getByTestId('vf-mark-verified'))
+  window.URL.createObjectURL = vi.fn(() => 'blob:vf-test')
+  window.URL.revokeObjectURL = vi.fn()
+  fireEvent.click(view.getByTestId('vf-download'))
+  const blob = window.URL.createObjectURL.mock.calls[0][0]
+  expect(await readBlob(blob)).toMatch(/^Verification Form\nClient Regression Client\nPayer Test payer\nStatus verified/)
   fireEvent.click(view.getByTestId('vf-status-pending'))
   expect(view.getByTestId('vf-empty')).toBeTruthy()
   fireEvent.click(view.getByTestId('vf-status-all'))

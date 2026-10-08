@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/gfe.js, src/components/GfeDialog.jsx, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/billingdocs-wiring and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -45,7 +45,7 @@ Open Billing, AR Manager.
 
 ### Generate Invoice (draft patient statement)
 
-Open Billing, Generate Invoice. The page title reads "Invoices, draft patient share". Pick clients on the left, tick "Patient share only" to restrict to claims with a reported patient balance, and press "Download draft statement". The file is `Patient-share-draft-<date>.txt`. The preview shows each client's claims and their remaining reported patient share. The statement is a draft you print or hand over yourself; the app does not mail or email it and does not record that you did. Receipts are recorded separately with "Record receipt".
+Open Billing, Generate Invoice. The page title reads "Invoices, draft patient share". Pick clients on the left, tick "Patient share only" to restrict to claims with a reported patient balance, and press "Download draft statement". The file is `Patient-share-draft-<date>.txt`. Claims are picked by client, not by the range picker: the range only labels the file. The preview, the KPI cards and the file all come from `buildPatientShareDraft` in `billingDocs.js`, so they always agree. The preview shows each client's claims and their remaining reported patient share. The statement is a draft you print or hand over yourself; the app does not mail or email it and does not record that you did. Receipts are recorded separately with "Record receipt".
 
 ### Client statements
 
