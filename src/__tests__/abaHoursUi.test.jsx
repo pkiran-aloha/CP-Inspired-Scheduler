@@ -4,9 +4,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState, initial, STORAGE_KEY } from '../state/store'
 
-// The seeded schedule can put a Warn item (e.g. Staff Overlap) on the default slot on some
-// days; Warn saves need the acknowledgement tick (CFG-03). Tick it only when it is shown.
-const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
+// The seed is dated relative to today, so on some days the picked clinician already has a
+// session in the default slot and the Warn gate asks for its tick before saving. Tick it
+// when shown, so these flows test what they name on any date.
+const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a && !a.classList.contains('on')) fireEvent.click(a) }
+
 
 const stored = () => { try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) } catch { return null } }
 let _r = null
@@ -77,16 +79,14 @@ describe('⚡ ABA Hours in the booking dialog', () => {
     expect(banner.textContent).toMatch(/not behavior-analytic time/)
 
     const before = Object.keys(stored().appts)
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText(/Fix \d+ item/)).toBeTruthy()
     expect(Object.keys(stored().appts).length).toBe(before.length)
 
     // the same block, marked as real behavior-analytic work, saves
     fireEvent.click(screen.getByTestId('aba-activity'))
     fireEvent.click(await screen.findByTestId('opt-aba-activity-group-training'))
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => expect(Object.keys(stored().appts).length).toBe(before.length + 1))
     const newId = Object.keys(stored().appts).find((id) => !before.includes(id))
     const saved = stored().appts[newId]
@@ -116,8 +116,7 @@ describe('⚡ ABA Hours in the booking dialog', () => {
     fireEvent.mouseDown(document.body)
     await pickStaff()
     const before = Object.keys(stored().appts)
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await waitFor(() => expect(Object.keys(stored().appts).length).toBe(before.length + 1))
     const newId = Object.keys(stored().appts).find((id) => !before.includes(id))
     const saved = stored().appts[newId]

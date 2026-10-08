@@ -25,6 +25,10 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 The booking dialog's Location field groups suggestions by source: the client's usual site and street address on file (saved as `Home · …` so place of service stays 12), where each picked staff member was just before this slot (same day, else their latest earlier stop), and the practice's offices and telehealth location. Anything typed is saved as typed, with an **Open in Google Maps** link the user clicks themselves (new tab); no map service is called and nothing is sent. Sources are a plain list in `src/lib/locationSources.js`, so another source is one more function. No new stored field. Tests: `locationSources.test.js`, `locationField.test.jsx`.
 
+### A visual Checks rail in the booking dialog
+
+The booking dialog's Checks rail now leads with one decision line (*Fix before booking*, *Review before booking*, *Almost there*, *Clear to book*, *Ready to book*) and a glyph count per severity. An **at a glance** block draws the numbers behind the checks: authorized hours as used / booked / left (with the overage and cap mark when over) plus the authorization week, each picked clinician's week load against target, and chips for cancellation risk, drive time and past sessions together. Every meter carries its numbers in text and as an accessible meter value. Each check shows its headline and one line; the rest sits behind **Details**. Open slots are clickable time chips. Same checks, same rules, nothing new is estimated. Code: `src/lib/railGlance.js`, `src/components/BookingChecks.jsx`; tests `railGlance.test.js` and `bookingChecks.test.jsx`.
+
 ### UI rule cleanup
 
 Calendar cards draw their small markers (series exception pencil, ABA hr, flagged, conflict) from the shared icon set instead of text glyphs; the exception pencil reads "Changed from series" to screen readers. Cards, rows and hints that used a thick colored left stripe now show tone with a 1px tinted border and, for warnings, a light tinted background, in both themes.

@@ -23,8 +23,9 @@ import {
   isServiceAppt,
 } from '../lib/model'
 import { suggestStaff, smartCfg, weekLoad } from '../lib/smart'
-import { fitNotes, openSlots, slotText } from '../lib/pickFit'
-import { AUTH_BANDS, authGuardCfg, authCheckFor } from '../lib/authBudget'
+import { fitNotes, openSlots, slotParts, slotText, staffFit } from '../lib/pickFit'
+import { authMeter, loadMeter, riskChip } from '../lib/railGlance'
+import { authGuardCfg, authCheckFor } from '../lib/authBudget'
 import { mergeAuthChecks, unitCheckFor, unitRuleFor, unitsFor } from '../lib/authUnits'
 import {
   ABA_HOURS_EXPLAIN, ABA_HOURS_EXAMPLES, ABA_HOURS_NON_EXAMPLES,
@@ -283,6 +284,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       key: 'todo', tone: showErrs ? 'stop' : 'todo', icon: 'edit', testid: 'appt-check-todo',
       title: showErrs ? 'Fix to save' : 'Still to fill in', sub: `${todo.length} item${todo.length === 1 ? '' : 's'}`,
       lines: todo.map((e) => ({ text: `${e.replace(/\.$/, '')}.` })),
+      show: todo.length, // the to-do list is the action itself
     })
   }
   if (conflicts.length) {
@@ -301,18 +303,16 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       title: authWorst.headline, sub: authWorst.client.name,
       lines: authWorst.reasons.map((r) => ({ text: r })),
       notes: [...(others.length ? [`Also flagged: ${others.join(', ')}`] : []), ...authWorst.notes],
-      extra: (
+      // the hours meter lives in the rail's glance strip; the exact numbers sit in the details
+      detail: (
         <>
           {authWorst.stats && (
-            <div className="am-authmeter">
-              <span className="am-authmeter-track">
-                <i className={`am-authmeter-fill tone-${AUTH_BANDS[authWorst.stats.band]?.tone || 'warn'}`} style={{ width: `${Math.max(2, Math.min(100, authWorst.stats.pct))}%` }} />
-              </span>
-              <span className="am-authmeter-nums">
+            <p className="bk-note">
+              <span>
                 {authWorst.stats.committedHours}h committed · {authWorst.stats.remainingHours < 0 ? `${Math.abs(authWorst.stats.remainingHours)}h over` : `${authWorst.stats.remainingHours}h left`} of {authWorst.stats.window.authorizedHours}h
                 {authWorst.stats.window.daysToExpiry != null ? ` · ${authWorst.stats.window.daysToExpiry < 0 ? 'window ended' : `${authWorst.stats.window.daysToExpiry}d to expiry`}` : ''}
               </span>
-            </div>
+            </p>
           )}
           {authWorst.units && (
             <p className="bk-note" data-testid="appt-auth-units">
@@ -355,11 +355,16 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       lines: fitLines,
       extra: slotsFor.length ? (
         <div className="bk-slots" data-testid="bk-slots">
-          {slotsFor.map((sl, k) => (
-            <button key={k} type="button" className="bk-slot" data-testid={`bk-slot-${k}`} onClick={() => setTime({ date: sl.date, start: sl.start, end: sl.end })}>
-              {Icon.cal({ size: 12 })}<span>{slotText(sl, settings.h24)}</span>
-            </button>
-          ))}
+          {slotsFor.map((sl, k) => {
+            const p = slotParts(sl, settings.h24)
+            return (
+              <button key={k} type="button" className="bk-slot" data-testid={`bk-slot-${k}`} title={slotText(sl, settings.h24)} onClick={() => setTime({ date: sl.date, start: sl.start, end: sl.end })}>
+                <b>{p.day}</b>
+                <span>· {p.time}</span>
+                {p.notes.length > 0 && <em>{p.notes.join(' · ')}</em>}
+              </button>
+            )
+          })}
         </div>
       ) : null,
       foot: `From this workspace's calendar, staff target hours and past sessions${slotsFor.length ? `; slots are inside the working day on practice days, with nobody picked busy or blocked out` : ''}. Nothing is booked until you save.`,
@@ -371,6 +376,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       key: 'rules', tone: top, icon: 'clipboard', testid: 'appt-validation-banner',
       title: 'Practice rules', sub: top === 'stop' ? 'A stop rule blocks this booking' : top === 'warn' ? 'Warnings from Settings → Validations' : 'Flags from Settings → Validations',
       lines: valReport.items.map((item) => ({ tone: toneOf(item.severity), text: `${item.label}: ${item.message}` })),
+      show: 2,
       extra: valReport.warns.length ? (
         <label
           className={`checkrow ${warnsAcked ? 'on' : ''}`}
@@ -387,6 +393,22 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
         </label>
       ) : null,
     })
+  }
+  // At a glance: the numbers behind those checks, drawn as meters and chips (railGlance.js)
+  const pickedFit = useMemo(() => (showClinic && f.staffIds.length ? staffFit(state, { ...f, id: mode === 'edit' ? f.id : '__draft__' }) : {}), [...verdictDeps, f.location])
+  const glanceClient = clientsById[(f.clientIds || [])[0]]
+  const glance = {
+    auth: authChecks[0]?.stats ? { name: authChecks[0].client.name, meter: authMeter(authChecks[0].stats) } : null,
+    staff: f.staffIds.filter((id) => pickedFit[id]).map((id) => ({ id, name: staffById[id]?.name || id, meter: loadMeter(pickedFit[id].hours, pickedFit[id].target) })),
+    chips: [
+      ...(riskChip(riskVerdict) ? [{ key: 'risk', icon: 'pulse', ...riskChip(riskVerdict) }] : []),
+      ...f.staffIds.filter((id) => pickedFit[id]?.travelMin != null).map((id) => ({ key: `drive-${id}`, icon: 'car', tone: 'ok', text: `~${pickedFit[id].travelMin} min drive${f.staffIds.length > 1 ? ` · ${(staffById[id]?.name || '').split(' ')[0]}` : ''}` })),
+      ...(glanceClient ? f.staffIds.filter((id) => pickedFit[id]?.past != null).map((id) => {
+        const n = pickedFit[id].past
+        const who = f.staffIds.length > 1 ? `${(staffById[id]?.name || '').split(' ')[0]}: ` : ''
+        return { key: `cont-${id}`, icon: 'users', tone: n ? 'ok' : 'flag', text: n ? `${who}${n} past session${n === 1 ? '' : 's'} together` : `${who}first session together` }
+      }) : []),
+    ],
   }
   const checksHint = !f.staffIds.length || !f.clientIds.length
     ? 'Nothing stands in the way yet. Open the staff or client list to see who fits this slot before you pick.'
@@ -1180,7 +1202,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                     </button>
                   )}
                 </div>
-                <BookingChecks groups={checkGroups} hint={checksHint} />
+                <BookingChecks groups={checkGroups} hint={checksHint} glance={glance} />
                 <div className="panel" style={{ fontSize: 12, display: 'grid', gap: 6 }}>
                   <span style={{ fontWeight: 700 }}>Summary</span>
                   <span className="muted">{title} · {fmtDur(dur)}</span>

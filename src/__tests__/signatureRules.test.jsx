@@ -6,9 +6,11 @@ import { blankState } from '../state/store'
 import { systemConfigFor, staffSigRequiredToCompleteOf } from '../lib/settingsMasters'
 import { addDays, isoDate, todayISO } from '../lib/date'
 
-// The seeded schedule can put a Warn item (e.g. Staff Overlap) on the default slot on some
-// days; Warn saves need the acknowledgement tick (CFG-03). Tick it only when it is shown.
-const ackWarns = () => { const ack = screen.queryByTestId('appt-ack-warns'); if (ack && !ack.className.includes(' on')) fireEvent.click(ack) }
+// The seed is dated relative to today, so on some days the picked clinician already has a
+// session in the default slot and the Warn gate asks for its tick before saving. Tick it
+// when shown, so these flows test what they name on any date.
+const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a && !a.classList.contains('on')) fireEvent.click(a) }
+
 
 const KEY = 'aloha-aba.v3'
 const stored = () => { try { return JSON.parse(localStorage.getItem(KEY)) } catch { return null } }
@@ -85,20 +87,21 @@ describe('signature rules (audit CFG-04)', () => {
     const targetDate = isoDate(addDays(todayISO(), 14))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: targetDate } })
     await pickDropdown('status-select', 'completed')
-    const before = Object.keys(stored().appts).length // the seed may already have a session on that date
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    // the seed may already hold a session for Justin that day, so count rather than look for none
+    const justin = stored().clients.find((c) => c.name === 'Justin Hsu')
+    const onDay = () => Object.values(stored().appts).filter((a) => (a.clientIds || []).includes(justin.id) && a.date === targetDate).length
+    const before = onDay()
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Aetna requires a client signature to complete this appointment.')).toBeTruthy()
     // nothing was written for this booking
-    expect(Object.keys(stored().appts).length).toBe(before)
+    expect(onDay()).toBe(before)
     // the Verification tab offers a distinct client/guardian pad next to the staff pad
     fireEvent.click(screen.getByRole('button', { name: /Verification/ }))
     const clientBox = await screen.findByTestId('am-client-sig')
     expect(clientBox.textContent).toContain('L. Hsu')
     expect(screen.getByTestId('am-sig-note').textContent).toContain('Aetna')
     await captureSignature('am-client-sig', 'L. Hsu')
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     const detail = await screen.findByTestId('detail-card')
     const a = await waitFor(() => {
       const found = Object.values(stored().appts).find((x) => x.verification?.clientSignature)
@@ -121,16 +124,14 @@ describe('signature rules (audit CFG-04)', () => {
     await openWizard(client.name)
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: isoDate(addDays(todayISO(), 14)) } })
     await pickDropdown('status-select', 'completed')
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect((await screen.findAllByText(/practice requires a staff verification signature/)).length).toBeGreaterThan(0)
     // the verification tab renders the staff rule without touching the missing payer
     fireEvent.click(screen.getByRole('button', { name: /Verification/ }))
     expect(await screen.findByTestId('am-staffsig-note')).toBeTruthy()
     expect(screen.queryByTestId('am-sig-note')).toBeNull()
     await captureSignature('am-staff-sig', 'Verifier')
-    ackWarns()
-    fireEvent.click(screen.getByTestId('save-appt'))
+    ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     await screen.findByTestId('detail-card')
     const a = Object.values(stored().appts).find((x) => (x.clientIds || []).includes(client.id) && x.verification?.signature)
     expect(a).toBeTruthy()
