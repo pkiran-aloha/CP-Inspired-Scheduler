@@ -33,6 +33,18 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 
 ## Shipped (newest first)
 
+### Visual Checks rail in the booking dialog (`feat/visual-booking-rail`, 2026-10-07)
+
+- **What.** The maintainer asked for the rail to be less texty and more visual, with a crisper note about the analytics and the decision. Same checks and rules; nothing new is estimated.
+  - **Decision line** (`booking-checks-status`): *Fix before booking* / *Review before booking* / *Almost there* / *Clear to book* / *Ready to book*, plus glyph counts per tone ("2 to review"). A missing required field never reads as clear, even beside a note (the old header said "Good to book, with notes" in that case).
+  - **At a glance** (`bk-glance`): authorized hours as a used / booked / left bar (overage + cap mark when over) and the authorization week (`bk-glance-auth`); each picked clinician's week load vs target (`bk-glance-load`); chips for risk score + band, drive minutes and past sessions together (`bk-chip-risk`, `bk-chip-drive-<id>`, `bk-chip-cont-<id>`). Every bar is `role="meter"` with `aria-valuetext`, and its numbers are printed beside it.
+  - **Each group**: headline + one line in view (all to-dos; first two practice rules); more lines, notes, foot and the exact auth numbers / units sit behind **Details** (`aria-expanded`). Open slots are time chips (`bk-slot-<i>` kept). The auth group's own bar moved to the glance block; its numbers ("…h committed · …") stay in the group's details.
+  - One footnote at the bottom: worked out on this device from the workspace's data; nothing is sent or booked until you save.
+- **Code.** `src/lib/railGlance.js` (pure: `railDecision`, `authMeter`, `loadMeter`, `riskChip`); `staffFit` in `pickFit.js` now also returns raw `hours`, `target`, `travelMin`, `past`; `slotParts` splits a slot for the chip. CSS appended at the end of `styles.css` (both themes via the tone tokens; reduced motion respected).
+- **Visual check.** Built app screenshotted with Playwright (Edge) at 1400px in light and dark; the <1180px stacked layout was not captured (the rail placement CSS is unchanged).
+- **Verification.** `railGlance.test.js` (8) + one UI case in `bookingChecks.test.jsx` (decision line, week-load meter value text, continuity chip, Details disclosure, nothing saved). Full suite 100 files / 1,047 tests green before the merge of `origin/main`; `npm run build` green (chunk-size warning only).
+- **Date-dependent tests fixed along the way.** On 2026-10-08, 13 booking-dialog tests failed on plain `origin/main` (`beabf9e`): the seed put the first clinician in the dialog's default slot, so the Warn gate held the save. `abaHoursUi`, `app`, `customFields`, `mastersHub` and `signatureRules` now tick the gate when it shows (one test counts sessions instead of assuming none; one checks the write, not a toast). After merging `origin/main`: 100 files / 1,048 tests green; build green.
+
 ### Bundle code-splitting — REL-01 bundle half (`perf/lazy-views`, 2026-10-07)
 
 - **What.** Entry JS **2,525 → 1,015 kB minified (759 → 322 kB gzip)**. Non-calendar sections in `App.jsx` are `React.lazy` chunks behind a "Loading this section…" status inside the section error boundary; the wiki markdown rides in the Help chunk; jsPDF is a dynamic import via `loadPdf()` in `exportKit.js` (builders stay sync through `newPdf()`, every PDF button awaits `loadPdf()` and toasts honestly if the fetch fails). `chunkSizeWarningLimit` is 1,100 kB as a tripwire; the rest of the entry is the store plus the domain engines the reducer imports.

@@ -140,3 +140,50 @@ describe('pick fit in the booking dialog', () => {
     expect(saved).toMatchObject({ start: h * 60 + m, end: h * 60 + m + 120 })
   })
 })
+
+describe('the Checks rail at a glance', () => {
+  const shift = (iso, n) => { const d = new Date(`${iso}T00:00:00`); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
+  let DATE = shift(today, 7)
+  while ([0, 6].includes(new Date(`${DATE}T00:00:00`).getDay())) DATE = shift(DATE, 1)
+  const BASE = blankState()
+  const S1 = BASE.staff.find((s) => /RBT/.test(s.role))
+  const [C, C2] = BASE.clients
+
+  it('leads with one decision line, draws the week load as a meter, and keeps detail behind a disclosure', async () => {
+    localStorage.setItem('aloha-aba.v3', JSON.stringify({
+      ...BASE,
+      appts: { blk: { id: 'blk', title: 'Busy block', date: DATE, start: 600, end: 720, type: 'service', status: 'active', staffIds: [S1.id], clientIds: [C2.id], location: '' } },
+    }))
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
+    fireEvent.click(await screen.findByTestId('type-service'))
+    fireEvent.change(screen.getByTestId('appt-date'), { target: { value: DATE } })
+    const [start, end] = document.querySelectorAll('input[type="time"]')
+    fireEvent.change(start, { target: { value: '10:00' } })
+    fireEvent.change(end, { target: { value: '12:00' } })
+    for (const [picker, name] of [['pick-Client Name', C.name], ['pick-Staff Name', S1.name]]) {
+      fireEvent.click(screen.getByTestId(picker))
+      fireEvent.click((await screen.findAllByTestId('people-item')).find((b) => b.textContent.includes(name)))
+      fireEvent.mouseDown(document.body)
+    }
+    const panel = await screen.findByTestId('booking-checks')
+    // the clash is a warn: review, not clear
+    expect(within(panel).getByTestId('booking-checks-status').textContent).toBe('Review before booking')
+    expect(within(panel).getByLabelText('Summary of checks').textContent).toMatch(/\d+ to review/)
+    // the clinician's week after this booking (2 h busy + 2 h here), as a meter with its numbers in text
+    const load = within(panel).getByRole('meter', { name: `Week load for ${S1.name}` })
+    expect(load.getAttribute('aria-valuetext')).toMatch(/^4 of \d+ h this week/)
+    expect(within(panel).getByTestId('bk-glance-load').textContent).toMatch(/4 of \d+ h this week/)
+    expect(within(panel).getByTestId(`bk-chip-cont-${S1.id}`).textContent).toMatch(/together/)
+    // the clash shows its first line; the explanation waits behind Details
+    const clash = within(panel).getByTestId('appt-check-clash')
+    const more = within(clash).getByRole('button', { name: /Details/ })
+    expect(more.getAttribute('aria-expanded')).toBe('false')
+    expect(within(clash).getByText(/You can still save/).closest('[hidden]')).toBeTruthy()
+    fireEvent.click(more)
+    expect(more.getAttribute('aria-expanded')).toBe('true')
+    expect(within(clash).getByText(/You can still save/).closest('[hidden]')).toBeNull()
+    // nothing was saved by looking
+    expect(Object.keys(JSON.parse(localStorage.getItem('aloha-aba.v3')).appts)).toEqual(['blk'])
+  })
+})
