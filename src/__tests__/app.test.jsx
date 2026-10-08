@@ -12,6 +12,38 @@ const ackWarns = () => { const a = screen.queryByTestId('appt-ack-warns'); if (a
 
 
 beforeEach(() => localStorage.clear())
+// The app lands on the Dashboard; these flows exercise the calendar board.
+const renderCal = () => { const r = render(<App />); fireEvent.click(screen.getByTestId('nav-calendar')); return r }
+
+describe('landing page', () => {
+  it('a fresh workspace opens on the Dashboard, listed first in the nav', () => {
+    render(<App />)
+    expect(screen.getByTestId('nav-dashboard').classList.contains('on')).toBe(true)
+    expect(document.querySelector('.nr-items .nr-item').dataset.testid).toBe('nav-dashboard')
+    expect(JSON.parse(localStorage.getItem('aloha-aba.v3') || '{}').ui?.section ?? 'dashboard').toBe('dashboard')
+  })
+
+  it('a save from before the change that sat on Calendar opens on the Dashboard once; Calendar is kept after that', () => {
+    const s = blankState()
+    const { dashLanding, ...oldMeta } = s.meta
+    expect(dashLanding).toBe(true)
+    localStorage.setItem('aloha-aba.v3', JSON.stringify({ ...s, meta: oldMeta, ui: { ...s.ui, section: 'calendar' } }))
+    render(<App />)
+    expect(screen.getByTestId('nav-dashboard').classList.contains('on')).toBe(true)
+    cleanup()
+    localStorage.setItem('aloha-aba.v3', JSON.stringify({ ...s, ui: { ...s.ui, section: 'calendar' } }))
+    render(<App />)
+    expect(screen.getByTestId('nav-calendar').classList.contains('on')).toBe(true)
+  })
+
+  it('key 1 opens the Dashboard and key 2 the Calendar', () => {
+    renderCal()
+    fireEvent.keyDown(window, { key: '1' })
+    expect(screen.getByTestId('nav-dashboard').classList.contains('on')).toBe(true)
+    fireEvent.keyDown(window, { key: '2' })
+    expect(screen.getByTestId('nav-calendar').classList.contains('on')).toBe(true)
+  })
+})
 afterEach(() => cleanup())
 
 const apptsInStorage = () => {
@@ -44,7 +76,7 @@ async function addPeople() {
 
 describe('scheduler shell', () => {
   it('renders week grid with new master rosters and rich seeded chips', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     // context-adaptive chrome: on the board the rail rests as an icon strip so the grid gets the width
     expect(screen.getAllByText('Aloha ABA').length).toBeGreaterThanOrEqual(1) // top bar brand
     expect(document.querySelector('.navrail').classList.contains('collapsed')).toBe(true)
@@ -66,13 +98,13 @@ describe('scheduler shell', () => {
   })
 
   it('toggles dark theme', () => {
-    render(<App />)
+    renderCal()
     fireEvent.click(screen.getByTitle('Toggle theme'))
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
   it('filter menu opens and its status checkboxes actually filter the grid', () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     const before = container.querySelectorAll('.chip').length
     fireEvent.click(screen.getByTitle('Filters'))
     expect(screen.getByText('Show statuses')).toBeTruthy()
@@ -86,7 +118,7 @@ describe('scheduler shell', () => {
   })
 
   it('profile menu opens and Settings dialog is reachable', () => {
-    render(<App />)
+    renderCal()
     fireEvent.click(screen.getByText(/Admin · Aloha/))
     expect(screen.getByText('Export current range (.ics)')).toBeTruthy()
     fireEvent.click(screen.getByText('Settings', { selector: '.menu *' }))
@@ -94,7 +126,7 @@ describe('scheduler shell', () => {
   })
 
   it('switches to horizontal Timeline view (time left→right, one row per day)', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     fireEvent.click(screen.getByRole('tab', { name: 'Timeline' }))
     expect(container.querySelectorAll('.th-rowwrap').length).toBe(7) // one row per day
     expect(container.querySelectorAll('.th-tick').length).toBe(24) // 24 hour ticks across
@@ -141,13 +173,13 @@ describe('scheduler shell', () => {
   })
 
   it('switches to month view with 42 cells', () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     fireEvent.click(screen.getByRole('tab', { name: 'Month' }))
     expect(container.querySelectorAll('.mv-cell').length).toBe(42)
   })
 
   it('clicking a chip opens the detail card with series info & cancel', () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     const chip = container.querySelector('.chip:not(.stack)')
     fireEvent.pointerDown(chip, { button: 0 })
     fireEvent.pointerUp(chip)
@@ -160,7 +192,7 @@ describe('scheduler shell', () => {
   it('asks why before skipping an occurrence, and stores the reason on the appointment', async () => {
     const weatherCancels = (appts) => Object.values(appts).filter((a) => a.status === 'cancelled' && a.cancelReason === 'Weather').length
     const before = weatherCancels(blankState().appts)
-    const { container } = render(<App />)
+    const { container } = renderCal()
     const chip = container.querySelector('.chip:not(.stack)')
     fireEvent.pointerDown(chip, { button: 0 })
     fireEvent.pointerUp(chip)
@@ -198,7 +230,7 @@ describe('overlap grouping (calendar best practice)', () => {
   const sunCol = (container) => container.querySelectorAll('.tg-col')[0]
 
   it('starts inside the same 30-min slot group into one slot card, expand → lanes → merge', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     await bookSundayNine(container)
     await bookSundayNine(container)
     // the whole cluster is one half-hour block card — no squeezed side-by-side lanes by default
@@ -219,7 +251,7 @@ describe('overlap grouping (calendar best practice)', () => {
   })
 
   it('crowds stay readable: 4 simultaneous → one slot card listing the crowd, no +2-more math', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     for (let k = 0; k < 4; k++) await bookSundayNine(container)
     await waitFor(() => expect(sunCol(container).querySelector('.chip.stack')).toBeTruthy(), { timeout: 4000 })
     const stack = sunCol(container).querySelector('.chip.stack')
@@ -239,7 +271,7 @@ describe('overlap grouping (calendar best practice)', () => {
 
 describe('drag/click quick-add flow', () => {
   it('grid slot click → picker → Service asks WHO client + WHAT service, then books', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     const col = container.querySelectorAll('.tg-col')[2]
     fireEvent.pointerDown(col, { button: 0 })
     fireEvent.pointerUp(col, { button: 0 })
@@ -263,7 +295,7 @@ describe('drag/click quick-add flow', () => {
   })
 
   it('quick-add can hand off to the full wizard with prefills', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     const col = container.querySelectorAll('.tg-col')[1]
     fireEvent.pointerDown(col, { button: 0 })
     fireEvent.pointerUp(col)
@@ -277,7 +309,7 @@ describe('drag/click quick-add flow', () => {
 
 describe('create wizard', () => {
   it('validation blocks empty save', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
     expect(await screen.findByText('Add a client')).toBeTruthy()
@@ -286,7 +318,7 @@ describe('create wizard', () => {
   })
 
   it('creates a single appointment with auto billing', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBeGreaterThan(0))
     const before = Object.keys(apptsInStorage()).length
@@ -304,7 +336,7 @@ describe('create wizard', () => {
   })
 
   it('expands weekly recurrence into occurrences sharing a series id', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBeGreaterThan(0))
     const before = Object.keys(apptsInStorage()).length
@@ -331,7 +363,7 @@ describe('create wizard', () => {
   })
 
     it('skips conflicting occurrences and reports it', async () => {
-    render(<App />)
+    renderCal()
     // find Justin's last seeded non-cancelled service — a weekly series from there hits exactly that one and then free Mondays
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBeGreaterThan(0))
     const seed = apptsInStorage()
@@ -362,7 +394,7 @@ describe('create wizard', () => {
   })
 
   it('unified Location dropdown: search, list, and free-text creation (no native select)', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     // every dropdown in the form is the custom component — assert no <select> exists in the modal
     expect(document.querySelectorAll('.modal select').length).toBe(0)
@@ -381,7 +413,7 @@ describe('type-aware create forms', () => {
   }
 
   it('Drive Time: route fields + auto-mileage, no client/location and no docs/billing tabs', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     await openWizardOf('drive')
     expect(screen.getByTestId('drive-origin')).toBeTruthy()
     expect(screen.getByTestId('drive-destination')).toBeTruthy()
@@ -400,7 +432,7 @@ describe('type-aware create forms', () => {
   })
 
   it('Drive booking stores origin → destination, and mileage auto-derives from Total Distance', async () => {
-    render(<App />)
+    renderCal()
     await openWizardOf('drive')
     fireEvent.click(screen.getByTestId('pick-Staff Name'))
     fireEvent.click((await screen.findAllByTestId('people-item'))[0])
@@ -429,7 +461,7 @@ describe('type-aware create forms', () => {
   })
 
   it('Break Time: staff only, comments wording, no billing/verification/docs tabs', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     await openWizardOf('break')
     expect(screen.getByTestId('pick-Staff Name')).toBeTruthy()
     expect(screen.queryByTestId('pick-Client Name')).toBeNull()
@@ -440,7 +472,7 @@ describe('type-aware create forms', () => {
   })
 
   it('Unavailable: “Unavailable For” toggle swaps the people picker and the validation target', async () => {
-    render(<App />)
+    renderCal()
     await openWizardOf('unavailable')
     expect(screen.getByText('Unavailable For')).toBeTruthy()
     expect(screen.getByTestId('pick-Staff Name')).toBeTruthy()
@@ -459,7 +491,7 @@ describe('type-aware create forms', () => {
 describe('smart scheduling: backfill, suggestions & analytics', () => {
   // book a plain service, then cancel it via the detail card — returns { title }
   async function bookAndCancel() {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     await addPeople()
     ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
@@ -501,7 +533,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
   })
 
   it('wizard suggests staff for the chosen client and one click adds them', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     await openServiceWizard()
     await addPeople()
     const row = await screen.findByTestId('staff-suggestions')
@@ -515,7 +547,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
   })
 
   it('settings expose the smart-scheduling control panel', async () => {
-    render(<App />)
+    renderCal()
     fireEvent.click(screen.getByText(/Admin · Aloha/))
     fireEvent.click(screen.getByText('Settings', { selector: '.menu *' }))
     expect(await screen.findByText('Smart scheduling')).toBeTruthy()
@@ -529,7 +561,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
   })
 
   it('Analytics section: KPIs + drill pivot + chart modes + slider all work', async () => {
-    const { container } = render(<App />)
+    const { container } = renderCal()
     fireEvent.click(screen.getByTestId('nav-analytics'))
     expect(await screen.findByTestId('an-kpi-sessions')).toBeTruthy()
     expect(container.querySelectorAll('.an-kpi').length).toBe(6)
@@ -550,7 +582,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
   })
 
   it('sidebar exposes range analytics (cancelled, no-shows, utilization) + jump link', async () => {
-    render(<App />)
+    renderCal()
     expect(await screen.findByText('Cancelled', { selector: '.wkstat span' })).toBeTruthy()
     expect(screen.getByText('No-shows', { selector: '.wkstat span' })).toBeTruthy()
     expect(screen.getByText('Utilized', { selector: '.wkstat span' })).toBeTruthy()
@@ -561,7 +593,7 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
 
 describe('billing, verification & signature', () => {
   it('billing code dropdown derives units/rate/charge (253MT: 60min → 2 × $10 = $20)', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     await addPeople()
     // move to a payer without a contract override (Self-pay) so the code table path is exercised
@@ -576,7 +608,7 @@ describe('billing, verification & signature', () => {
   })
 
   it('verification: checklist, signature typed with cert + timestamp capture', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     await addPeople()
     fireEvent.click(screen.getByText('Verification'))
@@ -609,7 +641,7 @@ describe('billing, verification & signature', () => {
 
 describe('series editing end-to-end', () => {
   it('edit occurrence with scope “All” updates every occurrence; “one” becomes an exception', async () => {
-    render(<App />)
+    renderCal()
     await openServiceWizard()
     await waitFor(() => expect(Object.keys(apptsInStorage()).length).toBeGreaterThan(0))
     await addPeople()

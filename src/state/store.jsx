@@ -92,7 +92,7 @@ export function blankState() {
     payExports: {},
     // Fresh workspaces already use opt-in custom fields. Only old saves without
     // these flags need the one-time cleanup migrations on their first load.
-    meta: { verificationFormsSeeded: true, billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true, unitNorm15: true },
+    meta: { verificationFormsSeeded: true, billingV2: true, billingV2Count: 0, billingV2Seen: true, pcfCleared: true, legacyCustomCleared: true, unitNorm15: true, dashLanding: true },
     staff: STAFF,
     // per-code authorization unit pools (the payer letter), seeded from each client's weekly hours
     clients: clientsWithIntake.map((c, i) => seedAuthUnits({ svcs: SVCS, appts: apptsWithClaims, clients: clientsWithIntake, payers: PAYERS, settings }, c, i)),
@@ -106,7 +106,7 @@ export function blankState() {
     reports: { saved: [] },
     dash: { widgets: DEFAULT_DASH.map((w) => ({ ...w, cfg: { ...w.cfg } })) },
     ui: {
-      section: 'calendar',
+      section: 'dashboard',
       mastersTab: 'payers',
       payerSel: null,
       nav: null, // null = context-adaptive: icon rail on the calendar board, expanded elsewhere
@@ -126,6 +126,11 @@ export function blankState() {
   // Demo Cabinet documents, CEU log, tasks and messages, built against the finished workspace.
   return normalizeRecurrence({ ...ws, ...seedRecords(ws, todayISO()) })
 }
+
+// The Dashboard is the landing page. A save from before that change (no meta.dashLanding)
+// that still sits on the old default, Calendar, opens once on the Dashboard; after that the
+// last section is kept, Calendar included.
+const landingSection = (s, migrated) => (!s || (s === 'calendar' && !migrated) ? 'dashboard' : s === 'payers' ? 'masters' : s)
 
 export const initial = () => loadWorkspace().state
 
@@ -156,7 +161,7 @@ export function loadWorkspace() {
         const mergedRaw = {
           ...base,
           ...saved,
-          meta: saved.meta || {},
+          meta: { ...(saved.meta || {}), dashLanding: true },
           claims: saved.claims || base.claims,
           svcs: Array.isArray(saved.svcs) && saved.svcs.length ? saved.svcs : base.svcs,
           customFields: Array.isArray(saved.customFields) ? saved.customFields : base.customFields,
@@ -182,7 +187,7 @@ export function loadWorkspace() {
           payRuns: saved.payRuns || {},
           payExports: saved.payExports || {},
           settings: { ...d, ...(saved.settings || {}), smart: saved.settings?.smart || d.smart, org: { ...d.org, ...(saved.settings?.org || {}) }, billing: { ...d.billing, ...(saved.settings?.billing || {}) }, analytics: { ...d.analytics, ...(saved.settings?.analytics || {}) }, payroll: { ...d.payroll, ...(saved.settings?.payroll || {}), taxes: { ...d.payroll.taxes, ...(saved.settings?.payroll?.taxes || {}) }, cancelPolicy: { ...d.payroll.cancelPolicy, ...(saved.settings?.payroll?.cancelPolicy || {}) }, approvals: { ...d.payroll.approvals, ...(saved.settings?.payroll?.approvals || {}) }, rounding: { ...d.payroll.rounding, ...(saved.settings?.payroll?.rounding || {}) } } },
-          ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: (saved.ui?.section || 'calendar') === 'payers' ? 'masters' : saved.ui?.section || 'calendar' },
+          ui: { ...base.ui, ...(saved.ui || {}), filters: { ...base.ui.filters, ...(saved.ui?.filters || {}) }, section: landingSection(saved.ui?.section, saved.meta?.dashLanding) },
         }
         // chunk-37: master-only migration for legacy custom-field entries — if anything was
         // promoted or dropped, write the fixed snapshot back immediately so the repair is durable

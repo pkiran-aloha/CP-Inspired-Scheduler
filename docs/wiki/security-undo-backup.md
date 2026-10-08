@@ -1,7 +1,7 @@
 # Security, Undo and backup
 
 _Sources: src/lib/security.js, src/lib/screenLock.js, src/components/ScreenLock.jsx, src/lib/workspaceBackup.js, src/components/SecurityView.jsx, src/components/settings/SystemPanel.jsx, src/components/SettingsModal.jsx, src/state/store.jsx, src/App.jsx_
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence and feat/local-screen-lock branches on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged._
 
 Three safety nets protect a workspace that lives only in one browser: role-based access (a local demo, not authentication), a 25-step Undo, and a versioned JSON backup with a storage-failure alert.
 
@@ -15,7 +15,7 @@ Open Settings, Security (also reachable from the nav for accounts with access). 
 
 **Accounts.** An account links a staff member to a role and one or more offices. All-office access is reserved for an Administrator. Users with office scope see only records in their offices (appointments, claims, clients, staff, teams, pay runs and so on are filtered before any screen, search or report reads them).
 
-**Preview.** The Preview button on an account switches the local demo to that account so you can see what its role can do. The header shows "Previewing: <name> · <role>". A denied route redirects to the first screen the account may open.
+**Preview.** The Preview button on an account switches the local demo to that account so you can see what its role can do. The header shows "Previewing: <name> · <role>". A denied route redirects to the first screen the account may open, the Dashboard when the role allows it.
 
 **What is refused and why.** When an action needs access the current account lacks, a toast says "Your current role does not have full access to <area>." (or "view access"). Out-of-scope records say "The selected record is outside your assigned office scope." Read-only screens show a "View only" pill. In the shared severity language these are stop-level refusals; nothing changes.
 

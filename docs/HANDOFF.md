@@ -32,6 +32,13 @@ Last updated **2026-10-08** (configuration-audit and architecture-mismatch clean
 
 ## Shipped (newest first)
 
+### Dashboard is the landing page (`feat/dashboard-landing`, 2026-10-08)
+
+- **What.** Fresh workspaces and app loads open on the Dashboard. It is first in the NavRail, the command palette's "Jump to" list and `firstAccessibleSection` (so a role without Dashboard access falls back to its first permitted section). Digit keys follow sidebar order: `1` Dashboard, `2` Calendar, `3` Clients, `4` Staff, `5` Billing, `6` Analytics, `7` Reports, `8` Masters, `9` Payroll (`0` Settings). Keyboard sheet, wiki and marketing copy updated.
+- **Persisted section (decision).** `ui.section` is still persisted. `loadWorkspace` maps a missing section, or `calendar` on a save without the new `meta.dashLanding` flag (the old default), to `dashboard`, and sets the flag; any other saved section is kept, and Calendar is kept once the flag is saved. Fresh workspaces carry the flag. No storage rewrite at load: the flag lands with the next normal save.
+- **Known.** The inbox and profile-menu buttons still live on the Calendar top bar only (unchanged design); the palette (Cmd/Ctrl+K) works everywhere.
+- **Tests.** `app.test.jsx` (landing on Dashboard + nav order, one-time old-save mapping, keys 1/2), `security.test.js` (fallback order); calendar UI tests now open the Calendar from the nav first.
+
 ### Local screen lock — architecture mismatch #13 (`feat/local-screen-lock`, 2026-10-08)
 
 - **What.** Settings, System → **Screen lock** (new section after General Settings): Lock When Idle (`screenLockEnabled`, **off by default**), screen-lock minutes (1–240), auto-logout minutes on the lock screen (5–480), a per-browser Lock PIN, and MFA Required shown disabled ("Needs the production sign-in; not enforced locally"; `systemConfig.patch` refuses to turn it on, and only validates fields a patch changes so a legacy value never blocks other edits). **Lock now** sits in the navigation rail footer.

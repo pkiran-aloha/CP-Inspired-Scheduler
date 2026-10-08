@@ -11,6 +11,7 @@ import {
   canAccessRecord,
   canAccessSection,
   currentAccount,
+  firstAccessibleSection,
   defaultSecurity,
   normalizeSecurity,
   officeForValue,
@@ -74,6 +75,16 @@ describe('local demo RBAC configuration', () => {
     expect(authorizeAction(state, { type: 'clearDemo' })).toMatchObject({ ok: false, msg: expect.stringMatching(/Schedule/) })
     expect(authorizeAction(state, { type: 'reseed' })).toMatchObject({ ok: false, msg: expect.stringMatching(/Schedule/) })
     expect(authorizeAction(state, { type: 'replace', payload: {} })).toMatchObject({ ok: false, msg: expect.stringMatching(/Schedule/) })
+  })
+
+  it('lands on the Dashboard first, or the first section the role may open', () => {
+    const state = blankState()
+    expect(firstAccessibleSection(state)).toBe('dashboard')
+    const permissions = Object.fromEntries(SECURITY_AREAS.map(({ id }) => [id, 'none']))
+    permissions.clients = 'view'
+    permissions.billing = 'view'
+    state.security.roles = [...state.security.roles, { id: 'no-dash', name: 'No Dashboard', system: false, permissions }]
+    expect(firstAccessibleSection(asRole(state, 'no-dash'))).toBe('clients')
   })
 
   it('checks read versus write access, denies unknown routes/actions, and protects unrelated modules', () => {

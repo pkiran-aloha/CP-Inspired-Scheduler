@@ -149,6 +149,7 @@ Each paid duty is priced on its own, overtime is tested by workweek, and approva
 
 A configurable dashboard and a report library share one metrics engine, so the same figure reads the same everywhere it appears.
 
+- **Opens on the Dashboard:** the board is the first screen and the first item in the sidebar (key 1), so the day starts with the practice's numbers. Roles that cannot see it open on the first screen they can.
 - **Dashboard widgets:** Practice Pulse, Volume Trend, Mix, Top Breakdown, Appointment Ledger, Week Heatmap, Intake Pipeline and Billing Health. Each one exports the data behind it.
 - **Billing Health:** clean claim rate, denial rate, net collection rate, cash posted, days in A/R, A/R over 90 days, charge lag and recoupments. Each shows its formula and target on hover, plus a delta against the previous period.
 - **19 reports** across Operations, Clinical & Compliance, Billing & Claims, People & Payroll and Data Quality. Examples: Authorization Utilization, Staff Utilization vs Target, Claims Register, BCBA Supervision Coverage and Behavior-Analytic Hours.

@@ -50,10 +50,12 @@ describe('navigation rail', () => {
 
   it('number keys jump sections (keyboard-first parity with the old calendar shortcuts)', async () => {
     render(<App />)
-    fireEvent.keyDown(window, { key: '2' })
+    fireEvent.keyDown(window, { key: '3' })
     expect(await screen.findByTestId('clients-cards')).toBeTruthy()
+    fireEvent.keyDown(window, { key: '2' })
+    expect(await screen.findByTestId('needs-cover')).toBeTruthy() // calendar chrome
     fireEvent.keyDown(window, { key: '1' })
-    expect(await screen.findByTestId('needs-cover')).toBeTruthy() // back on calendar chrome
+    expect(screen.getByTestId('nav-dashboard').classList.contains('on')).toBe(true)
   })
 })
 
@@ -167,6 +169,7 @@ describe('reports desk', () => {
 
   it('agenda shows a per-day session count badge (including days with no sessions)', async () => {
     const { container } = render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('tab', { name: 'Agenda' }))
     const badges = await waitFor(() => {
       const found = [...container.querySelectorAll('[data-testid^="ag-count-"]')]

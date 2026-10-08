@@ -57,6 +57,7 @@ describe('messages — inbox screen', () => {
     const withReply = send(send({ ...BASE, messages: {} }, { toIds: [OTHER], subject: 'Coverage Friday', body: 'Can you take the 3pm?' }, 'm1', ME), { threadId: 'm1', body: 'Yes, I can.' }, 'm2', OTHER)
     localStorage.setItem(KEY, JSON.stringify(withReply))
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(await screen.findByTestId('inbox-open'))
     const panel = await screen.findByTestId('inbox-panel')
     fireEvent.click(within(panel).getByTestId('inbox-tab-messages'))

@@ -45,6 +45,7 @@ describe('candidate verdicts: know before you pick', () => {
 describe('the booking dialog', () => {
   const openServiceWizard = async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
   }
@@ -89,6 +90,7 @@ describe('pick fit in the booking dialog', () => {
   }
   const openAt = async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: DATE } })
@@ -155,6 +157,7 @@ describe('the Checks rail at a glance', () => {
       appts: { blk: { id: 'blk', title: 'Busy block', date: DATE, start: 600, end: 720, type: 'service', status: 'active', staffIds: [S1.id], clientIds: [C2.id], location: '' } },
     }))
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     fireEvent.change(screen.getByTestId('appt-date'), { target: { value: DATE } })

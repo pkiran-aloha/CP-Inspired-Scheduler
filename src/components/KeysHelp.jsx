@@ -4,7 +4,7 @@ import { Icon } from '../ui/Icons'
 const GROUPS = [
   ['Anything', [['⌘ / Ctrl + K', 'command palette — search people, reports, actions'], ['?', 'this sheet'], ['Esc', 'close any sheet or dialog']]],
   ['Calendar', [['N or A', 'new appointment / block time at the anchor'], ['T', 'jump to today'], ['D · W · M · H · G', 'day / week / month / timeline / agenda'], ['← →', 'slide the visible window back / forward'], ['drag on grid', 'block time · click a slot to quick-book'], ['⇤ / ⤢ on a slot card', 'expand overlapping sessions side-by-side']]],
-  ['Workspace', [['1 – 9', 'calendar · clients · staff · billing · analytics · reports · dashboard · masters · payroll'], ['U', 'undo the last change'], ['☾ (top bar)', 'toggle dark / light'], ['⌘K → client name', 'jump to their row on the roster']]],
+  ['Workspace', [['1 – 9', 'dashboard · calendar · clients · staff · billing · analytics · reports · masters · payroll'], ['U', 'undo the last change'], ['☾ (top bar)', 'toggle dark / light'], ['⌘K → client name', 'jump to their row on the roster']]],
   ['Payroll', [['Process Payroll', 'period → register → approve → process (locks the register)'], ['Timesheet Submission', 'submit, approve or reopen a whole period in bulk'], ['Payroll ID Mapping', 'payroll ID, rate, classification and include flags'], ['QuickBooks Payroll', 'build the provider file and review what left the building']]],
   ['Reports & billing', [['click a report row', 'jump to the underlying record'], ['click a trend bar', 'focus the table to that day / week'], ['✓ / ⚡ on an issue row', 'verify & sign or auto-fix, with undo'], ['print', 'every report keeps a dedicated print stylesheet']]],
 ]

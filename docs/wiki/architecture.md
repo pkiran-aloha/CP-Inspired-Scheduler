@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, src/App.jsx, src/test/setup.js, src/lib/exportKit.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean; billingDocs wiring; mismatch #10 resolved on fix/cms1500-derived-values; local screen lock, mismatch #13); unrelated behavior unchanged._
+_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean; billingDocs wiring; mismatch #10 resolved on fix/cms1500-derived-values; local screen lock, mismatch #13); feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -48,7 +48,7 @@ Import cycles to avoid: `seed.js` imports `authBudget.js`, and `master.js` impor
 5. **Undo.** `state.history` holds up to 25 snapshots of only the fields a change touched. It lives in this tab's memory and is never persisted.
 6. **Persist.** A `StoreProvider` layout effect arms a save 250 ms after the last state change: `serializeForStorage(state)` (the state with `history` emptied) goes to localStorage. A pending save is flushed at once on `pagehide` and on `visibilitychange` to hidden, so a reload right after a click keeps it. If the write throws, a `storage-warning` alert names the reason (storage full, with the size needed) until a later write succeeds.
 7. **Other tabs.** A `storage` event for `aloha-aba.v3` means another tab saved: this tab re-loads the workspace and adopts it with one `hydrate` step (keeps its own navigation, drops its Undo steps), so it never writes a stale copy back over the other tab's work.
-8. **Load.** `loadWorkspace()` (and `initial()`, its state) reads the saved state, merges it over current defaults, runs `normalizeWorkspace`, and rewrites storage only if something changed. If a save exists but cannot be read, it returns an `error`: the tab opens on the fresh workspace, leaves the save untouched and does not persist until the user picks "Replace it with this workspace".
+8. **Load.** `loadWorkspace()` (and `initial()`, its state) reads the saved state, merges it over current defaults, runs `normalizeWorkspace`, and rewrites storage only if something changed. The landing section is the Dashboard: a save without `meta.dashLanding` (from before that change) that sits on the Calendar opens once on the Dashboard; any other saved section is kept. If a save exists but cannot be read, it returns an `error`: the tab opens on the fresh workspace, leaves the save untouched and does not persist until the user picks "Replace it with this workspace".
 
 The D3 handoff uses `intakeHandoff.js` for a pure first-week proposal and `planHandoffSession`, then `bookHandoffSession` → `handoffSessionTx` for one reviewed appointment. It rechecks live state and uses the existing appointment/intake link; proposals are transient and no migration is required. See [intake](intake.md).
 

@@ -54,6 +54,7 @@ describe('telehealth room link', () => {
   it('the booking dialog shows the room link once a telehealth location is picked', async () => {
     localStorage.setItem('aloha-aba.v3', JSON.stringify(withRoom()))
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     expect(screen.queryByTestId('am-telehealth-room')).toBeNull()
@@ -73,6 +74,7 @@ describe('telehealth room link', () => {
     // control: without the rule the telehealth location is offered
     localStorage.setItem('aloha-aba.v3', JSON.stringify(blankState()))
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     await pickJustin()
@@ -87,6 +89,7 @@ describe('telehealth room link', () => {
     aetna.rules = { ...(aetna.rules || {}), hideTeleHome: true }
     localStorage.setItem('aloha-aba.v3', JSON.stringify(s))
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     await pickJustin()

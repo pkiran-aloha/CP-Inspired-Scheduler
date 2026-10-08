@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced against main e37d97c plus the C4 confidence-threshold picker on 2026-10-06; unrelated behavior unchanged._
+_Last synced against main e37d97c plus the C4 confidence-threshold picker on 2026-10-06; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged._
 
 [Wiki home](README.md)
 
@@ -23,7 +23,7 @@ No. The built-in data is fictional, and this prototype has no real sign-in, no e
 
 ### How do I get around quickly?
 
-Press `?` on the calendar for the list of shortcuts, and Cmd or Ctrl plus K for the command palette, which jumps to a section, runs a report or finds a client or staff member. Number keys open sections, for example `6` for Reports, `7` for the Dashboard, `9` for Payroll and `0` for Settings. [More: Scheduling](scheduling.md#the-calendar)
+Press `?` on the calendar for the list of shortcuts, and Cmd or Ctrl plus K for the command palette, which jumps to a section, runs a report or finds a client or staff member. Number keys open sections in sidebar order: `1` Dashboard (where the app opens), `2` Calendar, `3` Clients, `4` Staff, `5` Billing, `6` Analytics, `7` Reports, `8` Masters, `9` Payroll and `0` Settings. [More: Scheduling](scheduling.md#the-calendar)
 
 ## Scheduling
 
@@ -173,7 +173,7 @@ No. It builds the register, stubs and files (including a QuickBooks-style CSV an
 
 ### How do I export a report?
 
-Open Reports (key `6`), run the report, and use Export for CSV, XLS or PDF. The file downloads to your computer; nothing is emailed and no report runs on a schedule. [More: Dashboard and reports](dashboard-and-reports.md)
+Open Reports (key `7`), run the report, and use Export for CSV, XLS or PDF. The file downloads to your computer; nothing is emailed and no report runs on a schedule. [More: Dashboard and reports](dashboard-and-reports.md)
 
 ### What is Billing Health?
 

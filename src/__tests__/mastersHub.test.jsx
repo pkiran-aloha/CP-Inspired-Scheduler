@@ -62,6 +62,7 @@ async function bookJustin() {
 describe('masters — nav & service types', () => {
   it('Masters nav item carries the Payers + Service Types sub-list', async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByTestId('nav-collapse'))
     expect(await screen.findByTestId('nav-masters')).toBeTruthy()
     expect(screen.queryByTestId('nav-payers')).toBeNull() // no longer a top-level section
@@ -520,6 +521,7 @@ describe('masters — billing rules', () => {
 describe('masters — platform relationships', () => {
   it('wizard books at the payer contract rate — note shown and charge used', async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     // client: Justin Hsu (payer Aetna with the seeded dtt override $19)
@@ -545,6 +547,7 @@ describe('masters — platform relationships', () => {
 
   it('payer signature rule blocks completing an appointment', async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     fireEvent.click(screen.getByRole('button', { name: 'Appointment' }))
     fireEvent.click(await screen.findByTestId('type-service'))
     fireEvent.click(screen.getByTestId('pick-Client Name'))
@@ -1001,6 +1004,7 @@ describe('chunk 33 — payer service edit & add regressions', () => {
 
   it('payers landing shows the running build stamp (no stale-tab surprises)', async () => {
     render(<App />)
+    fireEvent.click(screen.getByTestId('nav-calendar')) // the app lands on the Dashboard
     await toMasters()
     expect((await screen.findByTestId('app-build')).textContent).toContain('build')
   })

@@ -15,7 +15,7 @@ let _r = null
 const cleanup = () => { if (_r) { _r.unmount(); _r = null } }
 beforeEach(() => { localStorage.clear(); cleanup() })
 afterEach(() => cleanup())
-const R = (ui) => { cleanup(); _r = render(ui); return _r }
+const R = (ui) => { cleanup(); _r = render(ui); fireEvent.click(screen.getByTestId('nav-calendar')); return _r } // the app lands on the Dashboard
 
 const seed = () => {
   const s = blankState()

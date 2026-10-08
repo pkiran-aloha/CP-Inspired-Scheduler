@@ -99,7 +99,7 @@ function Shell() {
   const [palette, setPalette] = useState(false)
   const [kbHelp, setKbHelp] = useState(false)
 
-  const section = ui.section || 'calendar'
+  const section = ui.section || 'dashboard'
   const area = section === 'settings' && ui.settingsModule === 'security' ? 'security' : areaForSection(section)
   // Help & Wiki holds no practice data, so every role can open it
   const routeAllowed = section === 'help' ? true : section === 'settings'
@@ -187,7 +187,7 @@ function Shell() {
       const tag = (e.target.tagName || '').toLowerCase()
       if (['input', 'textarea', 'select'].includes(tag) || e.metaKey || e.ctrlKey) return
       if (e.key === '?') { e.preventDefault(); setKbHelp(true); return }
-      if (/^[1-9]$/.test(k)) actions.setUI({ section: ['calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'dashboard', 'masters', 'payroll'][Number(k) - 1] })
+      if (/^[1-9]$/.test(k)) actions.setUI({ section: ['dashboard', 'calendar', 'clients', 'staff', 'billing', 'analytics', 'reports', 'masters', 'payroll'][Number(k) - 1] })
       else if (k === '0') actions.setUI({ section: 'settings' })
       else if (k === 't') actions.setUI({ anchor: todayISO() })
       else if (k === 'i') actions.setUI({ insights: !ui.insights })
@@ -342,7 +342,7 @@ function Shell() {
           <SettingsModal
             forcedModule={section === 'security' ? 'security' : null}
             forcedSub={section === 'security' ? (ui.securityTab || 'accounts') : null}
-            onClose={() => actions.setUI({ section: firstAccessibleSection(state) || 'calendar', settings: false })}
+            onClose={() => actions.setUI({ section: firstAccessibleSection(state) || 'dashboard', settings: false })}
           />
         )}
         </>}
