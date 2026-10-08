@@ -8,6 +8,8 @@ import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
 import { dueOf, arOf, patientResponsibilityOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
+// One glyph per metric (no two tiles on a screen share one).
+const TILE_ICON = { 'ar-kpi-total': 'wallet', 'ar-kpi-patient': 'user', 'ar-kpi-over90': 'hourglass', 'ar-kpi-dso': 'cal', 'ar-kpi-collections': 'percent', 'ar-kpi-writeoff': 'eraser' }
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -96,7 +98,7 @@ export default function ArManagerView() {
           ['writeoff', 'Write-off YTD', money(ar.totals.writeOffYTD), `Year ${asOf.slice(0, 4)}`, '#f59e0b', 'ar-kpi-writeoff'],
         ].map(([id, label, val, sub, color, testId]) => (
           <div key={id} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 180, borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.dollar({ size: 16 })}</span>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon[TILE_ICON[testId]]({ size: 16 })}</span>
             <div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div>
           </div>
         ))}

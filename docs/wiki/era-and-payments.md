@@ -1,7 +1,7 @@
 # ERA and payments
 
 _Sources: src/lib/era.js, src/lib/eraPosting.js, src/lib/paymentLedger.js, src/lib/secondaryLedger.js, src/lib/claims.js, src/lib/billingDocs.js, src/components/PaymentCenterView.jsx, src/components/SecondaryBillingView.jsx, src/state/store.jsx, src/__tests__/fixtures/835-full.txt_
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, fix/billingdocs-wiring, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, fix/billingdocs-wiring, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on Payment Center and Secondary Queue)._
 
 This page covers how money gets onto claims in this browser: the Payment Center, 835 ERA import, manual remittances, voids, recoupments, patient receipts, and secondary (COB) filings. Claim lifecycle is in [billing-and-claims](billing-and-claims.md); aging and statements are in [accounts-receivable](accounts-receivable.md).
 
@@ -11,7 +11,7 @@ Nothing here moves real money or contacts a payer. An ERA file is read in the br
 
 ### The Payment Center
 
-Open Billing, Payment Center. The header has "+ Manual Payment", "+ Patient receipt", "+ Recoupment", a "Patient audit CSV" export, "Upload ERA (835)", a range picker and a search box.
+Open Billing, Payment Center. The header has "+ Manual Payment", "+ Patient receipt", "+ Recoupment", a "Patient audit CSV" export, "Upload ERA (835)", a range picker and a search box. Its stat tiles (Total, Check, EFT / ERA, Unapplied receipts, Patient cash, Recouped) and the Secondary Queue tiles each carry a glyph for their own metric, such as a cheque for Check and a return arrow for Recouped.
 
 - **Payments tab.** KPI chips: Total, Check, EFT / ERA, Unapplied receipts (not limited by the range), Patient cash and Recouped. Filters: All, Patient, Check, EFT, ERA, Cash, Recoupments. Columns: date, client, payer, amount (negative in red), method, reference or note, and claim ("Unapplied" if none). The first 100 rows show.
 - **ERAs tab.** One row per import: file, date, trace number, counts and status (posted, partial, parked, legacy). Open one to review each line.
