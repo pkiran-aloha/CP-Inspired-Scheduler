@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, src/App.jsx, src/test/setup.js, src/lib/exportKit.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main a0142d0 plus the fix/workspace-persistence branch on 2026-10-08; unrelated behavior unchanged._
+_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean); unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -92,7 +92,7 @@ Docs versus repo:
 1. Resolved: `AGENTS.md` now names the Python history files `c33-*` to `c37-*` and the two live scripts.
 2. Resolved (documented): the `deploy.yml` legacy install fallback is described under "CI and deploy" above.
 3. Resolved (documented): the redundant `--run` flag is noted under "CI and deploy" above.
-4. `playwright` and `playwright-core` are devDependencies but nothing in the repository imports them. Removing them needs a regenerated `package-lock.json`, so do it from a machine that can run npm.
+4. Resolved (2026-10-08): the unused `playwright` / `playwright-core` devDependencies are removed and the lock file regenerated. The test runner is Vitest 4.
 5. Resolved: the README now says v3 JSON (v2 files still import).
 6. Resolved: the README now says Settings → System → Data & backup.
 

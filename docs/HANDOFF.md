@@ -60,6 +60,12 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
 - **Verification.** `railGlance.test.js` (8) + one UI case in `bookingChecks.test.jsx` (decision line, week-load meter value text, continuity chip, Details disclosure, nothing saved). Full suite 100 files / 1,047 tests green before the merge of `origin/main`; `npm run build` green (chunk-size warning only).
 - **Date-dependent tests fixed along the way.** On 2026-10-08, 13 booking-dialog tests failed on plain `origin/main` (`beabf9e`): the seed put the first clinician in the dialog's default slot, so the Warn gate held the save. `abaHoursUi`, `app`, `customFields`, `mastersHub` and `signatureRules` now tick the gate when it shows (one test counts sessions instead of assuming none; one checks the write, not a toast). After merging `origin/main`: 100 files / 1,048 tests green; build green.
 
+### Dependencies — REL-01 dependency half (`chore/vitest4`, 2026-10-08)
+
+- **What.** Vitest 2.1.8 → 4.1.11 (Vitest 5 would drop Node 25, the work PC's runtime); `npm audit fix` patched source-map-js and dompurify; unused `playwright` / `playwright-core` removed (architecture mismatch #4). `npm audit`: **0 vulnerabilities**, was 8 (2 critical, 2 high, 3 moderate, 1 low). Redone from `main` with a locally regenerated lock file rather than merging the older `arena/ba9e3ddc` branch, whose docs had drifted.
+- **Verification.** Full suite 103 files / 1,062 tests green on Node 25.8.1 (work PC workarounds unchanged); `npm run build` green. No `src/` or test change.
+- **Maintainer note.** After pulling, run `npm ci` in the `dev` clone: the lock file changed.
+
 ### Bundle code-splitting — REL-01 bundle half (`perf/lazy-views`, 2026-10-07)
 
 - **What.** Entry JS **2,525 → 1,015 kB minified (759 → 322 kB gzip)**. Non-calendar sections in `App.jsx` are `React.lazy` chunks behind a "Loading this section…" status inside the section error boundary; the wiki markdown rides in the Help chunk; jsPDF is a dynamic import via `loadPdf()` in `exportKit.js` (builders stay sync through `newPdf()`, every PDF button awaits `loadPdf()` and toasts honestly if the fetch fails). `chunkSizeWarningLimit` is 1,100 kB as a tripwire; the rest of the entry is the store plus the domain engines the reducer imports.
@@ -122,7 +128,7 @@ Last updated **2026-10-07** (payer-specific mileage-code follow-up started after
   - **CFG-06** — unimplemented Claims Settings options (Box 17/19, 33B/33B2, file grouping, appointment time, taxonomy/rendering checkboxes) disabled and labelled "not available"; "Separate Claim By" drops "Supervising Provider"; POS "Hide POS-10" now removes telehealth locations from the booking picker for that payer's clients ("Hide POS-02" disabled — no location codes POS-02).
   - **CFG-07** — custom-field scopes enforced in both pickers (appointment / payer; legacy templates keep the old behaviour); textarea renders; saved Text Format (number/email/phone/URL) validated at save; "Required once added" labelled honestly; payer copy no longer promises automatic appointment/export propagation.
 - **Verification.** Full suite **95 files / 995 tests green**; `npm run build` green (bundle-size warning unchanged); wiki (`settings`, `payroll`, `scheduling`, `billing-and-claims`, `architecture`), the audit report (per-finding resolution statuses) and this file synced. New tests: `signatureRules.test.jsx`, `notifications.test.jsx`, `writeGuard.test.jsx`, `customFields.test.jsx` plus focused additions.
-- **Still open (by design):** CFG-01 production architecture (P0 gate, decision not code); CFG-05 jurisdictional payroll calculator + legal review; REL-01 dependency upgrades (vitest major is a dev-only project) and bundle code-splitting — triaged and documented in the audit report.
+- **Still open (by design):** CFG-01 production architecture (P0 gate, decision not code); CFG-05 jurisdictional payroll calculator + legal review; REL-01 is now fully resolved (bundle split on `perf/lazy-views`, dependencies on `chore/vitest4`).
 
 ### D1 follow-up — configurable practice days (built 2026-10-07)
 
@@ -417,7 +423,7 @@ Other open items, smaller:
   - Section 1557 language taglines on statements (a settings block with a per-family opt-out);
   - a per-guarantor confidential "send to" address;
   - comparing statements against an issued GFE (the $400 dispute threshold).
-- Architecture mismatches still listed in `docs/wiki/architecture.md`: #4 unused `playwright` devDependencies (npm now works in the `dev` clone, so the lock file can be regenerated there); #10; #12 `build*` helpers that only tests import; #13 unenforced MFA/lock settings.
+- Architecture mismatches still listed in `docs/wiki/architecture.md`: #10; #12 `build*` helpers that only tests import; #13 unenforced MFA/lock settings.
 - "Known issues / backlog" below.
 
 **How this session built safely alongside a parallel agent:** every feature was built in a scratch git worktree from `origin/main` (`git worktree add -b feat/x <scratch>/dir origin/main`), never in the shared checkout; before landing, `git merge origin/main` into the branch (README/HANDOFF/wiki "Last synced" lines conflict often: keep both new sections, take the newer sync line), then `git checkout --detach origin/main && git merge --no-ff feat/x && git push origin feat/x HEAD:main`, then poll `actions/runs?head_sha=<sha>` until green. Since the end of this session the full suite, JSX included, also runs locally in the `dev` clone (see "How the maintainer works").

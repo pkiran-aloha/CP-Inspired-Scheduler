@@ -15,6 +15,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 ## Current development context
 
+- **Dependencies (2026-10-08):** test runner upgraded to Vitest 4, unused Playwright packages removed, `npm audit` reports 0 vulnerabilities. Run `npm ci` after pulling.
+
 - `src/state/store.jsx` owns the seeded workspace, migrations, reducer, undo and browser persistence. `src/lib/` contains the domain engines (claims, documents, reporting, scheduler); `src/components/` holds the screens. `src/__tests__/` exercises both pure logic and UI workflows.
 - `docs/specs/` contains the original billing design/build plan. It is historical design context, **not** a guarantee that every listed screen or integration is implemented. The app has no clearinghouse, eligibility or QuickBooks network connection; generated artifacts and manual workflows are local demonstrations.
 - The NavRail build id and `public/version.json` let an open tab notice a newer deployment.
