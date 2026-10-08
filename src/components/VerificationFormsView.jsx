@@ -7,6 +7,7 @@ import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel } from '../lib/date'
 import { PersonAvatar } from '../ui/avatars'
+import { buildVerificationForm } from '../lib/billingDocs'
 
 export default function VerificationFormsView() {
   const state = useStore()
@@ -124,7 +125,7 @@ export default function VerificationFormsView() {
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn btn-sm btn-primary" data-testid="vf-mark-verified" onClick={() => { actions.updateVerificationForm(sel.id, { status: 'verified' }); toast({ message: `${sel.clientName} verified`, kind: 'ok' }) }} style={{ borderRadius: 10 }}>Mark Verified</button>
                   <button className="btn btn-sm" data-testid="vf-mark-expired" onClick={() => { actions.updateVerificationForm(sel.id, { status: 'expired' }); toast({ message: `${sel.clientName} marked expired`, kind: 'ok' }) }} style={{ borderRadius: 10 }}>Mark Expired</button>
-                  <button className="btn btn-sm" data-testid="vf-download" onClick={() => { download(`Verification-${sel.clientName}.txt`, `Verification Form\nClient ${sel.clientName}\nPayer ${sel.payer}\nStatus ${sel.status}\nDate ${sel.date}\nNotes ${sel.notes || ''}`); toast({ message: 'Form downloaded', kind: 'ok' }) }} style={{ borderRadius: 10 }}>Download</button>
+                  <button className="btn btn-sm" data-testid="vf-download" onClick={() => { const doc = buildVerificationForm(sel); download(doc.fileName, doc.content, 'text/plain;charset=utf-8'); toast({ message: 'Form downloaded', kind: 'ok' }) }} style={{ borderRadius: 10 }}>Download</button>
                 </div>
               </div>
             </>

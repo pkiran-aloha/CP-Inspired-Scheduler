@@ -1,138 +1,41 @@
-// U7 — billingDocs builders (pure, document-grade)
-// Pure fns: (state, opts) -> {fileName, content} or array
+// Billing document builders (pure). Each returns {fileName, content} (or a list of them)
+// and is the one source of truth for the file its screen downloads.
 
-import { dueOf, isPrimaryReceivable, patientResponsibilityOf, receivableBucketOf } from './claims.js'
-import { isoDate } from './date.js'
+import { dueOf, isPrimaryReceivable, patientResponsibilityOf } from './claims.js'
+import { isoDate, todayISO } from './date.js'
 
-const r2 = (n) => Math.round(n * 100) / 100
+// ---------- Draft patient-share statement (Generate Invoice screen) ----------
+const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
-// ---------- Invoices / Statements ----------
-export function buildInvoices(state, opts = {}) {
-  const {
-    for: forWho = 'client', // 'payer' | 'client'
-    payerId = null,
-    clientIds = [],
-    from = '2026-01-01',
-    to = '2026-12-31',
-    format = 'standard', // standard | statement | reminder
-    orderBy = 'date', // date | client | payer
-    descriptionAs = 'service', // service | cpt | title
-    doc = 'pdf', // pdf | csv (we return text for both, pdf via exportKit later)
-    taxId = false,
-    taxPct = 0,
-    topNotes = '',
-    bottomNotes = '',
-    balanceOnly = true,
-    inclTime = false,
-    perClient = false,
-    inclScheduled = false,
-  } = opts
-
-  const org = state.settings?.org || {}
+/** One row per selected client: its primary receivable claims, their charges and the reported patient share. */
+export function patientShareRows(state, clientIds = [], { balanceOnly = false } = {}) {
   const clients = state.clients || []
-  const clientById = Object.fromEntries(clients.map((c) => [c.id, c]))
-
-  // A linked secondary is an alternate filing, not another invoiceable charge.
-  const amountDue = (c) => forWho === 'client' ? patientResponsibilityOf(state, c)
-    : Math.max(0, r2(dueOf(c) - patientResponsibilityOf(state, c)))
-  let claims = Object.values(state.claims || {}).filter((c) => {
-    if (!isPrimaryReceivable(c) || c.dosFrom < from || c.dosFrom > to) return false
-    if (clientIds.length && !clientIds.includes(c.clientId)) return false
-    if (forWho === 'payer' && payerId) {
-      // payerId can be payer name or id — match by name if possible
-      const payer = (state.payers || []).find((p) => p.id === payerId)
-      const payerName = payer ? payer.name : payerId
-      if (receivableBucketOf(state, c) !== payerName && receivableBucketOf(state, c) !== payerId) return false
-    }
-    const due = amountDue(c)
-    if (balanceOnly && due <= 0.005) return false
-    if (!inclScheduled && c.lines?.some((l) => l.kind === 'scheduled')) {
-      // if any line is scheduled and inclScheduled false, exclude? For simplicity, include but grey
-    }
-    return true
+  return clientIds.map((cid) => {
+    const claims = Object.values(state.claims || {}).filter((c) => c.clientId === cid && isPrimaryReceivable(c) &&
+      (balanceOnly ? patientResponsibilityOf(state, c) > 0 : true))
+    return { client: clients.find((c) => c.id === cid), claims,
+      total: claims.reduce((s, c) => s + c.charges, 0), due: claims.reduce((s, c) => s + patientResponsibilityOf(state, c), 0) }
   })
+}
 
-  if (orderBy === 'client') claims = claims.sort((a, b) => (clientById[a.clientId]?.name || '').localeCompare(clientById[b.clientId]?.name || '') || a.dosFrom.localeCompare(b.dosFrom))
-  else if (orderBy === 'payer') claims = claims.sort((a, b) => a.payer.localeCompare(b.payer) || a.dosFrom.localeCompare(b.dosFrom))
-  else claims = claims.sort((a, b) => a.dosFrom.localeCompare(b.dosFrom))
-
-  const taxRate = taxPct > 0 ? taxPct / 100 : 0
-
-  const makeContent = (groupClaims, groupClientIds) => {
-    const totalDue = groupClaims.reduce((s, c) => s + amountDue(c), 0)
-    const tax = taxId && taxRate > 0 ? r2(totalDue * taxRate) : 0
-    const grand = r2(totalDue + tax)
-
-    const lines = [
-      `# ${org.name || 'Practice'} — ${format === 'statement' ? 'Statement of Account' : format === 'reminder' ? 'Payment Reminder' : 'Standard Invoice'} · ${from} → ${to}`,
-      `# For: ${forWho === 'payer' ? (payerId || 'Payer') : groupClientIds.length ? groupClientIds.map((id) => clientById[id]?.name || id).join(', ') : 'All clients'}`,
-      `# Balance Only: ${balanceOnly ? 'Yes — zero balance claims hidden' : 'No'} · Separated By Client: ${perClient ? 'Yes' : 'No'} · Incl Time: ${inclTime ? 'Yes' : 'No'} · Incl Scheduled: ${inclScheduled ? 'Yes' : 'No'}` ,
-      forWho === 'client' ? `# Draft remaining patient share = explicitly reported responsibility or self-pay, less $${groupClaims.reduce((s, c) => s + (c.patientPaid || 0), 0).toFixed(2)} local patient receipts. Paid includes payer and patient cash. Verify COB before sending.` : '# Draft payer portion of primary A/R after remaining reported patient share. total_received includes payer AND patient cash, not payer-only receipts. COB draft/denial remainders require review; linked secondary is not a second charge.',
-      topNotes ? `# Top: ${topNotes}` : null,
-      bottomNotes ? `# Bottom: ${bottomNotes}` : null,
-      taxId ? `# Tax ID included · Tax ${taxPct}% = $${tax.toFixed(2)}` : null,
-      `claim,client,payer,dos_from,dos_to,description,units,rate,charges,total_received,adj,due${inclTime ? ',time' : ''}`,
-      ...groupClaims.flatMap((c) => {
-        const cl = clientById[c.clientId] || {}
-        const received = r2((c.paid || 0) + (c.secondaryPaid || 0) + (c.patientPaid || 0))
-        if (forWho === 'client') {
-          // Claim-level PR is not allocatable to individual service lines here.
-          return [`${c.no},"${cl.name || ''}",${c.payer},${c.dosFrom},${c.dosTo},"Reported patient share (verify before billing)",1,${c.charges},${c.charges},${received},${c.adj || 0},${amountDue(c)}${inclTime ? ',' : ''}`]
-        }
-        return (c.lines || []).map((l, i) => {
-          let desc = l.desc || ''
-          if (descriptionAs === 'cpt') desc = `${l.code} ${l.desc}`
-          else if (descriptionAs === 'title') desc = l.desc || c.no
-          else desc = l.desc || l.code
-          const time = inclTime ? `${Math.floor(l.t0 / 60)}:${String(l.t0 % 60).padStart(2, '0')}-${Math.floor(l.t1 / 60)}:${String(l.t1 % 60).padStart(2, '0')}` : ''
-          return `${c.no},"${cl.name || ''}",${receivableBucketOf(state, c)},${c.dosFrom},${c.dosTo},"${desc}",${l.units},${l.rate},${l.charge},${i ? 0 : received},${i ? 0 : (c.adj || 0)},${i ? 0 : amountDue(c)}${inclTime ? `,${time}` : ''}`
-        })
-      }),
-      `TOTAL,,,,,,,${groupClaims.reduce((s, c) => s + c.charges, 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.paid || 0) + (c.secondaryPaid || 0) + (c.patientPaid || 0), 0).toFixed(2)},${groupClaims.reduce((s, c) => s + (c.adj || 0), 0).toFixed(2)},${totalDue.toFixed(2)}${inclTime ? ',' : ''}`,
-      tax ? `TAX,,,,,,,${tax.toFixed(2)}` : null,
-      `GRAND TOTAL,,,,,,,${grand.toFixed(2)}`,
-    ].filter(Boolean)
-    return lines.join('\n')
-  }
-
-  const seq = state.settings?.billing?.invoiceSeq || 1
-  const prefix = state.settings?.billing?.invoicePrefix || 'INV'
-  const yearMonth = to.slice(0, 7).replace('-', '')
-
-  if (perClient) {
-    // group by client
-    const byClient = {}
-    for (const c of claims) {
-      const cid = c.clientId
-      if (!byClient[cid]) byClient[cid] = []
-      byClient[cid].push(c)
-    }
-    let idx = 0
-    return Object.entries(byClient).map(([cid, group]) => {
-      const invNo = `${prefix}-${yearMonth}-${String(seq + idx).padStart(3, '0')}`
-      idx++
-      return {
-        fileName: `${invNo}-${clientById[cid]?.name?.replace(/[^A-Za-z0-9]/g, '_') || cid}.${doc === 'pdf' ? 'pdf' : 'csv'}`,
-        invNo,
-        clientId: cid,
-        content: makeContent(group, [cid]),
-        total: group.reduce((s, c) => s + amountDue(c), 0),
-        claims: group,
-      }
-    })
-  } else {
-    const invNo = `${prefix}-${yearMonth}-${String(seq).padStart(3, '0')}`
-    return [
-      {
-        fileName: `${invNo}.${doc === 'pdf' ? 'pdf' : 'csv'}`,
-        invNo,
-        clientIds,
-        content: makeContent(claims, clientIds),
-        total: claims.reduce((s, c) => s + amountDue(c), 0),
-        claims,
-      },
-    ]
-  }
+/** The text file "Download draft statement" saves. Claims are picked by client, not by the range (the range is a label). */
+export function buildPatientShareDraft(state, { clientIds = [], balanceOnly = false, from = '', to = '', today = todayISO() } = {}) {
+  const rows = patientShareRows(state, clientIds, { balanceOnly })
+  const total = rows.reduce((s, r) => s + r.total, 0)
+  const due = rows.reduce((s, r) => s + r.due, 0)
+  const lines = [
+    `Draft patient share — ${state.settings?.org?.name || 'Practice'} — ${today}`,
+    `Range ${from} → ${to} — ${balanceOnly ? 'Reported patient balances only' : 'All primary claims'}`,
+    'DRAFT: Only explicit payer-reported patient responsibility and self-pay are shown as patient share. Verify COB and coverage before billing. Unassigned payer balances are excluded.',
+    '',
+    ...rows.flatMap((r) => [
+      `Client: ${r.client?.name || r.client?.id} — ${r.claims.length} primary claims — Charges ${money(r.total)} — Reported patient share ${money(r.due)}`,
+      ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Patient receipts ${money(c.patientPaid || 0)} | Practice A/R ${money(Math.max(0, dueOf(c)))} | Remaining reported patient share ${money(patientResponsibilityOf(state, c))} | ${c.status}`),
+      '',
+    ]),
+    `Total charges ${money(total)} — Reported patient share ${money(due)} (verify before sending)`,
+  ]
+  return { fileName: `Patient-share-draft-${today}.txt`, content: lines.join('\n'), rows, total, due }
 }
 
 // ---------- QBO CSV ----------
@@ -240,65 +143,15 @@ function fmtQboDate(iso) {
 }
 
 // ---------- Verification Forms ----------
-export function buildVerificationForm(state, opts = {}) {
-  const {
-    payerId,
-    format = 'parental', // parental | benefit | auth_request
-    from = '2026-01-01',
-    to = '2026-12-31',
-    clientIds = [],
-    apptState = 'all', // all | completed | scheduled
-    doc = 'pdf',
-  } = opts
-
-  const payer = (state.payers || []).find((p) => p.id === payerId || p.name === payerId) || { name: payerId || 'Payer', street: '', city: '', state: '', zip: '', contacts: [] }
-  const org = state.settings?.org || {}
-  const clients = (state.clients || []).filter((c) => !clientIds.length || clientIds.includes(c.id))
-
-  return clients.map((client) => {
-    const appts = Object.values(state.appts || {}).filter((a) => {
-      if (a.clientIds?.[0] !== client.id) return false
-      if (a.date < from || a.date > to) return false
-      if (apptState === 'completed' && a.status !== 'completed') return false
-      if (apptState === 'scheduled' && !['active', 'confirmed'].includes(a.status)) return false
-      return true
-    })
-
-    const title = format === 'parental' ? 'Parental Verification' : format === 'benefit' ? 'Benefit Verification Request' : 'Prior Authorization Request'
-
-    const content = [
-      `# ${org.name || 'Practice'} — ${title}`,
-      `# Payer: ${payer.name} · ${payer.street || ''} ${payer.city || ''} ${payer.state || ''} ${payer.zip || ''}`,
-      `# Client: ${client.name} · DOB ${client.dob || '—'} · Member ${client.id}`,
-      `# Date Range: ${from} → ${to} · Appointment State: ${apptState}`,
-      `# Format: ${format} · Generated: ${isoDate(new Date())}`,
-      '',
-      format === 'parental' ? `I, the parent/guardian of ${client.name}, attest that the following sessions were provided as documented:` : '',
-      format === 'benefit' ? `Requesting benefit verification for ${client.name} — please confirm coverage for ABA services CPT 97151-97158:` : '',
-      format === 'auth_request' ? `Prior authorization request for ${client.name} — ${client.program || ''} — requesting units for ${from} → ${to}:` : '',
-      '',
-      'date,service,code,units,staff,notes',
-      ...appts.map((a) => `${a.date},${a.title || ''},${a.billing?.code || ''},${a.billing?.units || ''},"${(a.staffIds || []).join(', ')}",${a.notes || ''}`),
-      '',
-      format === 'parental' ? 'Parent/Guardian Signature: _________________________ Date: __________' : '',
-      format === 'parental' ? 'Provider Signature: _________________________ Date: __________' : '',
-      format === 'benefit' ? 'Please return verification to: ' + (org.email || '') : '',
-      format === 'auth_request' ? `Units requested: ${appts.reduce((s, a) => s + (a.billing?.units || 0), 0)} · Program: ${client.program || ''}` : '',
-      '',
-      `# Confidential — contains health information`,
-    ].filter(Boolean).join('\n')
-
-    return {
-      fileName: `${title.replace(/[^A-Za-z0-9]/g, '_')}-${client.name.replace(/[^A-Za-z0-9]/g, '_')}-${from}-to-${to}.${doc === 'pdf' ? 'pdf' : 'txt'}`,
-      clientId: client.id,
-      content,
-      title,
-      payer: payer.name,
-      appts,
-    }
-  })
+/** The text file a Verification Forms record downloads. */
+export function buildVerificationForm(form) {
+  return {
+    fileName: `Verification-${form.clientName}.txt`,
+    content: `Verification Form\nClient ${form.clientName}\nPayer ${form.payer}\nStatus ${form.status}\nDate ${form.date}\nNotes ${form.notes || ''}`,
+  }
 }
 
+// ---------- Appeal letter (Appeals screen) ----------
 export function buildAppealLetter(state, opts = {}) {
   const { claimId, narrative = '', enclosures = [] } = opts
   const claim = (state.claims || {})[claimId]
@@ -307,12 +160,13 @@ export function buildAppealLetter(state, opts = {}) {
   const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
   const content = [
     `${org.name || 'Practice'}`,
-    `${org.street || ''} ${org.city || ''} ${org.state || ''} ${org.zip || ''}`,
+    org.address || '',
     '',
     `Date: ${isoDate(new Date())}`,
     `Payer: ${claim.payer}`,
     `Re: Appeal — Claim ${claim.no} · Client ${client.name || ''} · DOS ${claim.dosFrom} → ${claim.dosTo}`,
-    `CARC: ${claim.denial?.code || ''} — ${claim.denial?.reason || ''}`,
+    // denial.code is the practice's own reason id (Settings → Billing), not a CARC, so print only the reason.
+    `Denial reason: ${claim.denial?.reason || 'not recorded'}`,
     '',
     'Dear Claims Review,',
     '',

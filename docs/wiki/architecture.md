@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, src/App.jsx, src/test/setup.js, src/lib/exportKit.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean); unrelated behavior unchanged._
+_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean; billingDocs wiring); unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -106,7 +106,7 @@ Other findings from writing these pages:
 
 10. The CMS-1500 follows the NUCC v13 item rules and the CMS print grid (rebuilt on `feat/cms1500-standard`), but some values are still derived: the member ID in item 1a (`memberIdOf`) and the authorization number in item 23 (`authNoOf`) when the chart has none, the diagnosis (`dxFor`, from the client's program) and the patient account number (the client id).
 11. Resolved: new claim history entries read "Marked submitted to <payer>; claim file saved locally, not transmitted" and the Process toast says "marked submitted · file saved in Billed Files, nothing transmitted". History entries already in a saved workspace keep their old text.
-12. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
+12. Resolved (2026-10-08): each `billingDocs.js` builder is now the one implementation of its screen's download. Generate Invoice uses `buildPatientShareDraft` (the screen's draft statement moved into the builder; the unused payer/tax/per-client `buildInvoices` is gone), QuickBooks gained Download import CSV through `buildQboCsv`, Verification Forms downloads through `buildVerificationForm` (the record's text; the unused appointment-attestation builder is gone) and Appeals gained a Letter download through `buildAppealLetter`.
 13. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
 
 Found while syncing with the billing-rules work:

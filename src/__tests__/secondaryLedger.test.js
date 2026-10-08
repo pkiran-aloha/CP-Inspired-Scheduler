@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { blankState, reducer } from '../state/store'
 import { arOf, claimStats, dueOf, patientResponsibilityOf, quickPosts, secondaryEligible } from '../lib/claims'
-import { buildInvoices, buildQboCsv } from '../lib/billingDocs'
+import { buildPatientShareDraft, buildQboCsv } from '../lib/billingDocs'
 import { planSecondaryFiling, planSecondaryCancel, normalizeCobLedger } from '../lib/secondaryLedger'
 import { planClaimPayment, planVoidClaimPayment, planUnappliedReceipt } from '../lib/paymentLedger'
 import { previewEra } from '../lib/eraPosting'
@@ -68,13 +68,10 @@ describe('claim-level COB ledger and explicitly reported patient share', () => {
     expect(ar.byPayer.reduce((sum, row) => sum + row.balance, 0)).toBe(25)
     expect(ar.byPayer.find((row) => row.payer === base.payers[0].name).claimDueById['primary-cob']).toBe(5)
     expect(claimStats(posted, ['2026-09-01']).paid.$).toBe(0) // parent not yet closed
-    const patient = buildInvoices(posted, { from: '2026-09-01', to: '2026-09-30', for: 'client' })[0]
-    const payer = buildInvoices(posted, { from: '2026-09-01', to: '2026-09-30', for: 'payer', payerId: base.payers[0].id })[0]
-    expect(patient.claims.map((c) => c.id)).toEqual(['primary-cob'])
-    expect(patient.total).toBe(20)
-    expect(payer.total).toBe(5)
+    const patient = buildPatientShareDraft(posted, { clientIds: [base.clients[0].id] })
+    expect(patient.rows[0].claims.map((c) => c.id)).toEqual(['primary-cob'])
+    expect(patient.due).toBe(20)
     expect(patient.content).not.toContain('CLM-COB-S1')
-    expect(payer.content).not.toContain('CLM-COB-S1')
     expect(buildQboCsv(posted, { from: '2026-09-01', to: '2026-09-30' })[0].rows).toBe(0)
     expect(tx(posted, 'child-1', payload, 'duplicate')).toBe(posted)
     expect(planClaimPayment(posted, 'primary-cob', { amount: 1, checkNo: 'wrong-ledger' }, { paymentId: 'x' }).ok).toBe(false)

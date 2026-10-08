@@ -5,12 +5,13 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { download } from '../lib/ics'
-import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
+import { isoDate, addDays, parseISO, fmtDayLabel } from '../lib/date'
 import { dueOf, isPrimaryReceivable, patientResponsibilityOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
 import { downloadDoc, loadPdf } from '../lib/exportKit'
 import { SEND_METHODS, statementBalance, statementStatus, statementPdf } from '../lib/statements'
 import { superbillClaims, superbillPdf } from '../lib/superbill'
+import { buildPatientShareDraft, patientShareRows } from '../lib/billingDocs'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -35,16 +36,7 @@ export default function GenerateInvoiceView() {
     return out
   }, [clients, q])
 
-  const invoiceRows = useMemo(() => {
-    const rows = []
-    for (const cid of clientIds) {
-      const cl = clients.find((c) => c.id === cid)
-      const clClaims = Object.values(claims).filter((c) => c.clientId === cid && isPrimaryReceivable(c) &&
-        (balanceOnly ? patientResponsibilityOf(state, c) > 0 : true))
-      rows.push({ client: cl, claims: clClaims, total: clClaims.reduce((s, c) => s + c.charges, 0), due: clClaims.reduce((s, c) => s + patientResponsibilityOf(state, c), 0) })
-    }
-    return rows
-  }, [clientIds, claims, clients, state.payments, balanceOnly])
+  const invoiceRows = useMemo(() => patientShareRows(state, clientIds, { balanceOnly }), [clientIds, claims, clients, state.payments, balanceOnly])
 
   const kpis = {
     selected: clientIds.length,
@@ -55,19 +47,8 @@ export default function GenerateInvoiceView() {
 
   const generate = () => {
     if (!clientIds.length) { toast({ message: 'Select at least one client', kind: 'warn' }); return }
-    const lines = [
-      `Draft patient share — ${settings.org?.name || 'Practice'} — ${todayISO()}`,
-      `Range ${range.days[0]} → ${range.days[range.days.length - 1]} — ${balanceOnly ? 'Reported patient balances only' : 'All primary claims'}`,
-      'DRAFT: Only explicit payer-reported patient responsibility and self-pay are shown as patient share. Verify COB and coverage before billing. Unassigned payer balances are excluded.',
-      '',
-      ...invoiceRows.flatMap((r) => [
-        `Client: ${r.client?.name || r.client?.id} — ${r.claims.length} primary claims — Charges ${money(r.total)} — Reported patient share ${money(r.due)}`,
-        ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Patient receipts ${money(c.patientPaid || 0)} | Practice A/R ${money(Math.max(0, dueOf(c)))} | Remaining reported patient share ${money(patientResponsibilityOf(state, c))} | ${c.status}`),
-        '',
-      ]),
-      `Total charges ${money(kpis.total)} — Reported patient share ${money(kpis.due)} (verify before sending)`,
-    ]
-    download(`Patient-share-draft-${todayISO()}.txt`, lines.join('\n'))
+    const draft = buildPatientShareDraft(state, { clientIds, balanceOnly, from: range.days[0], to: range.days[range.days.length - 1] })
+    download(draft.fileName, draft.content, 'text/plain;charset=utf-8')
     toast({ message: `Draft statement generated — ${kpis.selected} clients, ${money(kpis.due)} reported patient share`, kind: 'ok' })
     setPreview({ rows: invoiceRows, total: kpis.total, due: kpis.due })
   }
