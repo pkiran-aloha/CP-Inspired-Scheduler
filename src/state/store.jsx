@@ -1,5 +1,5 @@
 import { normalizeVerificationForms, seedVerificationForms } from '../lib/verificationForms'
-import React, { createContext, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import React, { createContext, useContext, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { uid } from '../lib/model'
 import { buildSeed, buildDemoClaims, seedFamilyShares, seedPayroll, seedIntake, STAFF, CLIENTS, TEAMS, PAYERS, SVCS, defaultSettings, CF_DEFS } from '../lib/seed'
 import { blankIntake, intakeNo, nextStages, gateBlockers, stageDef, normalizeIntake, planConversion, LOST_REASONS } from '../lib/intake'
@@ -127,7 +127,13 @@ export function blankState() {
   return normalizeRecurrence({ ...ws, ...seedRecords(ws, todayISO()) })
 }
 
-export function initial() {
+export const initial = () => loadWorkspace().state
+
+/**
+ * Read the saved workspace. `error` is set when a save exists but cannot be
+ * read: the caller must not overwrite it silently with the fresh workspace.
+ */
+export function loadWorkspace() {
   const base = blankState()
   try {
     let raw = localStorage.getItem(KEY)
@@ -188,13 +194,15 @@ export function initial() {
             if (legacyKey) localStorage.removeItem(legacyKey) // only retire it after a successful write
           } catch { /* keep the old save; the provider warns if writes still fail */ }
         }
-        return merged
+        return { state: merged, error: null }
       }
+      return { state: base, error: 'The workspace saved in this browser could not be read (it has no appointments collection).' }
     }
   } catch (e) {
     console.warn('Could not read saved state', e)
+    return { state: base, error: `The workspace saved in this browser could not be read (${e?.message || e}).` }
   }
-  return base
+  return { state: base, error: null }
 }
 
 export function reducer(state, action) {
@@ -706,6 +714,13 @@ export function reducer(state, action) {
       const restored = normalizeWorkspace({ ...state, ...workspaceData(p), settings, history: [] })
       return { ...restored, ui: state.ui, history: pushSnap(state) }
     }
+    case 'hydrate': {
+      // Another tab saved the workspace: adopt it so this tab never writes a stale
+      // copy back over it. Keep this tab's navigation; its Undo steps no longer apply.
+      const next = { ...action.state, ui: state.ui, history: [] }
+      fromOtherTab.add(next)
+      return next
+    }
     case 'addSavedReport':
       return { ...state, reports: { saved: [{ ...action.report }, ...(state.reports.saved || []).slice(0, 23)] } }
     case 'removeSavedReport':
@@ -726,27 +741,67 @@ const pushSnap = (state, fields = WORKSPACE_FIELDS, billingPatch = {}, payrollPa
       : state[key]])) },
 ]
 
+// Workspaces adopted from another tab are already in storage; saving them again
+// would only bounce the write back to that tab.
+const fromOtherTab = new WeakSet()
+
+const MB = (chars) => (chars * 2 / 1048576).toFixed(1) // localStorage counts UTF-16 code units
+const storageFailure = (e, chars) => (e?.name === 'QuotaExceededError' || e?.code === 22
+  ? `browser storage is full (this workspace needs about ${MB(chars)} MB)`
+  : `browser storage refused the write: ${e?.message || e?.name || e}`)
+
 const Ctx = createContext(null)
 export const useStore = () => useContext(Ctx)
 
 export function StoreProvider({ children }) {
-  const [state, dispatch] = useReducer(reducer, undefined, initial)
-  const [saveError, setSaveError] = useState(false)
+  const [boot] = useState(loadWorkspace)
+  const [state, dispatch] = useReducer(reducer, boot.state)
+  const [saveError, setSaveError] = useState(null) // why the last write failed, or null
+  const [loadError, setLoadError] = useState(boot.error) // a save exists that this tab could not read
   const toast = useToast()
-  const saveT = useRef(null)
-  useEffect(() => {
-    clearTimeout(saveT.current)
-    saveT.current = setTimeout(() => {
+  const pending = useRef(null)
+  // Layout effect: armed at commit, so a reload right after a click still finds the change to flush.
+  useLayoutEffect(() => {
+    // Never write over a saved workspace this tab could not read; the banner lets the user choose.
+    if (loadError || fromOtherTab.has(state)) return
+    pending.current = () => {
+      pending.current = null
+      let json = ''
       try {
-        localStorage.setItem(KEY, serializeForStorage(state))
-        setSaveError(false)
-      } catch {
+        json = serializeForStorage(state)
+        localStorage.setItem(KEY, json)
+        setSaveError(null)
+      } catch (e) {
         // Never imply an edit is safe when it exists only in this tab's memory.
-        setSaveError(true)
+        setSaveError(storageFailure(e, json.length))
       }
-    }, 250)
-    return () => clearTimeout(saveT.current)
-  }, [state])
+    }
+    const t = setTimeout(() => pending.current?.(), 250)
+    return () => clearTimeout(t)
+  }, [state, loadError])
+  useEffect(() => {
+    // A reload, close or tab switch inside the 250 ms debounce must not drop the last change.
+    const flush = () => pending.current?.()
+    const onHide = () => { if (document.visibilityState === 'hidden') flush() }
+    // Another tab saved: adopt its workspace, or this tab's next change would overwrite it.
+    const onStorage = (e) => {
+      if (e.key !== KEY || !e.newValue) return
+      const loaded = loadWorkspace()
+      if (loaded.error) return
+      pending.current = null
+      setLoadError(null)
+      dispatch({ type: 'hydrate', state: loaded.state })
+    }
+    window.addEventListener('pagehide', flush)
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('storage', onStorage)
+    return () => {
+      flush()
+      window.removeEventListener('pagehide', flush)
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
 
   const guardedDispatch = useMemo(() => (action) => {
     const decision = authorizeAction(state, action)
@@ -775,8 +830,11 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({ ...visibleState, ...access, dispatch: guardedDispatch, actions }), [visibleState, access, guardedDispatch, actions])
   return <Ctx.Provider value={value}>
     {children}
-    {saveError && <div className="storage-warning" role="alert" data-testid="storage-warning">
-      Changes aren't saved in this browser (storage full or unavailable). Export a backup before closing this tab.
+    {loadError ? <div className="storage-warning" role="alert" data-testid="storage-warning">
+      {loadError} It was left untouched, and changes in this tab are not being saved.
+      <button className="btn btn-sm" type="button" data-testid="storage-overwrite" onClick={() => setLoadError(null)}>Replace it with this workspace</button>
+    </div> : saveError && <div className="storage-warning" role="alert" data-testid="storage-warning">
+      Changes aren't saved in this browser: {saveError}. They exist only in this tab. Export a backup before closing it.
       <button className="btn btn-sm" type="button" onClick={() => dispatch({ type: 'setUI', patch: { settings: true, settingsModule: 'system' } })}>Open Settings</button>
     </div>}
   </Ctx.Provider>
