@@ -28,6 +28,10 @@ export default defineConfig({
     allowedHosts: true,
   },
   build: {
+    // Non-calendar sections, the wiki and jsPDF are lazy chunks. The entry (~1,015 kB) is
+    // the calendar plus the store and the domain engines its reducer needs; this limit is
+    // a tripwire for regrowth, not a waiver. Split further only by decoupling the reducer.
+    chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: process.env.SHARE_INLINE === '1' ? { inlineDynamicImports: true } : {},
     },
@@ -36,5 +40,6 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.{js,jsx}'],
     restoreMocks: true,
+    setupFiles: ['src/test/setup.js'],
   },
 })

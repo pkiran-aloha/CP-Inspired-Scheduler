@@ -15,8 +15,7 @@
 //                  draws the red form so the PDF reads on its own; it is marked as a
 //                  review copy because a laser-printed replica is not OCR dropout ink.
 // The electronic standard is ANSI 837P; nothing here transmits anything.
-import { jsPDF } from 'jspdf'
-import { winAnsi } from './exportKit'
+import { newPdf } from './exportKit'
 import { posFor, memberIdOf, authNoOf, dxFor, lineApptIds, mileageCodeIssue } from './claims'
 import { providerIdRule } from './providerIds'
 
@@ -276,7 +275,7 @@ const INK = [0, 0, 0] // data prints in true black
 const RED = [205, 72, 82] // the form's red, as close as a screen gets to OCR dropout ink
 const TINT = [248, 225, 227] // the shaded half of each service line
 
-const newDoc = () => winAnsi(new jsPDF({ unit: 'pt', format: 'letter', compress: true }))
+const newDoc = () => newPdf({ unit: 'pt', format: 'letter', compress: true })
 
 /** One claim → one PDF. opts.mode: 'copy' (form + data, the default) or 'data' (data only, for red stock). */
 export function claimTo1500(state, claim, opts = {}) {

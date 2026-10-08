@@ -3,9 +3,8 @@
 // balance afterwards is live: patient receipts recorded in the Payment Center reduce it, and
 // it reads "Paid" once nothing on its claims is still owed. Nothing is mailed or emailed:
 // "mark sent" records how the practice delivered it.
-import { jsPDF } from 'jspdf'
 import { isPrimaryReceivable, patientResponsibilityOf } from './claims'
-import { winAnsi } from './exportKit'
+import { newPdf } from './exportKit'
 import { paymentLinkFor } from './settingsMasters'
 
 const r2 = (n) => Math.round(n * 100) / 100
@@ -147,7 +146,7 @@ export function statementView(state, st) {
 /** The statement as a PDF: letter portrait, page 1 ends with the remittance stub. */
 export function statementPdf(state, st) {
   const v = statementView(state, st)
-  const doc = winAnsi(new jsPDF({ unit: 'pt', format: 'letter' }))
+  const doc = newPdf({ unit: 'pt', format: 'letter' })
   doc.setProperties({ title: `Statement ${v.no}`, subject: `Statement for ${v.patient}`, author: v.org.name })
   doc.setLanguage('en-US')
   const L = 48

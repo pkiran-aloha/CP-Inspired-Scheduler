@@ -4,7 +4,7 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { BILL_CODES } from '../lib/model'
 import { todayISO } from '../lib/date'
-import { downloadDoc } from '../lib/exportKit'
+import { downloadDoc, loadPdf } from '../lib/exportKit'
 import { suggestGfeRows, planGfe, gfePdf, codeLabel } from '../lib/gfe'
 
 const money = (n) => `$${(Number(n) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -31,8 +31,9 @@ export default function GfeDialog({ client, onClose }) {
     rows: rows.map((r) => ({ ...r, unitsPerWeek: Number(r.unitsPerWeek), rate: Number(r.rate) })),
   }), [state, client.id, start, months, rows, separately])
   const setRow = (i, patch) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)))
-  const download = () => {
+  const download = async () => {
     if (!est.ok) { toast({ message: est.msg, kind: 'warn' }); return }
+    if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     downloadDoc(`Good-Faith-Estimate-${client.name.replace(/[^A-Za-z0-9]+/g, '_')}-${start}.pdf`, gfePdf(est), 'application/pdf')
     toast({ message: est.msg, kind: 'ok' })
     onClose()

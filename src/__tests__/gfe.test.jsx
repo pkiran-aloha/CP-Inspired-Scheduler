@@ -1,6 +1,6 @@
 import React from 'react'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import App from '../App'
 import { blankState } from '../state/store'
 import { suggestGfeRows, planGfe, gfePdf, periodWeeks, GFE_DISCLAIMER, GFE_SEPARATE_DISCLAIMER } from '../lib/gfe'
@@ -73,7 +73,7 @@ describe('Good Faith Estimate: client profile', () => {
     fireEvent.change(within(dlg).getByTestId('gfe-units-0'), { target: { value: '20' } })
     expect(within(dlg).getByTestId('gfe-total').textContent).toMatch(/^\$[\d,]+\.\d{2}$/)
     fireEvent.click(within(dlg).getByTestId('gfe-download'))
-    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)) // PDF engine loads async
     expect(window.URL.createObjectURL.mock.calls[0][0].type).toBe('application/pdf')
     expect(screen.queryByTestId('gfe-dialog')).toBeNull()
   })
