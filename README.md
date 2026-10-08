@@ -15,6 +15,7 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 ## Current development context
 
+- **Local screen lock (2026-10-08):** Settings, System → Screen lock now enforces the screen-lock and auto-logout minutes per tab (off by default), with Lock now in the navigation and an optional per-browser PIN kept as a salted hash outside the workspace and backups. A privacy screen, not a sign-in; MFA stays unenforced and is shown disabled (architecture mismatch #13).
 - **Dependencies (2026-10-08):** test runner upgraded to Vitest 4, unused Playwright packages removed, `npm audit` reports 0 vulnerabilities. Run `npm ci` after pulling.
 
 - `src/state/store.jsx` owns the seeded workspace, migrations, reducer, undo and browser persistence. `src/lib/` contains the domain engines (claims, documents, reporting, scheduler); `src/components/` holds the screens. `src/__tests__/` exercises both pure logic and UI workflows.

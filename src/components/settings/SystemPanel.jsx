@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react'
 import { blankState } from '../../state/store'
 import { Icon } from '../../ui/Icons'
+import { clearPin, hashPin, pinProblem, readPin, writePin } from '../../lib/screenLock'
 import { smartCfg } from '../../lib/smart'
 import { AUTH_GUARD_DEFAULTS, AUTH_MODES, authGuardCfg } from '../../lib/authBudget'
 import { ABA_TRACKS, abaHoursCfg, abaTotals } from '../../lib/abaHours'
@@ -15,6 +16,78 @@ import {
 import { RANGE_PRESETS, DIMS, METRICS } from '../../lib/analytics'
 import { denialReasonsOf, carcHintsOf } from '../../lib/claims'
 import { Section, Row, TextField, NumberField, Select, Toggle, Seg, Banner, DataTable, IconButton } from './kit'
+
+/**
+ * Screen lock (mismatch #13). The policy (on/off, minutes) is a workspace setting and
+ * travels in backups; the PIN is this browser's alone: a salted PBKDF2 hash under its
+ * own storage key, never in the workspace, a backup or an Undo step.
+ */
+function LockSection({ sysCfg, patchSysCfg, readOnly, toast }) {
+  const gen = sysCfg.general || {}
+  const [hasPin, setHasPin] = useState(() => !!readPin())
+  const [pin, setPin] = useState('')
+  const [busy, setBusy] = useState(false)
+  const savePin = async () => {
+    const problem = pinProblem(pin)
+    if (problem) { toast({ message: `PIN not saved. ${problem}`, kind: 'warn' }); return }
+    setBusy(true)
+    try {
+      writePin(await hashPin(pin))
+      setHasPin(true)
+      setPin('')
+      toast({ message: 'Lock PIN saved in this browser as a salted hash. It unlocks the screen lock on this device only.', kind: 'ok' })
+    } catch (err) {
+      toast({ message: `PIN not saved: ${err.message}`, kind: 'warn' })
+    }
+    setBusy(false)
+  }
+  const removePin = () => {
+    clearPin()
+    setHasPin(false)
+    toast({ message: 'Lock PIN removed from this browser. The lock now unlocks with “I’m back”.', kind: 'ok' })
+  }
+  return (
+    <Section title="Screen lock" sub="A privacy screen for this browser tab. There is no sign-in in this local app" testId="lock-settings">
+      <div className="set-grid2">
+        <Row label="Lock When Idle" hint="Covers this tab after the idle minutes below. Lock now in the navigation locks it at any time.">
+          <Toggle on={gen.screenLockEnabled === true} disabled={readOnly} testid="lock-enabled" label="Lock when idle" onChange={(v) => patchSysCfg('general', { screenLockEnabled: v })} />
+        </Row>
+        <Row label="Screen Lock in Minutes" hint="Minutes without pointer or keyboard activity before this tab locks">
+          <NumberField value={gen.screenLockMinutes ?? 15} min={1} max={240} suffix="min" disabled={readOnly} testid="set-sys-gen-lock" onCommit={(v) => patchSysCfg('general', { screenLockMinutes: v })} />
+        </Row>
+        <Row label="Locked Session Auto Logout in Minutes" hint="Minutes on the lock screen before this tab's session ends">
+          <NumberField value={gen.autoLogoutMinutes ?? 60} min={5} max={480} suffix="min" disabled={readOnly} testid="set-sys-gen-logout" onCommit={(v) => patchSysCfg('general', { autoLogoutMinutes: v })} />
+        </Row>
+        <Row label="MFA Required" hint="Needs the production sign-in; not enforced locally">
+          <span className="set-inline">
+            <Toggle on={gen.mfaRequired === true} disabled testid="set-sys-gen-mfa" label="MFA needs the production sign-in" onChange={() => {}} />
+            <span className="muted" data-testid="lock-mfa-note">Needs the production sign-in; not enforced locally</span>
+          </span>
+        </Row>
+        <Row label="Lock PIN (this browser)" hint="4 to 12 digits. Stored only as a salted PBKDF2-SHA-256 hash in this browser" stack>
+          <span className="set-inline">
+            <span className="muted" data-testid="lock-pin-status">{hasPin ? 'Set on this browser' : 'Not set'}</span>
+            <input
+              className="input" type="password" inputMode="numeric" autoComplete="new-password" maxLength={12} style={{ width: 120 }}
+              placeholder={hasPin ? 'New PIN' : 'PIN'} aria-label="Lock PIN" value={pin} disabled={readOnly || busy} data-testid="lock-pin-input"
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              onKeyDown={(e) => { if (e.key === 'Enter') savePin() }}
+            />
+            <button className="btn btn-sm" type="button" disabled={readOnly || busy || !pin} data-testid="lock-pin-save" onClick={savePin}>{hasPin ? 'Change PIN' : 'Set PIN'}</button>
+            {hasPin && <button className="btn btn-sm" type="button" disabled={readOnly || busy} data-testid="lock-pin-clear" onClick={removePin}>Remove PIN</button>}
+          </span>
+        </Row>
+      </div>
+      <Banner testid="lock-settings-note">
+        {hasPin
+          ? 'The lock covers this tab and unlocks with the PIN. '
+          : 'No PIN is set, so the lock only hides the screen: anyone at this computer can press “I’m back”. '}
+        After the auto-logout minutes on the lock screen, this tab’s Undo history is cleared and open dialogs close without saving; saved work is never deleted.
+        This is not a security boundary: the workspace stays readable in this browser’s storage, each tab locks on its own, and a newly opened tab starts unlocked. The PIN is never in a backup.
+      </Banner>
+    </Section>
+  )
+}
 
 /**
  * System Settings — workspace preferences, appointment naming, smart scheduling,
@@ -170,19 +243,10 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
   const sectionBlocks = {
     general: (
       <React.Fragment key="sys-block-general">
-        <Section title="General Settings" sub="Session security, signature policies, cache refresh, and supervision job titles" testId="set-sys-general">
+        <Section title="General Settings" sub="Signature policies, appointment length, cache refresh, and supervision job titles" testId="set-sys-general">
           <div className="set-grid2">
             <Row label="Staff Signature Required to Complete Appointments" hint="Requires a staff verification signature before a session can be marked Completed">
               <Toggle on={sysCfg.general?.staffSigRequiredToComplete === true} disabled={readOnly} testid="set-sys-gen-sigreq" onChange={(v) => patchSysCfg('general', { staffSigRequiredToComplete: v })} />
-            </Row>
-            <Row label="MFA Required" hint="Enforces multi-factor verification policy on user accounts">
-              <Toggle on={!!sysCfg.general?.mfaRequired} disabled={readOnly} testid="set-sys-gen-mfa" onChange={(v) => patchSysCfg('general', { mfaRequired: v })} />
-            </Row>
-            <Row label="Screen Lock in Minutes" hint="Idle time before locking the active clinical screen">
-              <NumberField value={sysCfg.general?.screenLockMinutes ?? 15} min={1} max={240} suffix="min" disabled={readOnly} testid="set-sys-gen-lock" onCommit={(v) => patchSysCfg('general', { screenLockMinutes: v })} />
-            </Row>
-            <Row label="Locked Session Auto Logout in Minutes" hint="Time on lock screen before terminating the session">
-              <NumberField value={sysCfg.general?.autoLogoutMinutes ?? 60} min={5} max={480} suffix="min" disabled={readOnly} testid="set-sys-gen-logout" onCommit={(v) => patchSysCfg('general', { autoLogoutMinutes: v })} />
             </Row>
             <Row label="Maximum Appointment Length" hint="Warns when a single scheduled session runs longer than this (in minutes) — a warning, not a hard block">
               <NumberField value={sysCfg.general?.maxAppointmentLengthMins ?? 480} min={30} max={1440} step={15} suffix="min" disabled={readOnly} testid="set-sys-gen-maxlen" onCommit={(v) => patchSysCfg('general', { maxAppointmentLengthMins: v })} />
@@ -201,6 +265,8 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
             </Row>
           </div>
         </Section>
+
+        <LockSection sysCfg={sysCfg} patchSysCfg={patchSysCfg} readOnly={readOnly} toast={toast} />
 
         <Section title="Display & workspace" sub="Theme, week start, clock and the money defaults new rows pick up" testId="set-sys-display">
           <div className="set-grid2">

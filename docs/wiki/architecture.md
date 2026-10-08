@@ -1,7 +1,7 @@
 # Architecture
 
 _Sources: AGENTS.md, README.md, package.json, vite.config.js, src/App.jsx, src/test/setup.js, src/lib/exportKit.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean); unrelated behavior unchanged._
+_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean; local screen lock, mismatch #13); unrelated behavior unchanged._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -107,7 +107,7 @@ Other findings from writing these pages:
 10. The CMS-1500 follows the NUCC v13 item rules and the CMS print grid (rebuilt on `feat/cms1500-standard`), but some values are still derived: the member ID in item 1a (`memberIdOf`) and the authorization number in item 23 (`authNoOf`) when the chart has none, the diagnosis (`dxFor`, from the client's program) and the patient account number (the client id).
 11. Resolved: new claim history entries read "Marked submitted to <payer>; claim file saved locally, not transmitted" and the Process toast says "marked submitted · file saved in Billed Files, nothing transmitted". History entries already in a saved workspace keep their old text.
 12. In `billingDocs.js`, `buildInvoices`, `buildQboCsv`, `buildVerificationForm` and `buildAppealLetter` are imported only by tests; only `build835ErrorReport` is used by a screen.
-13. Settings, System stores MFA required, screen-lock minutes and auto-logout minutes, but only the settings editor and its validation touch them, and no code enforces them (there is no sign-in or lock screen).
+13. Resolved with an honest local version (2026-10-08, `feat/local-screen-lock`): Settings, System → Screen lock now drives `src/components/ScreenLock.jsx`. Lock When Idle (off by default) covers the tab after the screen-lock minutes; **Lock now** in the navigation locks on demand; the overlay is opaque and hides the rest of the page. It unlocks with this browser's PIN (a salted PBKDF2-SHA-256 hash under its own storage key `aloha-aba.lock-pin`, never in the workspace, a backup or Undo) or, with no PIN, an "I'm back" button. After the auto-logout minutes on the lock screen the tab's session ends: Undo history is cleared (`endSession`) and the shell remounts, so open dialogs close and unsaved drafts are dropped; saved data is untouched. MFA stays a stored value, shown disabled as "needs the production sign-in; not enforced locally". It is a privacy screen, not a security boundary: the lock is per tab (sessionStorage), a newly opened tab starts unlocked, and browser storage stays readable.
 
 Found while syncing with the billing-rules work:
 

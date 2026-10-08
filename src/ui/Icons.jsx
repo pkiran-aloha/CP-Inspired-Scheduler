@@ -29,6 +29,7 @@ export const Icon = {
   palette: (p) => wrap(<><path d="M12 3.5a8.5 8.5 0 000 17c1.3 0 2-.8 2-1.7s-.8-1.6-.8-2.6c0-1 .8-1.7 1.9-1.7h1.6a3.8 3.8 0 003.8-3.9A8.6 8.6 0 0012 3.5z" /><circle cx="8" cy="9" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="7" r="1" fill="currentColor" stroke="none" /><circle cx="16" cy="9.2" r="1" fill="currentColor" stroke="none" /></>, p),
   shuffle: (p) => wrap(<><path d="M3.5 6.5h3.2l9.4 11h4.4M20.5 6.5h-4.4M3.5 17.5h3.2l2.6-3M15.2 10.6l.9-1.1M15.2 13.4l.9 1.1" /><path d="M18.4 4.2l2.4 2.3-2.4 2.3M18.4 15.2l2.4 2.3-2.4 2.3" /></>, p),
   star: (p) => wrap(<path d="M12 3.8l2.5 5.2 5.7.8-4.1 4 1 5.7-5.1-2.7-5.1 2.7 1-5.7-4.1-4 5.7-.8z" />),
+  lock: (p) => wrap(<><rect x="5" y="10.5" width="14" height="10" rx="2.5" /><path d="M8.5 10.5V7.5a3.5 3.5 0 017 0v3" /></>, p),
   clock: (p) => wrap(<><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3.5 2" /></>, p),
   user: (p) => wrap(<><circle cx="12" cy="8" r="4" /><path d="M4 21c1.5-4 5-6 8-6s6.5 2 8 6" /></>, p),
   users: (p) => wrap(<><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c1.2-3.6 3.9-5.5 6.5-5.5s5.3 1.9 6.5 5.5" /><path d="M16 5a3.5 3.5 0 010 7M19.5 19.5c-.5-1.7-1.3-3.1-2.3-4.1" /></>, p),

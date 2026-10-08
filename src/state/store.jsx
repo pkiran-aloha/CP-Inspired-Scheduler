@@ -721,6 +721,10 @@ export function reducer(state, action) {
       fromOtherTab.add(next)
       return next
     }
+    case 'endSession':
+      // Auto-logout from the local screen lock: this tab's Undo steps end with the session.
+      // Saved workspace data is untouched.
+      return state.history.length ? { ...state, history: [] } : state
     case 'addSavedReport':
       return { ...state, reports: { saved: [{ ...action.report }, ...(state.reports.saved || []).slice(0, 23)] } }
     case 'removeSavedReport':
@@ -946,6 +950,7 @@ function createActions(state, dispatch, rawState = state) {
       return decided?.ok === false ? decided : { ok: true, msg: plan.msg, firstId: plan.firstId }
     },
     undo: () => dispatch({ type: 'undo' }),
+    endSession: () => dispatch({ type: 'endSession' }),
     clearSel: () => dispatch({ type: 'setUI', patch: { staffSel: [], clientSel: [], teamSel: [] } }),
     toggleSel: (list, id, all) => dispatch({ type: 'toggleSel', list, id, all }),
     setFilters: (patch) => dispatch({ type: 'setUI', patch: { filters: { ...state.ui.filters, ...patch } } }),
