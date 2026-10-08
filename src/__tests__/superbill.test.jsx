@@ -1,6 +1,6 @@
 import React from 'react'
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from '../App'
 import { blankState } from '../state/store'
 import { superbillView, superbillPdf, superbillClaims } from '../lib/superbill'
@@ -59,13 +59,13 @@ describe('superbill: what it lists', () => {
 })
 
 describe('superbill: Generate Invoice screen', () => {
-  it('offers Superbill for a client with self-pay services and downloads a PDF', () => {
+  it('offers Superbill for a client with self-pay services and downloads a PDF', async () => {
     const state = { ...WITH_SP, ui: { ...WITH_SP.ui, section: 'bil-invoice', nav: false } }
     localStorage.setItem('aloha-aba.v3', JSON.stringify(state))
     render(<App />)
     fireEvent.click(screen.getByTestId(`gi-client-${CLIENT.id}`))
     fireEvent.click(screen.getByTestId(`gi-superbill-${CLIENT.id}`))
-    expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(window.URL.createObjectURL).toHaveBeenCalledTimes(1)) // PDF engine loads async
     const blob = window.URL.createObjectURL.mock.calls[0][0]
     expect(blob.type).toBe('application/pdf')
     expect(screen.getByText(/Superbill for .* downloaded/)).toBeTruthy()

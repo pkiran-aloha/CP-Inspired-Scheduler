@@ -6,7 +6,7 @@ import { useToast } from '../../ui/Toast'
 import { PaySubNav, actorName, money, hrs, PayKpis, StaffCell, StatusPill } from './PayrollCommon'
 import { RUN_STATUS_LABEL, periodFromId, stubFor, annualSummary } from '../../lib/payroll'
 import { registerCsv, registerSpec, qboCsv, glJournalRows, achFile, stubHtml, payrollCsv, deductionRows } from '../../lib/payrollExport'
-import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
+import { specToXls, specToPdf, downloadDoc, loadPdf } from '../../lib/exportKit'
 import { download } from '../../lib/ics'
 
 /**
@@ -47,8 +47,9 @@ export default function PayRunsView() {
 
   const period = open ? periodFromId(settings.payroll, open.periodId, { back: 24, forward: 12 }) : null
 
-  const dl = (kind) => {
+  const dl = async (kind) => {
     if (!open) return
+    if (kind === 'register-pdf' && !(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     if (kind === 'register-csv') { download(`payroll-register-${open.no}.csv`, registerCsv(open, state), 'text/csv;charset=utf-8'); actions.recordPayExport({ runId: open.id, periodId: open.periodId, kind: 'register_csv', fileName: `payroll-register-${open.no}.csv`, rows: open.lines.length, content: registerCsv(open, state) }) }
     if (kind === 'register-xls') { downloadDoc(`payroll-register-${open.no}.xls`, specToXls(registerSpec(open, state)), 'application/vnd.ms-excel'); actions.recordPayExport({ runId: open.id, periodId: open.periodId, kind: 'register_xls', fileName: `payroll-register-${open.no}.xls`, rows: open.lines.length }) }
     if (kind === 'register-pdf') { downloadDoc(`payroll-register-${open.no}.pdf`, specToPdf(registerSpec(open, state)), 'application/pdf'); actions.recordPayExport({ runId: open.id, periodId: open.periodId, kind: 'register_pdf', fileName: `payroll-register-${open.no}.pdf`, rows: open.lines.length }) }

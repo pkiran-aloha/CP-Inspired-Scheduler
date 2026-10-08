@@ -6,7 +6,7 @@ import { useToast } from '../../ui/Toast'
 import { PaySubNav, money, hrs, PayKpis, PeriodPicker, StaffCell, StatusPill, Pager } from './PayrollCommon'
 import { earningIndex, computeRun, runBreakdown, annualSummary, periodFromId, periodsFor, grossToNet } from '../../lib/payroll'
 import { registerSpec, registerCsv, payrollCsv } from '../../lib/payrollExport'
-import { specToXls, specToPdf, downloadDoc } from '../../lib/exportKit'
+import { specToXls, specToPdf, downloadDoc, loadPdf } from '../../lib/exportKit'
 import { download } from '../../lib/ics'
 import { todayISO } from '../../lib/date'
 
@@ -49,8 +49,9 @@ export default function PayrollSummaryView() {
   const wageShareOfDelivered = result && result.totals.deliveredHours > 0
     ? Math.round(result.totals.grossCents / result.totals.deliveredHours) : null
 
-  const exportSummary = (kind) => {
+  const exportSummary = async (kind) => {
     if (!result) return
+    if (kind === 'pdf' && !(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     const spec = registerSpec({ ...result, no: `SUMMARY-${period.start}`, periodStart: period.start, periodEnd: period.end, payDate: period.payDate, status: 'draft' }, state)
     spec.title = `Payroll summary ${period.start} → ${period.end}`
     spec.blurb = `Cost summary for ${result.totals.staff} employees · ${hrs(result.totals.workedHours + result.totals.otHours)} paid · ${hrs(result.totals.deliveredHours)} delivered clinically`

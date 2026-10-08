@@ -514,12 +514,12 @@ function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayI
           </div>
           {showAba && countsAsAbaHours(a) && !tiny ? (
             <div className="s" style={{ marginTop: 1 }}>
-              <span className="pill" data-testid="tg-aba-pill" title={ABA_HOURS_EXPLAIN} style={{ padding: '0 5px', fontSize: 9, background: 'transparent' }}>⚡ ABA hr</span>
+              <span className="pill" data-testid="tg-aba-pill" title={ABA_HOURS_EXPLAIN} style={{ padding: '0 5px', fontSize: 9, background: 'transparent', display: 'inline-flex', alignItems: 'center', gap: 2 }}>{Icon.zap({ size: 9, strokeWidth: 2.2 })} ABA hr</span>
             </div>
           ) : null}
           {Array.isArray(a.validationFlags) && a.validationFlags.length > 0 && !tiny ? (
             <div className="s" style={{ marginTop: 1 }}>
-              <span className="pill" data-testid="tg-flag-pill" title={`Flagged at booking: ${a.validationFlags.map((f) => f.label).join(' · ')}`} style={{ padding: '0 5px', fontSize: 9, background: 'transparent' }}>⚑ {a.validationFlags.length} flagged</span>
+              <span className="pill" data-testid="tg-flag-pill" title={`Flagged at booking: ${a.validationFlags.map((f) => f.label).join(' · ')}`} style={{ padding: '0 5px', fontSize: 9, background: 'transparent', display: 'inline-flex', alignItems: 'center', gap: 2 }}>{Icon.flag({ size: 9, strokeWidth: 2.2 })} {a.validationFlags.length} flagged</span>
             </div>
           ) : null}
         </>
@@ -528,7 +528,7 @@ function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayI
       {a.seriesId && (
         <span className="flag" style={{ right: conflict ? 20 : 4, color: a.edited ? 'var(--accent)' : 'var(--text-2)' }} title={a.edited ? 'Series exception — differs from the repeating default' : 'Part of a repeating series'}>
           {Icon.repeat({ size: 11 })}
-          {a.edited ? <b style={{ fontSize: 9, marginLeft: 1 }}>✎</b> : null}
+          {a.edited ? <span role="img" aria-label="Changed from series" title="Changed from series" style={{ display: 'inline-flex', marginLeft: 1 }}>{Icon.edit({ size: 9, strokeWidth: 2.2 })}</span> : null}
         </span>
       )}
       <span className="rz b" onPointerDown={(e) => { e.stopPropagation(); onDown(e, a, dayIdx, 'b') }} />

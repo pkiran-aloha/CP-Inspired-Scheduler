@@ -1,5 +1,5 @@
 import SectionBoundary from './components/SectionBoundary'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { StoreProvider, useStore } from './state/store'
 import { ToastProvider, useToast } from './ui/Toast'
 import { Icon } from './ui/Icons'
@@ -14,39 +14,47 @@ import TypePicker from './components/TypePicker'
 import AppointmentModal from './components/AppointmentModal'
 import QuickAdd from './components/QuickAdd'
 import DetailCard from './components/DetailCard'
-import AnalyticsView from './components/AnalyticsView'
-import ReportsView from './components/ReportsView'
-import DashboardView from './components/DashboardView'
-import ClientsView from './components/ClientsView'
-import IntakeRequestsView from './components/intake/IntakeRequestsView'
-import IntakeFormView from './components/intake/IntakeFormView'
-import ReferralSourcesView from './components/intake/ReferralSourcesView'
-import MastersView from './components/MastersView'
-import StaffView from './components/StaffView'
-import CabinetView from './components/CabinetView'
+// Non-calendar sections are code-split: each loads on its first visit behind the Suspense
+// fallback below. preloadViews() fetches them all up front (the test setup does), and a view
+// fetched that way renders synchronously, without a fallback flash.
+const viewLoaders = new Map()
+const view = (load) => {
+  viewLoaders.set(load, null)
+  return lazy(() => (viewLoaders.get(load) ? { then: (done) => done(viewLoaders.get(load)) } : load()))
+}
+const AnalyticsView = view(() => import('./components/AnalyticsView'))
+const ReportsView = view(() => import('./components/ReportsView'))
+const DashboardView = view(() => import('./components/DashboardView'))
+const ClientsView = view(() => import('./components/ClientsView'))
+const IntakeRequestsView = view(() => import('./components/intake/IntakeRequestsView'))
+const IntakeFormView = view(() => import('./components/intake/IntakeFormView'))
+const ReferralSourcesView = view(() => import('./components/intake/ReferralSourcesView'))
+const MastersView = view(() => import('./components/MastersView'))
+const StaffView = view(() => import('./components/StaffView'))
+const CabinetView = view(() => import('./components/CabinetView'))
 import InboxView from './components/InboxView'
-import BillingView from './components/BillingView'
-import BilledFilesView from './components/BilledFilesView'
-import ArManagerView from './components/ArManagerView'
-import GenerateInvoiceView from './components/GenerateInvoiceView'
-import SecondaryBillingView from './components/SecondaryBillingView'
-import VerificationFormsView from './components/VerificationFormsView'
-import QuickBooksView from './components/QuickBooksView'
-import AppealsView from './components/AppealsView'
-import PaymentCenterView from './components/PaymentCenterView'
-import ProviderIdView from './components/ProviderIdView'
-import PayrollCycleView from './components/payroll/PayrollCycleView'
-import ProcessPayrollView from './components/payroll/ProcessPayrollView'
-import PayRunsView from './components/payroll/PayRunsView'
-import TimesheetSubmissionView from './components/payroll/TimesheetSubmissionView'
-import PayrollSummaryView from './components/payroll/PayrollSummaryView'
-import PayrollIdMappingView from './components/payroll/PayrollIdMappingView'
-import QuickBooksPayrollView from './components/payroll/QuickBooksPayrollView'
-import PayrollSetupView from './components/payroll/PayrollSetupView'
-import HelpView from './components/HelpView'
+const BillingView = view(() => import('./components/BillingView'))
+const BilledFilesView = view(() => import('./components/BilledFilesView'))
+const ArManagerView = view(() => import('./components/ArManagerView'))
+const GenerateInvoiceView = view(() => import('./components/GenerateInvoiceView'))
+const SecondaryBillingView = view(() => import('./components/SecondaryBillingView'))
+const VerificationFormsView = view(() => import('./components/VerificationFormsView'))
+const QuickBooksView = view(() => import('./components/QuickBooksView'))
+const AppealsView = view(() => import('./components/AppealsView'))
+const PaymentCenterView = view(() => import('./components/PaymentCenterView'))
+const ProviderIdView = view(() => import('./components/ProviderIdView'))
+const PayrollCycleView = view(() => import('./components/payroll/PayrollCycleView'))
+const ProcessPayrollView = view(() => import('./components/payroll/ProcessPayrollView'))
+const PayRunsView = view(() => import('./components/payroll/PayRunsView'))
+const TimesheetSubmissionView = view(() => import('./components/payroll/TimesheetSubmissionView'))
+const PayrollSummaryView = view(() => import('./components/payroll/PayrollSummaryView'))
+const PayrollIdMappingView = view(() => import('./components/payroll/PayrollIdMappingView'))
+const QuickBooksPayrollView = view(() => import('./components/payroll/QuickBooksPayrollView'))
+const PayrollSetupView = view(() => import('./components/payroll/PayrollSetupView'))
+const HelpView = view(() => import('./components/HelpView'))
 import NeedsCover from './components/NeedsCover'
 import SchedulerInsights from './components/SchedulerInsights'
-import SettingsModal from './components/SettingsModal'
+const SettingsModal = view(() => import('./components/SettingsModal'))
 import SecurityRedirect from './components/SecurityRedirect'
 import CommandPalette from './components/CommandPalette'
 import KeysHelp from './components/KeysHelp'
@@ -257,6 +265,8 @@ function Shell() {
       <NavRail />
       <div className="appbody">
         <SectionBoundary key={section}>
+        {/* non-calendar sections are code-split; a section's first visit loads its chunk */}
+        <Suspense fallback={<div className="panel" role="status" style={{ margin: 24, padding: 24 }}>Loading this section…</div>}>
         {!routeAllowed ? <div className="access-denied" role="alert"><div className="access-denied-icon">{Icon.shield({ size: 18 })}</div><h2>Access restricted</h2><p>Your current role does not have permission to view this module.</p><button className="btn btn-sm" type="button" onClick={() => actions.setUI({ settings: true, settingsModule: 'security', settingsSub: 'accounts' })}>Open demo access settings</button></div> : <>
         {state.accessLevel(area) === 'view' && <div className="rbac-readonly-banner" role="note">View-only access: changes to this module are disabled for the current demo role.</div>}
         {section === 'calendar' && (
@@ -335,6 +345,7 @@ function Shell() {
           />
         )}
         </>}
+        </Suspense>
         </SectionBoundary>
       </div>
 
@@ -413,6 +424,8 @@ function Shell() {
 }
 
 import BuildWatcher from './components/BuildWatcher.jsx'
+
+export const preloadViews = () => Promise.all([...viewLoaders.keys()].map((load) => load().then((mod) => viewLoaders.set(load, mod))))
 
 export default function App() {
   return (

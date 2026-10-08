@@ -8,7 +8,7 @@ import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
 import { dueOf, isPrimaryReceivable, patientResponsibilityOf } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
-import { downloadDoc } from '../lib/exportKit'
+import { downloadDoc, loadPdf } from '../lib/exportKit'
 import { SEND_METHODS, statementBalance, statementStatus, statementPdf } from '../lib/statements'
 import { superbillClaims, superbillPdf } from '../lib/superbill'
 
@@ -113,7 +113,7 @@ export default function GenerateInvoiceView() {
               const clClaims = Object.values(claims).filter((x) => x.clientId === c.id && isPrimaryReceivable(x))
               const due = clClaims.reduce((s, x) => s + patientResponsibilityOf(state, x), 0)
               return (
-                <div key={c.id} data-testid={`gi-client-${c.id}`} onClick={() => setClientIds((ids) => on ? ids.filter((x) => x !== c.id) : [...ids, c.id])} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: on ? '#f5f3ff' : undefined, borderLeft: `3px solid ${on ? '#6366f1' : 'transparent'}`, borderBottom: '1px solid var(--line)' }}>
+                <div key={c.id} data-testid={`gi-client-${c.id}`} onClick={() => setClientIds((ids) => on ? ids.filter((x) => x !== c.id) : [...ids, c.id])} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', cursor: 'pointer', background: on ? 'var(--accent-soft)' : undefined, borderBottom: '1px solid var(--line)' }}>
                   <input type="checkbox" checked={on} readOnly style={{ pointerEvents: 'none' }} />
                   <PersonAvatar p={c} size={28} />
                   <div style={{ flex: 1, minWidth: 0 }}><b style={{ fontSize: 13, display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{clClaims.length} primary claims · {money(due)} reported patient share</span></div>
@@ -147,7 +147,8 @@ export default function GenerateInvoiceView() {
                       <PersonAvatar p={r.client} size={28} />
                       <b style={{ fontSize: 14 }}>{r.client?.name}</b>
                       <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700 }}>{money(r.due)} reported share · {money(r.total)} charges</span>
-                      {superbillClaims(state, r.client.id, sbRange).length > 0 && <button className="btn btn-xs" data-testid={`gi-superbill-${r.client.id}`} title="Itemized self-pay services for the family to send to their own insurer" onClick={() => {
+                      {superbillClaims(state, r.client.id, sbRange).length > 0 && <button className="btn btn-xs" data-testid={`gi-superbill-${r.client.id}`} title="Itemized self-pay services for the family to send to their own insurer" onClick={async () => {
+                        if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
                         try { downloadDoc(`Superbill-${r.client.name.replace(/[^A-Za-z0-9]+/g, '_')}-${sbRange.from}-to-${sbRange.to}.pdf`, superbillPdf(state, r.client.id, sbRange), 'application/pdf') } catch (e) { toast({ message: e.message, kind: 'warn' }); return }
                         toast({ message: `Superbill for ${r.client.name} downloaded (self-pay services ${sbRange.from} to ${sbRange.to}). Nothing was sent.`, kind: 'ok' })
                       }}>{Icon.download({ size: 11 })} Superbill</button>}
@@ -204,7 +205,7 @@ function StatementHistory() {
             <span>{money(st.total)} issued · <b>{money(statementBalance(state, st))}</b> open</span>
             <span className="tag" data-testid={`gi-st-status-${st.id}`}>{STATUS_LABEL[status]}{st.sentAt && status !== 'void' ? ` · ${SEND_METHODS.find((m) => m.id === st.sentVia)?.label || 'sent'}` : ''}</span>
             <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button className="btn btn-xs" data-testid={`gi-st-pdf-${st.id}`} onClick={() => { downloadDoc(`${st.no}.pdf`, statementPdf(state, st).output('blob'), 'application/pdf'); toast({ message: `${st.no} downloaded as a PDF. Nothing was sent.`, kind: 'ok' }) }}>{Icon.download({ size: 11 })} PDF</button>
+              <button className="btn btn-xs" data-testid={`gi-st-pdf-${st.id}`} onClick={async () => { if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return; downloadDoc(`${st.no}.pdf`, statementPdf(state, st).output('blob'), 'application/pdf'); toast({ message: `${st.no} downloaded as a PDF. Nothing was sent.`, kind: 'ok' }) }}>{Icon.download({ size: 11 })} PDF</button>
               {status !== 'void' && !st.sentAt && (
                 <>
                   <select className="input" style={{ height: 26, fontSize: 11 }} aria-label="How it was delivered" data-testid={`gi-st-via-${st.id}`} value={via[st.id] || ''} onChange={(e) => setVia({ ...via, [st.id]: e.target.value })}>
