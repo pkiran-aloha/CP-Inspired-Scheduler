@@ -5,11 +5,14 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO } from '../lib/date'
+import { buildQboCsv } from '../lib/billingDocs'
+import { download } from '../lib/ics'
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
 export default function QuickBooksView() {
-  const { ui, actions, settings, qbo } = useStore()
+  const state = useStore()
+  const { ui, actions, settings, qbo } = state
   const toast = useToast()
   const preset = ui.qboPreset || 'last4'
   const range = useMemo(() => resolveRange(preset, ui.anchor, settings.weekStart), [preset, ui.anchor, settings.weekStart])
@@ -25,14 +28,21 @@ export default function QuickBooksView() {
     actions.updateQbo(record.id, { status, ...(status === 'reviewed' ? { reviewedAt: new Date().toISOString() } : {}) })
     toast({ message: `${record.invoiceNo || record.id} marked ${status} locally — no QuickBooks connection`, kind: 'ok' })
   }
+  const exportCsv = () => {
+    const files = buildQboCsv(state, { from: range.days[0], to: range.days[range.days.length - 1] })
+    for (const f of files) download(f.fileName, f.content, 'text/csv;charset=utf-8')
+    const rows = files.reduce((s, f) => s + f.rows, 0)
+    toast({ message: `${rows} charge rows in ${files.length} CSV file${files.length === 1 ? '' : 's'} downloaded for QuickBooks import. Nothing was sent to QuickBooks.`, kind: rows ? 'ok' : 'warn' })
+  }
   return (
     <div className="sectionpage" data-testid="qbo-sec" style={{ background: 'var(--bg)' }}>
       <SectionBar icon="file" title="QuickBooks · local records" sub={`${range.label} · ${records.length} records · ${counts.reviewed} reviewed locally · ${counts.pending} pending`}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ qboPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}><span className="sic">{Icon.search({ size: 12 })}</span><input placeholder="Search client, invoice" value={q} onChange={(e) => setQ(e.target.value)} data-testid="qbo-search" /></div>
+        <button className="btn btn-sm btn-primary" data-testid="qbo-export" title="Open primary claims with a date of service in this range, one invoice per client" onClick={exportCsv}>{Icon.download({ size: 11 })} Download import CSV</button>
       </SectionBar>
       <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
-        <span className="muted">No QuickBooks API is connected. Local review does not confirm remote import. The charge-only CSV builder excludes active COB pairs; reconcile externally before accounting use.</span>
+        <span className="muted">No QuickBooks API is connected. Local review does not confirm remote import. Download import CSV writes the open primary claims in this range as QuickBooks invoice rows (charges only; claims with an active secondary filing are left out); import the file yourself and reconcile before accounting use.</span>
       </div>
       <div className="batch-strip" data-testid="qbo-kpis" style={{ margin: 16, padding: 16, gap: 12, flexWrap: 'wrap', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 14 }}>
         {[

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { blankState, reducer, serializeForStorage, initial } from '../state/store'
 import { arOf, claimsCsv, dueOf, patientLedgerMatches, patientResponsibilityOf, secondaryEligible } from '../lib/claims'
-import { buildInvoices } from '../lib/billingDocs'
+import { buildPatientShareDraft } from '../lib/billingDocs'
 import { buildPatientReceiptAudit, planClaimPayment, planPatientReceipt, planUnappliedReceipt, planVoidClaimPayment } from '../lib/paymentLedger'
 import { previewEra } from '../lib/eraPosting'
 import { createWorkspaceBackup, readWorkspaceBackup } from '../lib/workspaceBackup'
@@ -50,8 +50,7 @@ describe('claim-linked local patient receipts', () => {
     const ar = arOf(once, '2026-09-27')
     expect(ar.totals).toMatchObject({ totalAR: 50, patientAR: 20, unassignedAR: 30 })
     expect(ar.byPayer.reduce((s, row) => s + row.balance, 0)).toBe(50)
-    expect(buildInvoices(once, { from: '2026-09-01', to: '2026-09-30', for: 'client' })[0].total).toBe(20)
-    expect(buildInvoices(once, { from: '2026-09-01', to: '2026-09-30', for: 'payer' })[0].total).toBe(30)
+    expect(buildPatientShareDraft(once, { clientIds: [claim.clientId] }).due).toBe(20)
     expect(claimsCsv(once, [claim])).toMatch(/patient_received,balance,remaining_reported_patient_share/)
     expect(reducer(once, { type: 'undo' }).claims).toEqual(start.claims)
     expect(reducer(once, { type: 'undo' }).payments).toEqual(start.payments)
@@ -133,7 +132,7 @@ describe('claim-linked local patient receipts', () => {
     const ar = arOf(receipt, '2026-09-27')
     expect(ar.totals).toMatchObject({ totalAR: 15, patientAR: 10, unassignedAR: 5 })
     expect(ar.byPayer.reduce((s, row) => s + row.balance, 0)).toBe(15)
-    expect(buildInvoices(receipt, { from: '2026-09-01', to: '2026-09-30', for: 'client' })[0].total).toBe(10)
+    expect(buildPatientShareDraft(receipt, { clientIds: [receipt.claims[primaryId].clientId] }).due).toBe(10)
     expect(planPatientReceipt(receipt, 'secondary-1', { amount: 1, ref: 'WRONG' }, { paymentId: 'bad' }).ok).toBe(false)
     expect(planVoidClaimPayment(receipt, 'sec-pay', { reversalId: 'rev-sec' }).ok).toBe(false)
     const reversed = reverse(receipt, 'pat-cob')

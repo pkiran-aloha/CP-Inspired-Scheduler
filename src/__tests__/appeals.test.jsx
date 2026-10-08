@@ -1,12 +1,14 @@
 // Appeals: filing an appeal marks the claim (it does not invent a status), and a win
 // returns the claim to awaiting payer payment so the money can be posted — item 13.
 import React from 'react'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import App from '../App'
 import { CLAIM_STATUSES } from '../lib/claims'
 import { normalizeAppealedClaims } from '../lib/master'
 
+// jsdom Blob has no text(); FileReader reads what the download saved.
+const readBlob = (blob) => new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsText(blob) })
 const KEY = 'aloha-aba.v3'
 const stored = () => JSON.parse(localStorage.getItem(KEY))
 
@@ -63,6 +65,26 @@ describe('appeals', () => {
     // idempotent: a second pass returns the very same object
     expect(normalizeAppealedClaims(healed)).toBe(healed)
     expect(normalizeAppealedClaims({})).toEqual({})
+  })
+
+  it('downloads the appeal letter from the tested builder with the recorded denial reason', async () => {
+    window.URL.createObjectURL = vi.fn(() => 'blob:appeal-test')
+    window.URL.revokeObjectURL = vi.fn()
+    const { id } = await openAppeals()
+    const claim = stored().claims[id]
+    expect(claim.denial.reason).toBeTruthy()
+    // the queue and the detail read the claim's real denial record
+    expect(screen.getByTestId(`appeal-row-${id}`).textContent).toContain(claim.denial.reason)
+    expect(screen.getByTestId('appeal-detail').textContent).toContain(claim.denial.reason)
+    fireEvent.change(screen.getByTestId('appeal-note'), { target: { value: 'Session notes attached.' } })
+    fireEvent.click(screen.getByTestId('appeal-letter'))
+    const text = await readBlob(window.URL.createObjectURL.mock.calls[0][0])
+    expect(text).toContain(`Re: Appeal — Claim ${claim.no}`)
+    expect(text).toContain(`Denial reason: ${claim.denial.reason}`)
+    expect(text).toContain('meets medical necessity criteria')
+    expect(text).toContain('Session notes attached.')
+    expect(await screen.findByText(`Appeal-${claim.no}.txt downloaded. Nothing was sent to ${claim.payer}.`)).toBeTruthy()
+    expect(stored().claims[id].appeal).toBeFalsy() // downloading is not filing
   })
 
   it('a lost appeal leaves the claim denied', async () => {

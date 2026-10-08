@@ -15,6 +15,8 @@ Deployment is defined in `.github/workflows/deploy.yml` (tests + build, then Git
 
 ## Current development context
 
+- **Billing documents, one builder each (2026-10-08):** every billing download comes from its tested builder in `src/lib/billingDocs.js` — Generate Invoice's draft statement, Verification Forms, the new QuickBooks **Download import CSV** and the new Appeals **Letter** — so the tested file is the file users get. Unused builder variants were removed.
+
 - **Dependencies (2026-10-08):** test runner upgraded to Vitest 4, unused Playwright packages removed, `npm audit` reports 0 vulnerabilities. Run `npm ci` after pulling.
 
 - `src/state/store.jsx` owns the seeded workspace, migrations, reducer, undo and browser persistence. `src/lib/` contains the domain engines (claims, documents, reporting, scheduler); `src/components/` holds the screens. `src/__tests__/` exercises both pure logic and UI workflows.
