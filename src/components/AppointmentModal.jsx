@@ -36,11 +36,12 @@ import { riskFor, RISK_TIME_LABEL } from '../lib/risk'
 import { overbookBoard, overbookBlockFor } from '../lib/overbook'
 import { apptAutoTitle } from '../lib/apptName'
 import { cancelReasonOptions, reasonPatch } from '../lib/cancelReasons'
-import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, locationOptions, evaluateAppointmentValidations, systemConfigFor, staffSigRequiredToCompleteOf, telehealthRoomFor } from '../lib/settingsMasters'
+import { isCancelStatus, statusMapFor, statusOrderFor, statusFor, settingsOffices, evaluateAppointmentValidations, systemConfigFor, staffSigRequiredToCompleteOf, telehealthRoomFor } from '../lib/settingsMasters'
 import { svcList, payerForAppt, ensurePayer, svcRule, concurrentNote, svcOptionsFor, svcById, pcfsErrors, pcfFormatErrors, customFieldsForScope, CF_TEXT_FORMAT_RULES, rateFor } from '../lib/master'
 import CfDefModal from './CfDefModal.jsx'
 import { CfPickRow } from './CfPick.jsx'
-import { LOCATIONS, STAFF_BY_ID } from '../lib/seed'
+import { STAFF_BY_ID } from '../lib/seed'
+import { locationSuggestions, mapsUrlFor } from '../lib/locationSources'
 import { posFor } from '../lib/claims'
 import SignaturePad from '../ui/SignaturePad'
 import RecurrenceEditor from './RecurrenceEditor'
@@ -574,15 +575,16 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   // The session's current location always stays pickable, so editing an existing
   // telehealth booking never blanks the field.
   const hideTeleHome = Boolean(billPayer?.rules?.hideTeleHome)
+  // Grouped by source (client, staff's previous stop, offices, telehealth); anything typed is kept as typed.
+  const locSuggest = useMemo(
+    () => locationSuggestions(state, { id: f.id, date: f.date, start: f.start, clientIds: f.clientIds, staffIds: f.staffIds }),
+    [appts, clients, staff, settings, f.id, f.date, f.start, JSON.stringify(f.clientIds), JSON.stringify(f.staffIds)],
+  )
   const locOptions = [
-    ...new Set([
-      ...locationOptions(settings),
-      ...LOCATIONS.filter((l) => !excludedOfficeNames.has(l)),
-      ...Object.values(appts).map((a) => a.location).filter((l) => l && !excludedOfficeNames.has(l)),
-      ...(f.location ? [f.location] : []),
-    ]),
-  ].filter((l) => !hideTeleHome || posFor({ location: l }) !== '10')
-    .map((l) => ({ value: l, label: l }))
+    ...locSuggest.filter((o) => !excludedOfficeNames.has(o.value)),
+    ...(f.location && !locSuggest.some((o) => o.value === f.location) ? [{ value: f.location, label: f.location, sub: 'Entered for this session', group: 'Current' }] : []),
+  ].filter((o) => !hideTeleHome || posFor({ location: o.value }) !== '10')
+  const locMapUrl = mapsUrlFor(state, f.location, f.clientIds || [])
 
   const verifier = STAFF_BY_ID[f.verification?.completedBy]
 
@@ -800,7 +802,12 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       <div className="grid2">
                         <div className="field">
                           <label>Location</label>
-                          <Dropdown testid="location-select" searchable creatable value={f.location || ''} onChange={(v) => set({ location: v })} options={locOptions} placeholder="Search or enter your location" />
+                          <Dropdown testid="location-select" searchable creatable value={f.location || ''} onChange={(v) => set({ location: v })} options={locOptions} placeholder="Pick a suggestion or type an address" />
+                          {locMapUrl && (
+                            <div className="muted bk-loc-map" style={{ fontSize: 11.5, marginTop: 4 }}>
+                              <a data-testid="bk-loc-map" href={locMapUrl} target="_blank" rel="noopener noreferrer">{Icon.pin({ size: 11 })} Open in Google Maps</a> · opens a new tab; saved as typed, nothing is looked up or sent
+                            </div>
+                          )}
                           {telehealthRoom && (
                             <div className="muted" data-testid="am-telehealth-room" style={{ fontSize: 11.5, marginTop: 4 }}>
                               Video room: <a href={telehealthRoom} target="_blank" rel="noopener noreferrer">{telehealthRoom}</a> · your practice’s own link; this app does not host video

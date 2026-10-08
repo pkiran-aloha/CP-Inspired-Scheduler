@@ -64,6 +64,15 @@ export function Dropdown({ value, onChange, options = [], placeholder = 'Select�
     setOpen(false)
     setQ('')
   }
+  // Arrow keys walk the search box and the options; Enter/Space press the focused one.
+  const move = (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    const pop = e.currentTarget.closest('.pop')
+    const items = [...pop.querySelectorAll('.pop-item')]
+    const n = items.indexOf(e.currentTarget) + (e.key === 'ArrowDown' ? 1 : -1)
+    ;(n < 0 ? pop.querySelector('input') : items[n])?.focus()
+  }
 
   return (
     <div className="rel dd" ref={anchor} style={style}>
@@ -87,20 +96,23 @@ export function Dropdown({ value, onChange, options = [], placeholder = 'Select�
         <Popover anchorRect={anchor.current.getBoundingClientRect()} anchorRef={anchor} onClose={() => setOpen(false)} width={Math.max(240, anchor.current.offsetWidth)}>
           {searchable && (
             <div className="pop-search">
-              <input className="input" autoFocus placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && filtered[0]) commit(filtered[0].value) }} />
+              <input className="input" autoFocus placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search options" onKeyDown={(e) => { move(e); if (e.key === 'Enter') { if (filtered[0]) commit(filtered[0].value); else if (creatable && q) commit(q) } }} />
             </div>
           )}
-          {filtered.map((o) => (
-            <button type="button" key={o.value} data-testid={`opt-${testid || 'dd'}-${String(o.value)}`} className={`pop-item ${o.value === value ? 'on' : ''}`} onClick={() => commit(o.value)}>
+          {filtered.map((o, i) => (
+            <React.Fragment key={o.value}>
+            {o.group && o.group !== filtered[i - 1]?.group && <div className="pop-group" data-testid={`dd-group-${testid || 'dd'}-${o.group}`}>{o.group}</div>}
+            <button type="button" data-testid={`opt-${testid || 'dd'}-${String(o.value)}`} className={`pop-item ${o.value === value ? 'on' : ''}`} onKeyDown={move} onClick={() => commit(o.value)}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span className="nm" style={{ display: 'block' }}>{o.label}</span>
                 {o.sub && <span className="rl">{o.sub}</span>}
               </span>
               <span className="ck">{Icon.check({ size: 14, strokeWidth: 2.6 })}</span>
             </button>
+            </React.Fragment>
           ))}
           {creatable && q && !exact && (
-            <button type="button" data-testid="dd-create" className="pop-item" style={{ color: 'var(--accent)' }} onClick={() => commit(q)}>
+            <button type="button" data-testid="dd-create" className="pop-item" style={{ color: 'var(--accent)' }} onKeyDown={move} onClick={() => commit(q)}>
               {Icon.plus({ size: 13 })} Use “{q}”
             </button>
           )}
