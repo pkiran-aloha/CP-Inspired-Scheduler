@@ -4,6 +4,7 @@ import { Icon } from '../ui/Icons'
 import { REPORTS } from '../lib/reports'
 import { fullName as intakeFullName, intakeMatches, stageDef as intakeStageDef, ageLabel as intakeAgeLabel, OPEN_STAGES } from '../lib/intake'
 import { todayISO } from '../lib/date'
+import { DENSITIES, DENSITY_LABEL, densityOf } from '../lib/viewDensity'
 
 /**
  * ⌘K command palette — one box for the whole platform: jump to a section or
@@ -31,6 +32,7 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
       out.push({ g: 'Actions', icon: 'x', t: 'Clear calendar filters', hint: 'reset staff/client/team selection', run: go({ staffSel: [], clientSel: [], teamSel: [], search: '' }) })
     }
     out.push({ g: 'Actions', icon: 'moon', t: `Switch to ${settings.theme === 'dark' ? 'light' : 'dark'} mode`, hint: 'appearance', run: () => { actions.setSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }); onClose() } })
+    DENSITIES.filter((d) => d !== densityOf(settings)).forEach((d) => out.push({ g: 'Actions', icon: 'rows', t: `View density: ${DENSITY_LABEL[d]}`, hint: 'appearance', run: () => { actions.setSettings({ density: d }); onClose() } }))
     out.push({ g: 'Actions', k: '?', icon: 'info', t: 'Keyboard shortcuts', hint: 'everything is a keystroke away', run: () => { onClose(); onHelp() } })
     out.push({ g: 'Navigate', icon: 'info', t: 'Help & Wiki', hint: 'workflows, FAQs and screen guides', run: go({ section: 'help' }) })
     const secs = [
@@ -85,7 +87,7 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
       run: () => { if (can('calendar')) actions.setUI({ section: 'calendar', view: 'week', anchor: todayISO(), staffSel: [s.id], clientSel: [], teamSel: [] }); else actions.setUI({ section: 'staff' }); onClose() },
     })
     return out
-  }, [actions, state.canAccess, settings.theme, staff, clients, state.intakeRequests, onClose, onNew, onHelp])
+  }, [actions, state.canAccess, settings.theme, settings.density, staff, clients, state.intakeRequests, onClose, onNew, onHelp])
 
   const results = useMemo(() => {
     const query = q.trim().toLowerCase()

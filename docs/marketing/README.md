@@ -168,6 +168,7 @@ Thirteen settings modules hold the practice's own rules. Masters are edited in o
 - **Appointment status, custom lists, custom fields, qualifications, services and earning codes**, each a single master.
 - **CSV data import** for clients, staff, appointments and other masters: columns map automatically, every row is validated, duplicates are detected, a clean preview is required, and the commit is all-or-nothing. Nothing is uploaded.
 - **Help & Wiki inside the app:** every workflow, screen guide and FAQ answer, searchable from the navigation rail and updated with each release.
+- **View density:** Relaxed, Normal or Tight. Relaxed adds space and larger text for long sessions at the desk; Tight fits more rows and more of the day on one screen, with text kept readable and every button large enough to hit.
 - **ABA Hours tracking** for behavior-analytic time on non-service appointments, tallied by credential track against targets the practice sets.
 
 ### Security, Undo and backup: mistakes are one keystroke from fixed
@@ -239,7 +240,7 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | A/R | `src/components/ArManagerView.jsx`, `src/components/GenerateInvoiceView.jsx`, `src/components/DashboardView.jsx` (Billing Health DSO display), `src/lib/claims.js` (AR engine), `src/lib/billingKpis.js` (shared DSO), `src/lib/statements.js` (client statements), `src/lib/superbill.js` (superbills), `src/lib/gfe.js` + `src/components/GfeDialog.jsx` (Good Faith Estimates), `src/lib/settingsMasters.js` (`paymentLinkFor`), `src/lib/billingDocs.js` |
 | Payroll | `src/lib/payroll.js`, `src/lib/payrollExport.js`, `src/components/payroll/*`, `src/lib/settingsMasters.js` (earning codes, overtime floor) |
 | Dashboard & reports | `src/lib/dash.js` (`WIDGETS`), `src/lib/billingKpis.js`, `src/lib/reports.js`, `src/lib/analytics.js`, `src/lib/exportKit.js`, `src/lib/reportViz.js`, `src/lib/rpTrends.js`, `src/components/DashboardView.jsx`, `src/components/ReportsView.jsx`, `src/components/reports/Charts.jsx`, `src/components/AnalyticsView.jsx` |
-| Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx` |
+| Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx`, `src/lib/viewDensity.js` |
 | Help & Wiki (Settings section bullet) | `src/components/HelpView.jsx`, `src/lib/wiki.js`, `docs/wiki/*` |
 | Security, Undo & backup | `src/state/store.jsx` (reducer, Undo, persistence), `src/lib/security.js`, `src/lib/screenLock.js`, `src/components/ScreenLock.jsx`, `src/components/SecurityView.jsx`, `src/lib/workspaceBackup.js` |
 | Why practices trust it | `PRODUCT.md` (Product Principles), `AGENTS.md` (Non-negotiables 2–4), `src/lib/security.js` (`authorizeAction`) |

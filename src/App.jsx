@@ -65,6 +65,7 @@ import { uid } from './lib/model'
 import { areaForSection, firstAccessibleSection } from './lib/security'
 import { notificationsFor } from './lib/tasks'
 import { notificationsCfg } from './lib/settingsMasters'
+import { densityOf } from './lib/viewDensity'
 
 export function rangeDays(view, anchor, weekStart) {
   const a = parseISO(anchor)
@@ -126,6 +127,10 @@ function Shell() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
   }, [settings.theme])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', densityOf(settings))
+  }, [settings.density])
 
   // Browser toasts (opt-in, Settings → System → Notifications): surface stop-tone
   // inbox alerts once per session while the tab is open. The inbox always shows the

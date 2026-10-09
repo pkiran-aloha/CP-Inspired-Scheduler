@@ -7,6 +7,7 @@ import { AUTH_GUARD_DEFAULTS, AUTH_MODES, authGuardCfg } from '../../lib/authBud
 import { ABA_TRACKS, abaHoursCfg, abaTotals } from '../../lib/abaHours'
 import { downloadDoc } from '../../lib/exportKit'
 import { todayISO } from '../../lib/date'
+import { DENSITIES, DENSITY_LABEL, densityOf } from '../../lib/viewDensity'
 import { NAME_STYLES, apptAutoTitle, titleAudit } from '../../lib/apptName'
 import { createWorkspaceBackup, readWorkspaceBackup } from '../../lib/workspaceBackup'
 import {
@@ -274,6 +275,13 @@ export function SystemPanel({ state, actions, toast, readOnly, sub, canManageWor
               <div className="viewseg">
                 {['light', 'dark'].map((t) => (
                   <button key={t} className={settings.theme === t ? 'on' : ''} disabled={readOnly} onClick={() => patch({ theme: t })}>{t === 'light' ? 'Light' : 'Dark'}</button>
+                ))}
+              </div>
+            </Row>
+            <Row label="View density" hint="Relaxed adds space and larger text; tight fits more rows on screen">
+              <div className="viewseg" role="group" aria-label="View density">
+                {DENSITIES.map((d) => (
+                  <button key={d} className={densityOf(settings) === d ? 'on' : ''} aria-pressed={densityOf(settings) === d} disabled={readOnly} data-testid={`set-sys-density-${d}`} onClick={() => patch({ density: d })}>{DENSITY_LABEL[d]}</button>
                 ))}
               </div>
             </Row>
