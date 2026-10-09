@@ -120,7 +120,7 @@ export default function ProcessPayrollView() {
     const html = parts.join('<div style="page-break-after:always"></div>')
     actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'pay_stubs', fileName: `pay-stubs-${run.no}.html`, rows: parts.length, note: 'Printable pay stubs (draft)' })
     download(`pay-stubs-${run.no}.html`, html, 'text/html;charset=utf-8')
-    toast({ message: `${parts.length} pay stubs opened as a printable document — browser printing does not transmit anything`, kind: 'ok' })
+    toast({ message: `${parts.length} pay stubs saved as a printable document. Printing does not send anything`, kind: 'ok' })
   }
   const downloadRegister = async (kind) => {
     if (!run) return
@@ -156,7 +156,7 @@ export default function ProcessPayrollView() {
       <SectionBar icon="dollar" title="Process Payroll" sub={
         lastProcessed
           ? `Last payroll processed on ${new Date(lastProcessed.processedAt).toLocaleDateString('en-US', { dateStyle: 'medium' })} · ${lastProcessed.no}`
-          : 'Welcome to the Payroll Wizard — no payroll has been processed yet'
+          : 'No payroll processed yet'
       }>
         <button className="btn btn-sm" data-testid="pay-wizard-overview" onClick={() => actions.setUI({ section: 'payroll', payPhase: null, payrollFocus: null })} style={{ borderRadius: 10 }}>
           {Icon.chevronL({ size: 13 })} Payroll overview
@@ -183,20 +183,20 @@ export default function ProcessPayrollView() {
             testId="pay-wizard-period"
             index={1} total={4} icon="cal" tone="accent"
             title="Select the payroll period"
-            sub="Timesheets are pulled straight from the calendar — you choose which cycle to pay."
+            sub="Timesheets come from the calendar. Choose the cycle to pay."
             guide={[
-              'Pick the pay cycle you want to process — frequency, pay date and cutoff come from Payroll Setup.',
-              `This period covers ${preview ? `${preview.gate.included.length} eligible employees and ${hrs(preview.totals.workedHours)} of worked time` : 'no time yet — pick a period first'}.`,
-              'If a run already exists for the cycle, you will resume it instead of creating a duplicate.',
+              'Pick the pay cycle to process. Frequency, pay date and cutoff come from Payroll Setup.',
+              `This period covers ${preview ? `${preview.gate.included.length} eligible employees and ${hrs(preview.totals.workedHours)} of worked time` : 'no time yet. Pick a period first'}.`,
+              'If a run already exists for the cycle, you resume it instead of creating a duplicate.',
             ]}
             footer={
               <>
                 <button className="btn btn-primary pay-next" data-testid="pay-period-next-step" onClick={() => (existing.length ? setStep(runProgress(existing[0]).step) : createRun())}>
-                  {existing.length ? `Open ${existing[0].no} — phase ${runProgress(existing[0]).step + 1}` : 'Next — build the register'} {Icon.chevronR({ size: 13 })}
+                  {existing.length ? `Open ${existing[0].no} (phase ${runProgress(existing[0]).step + 1})` : 'Next: build the register'} {Icon.chevronR({ size: 13 })}
                 </button>
                 {!run && progress.done === 0 && (
                   <span className="pay-hint" style={{ marginTop: 0, borderLeftWidth: 2 }}>
-                    Nothing is locked in this phase — building the register creates a draft you can still change or void.
+                    Nothing is locked yet. Building the register creates a draft you can change or void.
                   </span>
                 )}
               </>
@@ -204,8 +204,8 @@ export default function ProcessPayrollView() {
           >
             <PeriodPicker value={periodId} onChange={setPeriodId} label="Payroll period" />
             <div className="pay-hint">
-              Timesheets for this period are pulled from the calendar — {preview ? `${preview.gate.included.length} eligible employees, ${hrs(preview.totals.workedHours)} of worked time` : 'no period selected'}.
-              Historical runs: {Object.values(payRuns || {}).filter((r) => r.locked).length} processed.
+              This period: {preview ? `${preview.gate.included.length} eligible employees, ${hrs(preview.totals.workedHours)} of worked time` : 'no period selected'}.
+              Processed runs on file: {Object.values(payRuns || {}).filter((r) => r.locked).length}.
             </div>
             {existing.length > 0 && (
               <div className="pay-gate warn" data-testid="pay-existing-run">
@@ -232,9 +232,9 @@ export default function ProcessPayrollView() {
               title="Review the register"
               sub={`${run.no} · ${run.periodStart} → ${run.periodEnd} · pay date ${run.payDate} · prepared by ${run.preparedBy}`}
               guide={[
-                'Check gross-to-net for every employee below — the register is priced live from the ledgers.',
-                'Blockers stop the run from being approved; exceptions need an approver’s eyes.',
-                'Use “Show n affected employees” on any exception to open the Review Register and jump straight to the fix.',
+                'Check gross-to-net for each employee below. The register is priced live from the ledgers.',
+                'Blockers stop approval. Exceptions need an approver to look at them.',
+                'Use “Show n affected employees” on an exception to open the Review Register and go to the fix.',
               ]}
               meta={[
                 ['Employees', run.included.length],
@@ -250,8 +250,8 @@ export default function ProcessPayrollView() {
                     {gate && !gate.ok
                       ? `${gate.blockers.length} blocker(s) must be cleared before approval.`
                       : gate?.warnings?.length
-                        ? `${gate.warnings.length} exception(s) to review — nothing is blocking.`
-                        : 'All controls passed — ready for approval.'}
+                        ? `${gate.warnings.length} exception(s) to review. Nothing is blocking.`
+                        : 'All controls passed. Ready for approval.'}
                   </span>
                 </>
               }
@@ -307,8 +307,8 @@ export default function ProcessPayrollView() {
                 ))}
               </div>
               <div className="pay-hint">
-                Employees can be excluded from a draft run with the ✕ — they stay payable in a later off-cycle run. Approved or
-                processed runs must be reopened deliberately before their employee list can change.
+                Exclude an employee from a draft run with the close button. They stay payable in a later off-cycle run. Approved or
+                processed runs must be reopened before their employee list can change.
                 {run.excluded?.length > 0 && <> <b>{run.excluded.length} excluded from this run.</b></>}
               </div>
             </div>
@@ -326,11 +326,11 @@ export default function ProcessPayrollView() {
               testId="pay-wizard-approve"
               index={3} total={4} icon="shield" tone="accent"
               title="Independent approval"
-              sub="Payroll is a sensitive control: the person who prepared the run should not be the person who approves it."
+              sub="The person who prepared the run should not approve it."
               guide={[
-                `Pick an approver other than ${run.preparedBy} — approval signs the register.`,
-                'Review the totals one more time: net to disburse and total cost to the practice.',
-                'Processing then locks the register — after that, corrections are off-cycle adjustments only.',
+                `Pick an approver other than ${run.preparedBy}. Approval signs the register.`,
+                'Check the totals again: net to disburse and total cost to the practice.',
+                'Processing locks the register. After that, corrections are off-cycle adjustments only.',
               ]}
               footer={
                 <>
@@ -344,7 +344,7 @@ export default function ProcessPayrollView() {
               <label className="pay-field">
                 <span>Approver</span>
                 <select className="input" value={who} onChange={(e) => setWho(e.target.value)} data-testid="pay-approver">
-                  {(staff || []).map((s) => <option key={s.id} value={s.name}>{s.name} — {s.role}</option>)}
+                  {(staff || []).map((s) => <option key={s.id} value={s.name}>{s.name}, {s.role}</option>)}
                   <option value="Payroll admin">Payroll admin</option>
                 </select>
               </label>
@@ -357,7 +357,7 @@ export default function ProcessPayrollView() {
               {run.preparedBy === who && payroll.approvals.separateApprover && (
                 <div className="pay-gate warn" data-testid="pay-sod-warning">
                   <span className="ic">{Icon.alert({ size: 15 })}</span>
-                  <div><b>Segregation of duties</b><div className="why">You are the preparer — pick a different approver, or turn the control off deliberately in Payroll Setup.</div></div>
+                  <div><b>Segregation of duties</b><div className="why">You prepared this run. Pick a different approver, or turn this control off in Payroll Setup.</div></div>
                 </div>
               )}
               {gate && !gate.ok && <div className="pay-hint bad">{gate.blockers.length} blocker(s) must be cleared before this run can be approved.</div>}
@@ -377,25 +377,25 @@ export default function ProcessPayrollView() {
               testId="pay-wizard-process"
               index={4} total={4} icon="zap" tone={run.status === 'approved' ? 'ok' : 'warn'}
               title="Process & release"
-              sub="Processing re-prices every employee from the live ledgers, locks the register, and marks the timesheets as processed."
+              sub="Nothing is sent automatically. The provider file, bank file and stubs are downloads you hand off yourself."
               guide={[
-                'Nothing is transmitted automatically — the provider file, bank file and stubs are downloads you hand off yourself.',
-                'The register is re-priced at the moment of locking, so the locked figures match the live ledgers.',
-                'After locking, download the artifacts below and hand them to your payroll provider and bank.',
+                'Processing reprices every employee from the live ledgers, locks the register and marks the timesheets processed.',
+                'Because the register is repriced when it locks, the locked figures match the live ledgers.',
+                'After locking, download the files and hand them to your payroll provider and bank.',
               ]}
               footer={
                 <>
                   {run.status === 'approved' ? (
                     <button className="btn btn-primary pay-next" data-testid="pay-process" onClick={process}>
-                      {Icon.zap({ size: 13 })} Process payroll — lock {money(run.totals.netCents)} net
+                      {Icon.zap({ size: 13 })} Process payroll: lock {money(run.totals.netCents)} net
                     </button>
                   ) : (
                     <>
                       <button className="btn btn-primary pay-next" data-testid="pay-go-approve" onClick={() => setStep(2)}>
-                        {Icon.shield({ size: 13 })} Go to approval — phase 3
+                        {Icon.shield({ size: 13 })} Go to approval (phase 3)
                       </button>
                       <span className="pay-hint" style={{ marginTop: 0, borderLeftWidth: 2 }}>
-                        Approval is required first — this run is still {RUN_STATUS_LABEL[run.status].toLowerCase()}.
+                        Approval comes first. This run is still {RUN_STATUS_LABEL[run.status].toLowerCase()}.
                       </span>
                     </>
                   )}
@@ -418,11 +418,11 @@ export default function ProcessPayrollView() {
             testId="pay-wizard-done"
             index={4} total={4} icon="checkCircle" tone="ok"
             title={`${run.no} processed and locked`}
-            sub="Everything is paid and frozen — hand off the artifacts below to your provider and bank."
+            sub="Paid and locked. The files below are local downloads you hand to your provider and bank."
             guide={[
-              'Download the pay stubs and hand them to employees — printing or sharing never transmits anything by itself.',
-              'The QuickBooks payroll file and GL journal are what your accountant and provider import.',
-              'The ACH file is a local draft — validate it with your bank before it goes anywhere near one.',
+              'Download the pay stubs and give them to employees. Printing or sharing does not send anything by itself.',
+              'Your accountant and provider import the QuickBooks payroll file and GL journal.',
+              'The ACH file is a local draft. Validate it with your bank before use.',
             ]}
           >
             <div className="pay-summary-mini">
@@ -436,7 +436,7 @@ export default function ProcessPayrollView() {
               <button className="btn btn-sm" data-testid="pay-provider-file" onClick={() => {
                 download(`quickbooks-payroll-${run.no}.csv`, qboCsv(run, state), 'text/csv;charset=utf-8')
                 actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'qbo_payroll', fileName: `quickbooks-payroll-${run.no}.csv`, rows: run.totals.staff, totalCents: run.totals.grossCents })
-                toast({ message: 'Provider export built — review it in QuickBooks Payroll before handing it over', kind: 'ok' })
+                toast({ message: 'Provider file built. Review it in QuickBooks Payroll before handing it over', kind: 'ok' })
               }}>{Icon.file({ size: 12 })} QuickBooks payroll file</button>
               <button className="btn btn-sm" data-testid="pay-gl-journal" onClick={() => {
                 download(`payroll-journal-${run.no}.csv`, payrollCsv(glJournalRows(run, state)), 'text/csv;charset=utf-8')
@@ -444,14 +444,13 @@ export default function ProcessPayrollView() {
               }}>{Icon.file({ size: 12 })} GL journal</button>
               <button className="btn btn-sm" data-testid="pay-ach" onClick={() => {
                 download(`payroll-ach-${run.no}.ach`, achFile(run, state), 'text/plain;charset=utf-8')
-                actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'ach_draft', fileName: `payroll-ach-${run.no}.ach`, rows: run.totals.staff, note: 'NACHA-shaped local draft — not bank-validated' })
-                toast({ message: 'ACH draft downloaded — this file has not been validated by a bank and must not be uploaded as-is', kind: 'warn' })
+                actions.recordPayExport({ runId: run.id, periodId: run.periodId, kind: 'ach_draft', fileName: `payroll-ach-${run.no}.ach`, rows: run.totals.staff, note: 'NACHA-format local draft, not bank-validated' })
+                toast({ message: 'ACH draft downloaded. No bank has validated it. Do not upload it as is', kind: 'warn' })
               }}>{Icon.download({ size: 12 })} ACH draft (review)</button>
               <button className="btn btn-sm" data-testid="pay-wizard-done-runs" onClick={() => actions.setUI({ section: 'pay-runs', payrollFocus: { runId: run.id } })}>{Icon.table({ size: 12 })} Open in Pay Runs</button>
             </div>
             <div className="pay-hint">
-              Processed registers are immutable by design. Corrections go through an off-cycle adjustment run rather than editing history —
-              that is what makes the audit trail worth anything.
+              A processed register cannot be edited. Corrections go through an off-cycle adjustment run, so the audit trail stays intact.
             </div>
           </PhasePanel>
         )}

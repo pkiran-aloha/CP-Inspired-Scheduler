@@ -77,8 +77,8 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
             <span>{active.blurb}</span>
           </div>
           <div className="secbar-actions" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {readOnly && <span className="set-readonly" data-testid="settings-readonly">View only — settings changes are disabled</span>}
-            <span className="muted" style={{ fontSize: 11 }}>saved to this browser automatically</span>
+            {readOnly && <span className="set-readonly" data-testid="settings-readonly">View only. Settings cannot be changed.</span>}
+            <span className="muted" style={{ fontSize: 11 }}>Saved to this browser automatically</span>
             <button className="btn btn-sm" onClick={handleClose} aria-label="Close Settings" data-testid="settings-close">
               {Icon.chevronL({ size: 13 })} Back to Calendar
             </button>
@@ -99,7 +99,7 @@ export default function SettingsModal({ onClose, forcedModule = null, forcedSub 
             </div>
             <footer className="set-foot">
               <span>v36 · build {typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'} · {Math.max(1, Math.round(bytes / 1024))} KB local</span>
-              <span className="muted">Demo data only — no PHI, no payer connection.</span>
+              <span className="muted">Demo data only. No PHI and no payer connection.</span>
             </footer>
           </section>
         </div>

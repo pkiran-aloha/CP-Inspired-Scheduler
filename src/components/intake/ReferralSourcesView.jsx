@@ -39,7 +39,7 @@ function SourceEditor({ item, onClose }) {
             <label className="iq-fld"><span>Kind</span>
               <Dropdown value={f.kind} onChange={(v) => set('kind', v)} options={SOURCE_KINDS.map((k) => ({ value: k, label: k }))} testid="iq-src-kind" searchable /></label>
             <label className="iq-fld"><span>Status</span>
-              <Dropdown value={f.status} onChange={(v) => set('status', v)} options={[{ value: 'active', label: 'Active' }, { value: 'dormant', label: 'Dormant — no recent referrals' }, { value: 'inactive', label: 'Inactive — do not route' }]} testid="iq-src-status" /></label>
+              <Dropdown value={f.status} onChange={(v) => set('status', v)} options={[{ value: 'active', label: 'Active' }, { value: 'dormant', label: 'Dormant: no recent referrals' }, { value: 'inactive', label: 'Inactive: do not route' }]} testid="iq-src-status" /></label>
             <label className="iq-fld"><span>Contact person</span>
               <input className="input" value={f.contact} onChange={(e) => set('contact', e.target.value)} data-testid="iq-src-contact" /></label>
             <label className="iq-fld"><span>Relationship owner</span>
@@ -55,7 +55,7 @@ function SourceEditor({ item, onClose }) {
             <label className="iq-fld wide"><span>Notes</span>
               <input className="input" value={f.notes} onChange={(e) => set('notes', e.target.value)} data-testid="iq-src-notes" /></label>
           </div>
-          <p className="iq-note">{Icon.info({ size: 11 })} Dormancy alerts go to the relationship owner — keeping referral relationships warm is cheaper than finding new ones.</p>
+          <p className="iq-note">{Icon.info({ size: 11 })} Dormancy alerts go to the relationship owner.</p>
           <div className="iq-actions">
             <button className="btn btn-sm btn-primary" data-testid="iq-src-save" onClick={save}>{Icon.check({ size: 12 })} Save source</button>
             <button className="btn btn-sm" onClick={onClose}>Cancel</button>
@@ -99,7 +99,7 @@ export default function ReferralSourcesView() {
 
   return (
     <div className="sectionpage">
-      <SectionBar icon="zap" title="Referral Sources" sub={`${totals.sources} active relationships · ${totals.dormant} dormant · ${totals.attributed} of ${totals.attributed + totals.unattributed} requests attributed`}>
+      <SectionBar icon="zap" title="Referral Sources" sub={`${totals.sources} active relationships · ${totals.dormant} dormant · ${totals.attributed} of ${totals.attributed + totals.unattributed} requests attributed`} info="Conversion counts only decided requests (converted or closed), so a new pipeline does not show a misleading rate. Benchmarks used here: first callback within one business day, VOB within 30 minutes of capture, an appointment offered within 24 hours for urgent referrals, and 25 to 35% inquiry-to-admit conversion for behavioral health." wiki="intake">
         <input className="input" style={{ width: 200, height: 30 }} placeholder="Search sources…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="iq-src-search" />
         <Dropdown value={kind} onChange={setKind} options={kinds.map((k) => ({ value: k, label: k === 'all' ? 'All kinds' : k }))} testid="iq-src-kindfilter" searchable style={{ minWidth: 170 }} />
         <button className="btn btn-sm btn-primary" data-testid="iq-src-new" onClick={() => setEditing(BLANK)}>{Icon.plus({ size: 13 })} Source</button>
@@ -145,21 +145,16 @@ export default function ReferralSourcesView() {
                     <td className="iq-td-acts">
                       <span className={`iq-pill ${STATUS_TONE[s.status] || 'neutral'}`}>{s.status}</span>
                       <button className="dir-eye" data-testid={`iq-src-edit-${s.id}`} title="Edit source" onClick={() => setEditing(s)}>{Icon.edit({ size: 13 })}</button>
-                      <button className="dir-eye" data-testid={`iq-src-view-${s.id}`} title="See attributed requests" onClick={() => { actions.setUI({ section: 'intake', intakeSource: s.id }); toast({ message: `Intake pipeline opened — filter by ${s.name}`, kind: 'info' }) }}>{Icon.eye({ size: 13 })}</button>
+                      <button className="dir-eye" data-testid={`iq-src-view-${s.id}`} title="See attributed requests" onClick={() => { actions.setUI({ section: 'intake', intakeSource: s.id }); toast({ message: `Intake pipeline filtered to ${s.name}`, kind: 'info' }) }}>{Icon.eye({ size: 13 })}</button>
                       <button className="dir-eye" data-testid={`iq-src-del-${s.id}`} title="Remove or retire" onClick={() => { const r = actions.removeReferralSource(s.id); toast({ message: r.retired ? r.msg : `${s.name} removed from the register`, kind: r.retired ? 'warn' : 'ok' }) }}>{Icon.trash({ size: 13 })}</button>
                     </td>
                   </tr>
                 )
               })}
-              {!rows.length && <tr><td colSpan={8}><div className="bil-empty">No referral sources match — add the relationship to start attributing referrals.</div></td></tr>}
+              {!rows.length && <tr><td colSpan={8}><div className="bil-empty">No referral sources match. Add a source to start attributing referrals.</div></td></tr>}
             </tbody>
           </table>
         </div>
-
-        <p className="iq-note">
-          {Icon.info({ size: 11 })} Conversion is calculated only over decided requests (converted + closed), so a young pipeline is never punished with a misleading rate.
-          {' '}Benchmarks used across the module: first callback within a business day, VOB within 30 minutes of capture, appointment offered within 24 hours for urgent referrals, and a 25–35% inquiry-to-admit conversion for behavioural-health pipelines.
-        </p>
       </div>
 
       {editing && <SourceEditor item={editing === BLANK ? null : editing} onClose={() => setEditing(null)} />}

@@ -41,7 +41,7 @@ export function providerIdIssues(state, payer, staffId) {
   const name = st?.name || staffId
   const prov = providerFor(state, staffId)
   const out = []
-  if (!prov) return [`${name} has no provider record — add one in Billing → Provider IDs`]
+  if (!prov) return [`${name} has no provider record. Add one in Billing → Provider IDs.`]
   const via = payer?.name ? `${payer.name} bills with ${rule.label}` : `billing uses ${rule.label}`
   if ((rule.id === 'npi' || rule.id === 'both') && !validNpi(prov.npi)) out.push(`${name} has no valid NPI on file (${via})`)
   if ((rule.id === 'medicaid' || rule.id === 'both') && !String(prov.payerIds?.medicaid || '').trim()) out.push(`${name} has no Medicaid ID on file (${via})`)

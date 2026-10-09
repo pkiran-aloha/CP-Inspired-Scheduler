@@ -226,7 +226,7 @@ describe('masters — payer deep record', () => {
     await screen.findByTestId('cfdefs-table')
     expect((await screen.findByTestId('cf-usedby-cf-authdept')).textContent).toBe('1')
     fireEvent.click(screen.getByTestId('cf-del-cf-authdept'))
-    expect(await screen.findByText(/is picked by 1 payer/)).toBeTruthy()
+    expect(await screen.findByText(/is used by 1 payer/)).toBeTruthy()
     expect(stored().customFields.find((d) => d.id === 'cf-authdept')).toBeTruthy()
     await openDetail('py-aetna')
     fireEvent.click(await screen.findByTestId('pcf-unlink-cf-authdept'))
@@ -752,7 +752,7 @@ describe('chunk 32 — modal closes, modifiable payer services, inline edits, ty
     // payer's picks no longer even appear as a pre-rendered field set
     const panel = await screen.findByTestId('am-pcf')
     expect(panel.textContent).toContain('Custom fields')
-    expect(panel.textContent).toContain('add only what you capture')
+    expect(panel.textContent).toContain('nothing pre-filled')
     expect(screen.queryByTestId('pcf-f-cf-authdept')).toBeNull()
     expect(screen.getByTestId('am-pcf-empty')).toBeTruthy()
     ackWarns(); fireEvent.click(screen.getByTestId('save-appt')) // no added fields → not blocked

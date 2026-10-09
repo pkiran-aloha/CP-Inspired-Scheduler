@@ -141,8 +141,8 @@ export default function PayrollSummaryView() {
                 {!breakdown.byOffice.length && <div className="pay-line empty">No offices to summarise.</div>}
               </div>
               <div className="pay-hint">
-                Cost per delivered clinical hour is the number to watch: a rise can mean extra admin/travel time or a shift in the pay mix,
-                not necessarily a raise.
+                Watch cost per delivered clinical hour. A rise can mean more admin or travel time, or a change in pay mix, not
+                necessarily a raise.
               </div>
             </div>
           </div>
@@ -186,7 +186,7 @@ export default function PayrollSummaryView() {
             </div>
             <Pager page={page} setPage={setPage} total={rows.length} testId="pay-sum-pager" />
             {groupBy === 'ytd' && (
-              <div className="pay-hint">Year-to-date figures come from <b>processed</b> runs only — a draft or approved run has not been paid yet, so it is not in YTD.</div>
+              <div className="pay-hint">Year-to-date figures count <b>processed</b> runs only. Draft and approved runs are not paid yet.</div>
             )}
           </div>
 
@@ -201,7 +201,7 @@ export default function PayrollSummaryView() {
               <div className="pay-line" style={{ gridTemplateColumns: '2fr 1fr 1fr' }}>
                 <span>Timesheets not yet approved</span>
                 <span className="num">{Object.values(state.paySheets || {}).filter((s) => s.periodId === periodId && !['approved', 'processed'].includes(s.status)).length}</span>
-                <span className="muted">preview only — the run gate blocks on these</span>
+                <span className="muted">preview only. The run gate blocks on these</span>
               </div>
               <div className="pay-line" style={{ gridTemplateColumns: '2fr 1fr 1fr' }}>
                 <span>Employees without a payroll ID</span>

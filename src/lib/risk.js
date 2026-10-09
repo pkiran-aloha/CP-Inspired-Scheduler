@@ -79,7 +79,7 @@ const noticeCoverage = (done, settings, noticeHours) => {
 const noticeCopy = ({ hours, cancellations, dated, early }) => {
   if (!cancellations) return 'No family cancellation is on file yet, so the notice rule has nothing to weigh.'
   const n = (v) => `${v} family cancellation${v === 1 ? '' : 's'}`
-  if (!dated) return `${n(cancellations)} on file, none recording how much notice it gave — an unknown time still counts as lost, never guessed.`
+  if (!dated) return `${n(cancellations)} on file, none recording how much notice it gave. An unknown time still counts as lost, never guessed.`
   const earlyPart = early
     ? `${early} gave more than ${hours}h notice and ${early === 1 ? 'is' : 'are'} not counted against the family (the slot could be refilled).`
     : `None gave more than ${hours}h notice.`
@@ -179,7 +179,7 @@ export function riskModel(state, { today = todayISO() } = {}) {
     cfg,
     note:
       done.length < cfg.minSupport
-        ? `Only ${done.length} completed sessions on file — scores lean on the practice-wide rate until more history accumulates.`
+        ? `Only ${done.length} completed sessions on file. Scores lean on the practice-wide rate until there is more history.`
         : `Fitted on ${done.length} completed sessions in this workspace.`,
   }
 }
@@ -228,7 +228,7 @@ export function riskFor(state, appt, model = null, { today = todayISO() } = {}) 
     }
     const h = m.history[clientId]
     if (h && (appt.staffIds || []).length && !(appt.staffIds || []).some((s) => h.staff.has(s))) {
-      add('continuity', 'New technician on the case', 0.35, 'No prior session with the assigned staff member — continuity is the strongest retention lever in ABA.', 'policy')
+      add('continuity', 'New technician on the case', 0.35, 'No prior session with the assigned staff member. Continuity matters most for keeping families in ABA.', 'policy')
     }
   }
 
@@ -238,7 +238,7 @@ export function riskFor(state, appt, model = null, { today = todayISO() } = {}) 
     const leadLift = { same: -0.25, soon: -0.05, week: 0.2, far: 0.45 }[lead]
     add('lead', 'Booking lead time', leadLift, `Scheduled ${RISK_LEAD_LABEL[lead]}; longer lead times are missed more often.`, 'policy')
     if (appt.status !== 'confirmed' && daysOut <= cfg.confirmWindowDays) {
-      add('unconfirmed', 'Still unconfirmed', 0.4, `Unconfirmed with ${daysOut <= 0 ? 'the session today' : `${daysOut} day${daysOut === 1 ? '' : 's'} to go`} — this is the highest-yield call on the list.`, 'policy')
+      add('unconfirmed', 'Still unconfirmed', 0.4, `Unconfirmed with ${daysOut <= 0 ? 'the session today' : `${daysOut} day${daysOut === 1 ? '' : 's'} to go`}. Call this one first.`, 'policy')
     }
   }
 

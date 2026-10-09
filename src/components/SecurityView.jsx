@@ -55,7 +55,7 @@ function RoleEditor({ role, isNew, editable, assignedCount, onSave, onDelete, on
         </div>
       </div>
 
-      {role.system && !isNew && <div className="sec-system-note"><b>Protected role.</b> The built-in Administrator cannot be modified or removed; this prevents accidental loss of the final recovery path.</div>}
+      {role.system && !isNew && <div className="sec-system-note"><b>Protected role.</b> The built-in Administrator cannot be changed or removed, so there is always a way back in.</div>}
 
       <div className="sec-role-meta">
         <label className="sec-field"><span>Role name</span><input className="input" value={draft.name} maxLength={48} disabled={!editable || role.system} onChange={(e) => setDraft((prev) => ({ ...prev, name: e.target.value }))} data-testid="security-role-name" /></label>
@@ -268,7 +268,7 @@ function AccountTab({ state, editable }) {
     <>
       <div className="sec-card sec-account-card">
         <div className="sec-account-tools">
-          <div><h3>User accounts</h3><p>Accounts are linked to staff profiles; role and office assignments flow from this record.</p></div>
+          <div><h3>User accounts</h3><p>Each account is linked to a staff profile and holds its role and office assignments.</p></div>
           <div className="sec-account-actions"><label className="sec-search"><span className="sr-only">Search accounts</span>{Icon.search({ size: 14 })}<input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search people, roles, offices…" data-testid="security-account-search" /></label>
             {editable && <button className="btn btn-sm btn-primary" type="button" onClick={startCreate} data-testid="security-add-account">{Icon.plus({ size: 12 })} Add staff account</button>}
           </div>
@@ -330,12 +330,12 @@ export default function SecurityView({ embedded = false }) {
   return (
     <div className={embedded ? 'sec-page sec-embed' : 'sectionpage sec-page'} data-testid="security-page">
       {!embedded && (
-        <SectionBar icon="shield" title="Security" sub="Role-based access profiles and staff account assignments">
+        <SectionBar icon="shield" title="Security" sub="Roles and staff account assignments">
           <span className="sec-current-role"><i /> Previewing: <b>{state.currentAccount?.name || 'No active account'}</b><span>· {state.currentRole?.name || 'No role'}</span></span>
         </SectionBar>
       )}
       <div className="sec-demo-banner" role="note" data-testid="security-demo-warning">
-        <span className="sec-demo-icon">{Icon.alert({ size: 14 })}</span><span><b>Local demo access controls — not authentication.</b> Permissions are enforced in this browser UI and its state actions only. There are no passwords or server-side identity checks; do not use this mode for real client data.</span>
+        <span className="sec-demo-icon">{Icon.alert({ size: 14 })}</span><span><b>Local demo access controls, not authentication.</b> Permissions apply only in this browser. There are no passwords and no server-side identity checks. Do not use this for real client data.</span>
       </div>
       <div className="sec-tabs" role="tablist" aria-label="Security settings">
         {!embedded && (

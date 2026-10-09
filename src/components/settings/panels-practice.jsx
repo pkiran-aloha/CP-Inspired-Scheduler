@@ -69,14 +69,18 @@ export function OrganizationPanel({ state, actions, toast, readOnly }) {
           </Row>
         </div>
         <Banner tone="info" testid="set-org-note">
-          The NPI and tax ID here fill the billing-organization boxes on generated claims and statements. This demo has no
-          payer connection — verify credentials against the enrollment records before any real filing.
+          The NPI and tax ID fill the billing provider boxes on generated claims and statements. This demo has no payer
+          connection. Check them against your enrollment records before any real filing.
         </Banner>
       </Section>
 
       <Section
         title="Offices & locations"
         sub={`${offices.filter((o) => o.active !== false).length} active · ${offices.filter((o) => o.isLocation).length} schedulable locations`}
+        info={<>
+          <span>A schedulable location appears in the appointment and intake location pickers. Grouping rows (for example <em>School-based</em>) are used for payroll and access scope.</span>
+          <span>Renaming an office updates appointments, clients, payroll profiles, intake requests and account office scopes in one Undo step.</span>
+        </>}
         testId="set-org-offices"
         actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-office-add" onClick={() => setEditor({ ...blankOffice })}>{Icon.plus({ size: 12 })} Add office or location</button>}
       >
@@ -107,11 +111,6 @@ export function OrganizationPanel({ state, actions, toast, readOnly }) {
             </div>
           )}
         />
-        <p className="set-hint">
-          A schedulable location appears in the appointment and intake location pickers. “Grouping” rows exist for payroll and access
-          scoping (for example <em>School-based</em>). Renaming an office updates appointments, clients, payroll profiles, intake
-          requests and account office scopes in the same Undo step.
-        </p>
 
         {editor && (
           <div className="set-editor" data-testid="set-office-editor">
@@ -128,7 +127,7 @@ export function OrganizationPanel({ state, actions, toast, readOnly }) {
               <Row label="Exclude from location options" hint="Hide this office from appointment location dropdowns">
                 <Toggle on={editor.excludeFromLocations != null ? !!editor.excludeFromLocations : editor.isLocation === false} testid="set-office-f-exclude-loc" onChange={(v) => setEditor({ ...editor, excludeFromLocations: v, isLocation: !v })} />
               </Row>
-              <Row label="Parent" hint="Optional — a room inside a center, for example"><TextField value={editor.parent} onCommit={(v) => setEditor({ ...editor, parent: v })} wide={220} testid="set-office-f-parent" /></Row>
+              <Row label="Parent" hint="Optional. For example, a room inside a center."><TextField value={editor.parent} onCommit={(v) => setEditor({ ...editor, parent: v })} wide={220} testid="set-office-f-parent" /></Row>
               <Row label="Tax ID Type & EIN" hint="Optional office-level EIN override">
                 <div className="set-inline">
                   <Select value={editor.taxIdType || 'EIN'} wide={84} testid="set-office-f-taxtype" options={[{ value: 'EIN', label: 'EIN' }, { value: 'SSN', label: 'SSN' }]} onChange={(v) => setEditor({ ...editor, taxIdType: v })} />
@@ -146,8 +145,8 @@ export function OrganizationPanel({ state, actions, toast, readOnly }) {
               <Row label="Fax"><TextField value={editor.fax || ''} onCommit={(v) => setEditor({ ...editor, fax: v })} wide={160} testid="set-office-f-fax" /></Row>
               <Row label="Email"><TextField value={editor.email || ''} onCommit={(v) => setEditor({ ...editor, email: v })} wide={220} testid="set-office-f-email" /></Row>
               <Row label="NPI" hint="Optional 10-digit NPI for this location"><TextField value={editor.npi} onCommit={(v) => setEditor({ ...editor, npi: v })} wide={160} testid="set-office-f-npi" /></Row>
-              <Row label="Latitude" hint="Optional — used for travel time estimate; e.g. 37.25"><TextField value={editor.lat ?? ''} onCommit={(v) => setEditor({ ...editor, lat: v })} wide={160} placeholder="37.25" testid="set-office-f-lat" /></Row>
-              <Row label="Longitude" hint="Optional — e.g. -121.94; needs latitude too"><TextField value={editor.lng ?? ''} onCommit={(v) => setEditor({ ...editor, lng: v })} wide={160} placeholder="-121.94" testid="set-office-f-lng" /></Row>
+              <Row label="Latitude" hint="Optional. Used for travel time estimates, e.g. 37.25"><TextField value={editor.lat ?? ''} onCommit={(v) => setEditor({ ...editor, lat: v })} wide={160} placeholder="37.25" testid="set-office-f-lat" /></Row>
+              <Row label="Longitude" hint="Optional, e.g. -121.94. Needs latitude too."><TextField value={editor.lng ?? ''} onCommit={(v) => setEditor({ ...editor, lng: v })} wide={160} placeholder="-121.94" testid="set-office-f-lng" /></Row>
               <Row label="Timezone">
                 <Select value={editor.timezone || TIMEZONES[0]} wide={220} testid="set-office-f-tz" options={TIMEZONES.map((t) => ({ value: t, label: t.replace('America/', '') }))} onChange={(v) => setEditor({ ...editor, timezone: v })} />
               </Row>
@@ -233,6 +232,7 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
     <Section
       title="Appointment statuses"
       sub={`${rows.filter((s) => s.active !== false).length} active of ${rows.length}`}
+      info={<span data-testid="set-status-note">With <b>Payable</b> off, a status adds no payroll line. <b>Cancellation</b> applies the cancellation pay rules in Payroll → General (free-notice hours and the short-notice and no-show shares). <b>Note Req</b> needs a reason on the appointment before it saves. <b>Billable</b> decides whether completed sessions in this status go to claim staging.</span>}
       testId="set-status-list"
       actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-status-add" onClick={() => setEditor({ key: '', label: '', aka: '', color: SWATCHES[0], active: true, pays: true, billable: true, noteRequired: false, isCancellation: false, allowToComplete: true, payrollCode: '', cancelBand: false, note: '' })}>{Icon.plus({ size: 12 })} Add status</button>}
     >
@@ -273,7 +273,7 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
             <span><Toggle on={s.billable !== false} disabled={readOnly} testid={`set-status-billable-${s.key}`} onChange={(v) => patch(s, { billable: v })} /></span>
             <span>
               <Select value={s.payrollCode || ''} disabled={readOnly} wide={120} testid={`set-status-code-${s.key}`}
-                options={[{ value: '', label: 'By appointment type' }, ...codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.short || c.label}` }))]}
+                options={[{ value: '', label: 'By appointment type' }, ...codes.map((c) => ({ value: c.id, label: `${c.id}: ${c.short || c.label}` }))]}
                 onChange={(v) => patch(s, { payrollCode: v })} />
             </span>
             <span className="num">{statusUsage(state, s.key)}</span>
@@ -285,11 +285,6 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
           </div>
         )}
       />
-      <Banner tone="info" testid="set-status-note">
-        A status with <b>Payable</b> off produces no payroll line at all. <b>Cancellation</b> applies the cancellation policy
-        percentages (free-notice hours, short-notice and no-show shares from Payroll → General), <b>Note Req</b> requires a reason
-        on the appointment before saving, and <b>Billable</b> controls whether completed sessions in this status stage for claims.
-      </Banner>
 
       {editor && (
         <div className="set-editor" data-testid="set-status-editor">
@@ -310,7 +305,7 @@ export function AppointmentStatusPanel({ state, actions, toast, readOnly }) {
             <Row label="Pays payroll" hint="Off = appointments in this status never produce a payable line"><Toggle on={editor.pays !== false} testid="set-status-f-pays" onChange={(v) => setEditor({ ...editor, pays: v })} /></Row>
             <Row label="Billable" hint="Allow completed sessions in this status to stage for billing"><Toggle on={editor.billable !== false} testid="set-status-f-billable" onChange={(v) => setEditor({ ...editor, billable: v })} /></Row>
             <Row label="Earning code">
-              <Select value={editor.payrollCode || ''} wide={220} testid="set-status-f-code" options={[{ value: '', label: 'By appointment type' }, ...codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.short || c.label}` }))]} onChange={(v) => setEditor({ ...editor, payrollCode: v })} />
+              <Select value={editor.payrollCode || ''} wide={220} testid="set-status-f-code" options={[{ value: '', label: 'By appointment type' }, ...codes.map((c) => ({ value: c.id, label: `${c.id}: ${c.short || c.label}` }))]} onChange={(v) => setEditor({ ...editor, payrollCode: v })} />
             </Row>
             <Row label="Cancellation band"><Toggle on={!!(editor.isCancellation ?? editor.cancelBand)} testid="set-status-f-band" onChange={(v) => setEditor({ ...editor, cancelBand: v, isCancellation: v })} /></Row>
             <Row label="Note" stack><TextField value={editor.note} onCommit={(v) => setEditor({ ...editor, note: v })} wide={420} testid="set-status-f-note" /></Row>
@@ -407,7 +402,7 @@ export function CustomListsPanel({ state, actions, toast, readOnly, sub }) {
               </div>
               <DataTable
                 testid="set-list-options"
-                empty="No options yet — add the first one below."
+                empty="No options yet. Add the first one below."
                 columns={[{ key: 'label', label: 'Option', width: '1.5fr' }, { key: 'edit', label: 'Editable', width: '0.6fr' }, { key: 'use', label: 'Active', width: '0.6fr' }, { key: 'act', label: '', width: '90px' }]}
                 rows={options}
                 renderRow={(o, i) => (
@@ -483,6 +478,10 @@ export function QualificationPanel({ state, actions, toast, readOnly }) {
     <Section
       title="Qualifications & credentials"
       sub={`${rows.filter((q) => q.status !== 'inactive').length} active of ${rows.length}`}
+      info={<>
+        <span>Provider credentials are matched by name. During Appointment Validations, a higher credential meets the lower ones it covers (for example, <b>BCBA</b> covers <b>BCaBA</b> and <b>RBT</b>).</span>
+        <span>{providers.length} provider record{providers.length === 1 ? '' : 's'} on file.</span>
+      </>}
       testId="set-quals"
       actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-qual-add" onClick={() => setEditor({ name: '', type: 'certification', authority: '', code: '', expires: true, lifeTime: false, covers: [], documentRequired: true, appliesTo: [], status: 'active' })}>{Icon.plus({ size: 12 })} Add qualification</button>}
     >
@@ -518,10 +517,6 @@ export function QualificationPanel({ state, actions, toast, readOnly }) {
           )
         }}
       />
-      <p className="set-hint">
-        Credentials held by provider records are matched by name, and higher credentials automatically satisfy covered lower-tier
-        qualifications during Appointment Validations (for example <b>BCBA</b> covers <b>BCaBA</b> and <b>RBT</b>). {providers.length} provider record{providers.length === 1 ? '' : 's'} on file.
-      </p>
 
       {editor && (
         <div className="set-editor" data-testid="set-qual-editor">

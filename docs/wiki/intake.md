@@ -2,7 +2,7 @@
 
 _Sources: src/lib/intakeHandoff.js, src/components/intake/IntakeHandoff.jsx, src/components/ClientsView.jsx, src/components/AppointmentModal.jsx, src/lib/intake.js, src/lib/intakeDocs.js, src/components/intake/IntakeCommon.jsx, src/components/intake/IntakeDetail.jsx, src/components/intake/IntakeFormView.jsx, src/components/intake/IntakeRequestsView.jsx, src/components/intake/ReferralSourcesView.jsx, src/components/NavRail.jsx, src/App.jsx, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js_
 
-_Last synced against main a0142d0 plus the fix/workspace-persistence, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged; feat/density-modes on 2026-10-08 (view density: relaxed, normal, tight)._
+_Last synced against main a0142d0 plus the fix/workspace-persistence, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged; feat/density-modes on 2026-10-08 (view density: relaxed, normal, tight); feat/copy-and-infotips on 2026-10-09 (on-screen copy shortened, no em dashes, guidance behind InfoTips; no behavior change)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Settings](settings.md), [Dashboard and reports](dashboard-and-reports.md)
 

@@ -1,7 +1,7 @@
 # FAQ
 
 _Sources: docs/wiki/README.md, docs/wiki/scheduling.md, docs/wiki/intake.md, docs/wiki/billing-and-claims.md, docs/wiki/era-and-payments.md, docs/wiki/accounts-receivable.md, docs/wiki/payroll.md, docs/wiki/dashboard-and-reports.md, docs/wiki/settings.md, docs/wiki/security-undo-backup.md_
-_Last synced against main e37d97c plus the C4 confidence-threshold picker on 2026-10-06; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged._
+_Last synced against main e37d97c plus the C4 confidence-threshold picker on 2026-10-06; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged; feat/copy-and-infotips on 2026-10-08 (copy pass, no em dashes)_
 
 [Wiki home](README.md)
 
@@ -101,7 +101,7 @@ Medicaid counts one code, one client, one date of service and one rendering prov
 
 ### Where do the modifiers on a claim line come from?
 
-Each insurance line gets up to four, in this order: the payer's own modifier for the service, the rendering provider's credential modifier (HO, HN, HM or HP), the payer's Qualification Modifiers pair for the rendering provider's education level (the first matching row wins; a blank modifier adds nothing) and the payer's place-of-service modifier. A payer can switch the credential modifier off in Claims Settings — the qualification rows are separate and still apply — and self-pay invoices carry none. [More: Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting) [More: Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting)
+Each insurance line gets up to four, in this order: the payer's own modifier for the service, the rendering provider's credential modifier (HO, HN, HM or HP), the payer's Qualification Modifiers pair for the rendering provider's education level (the first matching row wins; a blank modifier adds nothing) and the payer's place-of-service modifier. A payer can switch the credential modifier off in Claims Settings (the qualification rows are separate and still apply). Self-pay invoices carry none. [More: Billing and claims](billing-and-claims.md#line-modifiers-same-day-merge-and-claim-splitting)
 
 ### Can I use the CMS-1500 PDF as it is?
 

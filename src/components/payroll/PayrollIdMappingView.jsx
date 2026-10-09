@@ -72,7 +72,7 @@ export default function PayrollIdMappingView() {
       actions.payrollProfile({ ...p, payrollId: `ALOHA-${String(i + 1).padStart(4, '0')}`, staffId: s.id })
       n += 1
     })
-    toast({ message: n ? `Assigned ${n} missing payroll ID${n > 1 ? 's' : ''} — replace them with the provider's real IDs before exporting` : 'Every included employee already has a payroll ID', kind: n ? 'ok' : 'info' })
+    toast({ message: n ? `Assigned ${n} missing payroll ID${n > 1 ? 's' : ''}. Replace them with the provider's real IDs before exporting` : 'Every included employee already has a payroll ID', kind: n ? 'ok' : 'info' })
   }
 
   return (
@@ -99,8 +99,8 @@ export default function PayrollIdMappingView() {
 
       <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <span className="muted">
-          Payroll IDs are what your payroll provider matches on — names are not unique enough. Classification and rates are master data:
-          changing them takes effect on the <b>next</b> run and is undoable, never silently retroactive.
+          Your payroll provider matches on payroll ID, because names are not unique. Changes to classification and rates apply from
+          the <b>next</b> run and can be undone. Past runs do not change.
         </span>
       </div>
 
@@ -184,7 +184,7 @@ export default function PayrollIdMappingView() {
                     <b>{draft.classificationReviewed ? 'Exempt status recorded as reviewed' : 'Exempt status not yet reviewed'}</b>
                     <div className="why">
                       Treating a salaried clinician as exempt skips overtime. Confirm the salary-basis and duties tests (and your state's rules)
-                      before relying on it — the payroll gate keeps warning until this is signed off.
+                      before relying on it. The payroll gate keeps warning until you record the review.
                     </div>
                     {!draft.classificationReviewed && (
                       <button className="pay-link" data-testid="pay-prof-mark-reviewed" onClick={() => save({ classificationReviewed: true })}>Record my review</button>
@@ -243,8 +243,8 @@ export default function PayrollIdMappingView() {
                 <label className="pay-field"><span>Account number</span><input className="input" value={draft.bankAccount || ''} data-testid="pay-prof-account" onChange={(e) => save({ bankAccount: e.target.value })} /></label>
               </div>
               <div className="pay-hint">
-                Demo values only. Search the profiles table for a missing payroll ID before exporting to your provider; the ACH draft this
-                workspace builds is NACHA-shaped but has not been validated by any bank.
+                Demo values only. Check for missing payroll IDs before exporting to your provider. The ACH draft is NACHA-format but no
+                bank has validated it.
               </div>
             </div>
             <div className="modal-foot">
@@ -252,7 +252,7 @@ export default function PayrollIdMappingView() {
                 const d = defaultPayrollSettings()
                 void d
                 save({ rates: { SUP: 0, EVAL: 0, DRIVE: 0, ADMIN: 0, TRAIN: 0 } })
-                toast({ message: 'Duty rates cleared — those duties will fall back to the base rate', kind: 'warn' })
+                toast({ message: 'Duty rates cleared. Those duties now use the base rate', kind: 'warn' })
               }}>Reset duty rates</button>
               <button className="btn btn-sm btn-primary" onClick={() => { setOpen(null); toast({ message: 'Pay profile saved', kind: 'ok' }) }}>Done</button>
             </div>

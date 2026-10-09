@@ -48,7 +48,7 @@ export default function QuickBooksPayrollView() {
 
   const generate = () => {
     if (start > end) return toast({ message: 'The start date must be on or before the end date', kind: 'warn' })
-    if (!codes.length) return toast({ message: 'Pick at least one earning code — that is the wage item the provider books', kind: 'warn' })
+    if (!codes.length) return toast({ message: 'Pick at least one earning code. It is the wage item the provider books', kind: 'warn' })
     const out = []
     for (const p of targets) {
       const s = (staff || []).find((x) => x.id === p.staffId)
@@ -97,7 +97,7 @@ export default function QuickBooksPayrollView() {
     }, 'payrollQbo')
     if (recorded?.ok === false) return
     download(fileName, content, 'text/csv;charset=utf-8')
-    toast({ message: `${fileName} built and recorded — review it before handing it to QuickBooks`, kind: 'ok' })
+    toast({ message: `${fileName} built and recorded. Review it before importing it into QuickBooks`, kind: 'ok' })
   }
 
   const pageRows = (rows || []).slice((page - 1) * 25, page * 25)
@@ -114,8 +114,8 @@ export default function QuickBooksPayrollView() {
 
       <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <span className="muted">
-          This workspace does not talk to QuickBooks. It builds the earnings file you would import there, keyed on the payroll ID
-          maintained in Payroll ID Mapping, and records each artifact so the handoff is auditable.
+          This workspace does not connect to QuickBooks. It builds an earnings file for you to import, keyed on the payroll ID from
+          Payroll ID Mapping, and logs each file it builds.
         </span>
       </div>
 
@@ -123,7 +123,7 @@ export default function QuickBooksPayrollView() {
         <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--danger, #ef4444)', borderRadius: 12 }} data-testid="pay-qbo-blockers">
           <b style={{ color: 'var(--danger, #ef4444)' }}>{Icon.ban({ size: 13 })} The export cannot be trusted yet</b>
           <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
-            {missingIds.length ? `${missingIds.length} employee(s) in scope have no payroll ID — an import would drop or mis-match them. ` : ''}
+            {missingIds.length ? `${missingIds.length} employee(s) in scope have no payroll ID. An import would drop or mismatch them. ` : ''}
             {dupes.length ? `${dupes.length} duplicate payroll ID group(s) exist. ` : ''}
             Fix these in Payroll ID Mapping first.
           </div>
@@ -177,7 +177,7 @@ export default function QuickBooksPayrollView() {
           </label>
 
           <div className="pay-field" style={{ gridColumn: 'span 3' }}>
-            <span>Earning code * <i className="muted">— the wage items the provider books</i></span>
+            <span>Earning code * <i className="muted">(the wage items the provider books)</i></span>
             <div className="pay-chips" data-testid="pay-qbo-codes">
               {earningCodesFor(payroll).filter((c) => c.kind !== 'expense').map((c) => {
                 const on = codes.includes(c.id)
@@ -266,7 +266,7 @@ export default function QuickBooksPayrollView() {
               <span style={{ display: 'flex', gap: 6 }}>
                 {l.content && <button className="btn btn-xs" data-testid={`pay-qbo-download-${l.id}`} onClick={() => { download(l.fileName, l.content, 'text/csv;charset=utf-8'); toast({ message: `Re-downloaded ${l.fileName}`, kind: 'ok' }) }}>Download</button>}
                 {l.status !== 'reviewed'
-                  ? <button className="btn btn-xs" data-testid={`pay-qbo-review-${l.id}`} disabled={!canExport} onClick={() => { actions.reviewPayExport(l.id, 'reviewed'); toast({ message: `${l.fileName} marked reviewed locally — this does not import anything`, kind: 'ok' }) }}>Mark reviewed locally</button>
+                  ? <button className="btn btn-xs" data-testid={`pay-qbo-review-${l.id}`} disabled={!canExport} onClick={() => { actions.reviewPayExport(l.id, 'reviewed'); toast({ message: `${l.fileName} marked reviewed locally. Nothing was imported`, kind: 'ok' }) }}>Mark reviewed locally</button>
                   : <button className="btn btn-xs" data-testid={`pay-qbo-unreview-${l.id}`} disabled={!canExport} onClick={() => { actions.reviewPayExport(l.id, 'pending'); toast({ message: `${l.fileName} returned to pending`, kind: 'info' }) }}>Return to pending</button>}
                 {l.note && <span className="muted" style={{ fontSize: 11, alignSelf: 'center' }}>{l.note}</span>}
               </span>
@@ -274,7 +274,7 @@ export default function QuickBooksPayrollView() {
           ))}
           {!ledger.length && <div className="py-empty" style={{ padding: 40, textAlign: 'center' }} data-testid="pay-qbo-ledger-empty">
             <b>No payroll artifacts yet</b>
-            <div className="muted" style={{ fontSize: 12 }}>Generate an export, process a run, or download pay stubs and they will be recorded here.</div>
+            <div className="muted" style={{ fontSize: 12 }}>Exports, processed runs and pay stub downloads are logged here.</div>
           </div>}
         </div>
       </div>

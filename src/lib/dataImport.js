@@ -47,7 +47,7 @@ export const IMPORT_CATEGORIES = [
 export const IMPORT_TYPES = [
   {
     id: 'clients', category: 'client', subLabel: 'Profile', label: 'Clients', icon: 'pin',
-    blurb: 'One row per client chart — demographics, guardian contact, program and home location.',
+    blurb: 'One row per client: demographics, guardian contact, program and home location.',
     fields: [
       { key: 'name', label: 'Client name', required: true, sample: 'Ava Thompson' },
       { key: 'dob', label: 'Date of birth', sample: '2018-04-12', help: 'YYYY-MM-DD or M/D/YYYY' },
@@ -86,7 +86,7 @@ export const IMPORT_TYPES = [
   },
   {
     id: 'staff', category: 'staff', subLabel: 'Profile', label: 'Staff', icon: 'team',
-    blurb: 'One row per employee — role, credentials, contact details and the office they work from.',
+    blurb: 'One row per employee: role, credentials, contact details and home office.',
     fields: [
       { key: 'name', label: 'Full name', required: true, sample: 'Jordan Alvarez' },
       { key: 'role', label: 'Role', required: true, sample: 'RBT · Center' },
@@ -290,7 +290,7 @@ export function validateImport(state, typeId, matrix, mapping) {
       if (!isEmail(rec.guardianEmail)) errs.push('Guardian email does not look valid')
       rec.program = clean(raw.program, 80)
       rec.home = clean(raw.home, 80)
-      if (rec.home && !officeNames(state.settings).includes(rec.home)) errs.push(`Home location “${rec.home}” is not an office — add it in Settings → Organization first`)
+      if (rec.home && !officeNames(state.settings).includes(rec.home)) errs.push(`Home location “${rec.home}” is not an office. Add it in Settings → Organization first`)
       rec.referralSource = clean(raw.referralSource, 80)
       rec.notes = clean(raw.notes, 400)
       const dup = (state.clients || []).find((c) => c.name.toLowerCase() === rec.name.toLowerCase() && (rec.dob ? c.dob === rec.dob : true))
@@ -417,7 +417,7 @@ export function validateImport(state, typeId, matrix, mapping) {
       const abaRaw = clean(raw.abaHours, 60).toLowerCase()
       if (abaRaw && !['no', 'n', 'false', '0'].includes(abaRaw)) {
         if (isServiceAppt({ type: rec.type })) {
-          errs.push(`ABA hours applies to non-service appointments only — “${rec.type}” is service delivery`)
+          errs.push(`ABA hours applies to non-service appointments only. “${rec.type}” is service delivery`)
         } else {
           const hit = ABA_ACTIVITIES.find((a) => a.id === abaRaw || a.label.toLowerCase() === abaRaw)
           rec.abaHr = true
@@ -425,7 +425,7 @@ export function validateImport(state, typeId, matrix, mapping) {
             rec.abaActivity = hit.id
             if (!hit.qualifies) errs.push(`“${hit.label}” is not behavior-analytic time and cannot count toward certification hours`)
           } else if (!['yes', 'y', 'true', '1'].includes(abaRaw)) {
-            errs.push(`ABA activity “${abaRaw}” is not known — use ${ABA_ACTIVITIES.filter((a) => a.qualifies).map((a) => a.id).join(', ')} or yes`)
+            errs.push(`ABA activity “${abaRaw}” is not known. Use ${ABA_ACTIVITIES.filter((a) => a.qualifies).map((a) => a.id).join(', ')} or yes`)
           }
         }
       }
@@ -470,7 +470,7 @@ export function validateImport(state, typeId, matrix, mapping) {
  */
 export function planImport(state, typeId, matrix, mapping, { mode = 'skip', at = Date.now() } = {}) {
   const check = validateImport(state, typeId, matrix, mapping)
-  if (!check.total) return { ok: false, msg: 'Nothing to import — the file has no data rows.' }
+  if (!check.total) return { ok: false, msg: 'Nothing to import. The file has no data rows.' }
   if (check.issues.length) return { ok: false, msg: `${check.issues.length} of ${check.total} rows need fixing before anything is imported.`, check }
   if (check.total > IMPORT_LIMIT) return { ok: false, msg: `This demo imports up to ${IMPORT_LIMIT} rows at a time (file has ${check.total}).`, check }
 

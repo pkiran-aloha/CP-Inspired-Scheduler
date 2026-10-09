@@ -21,9 +21,9 @@ import { TYPES } from './model'
 import { SVC_LABEL, SVC_CODE } from './seed'
 
 export const NAME_STYLES = {
-  ehr: { label: 'Chart', desc: 'Last, First — Service · Time — the EHR scanning convention, sorts alphabetically' },
-  plain: { label: 'Display', desc: 'First Last — Service · Time — friendlier for shared staff calendars' },
-  code: { label: 'Code-first', desc: 'CPT/category · Last, F. · Time — billing-oriented boards' },
+  ehr: { label: 'Chart', desc: 'Last, First — Service · Time. The EHR scanning convention; sorts alphabetically.' },
+  plain: { label: 'Display', desc: 'First Last — Service · Time. Easier to read on shared staff calendars.' },
+  code: { label: 'Code-first', desc: 'CPT/category · Last, F. · Time. For billing boards.' },
 }
 
 /* category codes: real CPT for billable 1:1 service time; short labels otherwise */

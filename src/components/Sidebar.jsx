@@ -52,7 +52,7 @@ function MiniCalendar({ days }) {
               className={`mini-day ${inMonth ? '' : 'dim'} ${iso === ui.anchor ? 'sel' : ''} ${iso === todayISO() ? 'today' : ''}`}
               onClick={() => actions.setUI({ anchor: iso })}
               onDoubleClick={() => actions.setUI({ anchor: iso, view: 'day' })}
-              title={`${n} session${n === 1 ? '' : 's'} — double-click opens Day view`}
+              title={`${n} session${n === 1 ? '' : 's'}. Double-click to open Day view.`}
             >
               {d.getDate()}
               {n > 0 && (
@@ -97,7 +97,7 @@ function RosterList({ tab, search, days }) {
               </span>
               <span className="meta">
                 <span className="name">{t.name}</span>
-                <span className="sub"><span className="role">{(t.staffIds || []).map((id) => state.staff.find((x) => x.id === id)?.name.split(' ')[0]).join(' · ') || 'no staff'} — {(t.clientIds || []).length} clients</span></span>
+                <span className="sub"><span className="role">{(t.staffIds || []).map((id) => state.staff.find((x) => x.id === id)?.name.split(' ')[0]).join(', ') || 'no staff'}, {(t.clientIds || []).length} clients</span></span>
               </span>
             </button>
           )
@@ -113,7 +113,7 @@ function RosterList({ tab, search, days }) {
       {items.map((p) => {
         const on = ui[list].includes(p.id)
         return (
-          <button key={p.id} className={`roster-item ${on ? 'on' : ''}`} onClick={() => actions.toggleSel(list, p.id)} title={`${p.name} — ${tab === 'staff' ? p.role : p.program}${teamOf(p.id, tab === 'staff' ? 'staffIds' : 'clientIds') ? ' · ' + teamOf(p.id, tab === 'staff' ? 'staffIds' : 'clientIds').name : ''}`}>
+          <button key={p.id} className={`roster-item ${on ? 'on' : ''}`} onClick={() => actions.toggleSel(list, p.id)} title={`${p.name}: ${tab === 'staff' ? p.role : p.program}${teamOf(p.id, tab === 'staff' ? 'staffIds' : 'clientIds') ? ' · ' + teamOf(p.id, tab === 'staff' ? 'staffIds' : 'clientIds').name : ''}`}>
             <span className={`cb`}>{on && Icon.check({ size: 10, strokeWidth: 3 })}</span>
             <PersonAvatar p={p} size={24} />
             <span className="meta">
@@ -200,7 +200,7 @@ export default function Sidebar({ days }) {
         <span>{sel.length} selected</span>
         <span className="sb-tools-r">
           <button onClick={() => actions.toggleSel(selList, null, 'all')}>{sel.length === pool.length ? 'Clear all' : 'Select all'}</button>
-          <button className="sb-hide" data-testid="sb-collapse" title="Hide filters — give the board the full width" onClick={() => actions.setUI({ sb: false })}>{Icon.chevronL({ size: 11 })} Hide</button>
+          <button className="sb-hide" data-testid="sb-collapse" title="Hide filters to give the board the full width" onClick={() => actions.setUI({ sb: false })}>{Icon.chevronL({ size: 11 })} Hide</button>
         </span>
       </div>
       <div className="sb-list" role="list">

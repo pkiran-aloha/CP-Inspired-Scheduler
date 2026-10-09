@@ -17,7 +17,7 @@ Everyone who runs an ABA (Applied Behavior Analysis) therapy practice, each usin
 
 ## Product Purpose
 
-An all-in-one practice suite for ABA practices: scheduling, intake, authorization-aware billing, payments/A/R, payroll, reporting and practice settings in one place. Today it is a functional, local-first prototype. It is meant to evolve into a production-ready application.
+A practice suite for ABA practices. Scheduling, intake, authorization-aware billing, payments and A/R, payroll, reports and practice settings share one workspace. Today it is a functional, local-first prototype. It is meant to evolve into a production-ready application.
 
 ## Positioning
 
@@ -50,7 +50,7 @@ One workspace where every financial and operational change is validated against 
 ## Product Principles
 
 1. Honest software: the UI states exactly what happened locally and never implies an external action.
-2. Guards over warnings: invalid financial or configuration states are refused, not just flagged.
+2. Guards over warnings: invalid financial or configuration states are refused, not only flagged.
 3. One action, one Undo: every compound change is a single reversible transaction.
 4. Built for the whole practice: each role finds its own work without wading through another role's.
-5. Prototype today, production tomorrow: choices should not block a later move to a real backend.
+5. Ready for a backend later: today's choices should not block a move to a real backend.

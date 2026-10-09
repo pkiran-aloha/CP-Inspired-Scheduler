@@ -46,7 +46,7 @@ export function registerRows(run, state) {
   rows.push(['TOTAL', '', '', '', '', `${t.staff || 0} employees`, '', '', '', '', '', '', hours2(t.workedHours), '', '',
     money2(t.grossCents || 0), money2(t.preTaxCents || 0), money2(t.taxCents || 0), money2(t.postTaxCents || 0), money2(t.netCents || 0), money2(t.employerCents || 0)])
   rows.push([])
-  rows.push([`Generated locally by ${org}. Estimated withholding — verify against your payroll provider before paying.`])
+  rows.push([`Generated locally by ${org}. Estimated withholding: verify against your payroll provider before paying.`])
   return rows
 }
 
@@ -122,7 +122,7 @@ export function qboRows(run, state) {
     }
   }
   rows.push([])
-  rows.push([`Local draft export — no QuickBooks connection. Map these items once in Payroll ID Mapping; ${(run.lines || []).length} employees, ${run.no}.`])
+  rows.push([`Local draft export. No QuickBooks connection. Map these items once in Payroll ID Mapping. ${(run.lines || []).length} employees, ${run.no}.`])
   return rows
 }
 export const qboCsv = (run, state) => toCsv(qboRows(run, state))
@@ -210,7 +210,7 @@ export function stubHtml(stub) {
   if (!stub) return '<p>No stub available.</p>'
   const { run, line, staff, profile, org, period, net } = stub
   const row = (label, value, cls = '') => `<tr class="${cls}"><td>${esc(label)}</td><td class="r">${esc(value)}</td></tr>`
-  const earnings = net.rows.map((r) => row(`${EARNING_BY_ID[r.code]?.label || r.label}${r.hours ? ` — ${hours2(r.hours)} h${r.rate ? ` @ ${Number(r.rate).toFixed(2)}` : ''}` : ''}${r.basis ? ` (${r.basis})` : ''}`, fmtMoney(r.cents))).join('')
+  const earnings = net.rows.map((r) => row(`${EARNING_BY_ID[r.code]?.label || r.label}${r.hours ? `: ${hours2(r.hours)} h${r.rate ? ` @ ${Number(r.rate).toFixed(2)}` : ''}` : ''}${r.basis ? ` (${r.basis})` : ''}`, fmtMoney(r.cents))).join('')
   const pretax = net.preTax.map((d) => row(d.label, `- ${fmtMoney(d.cents)}`)).join('')
   const taxes = net.taxRows.map((t) => row(t.label, `- ${fmtMoney(t.cents)}`)).join('')
   const posttax = net.postTax.map((d) => row(d.label, `- ${fmtMoney(d.cents)}`)).join('')
@@ -293,7 +293,7 @@ export function timesheetHtml(state, staffId, period) {
     <td>${esc(l.date)}</td><td>${esc(EARNING_BY_ID[l.code]?.short || l.code)}</td>
     <td class="r">${hours2(l.hours)}</td><td class="r">${l.rate ? `$${Number(l.rate).toFixed(2)}` : '—'}</td>
     <td class="r">$${((l.amount != null ? l.amount : Math.round(l.hours * l.rate * 100)) / 100).toFixed(2)}</td>
-    <td>${esc(l.source === 'adjustment' ? `manual — ${l.note || ''}` : (l.note || l.meta?.evv || ''))}</td></tr>`).join('')
+    <td>${esc(l.source === 'adjustment' ? `manual: ${l.note || ''}` : (l.note || l.meta?.evv || ''))}</td></tr>`).join('')
   return `<!doctype html><html><head><meta charset="utf-8"><title>Timesheet ${esc(staff.name || staffId)} ${esc(period.start)}</title>
 <style>body{font:12.5px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2436;margin:30px}
 h1{font-size:16px;margin:0 0 2px}.meta{color:#6e768a;font-size:12px}
@@ -303,7 +303,7 @@ tfoot td{font-weight:800;border-top:2px solid #4f46e5;border-bottom:none}
 .note{margin-top:18px;font-size:11px;color:#6e768a}
 .sig{display:flex;gap:40px;margin-top:34px}.sig div{flex:1;border-top:1px solid #1f2436;padding-top:5px;font-size:11px;color:#6e768a}
 @media print{body{margin:12mm}}</style></head><body>
-<h1>${esc(org.name || 'Aloha ABA')} — timesheet</h1>
+<h1>${esc(org.name || 'Aloha ABA')} timesheet</h1>
 <div class="meta">${esc(staff.name || staffId)}${staff.role ? ` · ${esc(staff.role)}` : ''} · Payroll ID ${esc(profile.payrollId || '—')}${profile.office ? ` · ${esc(profile.office)}` : ''}</div>
 <div class="meta">Period ${esc(period.start)} → ${esc(period.end)} · pay date ${esc(period.payDate)} · status ${esc(t.sheet.status)}</div>
 <table><thead><tr><th>Date</th><th>Code</th><th class="r">Hours</th><th class="r">Rate</th><th class="r">Amount</th><th>Source / note</th></tr></thead>

@@ -34,7 +34,7 @@ export function clientFlags(state, c, days) {
   const next = Object.values(state.appts)
     .filter((a) => a.date >= today && (a.clientIds || []).includes(c.id) && a.status !== 'cancelled' && (a.type === 'service' || a.type === 'evaluation'))
     .sort((x, y) => (x.date === y.date ? x.start - y.start : x.date < y.date ? -1 : 1))
-  if (c.authWeekly && !next.length) flags.push({ sev: 'notice', txt: 'Nothing upcoming — auth burn-down risk' })
+  if (c.authWeekly && !next.length) flags.push({ sev: 'notice', txt: 'Nothing booked ahead. Authorized hours may go unused' })
   const hasEval = Object.values(state.appts).some((a) => a.type === 'evaluation' && (a.clientIds || []).includes(c.id) && a.status !== 'cancelled')
   if (!hasEval) flags.push({ sev: 'notice', txt: 'No baseline assessment on file' })
   return flags
@@ -56,7 +56,7 @@ function Field({ k, label, icon, type = 'text', wide, hint, form, set, errs, chi
 function AvatarPicker({ form, set, idp }) {
   return (
     <div className="pm-avabar">
-      <div className="pm-ava-label">{Icon.palette({ size: 12 })} Pick an avatar <em>— each person gets a cute critter; it shows across the directory</em></div>
+      <div className="pm-ava-label">{Icon.palette({ size: 12 })} Pick an avatar <em>(shown in the directory)</em></div>
       <div className="pm-chips" data-testid={`${idp}-avatars`} role="radiogroup" aria-label="Avatar">
         {AVATAR_KEYS.map((k) => (
           <button key={k} type="button" role="radio" aria-checked={form.avatar === k} title={AVATARS[k].label}
@@ -116,7 +116,7 @@ function ClientModal({ client, dup, onClose }) {
   if (!(form.authWeekly >= 1 && form.authWeekly <= 80)) errs.authWeekly = 'Authorized hours must be 1–80 per week'
   if (form.authEnd && form.authStart && form.authEnd <= form.authStart) errs.authEnd = 'End must be after start'
   const unitCodes = unitRows.map((r) => r.code)
-  if (new Set(unitCodes).size !== unitCodes.length) errs.authUnits = 'Each code can appear once — combine the units into one row'
+  if (new Set(unitCodes).size !== unitCodes.length) errs.authUnits = 'Each code can appear once. Combine the units into one row'
   else if (unitRows.some((r) => !(Number(r.units) > 0))) errs.authUnits = 'Every code needs a unit count above zero (remove the row instead)'
   const badDx = dxCodesOf(form.dxCodes).find((c) => !ICD10_RE.test(c))
   if (badDx) errs.dxCodes = `${badDx} is not an ICD-10 code (for example F84.0)`
@@ -127,11 +127,11 @@ function ClientModal({ client, dup, onClose }) {
     if (editing) {
       const sec = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
       actions.updateRoster('clients', { ...saving, secondary: sec && sec.payerId ? sec : null })
-      toast({ message: `${form.name} updated — analytics & reports pick it up instantly`, kind: 'ok' })
+      toast({ message: `${form.name} updated`, kind: 'ok' })
     } else {
       const secAdd = form.secondary ? { payerId: String(form.secondary.payerId||'').trim(), memberId: String(form.secondary.memberId||'').trim(), authNo: String(form.secondary.authNo||'').trim(), relation: form.secondary.relation||'secondary', since: form.secondary.since||null, until: form.secondary.until||null, note: String(form.secondary.note||'').trim() } : null
       actions.addRoster('clients', { id: uid(), initials: form.name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), color: AV_COLORS[state.clients.length % AV_COLORS.length], geo: [37.34, -121.97], ...saving, secondary: secAdd && secAdd.payerId ? secAdd : null })
-      toast({ message: dup ? `Duplicated — ${form.name} added to the caseload` : `${form.name} added to the caseload`, kind: 'ok' })
+      toast({ message: dup ? `Copy saved. ${form.name} added to the caseload` : `${form.name} added to the caseload`, kind: 'ok' })
     }
     onClose()
   }
@@ -149,7 +149,7 @@ function ClientModal({ client, dup, onClose }) {
           <PersonAvatar p={{ ...form, id: client?.id || form.name }} size={46} className="pm-face" />
           <div className="pm-head-t">
             <b>{editing ? `Edit · ${client.name}` : dup ? `Duplicate · ${client0(dup).name.split(' (')[0]}` : 'New client'}</b>
-            <span>{editing ? 'changes flow into the grid, billing & reports instantly' : dup ? 'same profile, brand-new id — tweak and save to add' : 'joins the caseload — scheduling, auth tracking & claims included'}</span>
+            <span>{editing ? 'Changes apply to the calendar, billing and reports' : dup ? 'Copy of this profile with a new ID. Edit, then save to add' : 'Adds the client to the caseload'}</span>
           </div>
           <button className="iconbtn" onClick={onClose} aria-label="Close">{Icon.x({ size: 14 })}</button>
         </div>
@@ -158,7 +158,7 @@ function ClientModal({ client, dup, onClose }) {
           <section className="pm-sect">
             <h5>{Icon.user({ size: 12 })} Identity</h5>
             <div className="pm-grid">
-              <F k="name" label="Full name" icon="edit" hint={dupName ? 'Heads up — a client with this exact name already exists; saving adds a second record' : null} />
+              <F k="name" label="Full name" icon="edit" hint={dupName ? 'A client with this name already exists. Saving adds a second record' : null} />
               <F k="guardian" label="Guardian" icon="heart" />
               <F k="dob" label="Date of birth (claims)" icon="cake" type="date" />
               <F k="sex" label="Sex (claims)">
@@ -192,7 +192,7 @@ function ClientModal({ client, dup, onClose }) {
               <F k="authEnd" label="Auth end" icon="cal" type="date" />
             </div>
             <div className="cm-units" data-testid="cm-units" style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Authorized units by code <span className="muted" style={{ fontWeight: 400 }}>— as on the payer’s letter, for the window above</span></div>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4 }}>Authorized units by code <span className="muted" style={{ fontWeight: 400 }}>(as on the payer’s letter, for the dates above)</span></div>
               {form.authUnitsConverted && (
                 <div className="warnbox warn" data-testid="cm-units-converted" style={{ marginBottom: 6 }}>
                   Converted from {form.authWeekly} h/week. Check these units against the authorization letter; saving the client confirms them.
@@ -213,7 +213,7 @@ function ClientModal({ client, dup, onClose }) {
             </div>
           </section>
           <section className="pm-sect" data-testid="cm-sec-secondary">
-            <h5>{Icon.shield({ size: 12 })} Secondary insurance <em>— coordination of benefits</em>{form.secondary&&<span className="tag ok" style={{ marginLeft:8 }}>active</span>}</h5>
+            <h5>{Icon.shield({ size: 12 })} Secondary insurance <em>(coordination of benefits)</em>{form.secondary&&<span className="tag ok" style={{ marginLeft:8 }}>active</span>}</h5>
             <div className="pm-grid">
               <label className="bil-fld pm-fld"><span>Enable secondary</span><div style={{ display:'flex', alignItems:'center', gap:8 }}><button type="button" className={`toggle ${form.secondary?'on':''}`} data-testid="cm-sec-enable" onClick={()=>set('secondary', form.secondary?null:{ payerId: (activePayers[0]?.id||''), memberId:'', authNo:'', relation:'secondary', since:'', until:'', note:'' })} /><span className="muted" style={{ fontSize:11 }}>{form.secondary?'Secondary attached':'No secondary'}</span></div></label>
               {form.secondary && (
@@ -230,7 +230,7 @@ function ClientModal({ client, dup, onClose }) {
             </div>
           </section>
           <section className="pm-sect pm-colorrow">
-            <h5>{Icon.star({ size: 12 })} Roster color <em>— chips on the calendar &amp; timeline</em></h5>
+            <h5>{Icon.star({ size: 12 })} Roster color <em>(calendar and timeline chips)</em></h5>
             <div className="pm-swatches" data-testid="cm-colors">
               {COLORS.map((cl) => (
                 <button key={cl} type="button" title={cl} data-testid={`cm-color-${cl}`} className={`pm-sw ${form.color === cl ? 'on' : ''}`} style={{ background: cl }} onClick={() => set('color', cl)} />
@@ -355,7 +355,7 @@ export default function ClientsView() {
         {mode === 'cards' && (
           <div className="lk-cards" data-testid="clients-cards">
             {rows.map(({ c, m, flags, burn, nextDate }) => (
-              <div className="lk-card" key={c.id} data-testid={`cli-card-${c.id}`} onClick={() => { actions.setUI({ section: 'calendar', view: 'week', clientSel: [c.id], staffSel: [], teamSel: [], anchor: todayISO() }); toast({ message: `Calendar filtered to ${c.name} — click any session for detail`, kind: 'info' }) }}>
+              <div className="lk-card" key={c.id} data-testid={`cli-card-${c.id}`} onClick={() => { actions.setUI({ section: 'calendar', view: 'week', clientSel: [c.id], staffSel: [], teamSel: [], anchor: todayISO() }); toast({ message: `Calendar filtered to ${c.name}. Click a session for details`, kind: 'info' }) }}>
                 <div className="lk-h">
                   <PersonAvatar p={c} size={40} data-testid={`cli-pav-${c.id}`} />
                   <div className="lk-nm"><b>{c.name}</b><span>{c.program} · {c.insurer}</span></div>
@@ -385,7 +385,7 @@ export default function ClientsView() {
                 </div>
               </div>
             ))}
-            {!rows.length && <div className="lk-none">No clients match — adjust search or filters.</div>}
+            {!rows.length && <div className="lk-none">No clients match. Adjust the search or filters.</div>}
           </div>
         )}
         {mode === 'table' && (
@@ -421,7 +421,7 @@ export default function ClientsView() {
                     <td>{nextDate ? <>{fmtDayLabel(nextDate)} <span className="dir-sub">{nextTitle}</span></> : <span className="muted">—</span>}</td>
                     <td className="r">
                       <button className="dir-eye" data-testid={`cli-open-${c.id}`} title={`Open ${c.name}'s profile`} onClick={(e) => { e.stopPropagation(); setProf({ c, m, flags, burn, nextDate }) }}>{Icon.eye({ size: 13 })}</button>
-                      {flags.length ? <span className={`sev-pill sev-${flags.some((f) => f.sev === 'error') ? 'error' : 'warn'}`}>{flags.length} flag{flags.length > 1 ? 's' : ''}</span> : <span className="muted">clear ✓</span>}
+                      {flags.length ? <span className={`sev-pill sev-${flags.some((f) => f.sev === 'error') ? 'error' : 'warn'}`}>{flags.length} flag{flags.length > 1 ? 's' : ''}</span> : <span className="muted">Clear</span>}
                     </td>
                   </tr>
                   {expanded === c.id && (
@@ -442,7 +442,7 @@ export default function ClientsView() {
                                     <span className="when">{fmtDayLabel(a.date)} · {fmtTime(a.start, settings.h24)}</span>
                                   </button>
                                 ))}
-                              {!Object.values(state.appts).some((a) => a.date >= todayISO() && (a.clientIds || []).includes(c.id)) && <span className="muted" style={{ fontSize: 11.5 }}>No upcoming bookings — risk of auth burn-down. <button className="btn btn-sm" style={{ height: 22, marginLeft: 6 }} onClick={() => { actions.setUI({ section: 'calendar', clientSel: [c.id], view: 'week', anchor: todayISO() }); toast({ message: 'Calendar opened with this client selected — drag onto a slot to book', kind: 'info' }) }}>Find slots</button></span>}
+                              {!Object.values(state.appts).some((a) => a.date >= todayISO() && (a.clientIds || []).includes(c.id)) && <span className="muted" style={{ fontSize: 11.5 }}>No upcoming bookings. Authorized hours may go unused. <button className="btn btn-sm" style={{ height: 22, marginLeft: 6 }} onClick={() => { actions.setUI({ section: 'calendar', clientSel: [c.id], view: 'week', anchor: todayISO() }); toast({ message: 'Calendar opened for this client. Drag onto a slot to book', kind: 'info' }) }}>Find slots</button></span>}
                             </div>
                             <div className="dir-actions">
                               <button className="btn btn-sm" onClick={() => { actions.setUI({ section: 'reports', repPreset: 'last4', repDim: 'client', repKey: c.id }); toast({ message: `Reports opened, scoped to ${c.name}`, kind: 'info' }) }}>
@@ -476,7 +476,7 @@ export default function ClientsView() {
                                 <span className="issue-line" key={i}>
                                   <span className={`sev-pill sev-${f.sev}`}>{f.sev}</span> {f.txt}
                                 </span>
-                              )) : <span className="muted" style={{ fontSize: 11.5 }}>All clean — auth, cadence & baseline ok</span>}
+                              )) : <span className="muted" style={{ fontSize: 11.5 }}>No flags. Authorization, cadence and baseline look fine</span>}
                             </div>
                             <div className="dir-actions">
                               <button className="btn btn-sm" data-testid={`cli-edit-${c.id}`} onClick={() => setModal(c)}>{Icon.edit({ size: 12 })} Edit</button>
@@ -489,7 +489,7 @@ export default function ClientsView() {
                 </React.Fragment>
               ))}
               {!rows.length && (
-                <tr><td colSpan={6}><div className="bil-empty">No clients match — adjust search or filters.</div></td></tr>
+                <tr><td colSpan={6}><div className="bil-empty">No clients match. Adjust the search or filters.</div></td></tr>
               )}
             </tbody>
           </table>

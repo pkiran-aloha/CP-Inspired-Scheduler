@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { SectionBar } from './NavRail'
 import { Icon } from '../ui/Icons'
+import { useStore } from '../state/store'
 import { buildWiki, renderMarkdown, searchWiki } from '../lib/wiki'
 
 // The wiki is bundled as text at build time, so Help always matches the docs that
@@ -10,7 +11,11 @@ const label = (p) => (p.slug === 'readme' ? 'Wiki home' : p.title)
 
 /** Help & Wiki: the platform wiki and FAQ, searchable, available to every role. */
 export default function HelpView() {
-  const [page, setPage] = useState(WIKI.pages[0]?.slug)
+  const helpPage = useStore()?.ui?.helpPage // set by an InfoTip "Learn more" link
+  const [page, setPage] = useState(WIKI.bySlug[helpPage] ? helpPage : WIKI.pages[0]?.slug)
+  useEffect(() => {
+    if (WIKI.bySlug[helpPage]) setPage(helpPage)
+  }, [helpPage])
   const [anchor, setAnchor] = useState(null)
   const [q, setQ] = useState('')
   const mainRef = useRef(null)

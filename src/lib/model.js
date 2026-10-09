@@ -20,12 +20,12 @@ export const TYPES = {
   },
   break: {
     key: 'break', label: 'Break Time', color: '#ec4899', soft: '#fdeef6', ink: '#be185d',
-    desc: 'Rest / reset between sessions — never double-books a client', icon: 'cup',
+    desc: 'Rest between sessions. Never double-books a client.', icon: 'cup',
     billable: false, hasVerification: false, hasDocs: false, service: false,
   },
   unavailable: {
     key: 'unavailable', label: 'Unavailable', color: '#64748b', soft: '#eef1f6', ink: '#334155',
-    desc: 'Blocked out — meetings, PTO, clinic closed', icon: 'ban',
+    desc: 'Blocked out: meetings, PTO, clinic closed', icon: 'ban',
     billable: false, hasVerification: false, hasDocs: false, service: false,
   },
   evaluation: {

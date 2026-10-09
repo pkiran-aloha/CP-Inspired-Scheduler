@@ -116,7 +116,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
           ['month', 'Month'],
           ['agenda', 'Agenda'],
         ].map(([v, l]) => (
-          <button key={v} role="tab" aria-selected={ui.view === v} className={ui.view === v ? 'on' : ''} onClick={() => actions.setUI({ view: v })} title={v === 'timeline' ? 'Horizontal timeline — time flows left to right (H)' : `${l} view`}>
+          <button key={v} role="tab" aria-selected={ui.view === v} className={ui.view === v ? 'on' : ''} onClick={() => actions.setUI({ view: v })} title={v === 'timeline' ? 'Timeline: time runs left to right (H)' : `${l} view`}>
             {l}
           </button>
         ))}
@@ -166,11 +166,11 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         )}
       </div>
 
-      {canSchedule && <button className="iconbtn si-open-btn" data-testid="insights-open" onClick={() => actions.setUI({ insights: true })} title="Scheduler insights — capacity, authorizations and sessions at risk (I)">
+      {canSchedule && <button className="iconbtn si-open-btn" data-testid="insights-open" onClick={() => actions.setUI({ insights: true })} title="Scheduler insights: capacity, authorizations and sessions at risk (I)">
         {Icon.spark({ size: 15 })}
       </button>}
 
-      {canSchedule && <button className={`iconbtn cover-btn ${cover ? 'alert' : ''}`} data-testid="needs-cover" onClick={() => actions.setUI({ inbox: true })} title={cover ? `${cover} cancelled session${cover > 1 ? 's' : ''} can be backfilled` : 'Needs cover — all clear'}>
+      {canSchedule && <button className={`iconbtn cover-btn ${cover ? 'alert' : ''}`} data-testid="needs-cover" onClick={() => actions.setUI({ inbox: true })} title={cover ? `${cover} cancelled session${cover > 1 ? 's' : ''} can be backfilled` : 'Needs cover: nothing to backfill'}>
         {Icon.alert({ size: 15 })}
         {cover > 0 && <span className="cov-n" data-testid="cover-count">{cover}</span>}
       </button>}
@@ -180,7 +180,7 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         {inboxCount > 0 && <span className="cov-n" data-testid="inbox-count">{inboxCount}</span>}
       </button>
 
-      <button className="iconbtn pal-btn" onClick={onPalette} title="Search everything — clients, staff, reports, actions (⌘K)" data-testid="palette-open">
+      <button className="iconbtn pal-btn" onClick={onPalette} title="Search clients, staff, reports and actions (⌘K)" data-testid="palette-open">
         <kbd>⌘K</kbd>
       </button>
       <button className="iconbtn" onClick={() => actions.setSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' })} title="Toggle theme">

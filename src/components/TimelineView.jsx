@@ -186,7 +186,7 @@ export default function TimelineView({ days, onPickSlot, onQuickCreate, onOpenDe
     toast({
       message: d.mode === 'resize' ? `Resized to ${fmtDur(dur)}` : `Moved to ${date} · ${fmtTime(start, h24)}`,
       kind: clash.length ? 'warn' : 'ok',
-      ...(clash.length ? { message: `Moved — overlaps ${clash[0].other.title} (${clash[0].who})` } : {}),
+      ...(clash.length ? { message: `Moved. It overlaps ${clash[0].other.title} (${clash[0].who}).` } : {}),
       action: { label: 'Undo', onClick: () => actions.move(prev.id, { date: prev.date, start: prev.start, end: prev.end }) },
     })
   }
@@ -336,7 +336,7 @@ function StackCardH({ g, h24, conflict, onOpen }) {
       style={{ '--c': t.color, '--cd': t.ink, left: `calc(${left}% + 1px)`, width: `calc(${width}% - 2px)`, top: 3, bottom: 3, height: 'auto', minWidth: 40, background: `color-mix(in srgb, ${t.color} ${badge ? 20 : 9}%, var(--panel))` }}
       role="button"
       tabIndex={0}
-      title={`${g.items.length} overlapping appointments · ${fmtTime(g.start, h24)}–${fmtTime(g.end, h24)} — click to expand`}
+      title={`${g.items.length} overlapping appointments · ${fmtTime(g.start, h24)}–${fmtTime(g.end, h24)}. Click to expand.`}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
       onKeyDown={(e) => {
@@ -400,7 +400,7 @@ function ChipH({ a, h24, conflict, selected, staffById, clientsById, onDown, day
         zIndex: dayDelta ? 12 : undefined,
       }}
       onPointerDown={(e) => onDown(e, a, dayIdx, null)}
-      title={`${a.title} · ${fmtTime(start, h24)}–${fmtTime(end, h24)}${conflict ? ' — has a conflict' : ''}`}
+      title={`${a.title} · ${fmtTime(start, h24)}–${fmtTime(end, h24)}${conflict ? ' (has a conflict)' : ''}`}
       role="button"
       tabIndex={0}
     >
@@ -421,7 +421,7 @@ function ChipH({ a, h24, conflict, selected, staffById, clientsById, onDown, day
       )}
       {wpx > 150 && conflict && <span className="flag">{Icon.alert({ size: 12, strokeWidth: 2.2 })}</span>}
       {wpx > 190 && a.seriesId && (
-        <span className="flag" style={{ right: conflict ? 20 : 4, color: a.edited ? 'var(--accent)' : 'var(--text-2)' }} title={a.edited ? 'Series exception — differs from the repeating default' : 'Part of a repeating series'}>
+        <span className="flag" style={{ right: conflict ? 20 : 4, color: a.edited ? 'var(--accent)' : 'var(--text-2)' }} title={a.edited ? 'Series exception: differs from the repeating default' : 'Part of a repeating series'}>
           {Icon.repeat({ size: 11 })}
           {a.edited ? <span role="img" aria-label="Changed from series" title="Changed from series" style={{ display: 'inline-flex', marginLeft: 1 }}>{Icon.edit({ size: 9, strokeWidth: 2.2 })}</span> : null}
         </span>

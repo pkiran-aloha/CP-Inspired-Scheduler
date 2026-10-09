@@ -206,7 +206,7 @@ export function specToPdf(spec) {
     doc.text(wrap(T(`${spec.title}${cont}`), CW - 200, 13), M, 26)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6)
     doc.text(wrap(T(`${spec.range}  \u00b7  Scope: ${spec.scope}  \u00b7  ${spec.rows.length} rows`), CW - 200, 7.6), M, 40)
-    doc.text(T(`Generated ${spec.generated} \u00b7 derived from the live PMS ledger`), M, 51)
+    doc.text(T(`Generated ${spec.generated} from this workspace`), M, 51)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
     doc.text(T(spec.org), PW - M, 26, { align: 'right' })
     doc.setFont('helvetica', 'normal'); doc.setFontSize(6.8)

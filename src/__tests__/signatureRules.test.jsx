@@ -194,7 +194,7 @@ describe('honest settings copy (audit CFG-10 / CFG-11)', () => {
     render(<App />)
     await openSystemSettings()
     const row = (await screen.findByText('Maximum Appointment Length')).closest('.set-row')
-    expect(row.getAttribute('title')).toContain('Warns when a single scheduled session runs longer')
+    expect(row.getAttribute('title')).toContain('Warns when one session runs longer')
     expect(row.getAttribute('title')).not.toContain('Hard ceiling')
   })
 

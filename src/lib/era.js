@@ -23,7 +23,7 @@ export function parse835(text) {
   const result = (fingerprint = null) => ({ lines, matched: [], unmatched: [...lines], errors, meta, fingerprint })
   if (typeof text !== 'string' || !text.trim()) { errors.push('Empty 835 file'); return result() }
   const raw = text.trim()
-  if (!raw.includes('~')) { errors.push('Not an 835 — missing segment terminators (~)'); return result() }
+  if (!raw.includes('~')) { errors.push('Not an 835 file: segment terminators (~) are missing'); return result() }
   const segments = raw.split('~').map((s) => s.trim()).filter(Boolean)
   const fingerprint = fingerprintOf(segments.join('~'))
   const amount = (value, label) => {

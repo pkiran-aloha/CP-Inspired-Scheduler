@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { useToast } from '../ui/Toast'
 import { Icon } from '../ui/Icons'
 import { PersonAvatar } from '../ui/avatars'
+import InfoTip from '../ui/InfoTip'
 import { DAY_SHORT, addDays, fmtDayLabel, fmtRange, isoDate, parseISO, todayISO } from '../lib/date'
 import { insightBoard } from '../lib/insights'
 import { planDensityMove } from '../lib/density'
@@ -100,7 +101,7 @@ export default function SchedulerInsights({ days, onClose }) {
     const prev = { status: row.appt.status }
     actions.update(row.appt.id, { status: 'confirmed' })
     toast({
-      message: `Marked confirmed locally — no reminder was sent to the family`,
+      message: `Marked confirmed locally. No reminder was sent to the family.`,
       kind: 'ok',
       action: { label: 'Undo', onClick: () => actions.update(row.appt.id, prev) },
     })
@@ -172,12 +173,11 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row">
                 <div>
-                  <b>Where the capacity is</b>
-                  <span className="muted">
-                    {' '}
-                    — booked staff-hours against the working day ({coverage.hourLabel(coverage.hourStart)}–{coverage.hourLabel(coverage.hourStart + coverage.hourSpan)}), with blocked-out
-                    time removed from the denominator.
-                  </span>
+                  <b>Where the capacity is</b>{' '}
+                  <InfoTip label="capacity" wiki="scheduling" testid="si-info-coverage">
+                    Booked staff hours against the working day ({coverage.hourLabel(coverage.hourStart)}–{coverage.hourLabel(coverage.hourStart + coverage.hourSpan)}). Blocked-out time is left out
+                    of the total. The healthy band is 85–95% filled.
+                  </InfoTip>
                 </div>
                 <span className={`si-band si-tone-${coverage.summary.fillPct >= 95 ? 'warn' : coverage.summary.fillPct < 40 ? 'info' : 'ok'}`}>
                   {coverage.summary.fillPct}% filled · healthy band 85–95%
@@ -207,7 +207,7 @@ export default function SchedulerInsights({ days, onClose }) {
                             key={i}
                             className={`si-cell si-fill-${fillTone(cell.fillPct)}${cell.eatenHours > 0 ? ' si-cell-eaten' : ''}`}
                             data-testid={cell.eatenHours > 0 ? `si-eaten-${dow}-${coverage.hourStart + i}` : undefined}
-                            title={`${DAY_SHORT[dow]} ${coverage.hourLabel(coverage.hourStart + i)} — ${cell.bookedHours}h booked of ${cell.availableHours}h available (${cell.fillPct}%), ${cell.sessions} session${cell.sessions === 1 ? '' : 's'}${cell.eatenHours > 0 ? `; ${cell.eatenHours}h of the access holdout booked` : ''}`}
+                            title={`${DAY_SHORT[dow]} ${coverage.hourLabel(coverage.hourStart + i)}: ${cell.bookedHours}h booked of ${cell.availableHours}h available (${cell.fillPct}%), ${cell.sessions} session${cell.sessions === 1 ? '' : 's'}${cell.eatenHours > 0 ? `; ${cell.eatenHours}h of the access holdout booked` : ''}`}
                           >
                             {cell.fillPct > 0 ? cell.fillPct : ''}
                           </span>
@@ -241,12 +241,12 @@ export default function SchedulerInsights({ days, onClose }) {
 
               <div className="si-head-row" data-testid="si-holdout">
                 <div>
-                  <b>Access holdout</b>
+                  <b>Access holdout:</b>
                   <span className="muted">
                     {' '}
                     {holdout.pct
-                      ? `— ${holdout.pct}% of each hour from today on is kept for new starts and same-day needs: ${holdout.reservedHours}h in this range, ${holdout.eatenHours}h of it already booked${holdout.eatenCells ? ` across ${holdout.eatenCells} weekday-hour${holdout.eatenCells === 1 ? '' : 's'} (outlined above)` : ''}.`
-                      : '— off. Every hour can be booked to the full.'}
+                      ? `${holdout.pct}% of each hour from today on is kept for new starts and same-day needs. ${holdout.reservedHours}h in this range, ${holdout.eatenHours}h already booked${holdout.eatenCells ? ` in ${holdout.eatenCells} weekday-hour${holdout.eatenCells === 1 ? '' : 's'} (outlined above)` : ''}.`
+                      : 'turned off. Every hour can be booked in full.'}
                   </span>
                 </div>
                 <div className="viewseg" role="group" aria-label="Access holdout share">
@@ -259,8 +259,10 @@ export default function SchedulerInsights({ days, onClose }) {
               </div>
 
               <div className="si-head-row">
-                <b>Bookable windows</b>
-                <span className="muted">The clinician is free for the whole span — the fastest place to move or add a session.</span>
+                <div>
+                  <b>Bookable windows</b>{' '}
+                  <InfoTip label="bookable windows" testid="si-info-gaps">The clinician is free for the whole span. These are the quickest places to move or add a session.</InfoTip>
+                </div>
               </div>
               {!coverage.gaps.length && (
                 <div className="si-empty">
@@ -289,11 +291,14 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row">
                 <div>
-                  <b>Density optimiser</b>
-                  <span className="muted">
-                    {' '}
-                    — same-day suggestions that pull eligible future sessions into adjacent idle windows, so a clinician has a tighter block instead of a split day.
-                  </span>
+                  <b>Density optimiser</b>{' '}
+                  <InfoTip label="the density optimiser" wiki="scheduling" testid="si-info-density">
+                    <span>Same-day moves that pull a later session into an idle gap, so a clinician works one block instead of a split day.</span>
+                    <span>
+                      Each move shifts one existing session on the same day and keeps the same staff and clients. Conflicts and the Stop rules for overlap and travel are checked again
+                      before saving. It does not move Drive Time blocks, change a series, send messages or call a map service.
+                    </span>
+                  </InfoTip>
                 </div>
                 <span className="si-band si-tone-info">
                   {density.summary.suggestions ? `${density.summary.idleHours}h split time reducible` : 'No useful moves'}
@@ -349,12 +354,6 @@ export default function SchedulerInsights({ days, onClose }) {
                 })}
               </div>
 
-              <div className="si-note">
-                {Icon.info({ size: 13 })}
-                <span>
-                  The optimiser only moves one existing session on the same day, keeps the same staff and clients, and rechecks live conflicts plus Stop-level overlap/travel rules before writing. It does not move separate Drive Time blocks, send messages, create recurrence changes or call a map service.
-                </span>
-              </div>
             </>
           )}
 
@@ -362,8 +361,8 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row">
                 <div>
-                  <b>Authorization burn-down</b>
-                  <span className="muted"> — committed hours against the window on file, with the weekly pace the payer audits.</span>
+                  <b>Authorization burn-down</b>{' '}
+                  <InfoTip label="authorization burn-down" wiki="scheduling" testid="si-info-auth">Hours committed against the authorization window on file, with the weekly pace the payer audits.</InfoTip>
                 </div>
                 <div className="viewseg">
                   {[['action', 'Needs action'], ['all', `All ${auth.summary.tracked}`]].map(([id, label]) => (
@@ -431,11 +430,20 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row">
                 <div>
-                  <b>Sessions most likely to fall through</b>
+                  <b>Sessions most likely to fall through</b>{' '}
+                  <InfoTip label="the risk score" wiki="scheduling" testid="si-info-risk">
+                    <span>
+                      Scores are fitted in this browser from the workspace's own appointment history, plus a few fixed rules the history cannot learn: booking lead time, an unconfirmed
+                      slot, a backfilled or rescheduled session, and a first session with a technician.
+                    </span>
+                    <span>
+                      Factors marked <i className="si-factor si-src-model">history</i> come from your records. <i className="si-factor si-src-policy">policy</i> factors are the fixed rules.
+                    </span>
+                  </InfoTip>
                   <span className="muted">
                     {' '}
-                    — {risk.summary.note} Practice rate: {Math.round(risk.summary.base * 100)}%. About <b>{risk.summary.expectedLostHours}h</b> and{' '}
-                    <b>${Math.round(risk.summary.chargeAtRisk).toLocaleString()}</b> of scheduled charge are exposed.
+                    {risk.summary.note} Practice rate: {Math.round(risk.summary.base * 100)}%. About <b>{risk.summary.expectedLostHours}h</b> and{' '}
+                    <b>${Math.round(risk.summary.chargeAtRisk).toLocaleString()}</b> of scheduled charge are at risk.
                   </span>
                 </div>
               </div>
@@ -443,8 +451,8 @@ export default function SchedulerInsights({ days, onClose }) {
               <div className="si-note" data-testid="si-risk-notice">
                 {Icon.info({ size: 13 })}
                 <span>
-                  {risk.summary.noticeNote} The threshold ({risk.summary.notice.hours}h) is the practice's own — Billing → Setup, Rate &amp; Numbering Policy — and it is
-                  the same rule the Overbooking backtest uses.
+                  {risk.summary.noticeNote} The {risk.summary.notice.hours}h threshold is the practice's own setting (Billing → Setup, Rate &amp; Numbering Policy). The Overbooking backtest
+                  uses the same rule.
                 </span>
               </div>
 
@@ -502,12 +510,7 @@ export default function SchedulerInsights({ days, onClose }) {
 
               <div className="si-note">
                 {Icon.info({ size: 13 })}
-                <span>
-                  Scores are fitted in this browser on the workspace's own appointment history, plus a small set of documented rules the ledger cannot learn (booking lead time, an
-                  unconfirmed slot, a backfilled or rescheduled session, a first session with a technician). Factors marked <i className="si-factor si-src-model">history</i> come from your
-                  records; <i className="si-factor si-src-policy">policy</i> ones are the fixed rules. This is an operations prompt for a human phone call — no reminder is sent, and no
-                  clinical judgement is implied.
-                </span>
+                <span>This is a prompt for a phone call, not a clinical judgement. No reminder is sent.</span>
               </div>
             </>
           )}
@@ -516,10 +519,10 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row" data-testid="si-ob-threshold">
                 <div>
-                  <b>Confidence threshold</b>
+                  <b>Confidence threshold:</b>
                   <span className="muted">
                     {' '}
-                    — both checks below must clear {overbook.cfg.safePct}% before a block is marked.{' '}
+                    both checks below must clear {overbook.cfg.safePct}% before a block is marked.{' '}
                     {overbook.cfg.safePct === 90
                       ? 'The strictest setting: only blocks with very reliable losses qualify.'
                       : overbook.cfg.safePct === 70
@@ -539,12 +542,18 @@ export default function SchedulerInsights({ days, onClose }) {
 
               <div className="si-head-row">
                 <div>
-                  <b>Blocks that usually lose a session</b>
-                  <span className="muted">
-                    {' '}
-                    — {overbook.note} A block is marked when, in at least {overbook.cfg.safePct}% of its last {overbook.cfg.weeks} weeks, a session was lost there, and the sessions
-                    already booked on its next day give at least {overbook.cfg.safePct}% odds of the same.
-                  </span>
+                  <b>Blocks that usually lose a session</b>{' '}
+                  <InfoTip label="overbooking" wiki="scheduling" testid="si-info-overbook">
+                    <span>
+                      {overbook.note} A block is marked when a session was lost there in at least {overbook.cfg.safePct}% of its last {overbook.cfg.weeks} weeks, and the sessions already
+                      booked on its next day give at least {overbook.cfg.safePct}% odds of the same.
+                    </span>
+                    <span>
+                      Guidance is per block, never per family. A family cancellation made more than {overbook.cfg.lateHours}h ahead is left out once its time is recorded. Older
+                      cancellations without a recorded time{overbook.summary.undated ? ` (${overbook.summary.undated} in this window)` : ''} still count as lost, so the no-show share is
+                      the floor.
+                    </span>
+                  </InfoTip>
                 </div>
               </div>
 
@@ -586,10 +595,8 @@ export default function SchedulerInsights({ days, onClose }) {
               <div className="si-note">
                 {Icon.info({ size: 13 })}
                 <span>
-                  Advisory only: nothing is booked, moved or sent. An extra session belongs on a clinician who is free in that block (a floater or an open hour), never as a second client on
-                  the same clinician — 97153 is one client face to face, and overlapping sessions by one provider are not billable. Guidance is per block, never per family. A family
-                  cancellation made more than {overbook.cfg.lateHours}h ahead is left out once its time is recorded; cancellations from before that was recorded
-                  {overbook.summary.undated ? ` (${overbook.summary.undated} in this window)` : ''} still count as lost, so the no-show share is the floor.
+                  Advisory only: nothing is booked, moved or sent. Put an extra session on a clinician who is free in that block (a floater or an open hour), never as a second client on
+                  the same clinician. 97153 is one client face to face, and one provider's overlapping sessions are not billable.
                 </span>
               </div>
             </>
@@ -599,17 +606,31 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row">
                 <div>
-                  <b>Caseload ramp — next {ramp.horizonWeeks} weeks</b>
+                  <b>Caseload ramp, next {ramp.horizonWeeks} weeks</b>{' '}
+                  <InfoTip label="the caseload ramp" wiki="scheduling" testid="si-info-ramp">
+                    <span>
+                      Demand is the authorized weekly hours on each chart for as long as its window runs, plus open intake requests at their requested hours (the lighter band)
+                      {ramp.summary.intakeUndated ? `. ${ramp.summary.intakeUndated} of them have no target date yet and count from this week` : ''}. It is never weighted by a conversion rate.
+                    </span>
+                    <span>
+                      An authorization that ends inside the horizon drops to zero there and the week is marked “renewal pending”
+                      {ramp.summary.lapsed ? `. ${ramp.summary.lapsed} client${ramp.summary.lapsed === 1 ? ' has' : 's have'} already lapsed and add nothing` : ''}.
+                    </span>
+                    <span>
+                      Supply is each clinician’s working day ({ramp.workday.start}:00–{ramp.workday.end}:00) minus blocked time on{' '}
+                      {ramp.cfg.openDows.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}, split into RBT ({ramp.summary.staff.rbt}), BCBA (
+                      {ramp.summary.staff.bcba}) and other clinical ({ramp.summary.staff.other}).
+                    </span>
+                  </InfoTip>
                   <span className="muted">
                     {' '}
-                    — authorized hours on file plus open intake requests at their requested hours, against clinician supply (working day {ramp.workday.start}:00–{ramp.workday.end}:00 minus
-                    blocked time, {ramp.cfg.openDows.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}). {ramp.summary.clients} client{ramp.summary.clients === 1 ? '' : 's'} authorized · {ramp.summary.intakeCounted} intake request
+                    {ramp.summary.clients} client{ramp.summary.clients === 1 ? '' : 's'} authorized · {ramp.summary.intakeCounted} intake request
                     {ramp.summary.intakeCounted === 1 ? '' : 's'} with hours{ramp.summary.intakeNoHours ? ` · ${ramp.summary.intakeNoHours} open without hours recorded` : ''}.
                   </span>
                 </div>
                 <span className={`si-band ${ramp.summary.shortWeeks ? 'si-tone-warn' : 'si-tone-ok'}`} data-testid="si-ramp-summary">
                   {ramp.summary.shortWeeks
-                    ? `${ramp.summary.shortWeeks} week${ramp.summary.shortWeeks === 1 ? '' : 's'} where known demand exceeds supply — first: ${fmtDayLabel(ramp.summary.firstShort)}`
+                    ? `${ramp.summary.shortWeeks} week${ramp.summary.shortWeeks === 1 ? '' : 's'} where known demand exceeds supply. First: ${fmtDayLabel(ramp.summary.firstShort)}`
                     : 'Supply covers the known demand in every week'}
                 </span>
               </div>
@@ -625,7 +646,7 @@ export default function SchedulerInsights({ days, onClose }) {
                     <span className="muted">
                       {hire.utilKnown
                         ? `Fill on screen ${hire.fillPct}% (bar ${hire.highBar}%) · ${hire.bookedHours} of ${hire.availableHours} staff-h`
-                        : 'Fill on screen unknown — no bookable hours in this range'}
+                        : 'Fill on screen unknown: no bookable hours in this range'}
                       {hire.shortHours ? ` · first short week ${hire.shortHours}h` : ''}
                       {hire.peakShortHours && hire.peakShortHours !== hire.shortHours ? ` · peak ${hire.peakShortHours}h` : ''}
                     </span>
@@ -692,14 +713,7 @@ export default function SchedulerInsights({ days, onClose }) {
 
               <div className="si-note">
                 {Icon.info({ size: 13 })}
-                <span>
-                  A ramp from known work, not a forecast: demand is the authorized weekly hours on each chart for as long as its window runs, plus open intake requests at their requested
-                  hours in a lighter band{ramp.summary.intakeUndated ? ` (${ramp.summary.intakeUndated} of them have no target date yet and count from this week)` : ''} — never weighted by a
-                  conversion rate. An authorization that ends inside the horizon drops to zero there and the week is marked “renewal pending”; renewals are never assumed
-                  {ramp.summary.lapsed ? ` (${ramp.summary.lapsed} client${ramp.summary.lapsed === 1 ? ' has' : 's have'} already lapsed and contribute nothing)` : ''}. Supply counts each
-                  clinician’s working day minus blocked-out time on Mon–Fri, split RBT ({ramp.summary.staff.rbt}) vs BCBA ({ramp.summary.staff.bcba}) vs other clinical (
-                  {ramp.summary.staff.other}). Nothing here is booked, moved or sent.
-                </span>
+                <span>A ramp from known work, not a forecast. Renewals are never assumed. Nothing here is booked, moved or sent.</span>
               </div>
             </>
           )}
@@ -708,14 +722,17 @@ export default function SchedulerInsights({ days, onClose }) {
             <>
               <div className="si-head-row">
                 <div>
-                  <b>Travel routes per clinician day</b>
-                  <span className="muted"> — estimated from straight-line distance × 1.3 road factor at 25 mph; not a map route. Client geo + office lat/lng; unknown places skipped.</span>
+                  <b>Travel routes per clinician day</b>{' '}
+                  <InfoTip label="travel estimates" wiki="scheduling" testid="si-info-travel">
+                    Estimated from straight-line distance between client and office coordinates, times a 1.3 road factor at 25 mph, with a 5 min buffer. A gap under 10 min is tight. No map
+                    service, traffic or elevation. Telehealth sessions and places without coordinates are skipped.
+                  </InfoTip>
                 </div>
               </div>
 
               {!travelBoard.length && (
                 <div className="si-empty">
-                  {Icon.checkCircle({ size: 16 })} No clinician has 2+ sessions with resolvable locations in this range. Add client geo or office lat/lng in Settings → Organization to see travel.
+                  {Icon.checkCircle({ size: 16 })} No clinician has two or more sessions with known locations in this range. Add client or office coordinates in Settings → Organization to see travel.
                 </div>
               )}
 
@@ -757,7 +774,7 @@ export default function SchedulerInsights({ days, onClose }) {
 
               <div className="si-note">
                 {Icon.info({ size: 13 })}
-                <span>Travel is an estimate. Road factor 1.3, 25 mph, 5 min buffer, tight threshold 10 min. No map API, no traffic, no elevation. Skips telehealth and places without coordinates. This view never moves appointments.</span>
+                <span>Travel times are estimates. This view never moves appointments.</span>
               </div>
             </>
           )}
@@ -768,7 +785,7 @@ export default function SchedulerInsights({ days, onClose }) {
             {Icon.info({ size: 12 })} Computed locally from {Object.keys(state.appts).length.toLocaleString()} appointments. Nothing leaves this browser and nothing is transmitted.
           </span>
           <span className="spacer f1" />
-          <span className="muted">Deltas always compare against the same-length prior window.</span>
+          <span className="muted">Changes compare against the prior window of the same length.</span>
         </div>
       </div>
     </div>

@@ -62,7 +62,7 @@ export default function BilledFilesView() {
       if (!result.ok) { toast({ message: result.msg, kind: 'warn' }); return }
     }
     downloadFile(f)
-    toast({ message: `${f.fileName || f.id} prepared for manual resend — file downloaded`, kind: 'ok' })
+    toast({ message: `${f.fileName || f.id} downloaded for manual resend`, kind: 'ok' })
   }
 
   const filtered = useMemo(() => {
@@ -85,7 +85,7 @@ export default function BilledFilesView() {
 
   return (
     <div className="sectionpage" data-testid="bf-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="file" title="Billed Files" sub={`${range.label} · ${kpis.total} files in range · ${kpis.sent} exported · ${kpis.pending} pending · nothing transmitted`}>
+      <SectionBar icon="file" title="Billed Files" sub={`${range.label} · ${kpis.total} files · ${kpis.sent} exported · ${kpis.pending} pending. Nothing is transmitted.`} wiki="billing-and-claims" info="Claim, paper form and invoice files created when claims are submitted. They are saved in this browser. Download a file and upload or mail it yourself.">
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ bfPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -135,7 +135,7 @@ export default function BilledFilesView() {
         <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>File History</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} files · claim, paper and invoice exports saved in this browser; upload or mail them yourself</div></div>
+            <div><b style={{ fontSize: 14 }}>File History</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} files saved in this browser</div></div>
           </div>
           <div className="py-tbl" data-testid="bf-table" style={{ overflowX: 'auto' }}>
             <div className="py-thead" style={{ gridTemplateColumns: '120px 1.4fr 1fr 90px 100px 120px 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>

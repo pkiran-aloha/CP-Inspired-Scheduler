@@ -169,7 +169,7 @@ describe('settings data vault', () => {
     const input = screen.getByTestId('set-import-file')
     Object.defineProperty(input, 'files', { value: [new File([JSON.stringify(legacy)], 'v1.json', { type: 'application/json' })], configurable: true })
     fireEvent.change(input)
-    expect((await screen.findByTestId('set-restore-preview')).textContent).toMatch(/Older partial backup.*not included/)
+    expect((await screen.findByTestId('set-restore-preview')).textContent).toMatch(/Older partial backup.*no billing ledgers/)
     fireEvent.click(screen.getByTestId('set-restore-cancel'))
   })
 

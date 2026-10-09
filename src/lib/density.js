@@ -268,10 +268,10 @@ export function planDensityMove(state, move, { today = todayISO(), nowMin } = {}
   const conflicts = conflictsForPlacement(state, appt, target)
   if (conflicts.length) {
     const first = conflicts[0]
-    return { ok: false, msg: `Not moved — ${first.kind === 'staff' ? 'staff' : 'client'} overlaps “${first.other.title || 'another appointment'}”.` }
+    return { ok: false, msg: `Not moved. The ${first.kind === 'staff' ? 'staff member' : 'client'} overlaps “${first.other.title || 'another appointment'}”.` }
   }
   const verdict = validationResult(state, appt, target)
-  if (verdict.blockingStops.length) return { ok: false, msg: `Not moved — ${verdict.blockingStops[0].label}: ${verdict.blockingStops[0].message}` }
+  if (verdict.blockingStops.length) return { ok: false, msg: `Not moved. ${verdict.blockingStops[0].label}: ${verdict.blockingStops[0].message}` }
   const fresh = densityBoard(state, [appt.date], { today, nowMin: now, limit: 200 }).allRows.find((r) => r.apptId === appt.id && r.to.date === target.date && r.to.start === target.start && r.to.end === target.end)
   if (!fresh) return { ok: false, msg: 'That density suggestion is stale. Reopen Insights to refresh the list.' }
   const warnCount = arr(verdict.warns).length + arr(verdict.flags).length

@@ -39,15 +39,15 @@ export const SYSTEM_SETTINGS_SECTIONS = [
 ]
 
 export const SETTINGS_MODULES = [
-  { id: 'appointment-status', label: 'Appointment Status', icon: 'checkCircle', group: 'Scheduling', blurb: 'The status list a session can move through — and what each status pays', tabs: [], subs: [] },
+  { id: 'appointment-status', label: 'Appointment Status', icon: 'checkCircle', group: 'Scheduling', blurb: 'The statuses a session can have, and what each one pays', tabs: [], subs: [] },
   { id: 'custom-lists', label: 'Custom Lists', icon: 'rows', group: 'Scheduling', blurb: 'General and service-type pick lists used across the suite', tabs: [
     { id: 'general', label: 'General' }, { id: 'service-type', label: 'Service Type' },
   ], subs: [
     { id: 'general', label: 'General' }, { id: 'service-type', label: 'Service Type' },
   ] },
-  { id: 'custom-fields', label: 'Custom Fields', icon: 'badge', group: 'Scheduling', blurb: 'Extra fields a payer or program wants captured on appointments', tabs: [], subs: [] },
+  { id: 'custom-fields', label: 'Custom Fields', icon: 'badge', group: 'Scheduling', blurb: 'Extra fields a payer or program needs on appointments', tabs: [], subs: [] },
   { id: 'data-import', label: 'Data Import', icon: 'download', group: 'Data', blurb: 'Bring clients, staff, payers or appointments in from a CSV file', tabs: [], subs: [] },
-  { id: 'organization', label: 'Organization', icon: 'house', group: 'Practice', blurb: 'Practice identity, tax/NPI details and the office & location master', tabs: [], subs: [] },
+  { id: 'organization', label: 'Organization', icon: 'house', group: 'Practice', blurb: 'Practice identity, tax ID and NPI, and the office and location list', tabs: [], subs: [] },
   { id: 'payroll', label: 'Payroll', icon: 'team', group: 'Payroll', blurb: 'Pay cycles, earning codes and overtime rules', tabs: [
     { id: 'general', label: 'General' }, { id: 'earning-codes', label: 'Earning Code' }, { id: 'overtime', label: 'Overtime Rules' },
   ], subs: [
@@ -60,7 +60,7 @@ export const SETTINGS_MODULES = [
   ], subs: [
     { id: 'accounts', label: 'User Accounts' }, { id: 'roles', label: 'User Roles' },
   ] },
-  { id: 'clinical-integrations', label: 'Clinical Integrations', icon: 'zap', group: 'Integrations', blurb: 'Local export seams into the tools this practice already uses', tabs: [], subs: [] },
+  { id: 'clinical-integrations', label: 'Clinical Integrations', icon: 'zap', group: 'Integrations', blurb: 'Local exports for the tools this practice already uses', tabs: [], subs: [] },
   { id: 'text-messaging', label: 'Text Messaging Services', icon: 'phone', group: 'Integrations', blurb: 'Sender identity, quiet hours, message templates and opt-outs', tabs: [], subs: [] },
   { id: 'system', label: 'System Settings', icon: 'dots', group: 'System', blurb: 'Display, naming, rates, validations, notifications, integrations and backups', tabs: [], subs: [], systemTabs: SYSTEM_SETTINGS_SECTIONS },
   { id: 'subscription', label: 'Subscription Portal', icon: 'dollar', group: 'System', blurb: 'Plan, seats and renewal record for this workspace', tabs: [], subs: [] },
@@ -108,7 +108,7 @@ export const TIMEZONES = ['America/Los_Angeles', 'America/Denver', 'America/Phoe
 export const DEFAULT_APPT_STATUSES = [
   { key: 'active', label: 'Active', aka: 'ACT', color: '#6366f1', active: true, system: true, order: 0, pays: true, billable: true, noteRequired: false, isCancellation: false, allowToComplete: true, payrollCode: '', cancelBand: false, note: 'Booked and staffed, not yet confirmed' },
   { key: 'confirmed', label: 'Confirmed', aka: 'CNF', color: '#0ea5e9', active: true, system: true, order: 1, pays: true, billable: true, noteRequired: false, isCancellation: false, allowToComplete: true, payrollCode: '', cancelBand: false, note: 'Family confirmed attendance' },
-  { key: 'completed', label: 'Completed', aka: 'CMP', color: '#10b981', active: true, system: true, order: 2, pays: true, billable: true, noteRequired: false, isCancellation: false, allowToComplete: true, payrollCode: '', cancelBand: false, note: 'Session happened — this is the status claims and payroll read' },
+  { key: 'completed', label: 'Completed', aka: 'CMP', color: '#10b981', active: true, system: true, order: 2, pays: true, billable: true, noteRequired: false, isCancellation: false, allowToComplete: true, payrollCode: '', cancelBand: false, note: 'The session took place. Claims and payroll read this status.' },
   { key: 'no-show', label: 'No Show', aka: 'NSH', color: '#f59e0b', active: true, system: true, order: 3, pays: true, billable: false, noteRequired: true, isCancellation: true, allowToComplete: false, payrollCode: 'CANC', cancelBand: true, note: 'Pays the no-show band from the payroll cancellation policy' },
   { key: 'cancelled', label: 'Cancelled', aka: 'CXC', color: '#ef4444', active: true, system: true, order: 4, pays: true, billable: false, noteRequired: true, isCancellation: true, allowToComplete: false, payrollCode: 'CANC', cancelBand: true, note: 'Pays the short-notice / free-notice band from the cancellation policy' },
 ]
@@ -124,7 +124,7 @@ const list = (id, group, name, description, options) => ({
 })
 
 export const DEFAULT_CUSTOM_LISTS = [
-  list('cancel-reasons', 'general', 'Cancellation reasons', 'Offered when a session is cancelled — feeds the no-show/cancellation analytics.', ['Client ill', 'Family emergency', 'School holiday', 'Staff illness', 'Weather', 'Transportation', 'No reason given']),
+  list('cancel-reasons', 'general', 'Cancellation reasons', 'Offered when a session is cancelled. Used in the no-show and cancellation analytics.', ['Client ill', 'Family emergency', 'School holiday', 'Staff illness', 'Weather', 'Transportation', 'No reason given']),
   list('appt-sources', 'general', 'Appointment sources', 'How the appointment was booked.', ['Parent request', 'School request', 'Clinician scheduled', 'Auto-recurrence', 'Intake conversion']),
   list('contact-methods', 'general', 'Contact methods', 'Preferred way to reach a family or payer.', ['Phone call', 'Text message', 'Email', 'Portal message', 'In person']),
   list('document-types', 'general', 'Document types', 'Documents tracked on the intake checklist and client chart.', ['Diagnostic report', 'Referral', 'IEP / IFSP', 'Insurance card', 'Guardianship paperwork', 'Consent — treatment', 'Consent — telehealth']),
@@ -165,10 +165,10 @@ export const MESSAGE_CATEGORIES = [
 
 export const DEFAULT_MESSAGE_TEMPLATES = [
   { id: 'msg-appt-reminder', name: 'Appointment reminder', category: 'reminder', status: 'active',
-    body: 'Hi {{guardian}}, this is {{practice}} — reminder for {{client}} on {{date}} at {{time}} with {{staff}} at {{location}}. Reply STOP to opt out.' },
+    body: 'Hi {{guardian}}, this is {{practice}} with a reminder for {{client}} on {{date}} at {{time}} with {{staff}} at {{location}}. Reply STOP to opt out.' },
   { id: 'msg-appt-change', name: 'Appointment changed', category: 'appointment', status: 'active',
-    body: 'Hi {{guardian}}, {{practice}} here — {{client}}’s session on {{date}} at {{time}} has changed. Please call {{phone}} to confirm. Reply STOP to opt out.' },
-  { id: 'msg-intake-welcome', name: 'Intake — first contact', category: 'intake', status: 'active',
+    body: 'Hi {{guardian}}, this is {{practice}}. {{client}}’s session on {{date}} at {{time}} has changed. Please call {{phone}} to confirm. Reply STOP to opt out.' },
+  { id: 'msg-intake-welcome', name: 'Intake: first contact', category: 'intake', status: 'active',
     body: 'Hi {{guardian}}, thanks for contacting {{practice}} about {{client}}. Our intake team will call within one business day. Reply STOP to opt out.' },
   { id: 'msg-balance', name: 'Balance reminder', category: 'billing', status: 'draft',
     body: 'Hi {{guardian}}, {{practice}} shows a balance of {{balance}} for {{client}}. Call {{phone}} with questions. Reply STOP to opt out.' },
@@ -804,11 +804,11 @@ export function evaluateAppointmentValidations(state, draft = {}) {
     const act = abaActivityById(draft.abaActivity)
     if (isServiceAppt(draft)) {
       push('aba', 'serviceAppt', 'ABA Hours on a Service Appointment',
-        `ABA Hours applies to non-service appointments only — “${TYPES[draft.type]?.label || draft.type}” is service delivery, which draws on the client's authorization instead. Untick ⚡ ABA Hr or rebook this as a non-service block.`)
+        `ABA Hours applies to non-service appointments only. “${TYPES[draft.type]?.label || draft.type}” is service delivery and uses the client's authorization. Untick ⚡ ABA Hr or rebook this as a non-service block.`)
     }
     if (act && !act.qualifies) {
       push('aba', 'activity', 'ABA Hours Activity Not Behavior-Analytic',
-        `“${act.label}” is not behavior-analytic time${act.hint ? ` — ${act.hint.toLowerCase()}` : ''}. Pick one of the qualifying activities (group training, intervention design/review, data analysis, coursework) or untick ⚡ ABA Hr.`)
+        `“${act.label}” is not behavior-analytic time${act.hint ? ` (${act.hint.toLowerCase()})` : ''}. Pick a qualifying activity (group training, intervention design or review, data analysis, coursework) or untick ⚡ ABA Hr.`)
     }
     if (!act && abaCfg.requireActivity) {
       push('aba', 'missingActivity', 'ABA Hours Activity Missing',
@@ -992,7 +992,7 @@ export function planSettingsOp(state, op, payload = {}) {
       const cascades = existing && existing.name !== name ? renameOfficeCascade(state, existing.name, name) : null
       const moved = cascades ? Object.keys(cascades).filter((k) => cascades[k]).length : 0
       return done(
-        existing ? `“${name}” updated${moved ? ` — ${existing.name} renamed everywhere it was used` : ''}` : `“${name}” added to the office master`,
+        existing ? `“${name}” updated${moved ? `. ${existing.name} was renamed everywhere it was used` : ''}` : `“${name}” added to the office master`,
         { patch: { offices }, cascades },
       )
     }
@@ -1000,13 +1000,13 @@ export function planSettingsOp(state, op, payload = {}) {
       const target = officeById(settings, payload.id)
       if (!target) return fail('That office no longer exists.')
       const rows = settingsOffices(settings)
-      if (rows.length <= 1) return fail('Keep at least one office on file — the practice needs somewhere to work from.')
+      if (rows.length <= 1) return fail('Keep at least one office on file.')
       const used = officeUsage(state, target.name)
       const reassign = clean(payload.reassignTo, 80)
       if (used && !reassign) return fail(`“${target.name}” is used by ${used} record${used === 1 ? '' : 's'} (staff, clients, appointments, payroll profiles or accounts). Choose another office to move them to first.`)
       if (reassign && !rows.some((o) => o.name === reassign && o.id !== target.id)) return fail('Pick an existing office to move the records to.')
       const cascades = reassign ? renameOfficeCascade(state, target.name, reassign) : null
-      return done(`“${target.name}” removed${used ? ` — ${used} record${used === 1 ? '' : 's'} moved to ${reassign}` : ''}`, {
+      return done(`“${target.name}” removed${used ? `. ${used} record${used === 1 ? '' : 's'} moved to ${reassign}` : ''}`, {
         patch: { offices: rows.filter((o) => o.id !== target.id) }, cascades,
       })
     }
@@ -1051,7 +1051,7 @@ export function planSettingsOp(state, op, payload = {}) {
       const cascades = payload.reassignTo
         ? { appts: { patches: Object.entries(state.appts || {}).filter(([, a]) => a.status === row.key).map(([id]) => ({ id, patch: { status: payload.reassignTo } })) } }
         : null
-      return done(`“${row.label}” removed${used ? ` — ${used} appointment${used === 1 ? '' : 's'} moved to ${payload.reassignTo}` : ''}`, {
+      return done(`“${row.label}” removed${used ? `. ${used} appointment${used === 1 ? '' : 's'} moved to ${payload.reassignTo}` : ''}`, {
         patch: { apptStatuses: rows.filter((s) => s.key !== row.key).map((s, i) => ({ ...s, order: i })) }, cascades,
       })
     }
@@ -1196,7 +1196,7 @@ export function planSettingsOp(state, op, payload = {}) {
         system: !!existing?.system,
       }
       const next = existing ? rows.map((c) => (c.id === id ? { ...c, ...row } : c)) : [...rows, row]
-      if (!next.some((c) => c.kind === 'worked')) return fail('Keep at least one worked code — payroll needs something to pay for a session.')
+      if (!next.some((c) => c.kind === 'worked')) return fail('Keep at least one worked code. Payroll needs one to pay for a session.')
       return done(existing ? `${id} updated` : `${id} added to the earning codes`, { patch: { payroll: { ...payroll, earningCodes: next } } })
     }
     case 'earningCode.remove': {
@@ -1218,7 +1218,7 @@ export function planSettingsOp(state, op, payload = {}) {
       if (p.workWeekStart != null && (p.workWeekStart < 0 || p.workWeekStart > 6)) return fail('Pick a workweek start day.')
       if (p.mileageRate != null && (Number(p.mileageRate) < 0 || Number(p.mileageRate) > 10)) return fail('Mileage reimbursement rate must be between $0 and $10 per mile.')
       const openRuns = Object.values(state.payRuns || {}).filter((r) => !['processed', 'voided'].includes(r.status))
-      if (p.frequency && openRuns.length) return fail(`${openRuns.length} pay run${openRuns.length === 1 ? '' : 's'} are still open on the current cycle — process or void them before changing the pay frequency.`)
+      if (p.frequency && openRuns.length) return fail(`${openRuns.length} pay run${openRuns.length === 1 ? '' : 's'} are still open on the current cycle. Process or void them before changing the pay frequency.`)
       if (p.rounding) {
         payroll.rounding = { ...payroll.rounding, ...p.rounding }
         if (!['none', 'nearest', 'up', 'down'].includes(payroll.rounding.mode)) return fail('Pick a valid rounding mode.')
@@ -1255,8 +1255,8 @@ export function planSettingsOp(state, op, payload = {}) {
       const p = payload.patch || {}
       const next = { ...payroll, ...p }
       if (next.otAfterHours != null && !(Number(next.otAfterHours) >= 1 && Number(next.otAfterHours) <= 168)) return fail('Weekly overtime starts between 1 and 168 hours.')
-      if (next.otMultiplier != null && Number(next.otMultiplier) < 1.5) return fail('The federal FLSA minimum is 1.5× — a lower multiplier would under-pay overtime.')
-      if (next.otMultiplier != null && Number(next.otMultiplier) > 3) return fail('A multiplier above 3× is unusual — check the policy before saving.')
+      if (next.otMultiplier != null && Number(next.otMultiplier) < 1.5) return fail('The federal FLSA minimum is 1.5×. A lower multiplier would underpay overtime.')
+      if (next.otMultiplier != null && Number(next.otMultiplier) > 3) return fail('A multiplier above 3× is unusual. Check the policy before saving.')
       if (next.dailyOtHours != null && next.dailyOtHours !== '' && !(Number(next.dailyOtHours) >= 1 && Number(next.dailyOtHours) <= 24)) return fail('Daily overtime starts between 1 and 24 hours.')
       if (next.dailyOtMultiplier != null && next.dailyOtMultiplier !== '' && Number(next.dailyOtMultiplier) < 1.5) return fail('Daily overtime must be at least 1.5×.')
       if (next.workWeekStart != null && (next.workWeekStart < 0 || next.workWeekStart > 6)) return fail('Pick a workweek start day.')
@@ -1372,7 +1372,7 @@ export function planSettingsOp(state, op, payload = {}) {
       const row = rows.find((i) => i.id === payload.id)
       if (!row) return fail('That integration no longer exists.')
       const next = rows.map((i) => (i.id === row.id ? { ...i, lastRunAt: Date.now(), lastRunBy: clean(payload.who, 60) || 'local user' } : i))
-      return done(`${row.name} — export recorded at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, { patch: { clinicalIntegrations: next } })
+      return done(`${row.name}: export recorded at ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`, { patch: { clinicalIntegrations: next } })
     }
     case 'clearinghouse.upsert': {
       const rows = clearinghousesCfg(settings)

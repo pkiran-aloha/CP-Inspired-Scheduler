@@ -374,7 +374,7 @@ describe('billing workspace', () => {
     await screen.findByTestId('pay-modal')
     fireEvent.click(screen.getByTestId('pay-quick-full'))
     fireEvent.click(screen.getByTestId('pay-post'))
-    expect(await screen.findByText(/paid —/)).toBeTruthy()
+    expect(await screen.findByText(/paid: \$\d/)).toBeTruthy()
     await waitFor(() => expect(screen.getByTestId('clm-form').textContent).toMatch(/Paid/))
     expect(screen.getByTestId('clm-timeline').querySelectorAll('li').length).toBeGreaterThanOrEqual(3)
 
@@ -481,7 +481,7 @@ describe('billing workspace', () => {
     await waitFor(() => expect(container.querySelectorAll('[data-testid^="blk-fix-"]').length).toBeGreaterThan(0))
     const before = container.querySelectorAll('[data-testid^="blk-row-"]').length
     fireEvent.click(container.querySelector('[data-testid^="blk-fix-"]'))
-    expect(await screen.findByText(/Units auto-filled/)).toBeTruthy()
+    expect(await screen.findByText(/Units filled in/)).toBeTruthy()
     // the fixed line drops out of Blocked (it now moves to claim-ready instead)
     await waitFor(() => expect(container.querySelectorAll('[data-testid^="blk-row-"]').length).toBe(before - 1))
   })

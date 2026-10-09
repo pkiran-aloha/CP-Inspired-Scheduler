@@ -43,9 +43,9 @@ export default function CfDefModal({ def, onClose }) {
     })
   }
   return (
-    <div className="modal pm-modal py-modal cf-modal" data-testid="cf-modal" role="dialog" aria-modal="true" aria-label={def ? `Template — ${def.label}` : 'New field template'} tabIndex={-1}>
+    <div className="modal pm-modal py-modal cf-modal" data-testid="cf-modal" role="dialog" aria-modal="true" aria-label={def ? `Template: ${def.label}` : 'New field template'} tabIndex={-1}>
       <div className="modal-head pm-head">
-        <h3>{def ? `Template — ${def.label}` : 'New Field Template'}</h3>
+        <h3>{def ? `Template: ${def.label}` : 'New field template'}</h3>
         <button className="iconbtn modal-x" aria-label="Close" data-testid="cf-close" onClick={onClose}>{Icon.x({ size: 14 })}</button>
       </div>
       <div className="modal-body">
@@ -70,7 +70,7 @@ export default function CfDefModal({ def, onClose }) {
         )}
         {listy && (
           <div className="cf-optbox" data-testid="cf-optbox">
-            <span className="cf-boxlabel">{f.type === 'select' ? 'List options — pick one (radio)' : 'List options — pick any (checkbox)'}</span>
+            <span className="cf-boxlabel">{f.type === 'select' ? 'List options (pick one)' : 'List options (pick any)'}</span>
             {f.options.map((o, i) => (
               <div className="cf-optrow" key={i} data-testid={`cf-optrow-${i}`}>
                 <input className="input" value={o} data-testid={`cf-opt-${i}`} onChange={(e) => set('options', f.options.map((x, j) => (j === i ? e.target.value : x)))} placeholder={`Option ${i + 1}`} />

@@ -19,7 +19,7 @@ export function eraDenialInfo(line, state) {
   const carc = adjustment ? `${adjustment.group}-${adjustment.reason}` : 'unavailable'
   const hint = carcHintsOf(state).find((h) => h.code === carc)
   const [reason, fix] = hint ? [hint.label, hint.fix] : [
-    adjustment ? `Payer denial ${carc}` : 'Payer denial — no CARC supplied',
+    adjustment ? `Payer denial ${carc}` : 'Payer denial, no CARC supplied',
     'Review the ERA adjustment and payer guidance before correcting or appealing.',
   ]
   return { code: `carc:${carc}`, reason, fix }
@@ -71,7 +71,7 @@ export function previewEra(state, parsed, { ignoreEraId = null } = {}) {
     const claim = matches[i].length === 1 ? matches[i][0] : null
     const reason = (message) => ({ id: line.id || `era-line-${i + 1}`, line, claimId: claim?.id || null, claim, ready: false, reason: message })
     if (!line.claimNo) return reason('Missing claim number')
-    if (matches[i].length > 1) return reason('Ambiguous claim number — multiple exact matches')
+    if (matches[i].length > 1) return reason('Claim number matches more than one claim')
     if (!claim) return reason('No exact claim number match')
     if (claim.method === 'secondary') return reason('Linked secondary ERA remittance needs manual COB reconciliation; parked')
     if (claim.secondary && state.claims?.[claim.secondary]?.status !== 'void') return reason('A secondary filing is linked; reconcile the primary/COB pair manually')
@@ -149,7 +149,7 @@ function applyRow(row, eraId, trace, date, at, makeId, state) {
   const claim = row.claim
   if (row.kind === 'denial') {
     const denial = { ...eraDenialInfo(row.line, state), note: `ERA ${trace || eraId}`, at }
-    return { claim: { ...claim, status: 'denied', denial, history: [...(claim.history || []), { at, ev: `Denied by ERA — ${denial.code}: ${denial.reason}` }] } }
+    return { claim: { ...claim, status: 'denied', denial, history: [...(claim.history || []), { at, ev: `Denied by ERA: ${denial.code} ${denial.reason}` }] } }
   }
   const ref = trace || eraId
   const { claim: paidClaim } = payPatch(claim, { amount: row.paid, adj: row.adj, checkNo: ref, note: '835 ERA remittance', paidAt: at })
@@ -177,7 +177,7 @@ function selectedRows(preview, selectedIds) {
 // unselected/unsafe rows are persisted as parked so they remain visible and exportable.
 export function planEraImport(state, parsed, opts = {}) {
   const preview = previewEra(state, parsed)
-  if (preview.errors.length) return { ok: false, msg: preview.errors.join(' · '), preview }
+  if (preview.errors.length) return { ok: false, msg: preview.errors.join('; '), preview }
   const { selected, error } = selectedRows(preview, opts.selectedIds)
   if (error) return { ok: false, msg: error, preview }
   const makeId = opts.makeId || uid
@@ -207,7 +207,7 @@ export function planEraImport(state, parsed, opts = {}) {
     unmatched: preview.rows.filter((r) => !r.claimId).length, posted, parked, detail,
   }
   return { ok: true, claimUpserts, payments, eraImports: { [id]: era }, era,
-    msg: `ERA reviewed: ${posted} posted, ${parked} parked${era.hasPLB ? ' · provider-level PLB not applied' : ''}` }
+    msg: `ERA reviewed: ${posted} posted, ${parked} parked${era.hasPLB ? '. Provider level PLB not applied' : ''}` }
 }
 
 // Retry *only* explicitly chosen parked lines. The existing record is updated
@@ -222,7 +222,7 @@ export function planParkedEraPost(state, eraId, selectedIds, opts = {}) {
     meta: { traceNo: era.traceNo, paymentDate: era.paymentDate, payerName: era.payerName },
   }
   const preview = previewEra(state, parsed, { ignoreEraId: eraId })
-  if (preview.errors.length) return { ok: false, msg: preview.errors.join(' · '), preview }
+  if (preview.errors.length) return { ok: false, msg: preview.errors.join('; '), preview }
   const { selected, error } = selectedRows(preview, selectedIds)
   if (error) return { ok: false, msg: error, preview }
   const at = opts.at ?? Date.now()

@@ -1,7 +1,7 @@
 # Architecture
 
-_Sources: AGENTS.md, README.md, package.json, vite.config.js, src/App.jsx, src/test/setup.js, src/lib/exportKit.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx_
-_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean; billingDocs wiring; mismatch #10 resolved on fix/cms1500-derived-values; local screen lock, mismatch #13); feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); feat/reports-visuals on 2026-10-08 (README context only, no architecture change); unrelated behavior unchanged; feat/density-modes on 2026-10-08 (view density: relaxed, normal, tight)._
+_Sources: AGENTS.md, README.md, package.json, vite.config.js, src/App.jsx, src/test/setup.js, src/lib/exportKit.js, .github/workflows/deploy.yml, scripts/write-version.cjs, scripts/build-share.mjs, src/state/store.jsx, src/lib/security.js, src/lib/workspaceBackup.js, src/lib/master.js, src/lib/wiki.js, src/lib/claims.js, src/lib/billingKpis.js, src/components/HelpView.jsx, src/ui/InfoTip.jsx_
+_Last synced against main on 2026-10-08 (Vitest 4, `npm audit` clean; billingDocs wiring; mismatch #10 resolved on fix/cms1500-derived-values; local screen lock, mismatch #13); feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); feat/reports-visuals on 2026-10-08 (README context only, no architecture change); unrelated behavior unchanged; feat/density-modes on 2026-10-08 (view density: relaxed, normal, tight); feat/copy-and-infotips on 2026-10-09 (copy pass, no em dashes, guidance behind InfoTips)._
 
 This page is for developers: where code lives, how a change flows from a click to localStorage, the testing rules, how `main` is built and deployed, and where the existing docs disagree with the code. The rules themselves live in [`../../AGENTS.md`](../../AGENTS.md); this page explains and cites them, and [`../HANDOFF.md`](../HANDOFF.md) holds current state.
 
@@ -56,6 +56,16 @@ Write patterns by area: settings writes go through `settingsTx` and `planSetting
 
 Money is held in integer cents inside `paymentLedger.js` (`cents()`); values with more than two decimals are refused.
 
+### Screen guidance (InfoTip)
+
+Guidance text that explains how a screen works sits behind an info button next to the screen header, not in paragraphs on the page. The button is `src/ui/InfoTip.jsx`; a screen header gets one by passing `info` (and optionally `wiki`, a wiki page slug) to `SectionBar` (the settings `Section` card takes the same props).
+
+- It opens on click or Enter, not on hover, and the text is read out through a live region.
+- Esc or a click outside closes it, and focus returns to the button.
+- The panel is rendered at the end of `<body>` and placed under the button, so a header with a blur or transform cannot clip it. Tab from the button moves to the Help link.
+- With `wiki` set, the tip ends with a link that opens the matching Help page.
+- Errors, Stop and Warn items, field labels and short honesty lines stay visible on the screen. Only the explanation moves into the tip.
+
 ### Migrations
 
 `normalizeWorkspace` chains these in order, then `normalizeSecurity`: `normalizePayerCf`, `normalizeAbaHours`, `normalizeApptPcfs`, `normalizeLegacyCustom`, `normalizeBillingV2` (in `master.js`), `normalizeBillingIds`, `normalizeCobLedger`, `normalizeIntake`, `normalizeVerificationForms`, `normalizeSettingsMasters`, `normalizeAuthUnits`, `normalizeUnitNorms` (once, flag `meta.unitNorm15`; moves untouched 30-minute defaults to 15 minutes and never changes claims), `normalizeStaffEducation` (clears a staff `education` value outside `EDUCATION_LEVELS`; a blank or absent level means "not recorded" and is left alone). A new field on an existing record needs an idempotent migration here that returns the same object when nothing changes. A new durable collection must be added to `WORKSPACE_FIELDS` in `workspaceBackup.js`, validated on import, and given a round-trip test and an Undo test.
@@ -85,7 +95,7 @@ Git workflow, in short: branch from an up-to-date `main` (`feat/`, `fix/`, `chor
 
 ## Known doc/code mismatches
 
-Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers, the Validations Auto-fill button — it now follows the payer unit rule — and the `appealed` claim status — an appeal is now a marker on the claim, not a status) were removed. The former DSO mismatch (#7) is resolved by the DSO-consistency change: Billing Health now reuses the AR Manager's DSO. The two aging engines and the merged AR Manager column are also fixed: there is now one aging clock (`agingSince`) and one five-bucket scheme (`agingBucketFor`) in `claims.js`, shared by the AR Manager, the Billing desk strip, the Claims Register and the claim drawer, and the AR table shows 91–120 and 121+ as separate columns like the KPI strip and the CSV. The remaining items are recorded, not fixed, and each is a candidate for a small cleanup branch.
+Each item below was checked against the code at the sync commit. Items fixed on `main` since the first version of this page (the CMS-1500 invented group number and practice NPI, the 30-minute unit table, empty claim-line modifiers, the Validations Auto-fill button, which now follows the payer unit rule, and the `appealed` claim status, now a marker on the claim) were removed. The former DSO mismatch (#7) is resolved by the DSO-consistency change: Billing Health now reuses the AR Manager's DSO. The two aging engines and the merged AR Manager column are also fixed: there is now one aging clock (`agingSince`) and one five-bucket scheme (`agingBucketFor`) in `claims.js`, shared by the AR Manager, the Billing desk strip, the Claims Register and the claim drawer, and the AR table shows 91–120 and 121+ as separate columns like the KPI strip and the CSV. The remaining items are recorded, not fixed, and each is a candidate for a small cleanup branch.
 
 Docs versus repo:
 

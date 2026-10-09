@@ -6,7 +6,7 @@ export function seedVerificationForms(clients = [], payers = []) {
     const id = `vf-seed-${client.id}`
     return [id, { id, clientId: client.id, clientName: client.name,
       payer: payers.find((p) => p.id === client.payerId)?.name || '',
-      date: todayISO(), status: 'pending', notes: 'Seeded verification — eligibility has not been checked.' }]
+      date: todayISO(), status: 'pending', notes: 'Sample verification. Eligibility has not been checked.' }]
   }))
 }
 

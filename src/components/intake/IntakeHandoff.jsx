@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../../state/store'
 import { useToast } from '../../ui/Toast'
 import { Icon } from '../../ui/Icons'
+import InfoTip from '../../ui/InfoTip'
 import { DAY_SHORT, fmtDayLabel, fmtDur, fmtTime, hmToMin, todayISO } from '../../lib/date'
 import { handoffServices, proposeIntakeWeek } from '../../lib/intakeHandoff'
 import { isCancelStatus, locationOptions } from '../../lib/settingsMasters'
@@ -38,7 +39,7 @@ export default function IntakeHandoff({ clientId, onClose }) {
   return <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
     <section className="modal iq-handoff" role="dialog" tabIndex={-1} ref={dialogRef} aria-modal="true" aria-labelledby="iq-handoff-title" data-testid="iq-handoff">
       <header className="iq-handoff-head">
-        <div><span className="muted">INTAKE → SCHEDULING · {request.no}</span><h2 id="iq-handoff-title">Plan the first week</h2><p>{client.name} · {client.authWeekly || 0}h weekly target · {client.authStart || 'No start'} – {client.authEnd || 'No end'}</p></div>
+        <div><span className="muted">INTAKE TO SCHEDULING · {request.no}</span><h2 id="iq-handoff-title">Plan the first week</h2><p>{client.name} · {client.authWeekly || 0}h weekly target · {client.authStart || 'No start'} – {client.authEnd || 'No end'}</p></div>
         <button className="iconbtn" aria-label="Close first-week plan" data-testid="iq-handoff-close" onClick={onClose}>{Icon.x({ size: 16 })}</button>
       </header>
       <div className="iq-handoff-body">
@@ -62,7 +63,7 @@ export default function IntakeHandoff({ clientId, onClose }) {
           {!plan.ok ? <p role="alert">{plan.msg}</p> : <>
             <h3>{fmtDayLabel(plan.week.start)} – {fmtDayLabel(plan.week.end)}</h3>
             <p data-testid="iq-handoff-summary"><b>{fmtDur(plan.existingMinutes)}</b> already on calendar · <b>{fmtDur(plan.proposedMinutes)}</b> proposed · <b>{fmtDur(plan.remainingMinutes)}</b> still unfilled</p>
-            <p className="muted">{plan.msg} Suggestions use care team, history, fit and workload. Free on the calendar does not confirm working hours. Later slots account for earlier proposals using their top-ranked staff.</p>
+            <p className="muted">{plan.msg} <InfoTip label="staff suggestions" wiki="intake" testid="iq-handoff-info">Suggestions weigh the care team, history, fit and workload. An open calendar slot does not confirm working hours. Later slots account for earlier proposals and their top-ranked staff.</InfoTip></p>
             {plan.rows.map((row) => {
               const candidate = row.candidates.find((c) => c.staff.id === picks[row.date]) || row.candidates[0]
               return <article className="iq-handoff-slot" key={row.date} data-testid={`iq-handoff-slot-${row.date}`}>

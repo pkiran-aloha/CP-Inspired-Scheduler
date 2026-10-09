@@ -32,7 +32,7 @@ export default function AgendaView({ days, onOpenDetail, onNew }) {
               <div className="ag-rows">
                 {!list.length && (
                   <div className="ag-empty">
-                    {Icon.check({ size: 13 })} No sessions scheduled — enjoy the quiet
+                    {Icon.check({ size: 13 })} No sessions scheduled
                     <button className="btn btn-ghost btn-sm" style={{ marginLeft: 'auto' }} onClick={() => actions.setUI({ view: 'week', anchor: d })}>
                       {Icon.plus({ size: 12 })} Schedule
                     </button>

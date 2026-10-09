@@ -174,6 +174,9 @@ describe('settings modules actually write', () => {
     await openModule('system')
     fireEvent.click(screen.getByTestId('set-sys-tab-appointment'))
     await screen.findByTestId('set-sys-aba')
+    // the ABA Hours explainer sits behind the section's info button, hidden until opened
+    expect(screen.queryByTestId('set-aba-banner')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'About ABA Hours (behavior-analytic time)' }))
     expect(screen.getByTestId('set-aba-banner').textContent).toMatch(/non-service/i)
     commit('set-aba-target-technician', '60')
     await waitFor(() => expect(stored().settings.abaHours.targets.technician).toBe(60))

@@ -25,7 +25,7 @@ import { addDays, isoDate, parseISO, todayISO } from './date'
  */
 export const INTAKE_STAGES = [
   { id: 'new', label: 'New referral', short: 'New', icon: 'zap', tone: 'info', sla: 1, owner: 'Intake coordinator',
-    desc: 'Inquiry captured — nothing verified yet.' },
+    desc: 'Inquiry captured. Nothing verified yet.' },
   { id: 'contacted', label: 'Contacted', short: 'Contacted', icon: 'phone', tone: 'info', sla: 2, owner: 'Intake coordinator',
     desc: 'A live conversation happened; the family knows the next step.' },
   { id: 'screened', label: 'Screened', short: 'Screened', icon: 'clipboard', tone: 'info', sla: 3, owner: 'Intake coordinator',
@@ -35,7 +35,7 @@ export const INTAKE_STAGES = [
   { id: 'review', label: 'Clinical review', short: 'Review', icon: 'eye', tone: 'warn', sla: 3, owner: 'BCBA / clinical lead',
     desc: 'Assigned clinician confirms appropriateness and recommended hours.' },
   { id: 'waitlist', label: 'Waitlist', short: 'Waitlist', icon: 'clock', tone: 'warn', sla: 14, owner: 'Intake coordinator', branch: true,
-    desc: 'Clinically ready, capacity unavailable — position and review date tracked.' },
+    desc: 'Clinically ready, no capacity yet. Position and review date tracked.' },
   { id: 'scheduled', label: 'Assessment scheduled', short: 'Scheduled', icon: 'cal', tone: 'info', sla: 7, owner: 'Scheduler',
     desc: 'A dated assessment appointment exists on the calendar.' },
   { id: 'assessment', label: 'Assessment complete', short: 'Assessed', icon: 'checkCircle', tone: 'ok', sla: 5, owner: 'Assigned BCBA',
@@ -88,7 +88,7 @@ export function defaultNextStage(stage) {
 // ------------------------------------------------------------------- choices --
 
 export const URGENCY = {
-  emergency: { label: 'Emergency', tone: 'bad', slaFactor: 0.25, hint: 'Safety risk — same business day, escalate to the clinical director' },
+  emergency: { label: 'Emergency', tone: 'bad', slaFactor: 0.25, hint: 'Safety risk. Same business day; escalate to the clinical director' },
   urgent: { label: 'Urgent', tone: 'warn', slaFactor: 0.5, hint: 'See within a week (losing skills, school exclusion, caregiver crisis)' },
   routine: { label: 'Routine', tone: '', slaFactor: 1, hint: 'Standard access target' },
   low: { label: 'Low / exploratory', tone: '', slaFactor: 2, hint: 'Family is gathering information; keep warm without holding a slot' },
@@ -96,13 +96,13 @@ export const URGENCY = {
 export const URGENCY_IDS = ['emergency', 'urgent', 'routine', 'low']
 
 export const INTAKE_KINDS = {
-  general: { label: 'General intake request', hint: 'Inquiry with no chart yet — the intake team owns it end to end' },
+  general: { label: 'General intake request', hint: 'Inquiry with no chart yet. The intake team owns it end to end' },
   client: { label: 'Client intake', hint: 'Full intake record for a family that is moving to services' },
 }
 
 export const CONTACT_CHANNELS = ['Phone', 'Email', 'Text / SMS', 'Patient portal', 'Fax', 'Walk-in', 'Web form', 'Professional referral', 'School referral', 'Payer / case manager']
 export const CONTACT_OUTCOMES = [
-  { id: 'reached', label: 'Reached — spoke with caregiver', counts: true },
+  { id: 'reached', label: 'Reached: spoke with caregiver', counts: true },
   { id: 'voicemail', label: 'Left voicemail', counts: false },
   { id: 'no_answer', label: 'No answer / unreachable', counts: false },
   { id: 'email_sent', label: 'Message sent (email/SMS/portal)', counts: false },
@@ -112,7 +112,7 @@ export const CONTACT_OUTCOMES = [
 
 /** Referral source kinds — drives the relationship metrics on the source register. */
 export const SOURCE_KINDS = ['Pediatrician', 'Developmental pediatrician', 'Neurologist', 'Psychologist', 'School district', 'Regional center', 'Other provider (SLP/OT)', 'Hospital / ED', 'Payer / case manager', 'Community organisation', 'Self / family', 'Web form / marketing', 'Other']
-export const SOURCE_OWNERS_HINT = 'The staff member accountable for the relationship — dormancy alerts go to them.'
+export const SOURCE_OWNERS_HINT = 'The staff member responsible for the relationship. Dormancy alerts go to them.'
 
 /** Not-admitted reasons. Tracking these separates true demand from process loss. */
 export const LOST_REASONS = [
@@ -122,7 +122,7 @@ export const LOST_REASONS = [
   { id: 'out_of_area', label: 'Outside the service area', owner: 'Intake coordinator' },
   { id: 'age', label: 'Outside the served age range', owner: 'Clinical lead' },
   { id: 'not_indicated', label: 'Not clinically indicated for ABA here', owner: 'Clinical lead' },
-  { id: 'no_capacity', label: 'No capacity — waitlist declined or too long', owner: 'Operations' },
+  { id: 'no_capacity', label: 'No capacity: waitlist declined or too long', owner: 'Operations' },
   { id: 'moved', label: 'Family relocated', owner: 'Intake coordinator' },
   { id: 'duplicate', label: 'Duplicate of another request', owner: 'Intake coordinator' },
   { id: 'other', label: 'Other (note required)', owner: 'Intake coordinator' },
@@ -134,7 +134,7 @@ export const LIVING_ARRANGEMENTS = ['Lives with parents / guardians', 'Lives wit
 export const DIAGNOSIS_STATUS = {
   confirmed: { label: 'Confirmed diagnosis on file', tone: 'ok' },
   suspected: { label: 'Suspected / evaluation in progress', tone: 'warn' },
-  referral_only: { label: 'Referral only — no diagnosis yet', tone: 'warn' },
+  referral_only: { label: 'Referral only, no diagnosis yet', tone: 'warn' },
   unknown: { label: 'Unknown / not yet asked', tone: '' },
 }
 export const LANGUAGE_OPTIONS = ['English', 'Spanish', 'Vietnamese', 'Mandarin', 'Cantonese', 'Tagalog', 'Korean', 'Arabic', 'Hindi', 'Other']
@@ -209,13 +209,13 @@ export const CONSENT_KINDS = [
 
 export const ASSESSMENT_INSTRUMENTS = ['VB-MAPP', 'ABLLS-R', 'AFLS', 'Vineland-3', 'PDDBI', 'FBA / functional assessment', 'ADOS-2 (observation)', 'Other / custom battery']
 export const ASSESSMENT_OUTCOMES = {
-  recommended: { label: 'ABA recommended — treatment plan to follow', tone: 'ok' },
+  recommended: { label: 'ABA recommended, treatment plan to follow', tone: 'ok' },
   more_data: { label: 'More data needed', tone: 'warn' },
   not_recommended: { label: 'ABA not recommended', tone: 'bad' },
   referred_out: { label: 'Referred to another service', tone: 'warn' },
 }
 export const AUTH_DECISIONS = {
-  pending: { label: 'Submitted — decision pending', tone: 'warn' },
+  pending: { label: 'Submitted, decision pending', tone: 'warn' },
   approved: { label: 'Approved as requested', tone: 'ok' },
   partial: { label: 'Approved in part', tone: 'warn' },
   denied: { label: 'Denied', tone: 'bad' },
@@ -225,7 +225,7 @@ export const WAITLIST_REASONS = ['No technician capacity', 'No BCBA capacity', '
 /** Waitlist priority — 1 is seen first. Kept numeric so the waitlist can be sorted. */
 export const WAITLIST_PRIORITIES = [
   { value: 1, label: '1 · High', hint: 'urgent / emergency, regression risk, aging out of a benefit' },
-  { value: 2, label: '2 · Medium', hint: 'standard — fill the next matching opening' },
+  { value: 2, label: '2 · Medium', hint: 'standard: fill the next matching opening' },
   { value: 3, label: '3 · Low', hint: 'family asked for a later start or is exploring options' },
 ]
 
@@ -274,7 +274,7 @@ export function isStalled(req, now = Date.now()) {
 /** A record's whole reason to exist: the one thing to do next. */
 export function nextAction(req, now = Date.now()) {
   if (req.stage === 'closed') return { label: 'Reopen the request', detail: 'Closed requests can be reopened if the family returns', to: 'new', blocked: false, outstanding: 0 }
-  if (req.stage === 'converted') return { label: 'Client chart created', detail: 'Continue in the client record — schedule services and track authorisation', to: null, blocked: false, outstanding: 0 }
+  if (req.stage === 'converted') return { label: 'Client chart created', detail: 'Continue in the client record to schedule services and track the authorization', to: null, blocked: false, outstanding: 0 }
   const next = nextStageFor(req)
   const blockers = gateBlockers(req, next)
   // the blocker's own verb is the instruction — "Mark the insurance card received"
@@ -282,7 +282,7 @@ export function nextAction(req, now = Date.now()) {
   if (req.stage === 'review') return { label: 'Choose the next branch', detail: 'Waitlist the family or book the assessment', to: null, blocked: false, outstanding: 0 }
   return {
     label: next === 'converted' ? 'Convert to a client chart' : `Advance to ${stageDef(next).label}`,
-    detail: next === 'converted' ? 'Every intake requirement is met — create the client record' : stageDef(next).desc,
+    detail: next === 'converted' ? 'All intake requirements are met. Create the client record' : stageDef(next).desc,
     to: next, blocked: false, outstanding: 0,
   }
 }
@@ -680,8 +680,8 @@ export function planConversion(state, id, opts = {}) {
   const blockers = gateBlockers(req, 'converted')
   // conversion is the step after authorisation — the same stage graph the pipeline rail enforces
   const stageOk = nextStages(req.stage).includes('converted')
-  if (!stageOk) return { ok: false, msg: `Cannot convert from ${stageDef(req.stage).label} — the request has to reach ${stageDef('auth').label} first`, blockers }
-  if (blockers.length) return { ok: false, msg: `Cannot convert yet — ${blockers.length} requirement${blockers.length > 1 ? 's' : ''} outstanding`, blockers }
+  if (!stageOk) return { ok: false, msg: `Cannot convert from ${stageDef(req.stage).label} . The request must reach ${stageDef('auth').label} first`, blockers }
+  if (blockers.length) return { ok: false, msg: `Cannot convert yet. ${blockers.length} requirement${blockers.length > 1 ? 's' : ''} outstanding`, blockers }
 
   const at = opts.at ?? Date.now()
   const clientId = opts.clientId
@@ -748,7 +748,7 @@ export function planConversion(state, id, opts = {}) {
   }
 
   const apptPatch = req.apptId ? { id: req.apptId, patch: { clientIds: [clientId], intakeId: req.id, status: 'confirmed' } } : null
-  return { ok: true, client, intake, apptPatch, msg: `${client.name} converted — chart, authorisation and referral attribution created` }
+  return { ok: true, client, intake, apptPatch, msg: `${client.name} converted. Chart, authorization and referral attribution created` }
 }
 
 // ------------------------------------------------------------------ seeding ----

@@ -51,13 +51,13 @@ export default function GenerateInvoiceView() {
     if (!clientIds.length) { toast({ message: 'Select at least one client', kind: 'warn' }); return }
     const draft = buildPatientShareDraft(state, { clientIds, balanceOnly, from: range.days[0], to: range.days[range.days.length - 1] })
     download(draft.fileName, draft.content, 'text/plain;charset=utf-8')
-    toast({ message: `Draft statement generated — ${kpis.selected} clients, ${money(kpis.due)} reported patient share`, kind: 'ok' })
+    toast({ message: `Draft statement created for ${kpis.selected} clients, ${money(kpis.due)} reported patient share`, kind: 'ok' })
     setPreview({ rows: invoiceRows, total: kpis.total, due: kpis.due })
   }
 
   return (
     <div className="sectionpage" data-testid="gi-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="file" title="Invoices · draft patient share" sub={`${range.label} · ${kpis.selected} clients selected · ${kpis.claims} primary claims · ${money(kpis.due)} reported patient share`}>
+      <SectionBar icon="file" title="Invoices" sub={`${range.label} · ${kpis.selected} clients selected · ${money(kpis.due)} reported patient share`} wiki="accounts-receivable" info={<><span>Draft patient statements. Patient share comes only from responsibility reported on a remittance, or from self-pay claims. Open insurance balances and linked secondary drafts are not patient charges.</span><span>The app does not mail or email statements. Download the PDF, deliver it yourself, then mark how it went out.</span></>}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ invPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -87,7 +87,7 @@ export default function GenerateInvoiceView() {
         <div className="panel" style={{ width: 380, flex: 'none', borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.team({ size: 14 })}</span>
-            <div><b style={{ fontSize: 14 }}>Clients</b><div className="muted" style={{ fontSize: 12 }}>{filteredClients.length} · select for invoice</div></div>
+            <div><b style={{ fontSize: 14 }}>Clients</b><div className="muted" style={{ fontSize: 12 }}>{filteredClients.length} clients. Select to invoice.</div></div>
             <button className="btn btn-xs" onClick={() => setClientIds(filteredClients.map((c) => c.id))} style={{ marginLeft: 'auto', borderRadius: 8 }}>Select all</button>
           </div>
           <div style={{ maxHeight: 520, overflowY: 'auto' }}>
@@ -114,7 +114,7 @@ export default function GenerateInvoiceView() {
             <button className="btn btn-sm" data-testid="gi-clear" onClick={() => { setClientIds([]); setPreview(null) }} style={{ marginLeft: 'auto', borderRadius: 10 }}>Clear</button>
           </div>
           <div style={{ padding: 20 }}>
-            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Draft only: patient share uses explicit remittance responsibility or self-pay. Unallocated insurance balances and linked secondary drafts are not patient charges. Verify coverage and COB before sending.</p>
+            <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Draft only. Check coverage and COB before you send it.</p>
             {!invoiceRows.length ? (
               <div style={{ padding: 40, textAlign: 'center', border: '1px dashed var(--line)', borderRadius: 12 }}><b>Select clients to preview</b><div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Charges and balances will appear here.</div></div>
             ) : (
@@ -173,7 +173,7 @@ function StatementHistory() {
     <div className="panel" data-testid="gi-statements" style={{ margin: '0 16px 16px', borderRadius: 14, border: '1px solid var(--line)', overflow: 'hidden' }}>
       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--line)', background: 'var(--panel-2)' }}>
         <b style={{ fontSize: 14 }}>Statements</b>
-        <div className="muted" style={{ fontSize: 12 }}>Issued statements and their live balance. The app does not mail or email them: download the PDF, deliver it yourself, then mark how it went out.</div>
+        <div className="muted" style={{ fontSize: 12 }}>Issued statements and their open balance. The app does not mail or email them.</div>
       </div>
       {!list.length ? (
         <div className="muted" style={{ padding: 20, fontSize: 12 }} data-testid="gi-statements-empty">No statements yet. Select a client with a reported share above and press Issue statement.</div>

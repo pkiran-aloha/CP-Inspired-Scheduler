@@ -28,7 +28,7 @@ export const ISSUE_DEST = {
   'no-state': { section: 'pay-idmap', label: 'Payroll ID Mapping', icon: 'pin', open: 'profile', fix: 'Set the work state' },
   'sheet-not-approved': { section: 'pay-timesheets', label: 'Timesheet Submission', icon: 'clipboard', open: 'timesheet', fix: 'Open the timesheet' },
   'evv-missing': { section: 'pay-timesheets', label: 'Timesheet Submission', icon: 'pin', open: 'timesheet', fix: 'Verify the visits' },
-  'zero-pay': { section: 'pay-timesheets', label: 'Timesheet Submission', icon: 'clipboard', open: 'timesheet', fix: 'Add time — or exclude' },
+  'zero-pay': { section: 'pay-timesheets', label: 'Timesheet Submission', icon: 'clipboard', open: 'timesheet', fix: 'Add time or exclude' },
   'duplicate-run': { section: 'pay-runs', label: 'Pay Runs', icon: 'table', open: null, fix: 'Open the existing run' },
   'ot-rate': { section: 'pay-setup', label: 'Payroll Setup', icon: 'zap', open: null, fix: 'Fix the OT multiplier' },
   'rounding': { section: 'pay-setup', label: 'Payroll Setup', icon: 'clock', open: null, fix: 'Review rounding policy' },
@@ -121,13 +121,13 @@ export default function ReviewRegisterModal({ issue, run, onClose }) {
 
   const fixAll = () => {
     actions.setUI({ section: dest.section, payrollFocus: { issue: issue?.code, open: dest.open } })
-    toast({ message: `Opened ${dest.label} — work through the affected records, then come back to the register.`, kind: 'info' })
+    toast({ message: `Opened ${dest.label}. Fix the affected records, then return to the register.`, kind: 'info' })
     onClose && onClose()
   }
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal modal-wide pay-drawer" data-testid="pay-review-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Affected employees — ${issueLabel(issue?.code || 'issue')}`}>
+      <div className="modal modal-wide pay-drawer" data-testid="pay-review-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Affected employees: ${issueLabel(issue?.code || 'issue')}`}>
         <div className="modal-head">
           <span className={`pay-phase-ic ${isBlocker ? 'tone-bad' : 'tone-warn'}`} style={{ width: 30, height: 30, borderRadius: 9 }}>
             {toneIcon(tone)({ size: 15 })}
@@ -137,7 +137,7 @@ export default function ReviewRegisterModal({ issue, run, onClose }) {
               {isBlocker ? 'Blocking issue' : 'Exception'} · {issueLabel(issue?.code || '')}
             </b>
             <div className="muted" style={{ fontSize: 12 }}>
-              {rows.length} affected employee{rows.length === 1 ? '' : 's'}{run ? ` · run ${run.no}` : ''} — open a record to fix it
+              {rows.length} affected employee{rows.length === 1 ? '' : 's'}{run ? ` · run ${run.no}` : ''}. Open a record to fix it
             </div>
           </div>
           {run && <StatusPill status={run.status} />}
@@ -151,7 +151,7 @@ export default function ReviewRegisterModal({ issue, run, onClose }) {
               <b>{isBlocker ? 'This stops the run from being approved.' : 'This does not stop the run, but an approver must look at it.'}</b>
               {(issue?.why || []).slice(0, 4).map((w, i) => <div key={i} className="why">{w}</div>)}
               <div className="why" style={{ marginTop: 4 }}>
-                Fix it in <b>{dest.label}</b> ({dest.fix}) — each row below links straight to the record.
+                Fix it in <b>{dest.label}</b> ({dest.fix}). Each row below opens the record.
               </div>
             </div>
           </div>
@@ -162,7 +162,7 @@ export default function ReviewRegisterModal({ issue, run, onClose }) {
             ))}
             {!rows.length && (
               <div className="py-empty" style={{ padding: 32, textAlign: 'center' }} data-testid="pay-review-empty">
-                <b>No individual records — this is a run-level issue</b>
+                <b>No individual records. This is a run-level issue</b>
                 <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                   {(issue?.why || [])[0] || 'Fix it where the policy lives, then re-check the register.'}
                 </div>
@@ -172,14 +172,14 @@ export default function ReviewRegisterModal({ issue, run, onClose }) {
 
           {run && (run.excluded || []).length > 0 && (
             <div className="pay-hint" style={{ marginTop: 12 }}>
-              <b>{run.excluded.length} excluded from this run</b> — excluded employees stay payable in a later off-cycle run.
+              <b>{run.excluded.length} excluded from this run.</b> They stay payable in a later off-cycle run.
             </div>
           )}
         </div>
 
         <div className="modal-foot">
           <span className="muted" style={{ fontSize: 11.5 }}>
-            {rows.length ? `Fixing in ${dest.label} takes about a minute per record.` : `Policy fixes live in ${dest.label}.`}
+            {rows.length ? `Open a record to fix it in ${dest.label}.` : `Policy fixes live in ${dest.label}.`}
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn btn-sm" onClick={onClose}>Close</button>

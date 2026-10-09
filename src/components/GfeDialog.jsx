@@ -43,8 +43,8 @@ export default function GfeDialog({ client, onClose }) {
       <div className="modal" role="dialog" aria-label="Good Faith Estimate" data-testid="gfe-dialog" style={{ width: 'min(760px, calc(100vw - 32px))' }}>
         <div className="modal-head">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <h2>Good Faith Estimate · {client.name}</h2>
-            <div className="muted" style={{ fontSize: 12 }}>For an uninsured or self-pay family (No Surprises Act). Prefilled from the calendar; adjust it to the care you expect.</div>
+            <h2>Good Faith Estimate: {client.name}</h2>
+            <div className="muted" style={{ fontSize: 12 }}>For an uninsured or self-pay family (No Surprises Act). Filled in from the calendar. Adjust it to the care you expect.</div>
           </div>
           <button className="modal-x" onClick={onClose} aria-label="Close">{Icon.x({ size: 13 })}</button>
         </div>
@@ -82,7 +82,7 @@ export default function GfeDialog({ client, onClose }) {
           <label className="bil-fld"><span>Items or services expected to be scheduled separately (optional)</span>
             <input className="input" value={separately} onChange={(e) => setSeparately(e.target.value)} placeholder="For example: reassessment (97151) in 6 months" data-testid="gfe-separately" />
           </label>
-          <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>The PDF carries the CMS model notice disclaimer, including the right to dispute a bill $400 or more above the estimate within 120 days. The app does not send the estimate or keep a copy: give it to the family and save it with the client's record (kept for 6 years).</p>
+          <p className="muted" style={{ fontSize: 11.5, margin: 0 }}>The PDF includes the CMS model notice, with the right to dispute a bill $400 or more above the estimate within 120 days. The app does not send or keep the estimate. Give it to the family and save it with the client record for 6 years.</p>
         </div>
         <div className="modal-foot">
           <span />

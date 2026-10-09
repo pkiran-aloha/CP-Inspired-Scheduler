@@ -1,7 +1,7 @@
 # ERA and payments
 
 _Sources: src/lib/era.js, src/lib/eraPosting.js, src/lib/paymentLedger.js, src/lib/secondaryLedger.js, src/lib/claims.js, src/lib/billingDocs.js, src/components/PaymentCenterView.jsx, src/components/SecondaryBillingView.jsx, src/state/store.jsx, src/__tests__/fixtures/835-full.txt_
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, fix/billingdocs-wiring, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on Payment Center and Secondary Queue)._
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, fix/billingdocs-wiring, fix/cms1500-derived-values and feat/local-screen-lock branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on Payment Center and Secondary Queue); feat/copy-and-infotips on 2026-10-09 (on-screen copy shortened, no em dashes, guidance behind InfoTips; no behavior change)._
 
 This page covers how money gets onto claims in this browser: the Payment Center, 835 ERA import, manual remittances, voids, recoupments, patient receipts, and secondary (COB) filings. Claim lifecycle is in [billing-and-claims](billing-and-claims.md); aging and statements are in [accounts-receivable](accounts-receivable.md).
 

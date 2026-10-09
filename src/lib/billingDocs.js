@@ -170,7 +170,7 @@ export function buildAppealLetter(state, opts = {}) {
     '',
     'Dear Claims Review,',
     '',
-    narrative || 'Please reconsider the denial — medical necessity documented, auth on file.',
+    narrative || 'Please reconsider the denial. Medical necessity is documented and the authorization is on file.',
     '',
     `Enclosures: ${enclosures.join(', ') || 'None'}`,
     '',

@@ -75,7 +75,7 @@ export default function SecondaryBillingView() {
 
   return (
     <div className="sectionpage" data-testid="sb-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="shield" title="Secondary Queue" sub={`Manual COB · ${stats.ready} ready · ${stats.submitted} filing recorded · ${stats.paid} paid · ${money(stats.totalRemaining)} primary balance · ${range.label}`}>
+      <SectionBar icon="shield" title="Secondary Queue" sub={`${range.label} · ${stats.ready} ready · ${stats.submitted} filed · ${stats.paid} paid`} wiki="billing-and-claims" info={<><span>Primary claims for clients with secondary insurance (COB), once the primary payer has paid part of the claim.</span><span>A secondary draft is a claim-level record. You verify COB and file with the secondary payer yourself, then record the filing here. Payments post to the linked secondary claim, and the receivable stays on the primary.</span></>}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ secPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 240, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -96,7 +96,7 @@ export default function SecondaryBillingView() {
             <span><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span></span>
           </div>
         ))}
-        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, background: 'var(--panel-2)', padding: '8px 14px', borderRadius: 20 }}>Claim-level draft only · verify COB externally · no 837/1500 transmission</span>
+        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, background: 'var(--panel-2)', padding: '8px 14px', borderRadius: 20 }}>Draft only. No 837 or CMS-1500 is sent.</span>
       </div>
 
       <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
@@ -114,14 +114,14 @@ export default function SecondaryBillingView() {
             <button key={id} className={statusF === id ? 'on' : ''} data-testid={`sb-filter-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, fontSize: 13 }}>{label}</button>
           ))}
         </div>
-        <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{filtered.length} in queue · COB flow Primary → Secondary</span>
+        <span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{filtered.length} in queue</span>
       </div>
 
       <div style={{ padding: '0 16px 16px' }}>
         <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>Secondary Queue</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} rows · drafts and manual filing records; payments belong to the linked child</div></div>
+            <div><b style={{ fontSize: 14 }}>Secondary Queue</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} rows</div></div>
           </div>
 
           <div className="py-tbl" data-testid="sb-table" style={{ overflowX: 'auto' }}>
@@ -162,8 +162,8 @@ export default function SecondaryBillingView() {
                 </div>
               </div>
             ))}
-            {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="sb-empty"><b>No secondary queue</b><div className="muted" style={{ fontSize: 12 }}>Partially-paid primaries with COB clients appear here</div></div>}
-            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} rows · Ready {stats.ready} · Submitted {stats.submitted}</span><span>{money(stats.totalRemaining)} primary A/R · *filing balance is not additional A/R</span></div>
+            {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="sb-empty"><b>No secondary queue</b><div className="muted" style={{ fontSize: 12 }}>Partly paid primary claims for COB clients appear here.</div></div>}
+            <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} rows · Ready {stats.ready} · Submitted {stats.submitted}</span><span>{money(stats.totalRemaining)} primary A/R · *a filing balance is not extra A/R</span></div>
           </div>
         </div>
       </div>

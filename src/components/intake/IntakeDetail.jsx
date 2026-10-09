@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react'
 import { useStore } from '../../state/store'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
+import InfoTip from '../../ui/InfoTip'
 import { Dropdown } from '../fields'
 import { isoDate } from '../../lib/date'
 import { downloadDoc, loadPdf } from '../../lib/exportKit'
@@ -52,7 +53,7 @@ function StageRail({ req, onMove, onClose }) {
             data-state={state}
             aria-current={state === 'current' ? 'step' : undefined}
             disabled={!canGo}
-            title={canGo ? `Move to ${s.label}` : state === 'current' ? `Current stage — ${s.desc}` : s.desc}
+            title={canGo ? `Move to ${s.label}` : state === 'current' ? `Current stage: ${s.desc}` : s.desc}
             onClick={() => canGo && onMove(s.id)}
           >
             <span className="iq-rail-n">{state === 'done' ? Icon.check({ size: 10 }) : i + 1}</span>
@@ -62,7 +63,7 @@ function StageRail({ req, onMove, onClose }) {
       })}
       <button type="button" className={`iq-rail-step lost ${lost ? 'current' : ''} ${allowed.includes('closed') ? 'go' : ''}`} data-testid="iq-rail-closed"
         data-state={lost ? 'current' : 'future'} aria-current={lost ? 'step' : undefined}
-        disabled={!allowed.includes('closed')} title={lost ? 'Closed — not admitted' : allowed.includes('closed') ? 'Close as not admitted' : 'Only an open request can be closed'}
+        disabled={!allowed.includes('closed')} title={lost ? 'Closed, not admitted' : allowed.includes('closed') ? 'Close as not admitted' : 'Only an open request can be closed'}
         onClick={() => allowed.includes('closed') && onClose()}>
         <span className="iq-rail-n">{Icon.x({ size: 10 })}</span>
         <span className="iq-rail-l">Close</span>
@@ -86,12 +87,12 @@ function WaitlistForm({ req, onDone, onCancel }) {
   const missing = [!f.reason && 'reason', !f.priority && 'priority', !f.reviewBy && 'review date'].filter(Boolean)
   const save = () => {
     const r = actions.moveIntake(req.id, 'waitlist', { waitlist: { ...req.waitlist, ...f, priority: Number(f.priority) }, by: actorOf(state) })
-    toast({ message: r.ok ? `On the waitlist — review promised for ${fmtDate(f.reviewBy)}` : r.msg, kind: r.ok ? 'ok' : 'warn' })
+    toast({ message: r.ok ? `Added to the waitlist. Review due ${fmtDate(f.reviewBy)}` : r.msg, kind: r.ok ? 'ok' : 'warn' })
     if (r.ok) onDone?.()
   }
   return (
     <div className="iq-inline-form" data-testid="iq-waitlist-form">
-      <h4 style={{ marginTop: 0 }}>Place on the waitlist</h4>
+      <div className="secbar-title"><h4 style={{ marginTop: 0 }}>Place on the waitlist</h4><InfoTip label="the waitlist" wiki="intake" testid="iq-wl-info">The review date keeps a waiting family visible on the board and in the attention list.</InfoTip></div>
       <div className="iq-grid4">
         <label className="iq-fld"><span>Reason</span>
           <Dropdown value={f.reason} onChange={(v) => set('reason', v)} placeholder="Why are we waiting?" options={WAITLIST_REASONS.map((r) => ({ value: r, label: r }))} testid="iq-wl-reason" />
@@ -111,7 +112,6 @@ function WaitlistForm({ req, onDone, onCancel }) {
         <button className="btn btn-sm" onClick={onCancel} data-testid="iq-wl-cancel">Cancel</button>
         {missing.length > 0 && <span className="iq-nextbox-hint" data-testid="iq-wl-missing">Needs a {missing.join(', ')}</span>}
       </div>
-      <p className="iq-note">A waiting family is a promise — the review date keeps it visible on the board and in the attention list.</p>
     </div>
   )
 }
@@ -127,7 +127,7 @@ function ContactForm({ req, onDone }) {
   const set = (k, v) => setF((x) => ({ ...x, [k]: v }))
   const save = () => {
     const r = actions.logContact(req.id, { ...f, by: actorOf(state) })
-    if (r.ok) { toast({ message: r.advanced ? 'Contact logged — request moved to Contacted' : 'Contact attempt logged', kind: 'ok' }); onDone?.() }
+    if (r.ok) { toast({ message: r.advanced ? 'Contact logged. Request moved to Contacted' : 'Contact attempt logged', kind: 'ok' }); onDone?.() }
     else toast({ message: r.msg || 'Could not log', kind: 'warn' })
   }
   return (
@@ -165,7 +165,7 @@ function BenefitsEditor({ req }) {
   const initial = useMemo(() => ({ ...req.vob, memberId: req.memberId, groupNumber: req.groupNumber, planType: req.planType, subscriberName: req.subscriberName, subscriberDob: req.subscriberDob, subscriberRelation: req.subscriberRelation, payerId: req.payerId }), [req])
   const dirty = JSON.stringify(initial) !== JSON.stringify({ ...vob, ...core })
   const save = () => {
-    actions.patchIntake(req.id, { ...core, vob: { ...vob, by: req.ownerId || null } }, `Benefits verification updated — status ${VOB_STATUS[vob.status]?.label || vob.status}`)
+    actions.patchIntake(req.id, { ...core, vob: { ...vob, by: req.ownerId || null } }, `Benefits verification updated: ${VOB_STATUS[vob.status]?.label || vob.status}`)
     toast({ message: 'Benefits record saved', kind: 'ok' })
   }
   return (
@@ -210,7 +210,7 @@ function BenefitsEditor({ req }) {
       </div>
       <div className="iq-actions">
         <button className="btn btn-sm btn-primary" disabled={!dirty} onClick={save} data-testid="iq-vob-save">Save benefits record</button>
-        {!dirty && <span className="muted" style={{ fontSize: 11.5 }}>Saved — the VOB snapshot is what the claim denial trail points back to.</span>}
+        {!dirty && <span className="muted" style={{ fontSize: 11.5 }}>Saved. Denied claims trace back to this VOB record.</span>}
       </div>
     </div>
   )
@@ -230,7 +230,7 @@ function DocsEditor({ req }) {
     const has = consentSigned(req, id)
     const next = has ? (req.consents || []).filter((c) => c.id !== id) : [...(req.consents || []), { id, at: Date.now(), by: actorOf(state), method: 'e-sign' }]
     actions.patchIntake(req.id, { consents: next }, `Consent ${CONSENT_KINDS.find((c) => c.id === id)?.label} ${has ? 'removed' : 'captured'}`)
-    if (!has) toast({ message: 'Consent captured (e-sign placeholder — no external signature service is connected)', kind: 'ok' })
+    if (!has) toast({ message: 'Consent recorded locally. No e-signature service is connected', kind: 'ok' })
   }
   return (
     <div className="iq-tab-body" data-testid="iq-docs">
@@ -276,7 +276,7 @@ function DocsEditor({ req }) {
           )
         })}
       </div>
-      <p className="iq-note">{Icon.info({ size: 11 })} Consents and documents are recorded locally in this demo — no e-signature, fax or clearinghouse connection is made.</p>
+      <p className="iq-note">{Icon.info({ size: 11 })} Consents and documents are recorded in this browser only. Nothing is sent for e-signature, by fax or to a clearinghouse.</p>
     </div>
   )
 }
@@ -321,7 +321,7 @@ function ClinicalEditor({ req }) {
         <label className="iq-fld"><span>Medications</span><input className="input" value={f.medications} onChange={(e) => set('medications', e.target.value)} data-testid="iq-cl-meds" /></label>
         <label className="iq-fld"><span>Allergies</span><input className="input" value={f.allergies} onChange={(e) => set('allergies', e.target.value)} data-testid="iq-cl-allergies" /></label>
         <label className="iq-fld"><span>Pre-screen decision</span>
-          <Dropdown value={f.screen.fit} onChange={(v) => setSub('screen', 'fit', v)} options={[{ value: '', label: 'Not screened' }, { value: 'fit', label: 'Fit — proceed' }, { value: 'maybe', label: 'Maybe — needs capacity/clinical call' }, { value: 'not_fit', label: 'Not a fit — close with a reason' }]} testid="iq-cl-fit" />
+          <Dropdown value={f.screen.fit} onChange={(v) => setSub('screen', 'fit', v)} options={[{ value: '', label: 'Not screened' }, { value: 'fit', label: 'Fit: proceed' }, { value: 'maybe', label: 'Maybe: needs a capacity or clinical decision' }, { value: 'not_fit', label: 'Not a fit: close with a reason' }]} testid="iq-cl-fit" />
         </label>
         <label className="iq-fld wide"><span>Pre-screen notes</span><input className="input" value={f.screen.notes} onChange={(e) => setSub('screen', 'notes', e.target.value)} data-testid="iq-cl-screennote" /></label>
       </div>
@@ -410,7 +410,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
   const doClose = () => {
     if (!lostReason) return
     const r = actions.moveIntake(id, 'closed', { lost: { reason: lostReason, notes: lostNote }, by: actorOf(state) })
-    toast({ message: r.ok ? `Closed — ${LOST_REASONS.find((x) => x.id === lostReason)?.label}` : r.msg, kind: r.ok ? 'ok' : 'warn' })
+    toast({ message: r.ok ? `Closed: ${LOST_REASONS.find((x) => x.id === lostReason)?.label}` : r.msg, kind: r.ok ? 'ok' : 'warn' })
     if (r.ok) { setCloseOpen(false); onClose() }
   }
   const bookMinutes = (t) => { const [h, m] = String(t || '').split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : NaN }
@@ -433,7 +433,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
     const r = actions.patchIntake(id, on
       ? { guardianVerifiedAt: Date.now(), guardianVerifiedBy: actorOf(state) }
       : { guardianVerifiedAt: null, guardianVerifiedBy: null },
-    on ? `Guardian identity and contact verified${req.guardian?.name ? ` — ${req.guardian.name}` : ''}` : 'Guardian verification removed')
+    on ? `Guardian identity and contact verified${req.guardian?.name ? ` (${req.guardian.name})` : ''}` : 'Guardian verification removed')
     toast({ message: r.ok ? (on ? 'Guardian verified' : 'Guardian verification removed') : r.msg, kind: r.ok ? 'ok' : 'warn' })
   }
   // Escape / backdrop peel one layer at a time: modal → inline form → drawer
@@ -481,7 +481,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
               ? <>{Icon.checkCircle({ size: 14 })} <b>Converted {sinceText(req.convertedAt)}.</b> {linkedClient ? <>Client chart <b>{linkedClient.name}</b> carries this request as its origin{req.firstServiceDate ? ` · first service ${fmtDate(req.firstServiceDate)}` : ''}.</> : 'The linked client record is missing from this workspace.'}
                 {linkedClient && state.canAccess('calendar', 'full') && state.canAccess('clients', 'view') && <button className="btn btn-sm" data-testid="iq-plan-first-week" onClick={() => { actions.setUI({ section: 'clients', cliQ: linkedClient.name, cliHandoff: linkedClient.id }); onClose() }}>Plan first week</button>}
                 {linkedClient && <button className="btn btn-sm" data-testid="iq-open-client" onClick={() => { actions.setUI({ section: 'clients', cliQ: linkedClient.name }); onClose() }}>Open client record</button>}</>
-              : <>{Icon.x({ size: 14 })} <b>Closed {req.lost?.at ? sinceText(req.lost.at) : ''} — {LOST_REASONS.find((x) => x.id === req.lost?.reason)?.label || 'reason not recorded'}.</b> {req.lost?.notes}
+              : <>{Icon.x({ size: 14 })} <b>Closed {req.lost?.at ? sinceText(req.lost.at) : ''}: {LOST_REASONS.find((x) => x.id === req.lost?.reason)?.label || 'reason not recorded'}.</b> {req.lost?.notes}
                 <button className="btn btn-sm" data-testid="iq-reopen" title="Put the request back in the pipeline as a new referral" onClick={() => move('new')}>{Icon.zap({ size: 12 })} Reopen</button></>}
           </div>
         ) : (
@@ -491,7 +491,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
               <div>
                 <b>{req.stage === 'review' ? 'Choose the next branch' : `Next: ${target ? stageDef(target).label : '—'}`}</b>
                 <span className="muted">{req.stage === 'review'
-                  ? 'Clinically ready — waitlist the family or put the assessment on the calendar.'
+                  ? 'Clinically ready. Waitlist the family or book the assessment.'
                   : target === 'scheduled' && !req.apptId
                     ? 'Booking the visit on the calendar is what moves this request forward.'
                     : `${prog.done}/${prog.total} requirements met${prog.blockers.length ? ` · ${prog.blockers.length} outstanding` : target === 'converted' ? ' · ready to convert' : ' · ready to move'}`}</span>
@@ -506,13 +506,13 @@ export function IntakeDetail({ id, onClose, onToast }) {
                   <button className="btn btn-sm btn-primary" data-testid="iq-advance" aria-pressed={bookOpen} onClick={openBook}>{Icon.cal({ size: 12 })} Book assessment</button>
                 ) : target === 'converted' ? (
                   <button className="btn btn-sm btn-primary" data-testid="iq-advance" disabled={prog.blockers.length > 0}
-                    title={prog.blockers.length ? `${prog.blockers.length} requirement${prog.blockers.length > 1 ? 's' : ''} outstanding — see the checklist below` : 'Create the client chart from this request'}
+                    title={prog.blockers.length ? `${prog.blockers.length} requirement${prog.blockers.length > 1 ? 's' : ''} outstanding. See the checklist below` : 'Create the client chart from this request'}
                     onClick={() => advanceTo('converted')}>
                     {Icon.plus({ size: 12 })} Convert to client
                   </button>
                 ) : target ? (
                   <button className="btn btn-sm btn-primary" data-testid="iq-advance" disabled={prog.blockers.length > 0}
-                    title={prog.blockers.length ? `${prog.blockers.length} requirement${prog.blockers.length > 1 ? 's' : ''} outstanding — see the checklist below` : `Move to ${stageDef(target).label}`}
+                    title={prog.blockers.length ? `${prog.blockers.length} requirement${prog.blockers.length > 1 ? 's' : ''} outstanding. See the checklist below` : `Move to ${stageDef(target).label}`}
                     onClick={() => advanceTo(target)}>
                     {Icon.check({ size: 12 })} Advance to {stageDef(target).short}
                   </button>
@@ -523,7 +523,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
             {wlOpen && <WaitlistForm req={req} onDone={() => setWlOpen(false)} onCancel={() => setWlOpen(false)} />}
             {bookOpen && (
               <div className="iq-inline-form" data-testid="iq-book-form">
-                <h4 style={{ marginTop: 0 }}>Book the assessment visit</h4>
+                <div className="secbar-title"><h4 style={{ marginTop: 0 }}>Book the assessment visit</h4><InfoTip label="booking the assessment" wiki="intake" testid="iq-bk-info">The visit goes on the calendar as an Evaluation linked to this request and moves the request to {stageDef('scheduled').label}. After conversion it links to the client chart.</InfoTip></div>
                 <div className="iq-grid4">
                   <label className="iq-fld"><span>Date</span><input className="input" type="date" value={book.date} onChange={(e) => setBook((b) => ({ ...b, date: e.target.value }))} data-testid="iq-bk-date" /></label>
                   <label className="iq-fld"><span>Start</span><input className="input" type="time" value={book.start} onChange={(e) => setBook((b) => ({ ...b, start: e.target.value }))} data-testid="iq-bk-start" /></label>
@@ -537,7 +537,6 @@ export function IntakeDetail({ id, onClose, onToast }) {
                   <button className="btn btn-sm" onClick={() => setBookOpen(false)} data-testid="iq-bk-cancel">Cancel</button>
                   {bookProblem && <span className="iq-nextbox-hint" data-testid="iq-bk-problem">{bookProblem}</span>}
                 </div>
-                <p className="iq-note">The visit lands on the calendar as an Evaluation linked to this request, moves it to {stageDef('scheduled').label}, and re-points at the client chart on conversion.</p>
               </div>
             )}
           </div>
@@ -675,7 +674,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
                   </div>
                 </div>
               ))}
-              {!(req.contacts || []).length && <div className="iq-col-empty">No outreach logged yet. Every attempt counts — this is what the response-time KPI measures.</div>}
+              {!(req.contacts || []).length && <div className="iq-col-empty">No outreach logged yet. Each attempt counts toward the response-time KPI.</div>}
             </div>
           </div>
         )}
@@ -705,9 +704,8 @@ export function IntakeDetail({ id, onClose, onToast }) {
       {closeOpen && (
         <div className="iq-modal" data-testid="iq-close-modal" onMouseDown={(e) => e.target === e.currentTarget && setCloseOpen(false)}>
           <div className="iq-modal-card" role="dialog" aria-modal="true" aria-label="Close request">
-            <header className="iq-modal-h"><b>Close {req.no} — not admitted</b><button className="iconbtn" onClick={() => setCloseOpen(false)}>{Icon.x({ size: 13 })}</button></header>
+            <header className="iq-modal-h"><b>Close {req.no} as not admitted</b><InfoTip label="closing a request" wiki="intake" testid="iq-lost-info">The reason separates real demand loss from process problems. The pipeline report groups closures by reason.</InfoTip><button className="iconbtn" onClick={() => setCloseOpen(false)}>{Icon.x({ size: 13 })}</button></header>
             <div className="iq-tab-body">
-              <p className="iq-note">Tracking the reason is what separates true demand loss from a process breakdown — the pipeline report groups these.</p>
               <div className="iq-reasons">
                 {LOST_REASONS.map((r) => (
                   <button key={r.id} className={`iq-reason ${lostReason === r.id ? 'on' : ''}`} data-testid={`iq-lost-${r.id}`} onClick={() => setLostReason(r.id)}>
@@ -732,7 +730,7 @@ export function IntakeDetail({ id, onClose, onToast }) {
           <div className="iq-modal-card" role="dialog" aria-modal="true" aria-label="Convert to client">
             <header className="iq-modal-h"><b>Convert {fullName(req)} into a client chart</b><button className="iconbtn" onClick={() => setConvertOpen(false)}>{Icon.x({ size: 13 })}</button></header>
             <div className="iq-tab-body">
-              <p className="iq-para">This creates the client record and links everything downstream in one step — one Undo reverses all of it.</p>
+              <p className="iq-para">Creates the client record and links this request to it. One Undo reverses all of it.</p>
               <div className="iq-grid2">
                 <div>
                   <h4>Client chart will carry</h4>

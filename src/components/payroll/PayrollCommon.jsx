@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react'
 import { useStore } from '../../state/store'
 import { Icon } from '../../ui/Icons'
+import InfoTip from '../../ui/InfoTip'
 import { PersonAvatar } from '../../ui/avatars'
 import { PAY_FREQUENCIES, RUN_STATUS_LABEL, periodsFor, periodFor } from '../../lib/payroll'
 import { todayISO } from '../../lib/date'
@@ -142,10 +143,10 @@ export function GateList({ gate, onFilter }) {
  * wizard rail and the phase panels — one vocabulary for the whole module.
  */
 export const PAY_PHASES = [
-  { id: 'period', label: 'Select period', sub: 'Which cycle to pay', icon: 'cal', blurb: 'Choose the pay cycle; eligible employees and worked hours come straight from the calendar.', promise: 'Pick the cycle' },
-  { id: 'review', label: 'Review register', sub: 'Price time · clear exceptions', icon: 'table', blurb: 'Check gross-to-net for every employee, then clear the blockers and work the exceptions.', promise: 'Check the numbers' },
+  { id: 'period', label: 'Select period', sub: 'Which cycle to pay', icon: 'cal', blurb: 'Choose the pay cycle. Eligible employees and worked hours come from the calendar.', promise: 'Pick the cycle' },
+  { id: 'review', label: 'Review register', sub: 'Price time, clear exceptions', icon: 'table', blurb: 'Check gross-to-net for every employee, then clear the blockers and work the exceptions.', promise: 'Check the numbers' },
   { id: 'approve', label: 'Approve', sub: 'A second person signs', icon: 'shield', blurb: 'An independent approver signs the register before any money is locked.', promise: 'Get it signed' },
-  { id: 'process', label: 'Process & pay', sub: 'Lock & release files', icon: 'zap', blurb: 'Re-price from the live ledgers, lock the register and release stubs, provider and bank files.', promise: 'Lock & release' },
+  { id: 'process', label: 'Process & pay', sub: 'Lock & release files', icon: 'zap', blurb: 'Reprice from the live ledgers, lock the register and release the stub, provider and bank files.', promise: 'Lock & release' },
 ]
 
 /** How far a run has travelled: `done` phases complete, `step` the active phase. */
@@ -178,7 +179,7 @@ export function PayStepper({ steps, step, maxStep, onStep, meta = {} }) {
               onClick={() => reachable && onStep && onStep(i)}
               disabled={!reachable}
               aria-current={on ? 'step' : undefined}
-              title={reachable ? `${s.label} — ${s.sub}` : 'Finish the earlier phases first'}
+              title={reachable ? `${s.label}: ${s.sub}` : 'Finish the earlier phases first'}
             >
               <span className="n">{done ? Icon.check({ size: 12 }) : Icon[s.icon] ? Icon[s.icon]({ size: 13 }) : i + 1}</span>
               <span className="tx">
@@ -230,7 +231,14 @@ export function PhasePanel({ index, total, icon, tone = 'accent', title, sub, gu
         <span className={`pay-phase-ic tone-${tone}`}>{Icon[icon] ? Icon[icon]({ size: 17 }) : Icon.spark({ size: 17 })}</span>
         <div className="pay-phase-titles">
           <span className="pay-phase-eyebrow">Phase {index} of {total}</span>
-          <h3>{title}</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <h3>{title}</h3>
+            {guide.length > 0 && (
+              <InfoTip label={`phase ${index}`} wiki="payroll" testid={`pay-guide-${index}`}>
+                {guide.map((g, i) => <span key={i}>{i + 1}. {g}</span>)}
+              </InfoTip>
+            )}
+          </div>
           {sub && <div className="pay-phase-sub">{sub}</div>}
         </div>
         {meta && meta.length > 0 && (
@@ -241,13 +249,6 @@ export function PhasePanel({ index, total, icon, tone = 'accent', title, sub, gu
           </div>
         )}
       </div>
-      {guide.length > 0 && (
-        <ol className="pay-guide" data-testid={`pay-guide-${index}`}>
-          {guide.map((g, i) => (
-            <li key={i}><span className="pay-guide-n">{i + 1}</span><span>{g}</span></li>
-          ))}
-        </ol>
-      )}
       {children}
       {footer && <div className="pay-actions pay-phase-foot">{footer}</div>}
     </div>

@@ -63,6 +63,6 @@ export function billingKpis(state, days, prior, { today } = {}) {
     { k: 'lag', label: 'Charge lag (days)', value: cur.lag, delta: d(cur.lag, prev.lag), invert: true,
       help: 'Average days from the last service date to submission, for claims submitted in the window.' },
     { k: 'recouped', label: 'Recouped', value: Math.round(cur.recouped), fmt: 'money', delta: d(cur.recouped, prev.recouped), invert: true,
-      help: 'Money payers took back in the window (Payment Center → Recoupments).' },
+      help: 'Money payers took back in this period (Payment Center → Recoupments).' },
   ]
 }

@@ -512,7 +512,7 @@ export function earningsFor(state, staffId, periodId) {
   // 1) salary baseline for salaried staff (paid per period, not per hour)
   if (profile?.payType === 'salary') {
     const perPeriod = Math.round(((profile.annualSalary || 0) / (PAY_FREQUENCIES[payroll.frequency] || PAY_FREQUENCIES.biweekly).periods) * 100)
-    if (perPeriod > 0) rows.push({ code: 'REG', label: 'Salary — period base', hours: 0, minutes: 0, rate: 0, cents: perPeriod, salaryBaseline: true, source: 'salary' })
+    if (perPeriod > 0) rows.push({ code: 'REG', label: 'Salary, period base', hours: 0, minutes: 0, rate: 0, cents: perPeriod, salaryBaseline: true, source: 'salary' })
   }
 
   // 2) session-rate staff are paid per delivered session, not per hour
@@ -574,7 +574,7 @@ export function earningsFor(state, staffId, periodId) {
       const otHours = +(workedHours - effectiveWeeklyOt).toFixed(4)
       const premium = Math.round(otHours * regularRateCents * (payroll.otMultiplier - 1))
       otRows.push({
-        code: 'OT', label: `Overtime premium — week of ${w.start}`, hours: otHours, minutes: Math.round(otHours * 60),
+        code: 'OT', label: `Overtime premium, week of ${w.start}`, hours: otHours, minutes: Math.round(otHours * 60),
         rate: +(regularRateCents / 100).toFixed(2), cents: premium, source: 'derived', week: w.start,
         regularRate: +(regularRateCents / 100).toFixed(2), basis: `straight ${(straight / 100).toFixed(2)} + nondisc ${(nondisc / 100).toFixed(2)} ÷ ${workedHours.toFixed(2)}h`,
       })
@@ -734,7 +734,7 @@ export function grossToNet(state, staffId, periodId) {
     { id: 'e-med', code: 'FICA-MED-ER', label: 'Employer Medicare match', cents: medicareBase },
     { id: 'e-futa', code: 'FUTA', label: 'FUTA (0.6% to $7,000)', cents: Math.round(Math.min(taxableNow, Math.max(0, taxes.futa.wageBase - prior.futaWages)) * taxes.futa.rate) },
     { id: 'e-suta', code: 'SUTA', label: `SUTA (${profile.state || 'CA'})`, cents: Math.round(Math.min(taxableNow, Math.max(0, taxes.suta.wageBase - prior.sutaWages)) * taxes.suta.rate) },
-    { id: 'e-wc', code: 'WC', label: `Workers' comp — ${profile.workerCompClass}`, cents: Math.round(taxableNow * taxes.workersComp.defaultRate) },
+    { id: 'e-wc', code: 'WC', label: `Workers' comp (${profile.workerCompClass})`, cents: Math.round(taxableNow * taxes.workersComp.defaultRate) },
   ]
   const matchCents = (profile.deductions || []).filter((d) => d.kind === 'pretax' && d.employerMatchPct).reduce((t, d) => {
     const deferral = preTax.find((p) => p.id === d.id)?.cents || 0
@@ -809,7 +809,7 @@ export function runGate(state, period, opts = {}) {
   if (!period) { blockers.push({ code: 'no-period', why: 'No pay period selected' }); return { ok: false, blockers, warnings } }
 
   const dupes = duplicatePayrollIds(state.payProfiles || [])
-  for (const d of dupes) blockers.push({ code: 'dup-payroll-id', why: `Payroll ID "${d.payrollId}" is used by ${d.staffIds.length} staff records — the provider cannot tell them apart`, staffIds: d.staffIds })
+  for (const d of dupes) blockers.push({ code: 'dup-payroll-id', why: `Payroll ID "${d.payrollId}" is used by ${d.staffIds.length} staff records. The provider cannot tell them apart`, staffIds: d.staffIds })
 
   // A run being approved or processed is not a duplicate of itself.
   const samePeriod = Object.values(state.payRuns || {})
@@ -820,15 +820,15 @@ export function runGate(state, period, opts = {}) {
     const profile = profileFor(state, staffId)
     const staff = (state.staff || []).find((s) => s.id === staffId)
     if (!profile) { blockers.push({ code: 'no-profile', why: `${staff?.name || staffId} has no payroll profile`, staffId }); continue }
-    if (!String(profile.payrollId || '').trim()) warnings.push({ code: 'no-payroll-id', why: `${staff?.name || staffId} has no payroll ID — provider export will need one`, staffId })
+    if (!String(profile.payrollId || '').trim()) warnings.push({ code: 'no-payroll-id', why: `${staff?.name || staffId} has no payroll ID. The provider export needs one`, staffId })
     if (profile.payType === 'hourly' && !(Number(profile.baseRate) > 0)) blockers.push({ code: 'no-rate', why: `${staff?.name || staffId} has no hourly rate`, staffId })
     if (profile.payType === 'salary' && !(Number(profile.annualSalary) > 0)) blockers.push({ code: 'no-salary', why: `${staff?.name || staffId} has no annual salary`, staffId })
-    if (profile.classification === 'exempt' && !profile.classificationReviewed) warnings.push({ code: 'exempt-unreviewed', why: `${staff?.name || staffId} is flagged exempt — confirm the salary-basis and duties test before paying without overtime`, staffId })
-    if (profile.state === undefined || profile.state === '') warnings.push({ code: 'no-state', why: `${staff?.name || staffId} has no work state — state tax cannot be estimated`, staffId })
+    if (profile.classification === 'exempt' && !profile.classificationReviewed) warnings.push({ code: 'exempt-unreviewed', why: `${staff?.name || staffId} is flagged exempt. Confirm the salary-basis and duties tests before paying without overtime`, staffId })
+    if (profile.state === undefined || profile.state === '') warnings.push({ code: 'no-state', why: `${staff?.name || staffId} has no work state, so state tax cannot be estimated`, staffId })
 
     const sheet = sheetFor(state, staffId, period.id)
     if (payroll.approvals.requireTimesheet && !['approved'].includes(sheet.status)) {
-      warnings.push({ code: 'sheet-not-approved', why: `${staff?.name || staffId}: timesheet is ${sheet.status.replace('_', ' ')} — approve it or exclude the employee`, staffId, sheetStatus: sheet.status })
+      warnings.push({ code: 'sheet-not-approved', why: `${staff?.name || staffId}: timesheet is ${sheet.status.replace('_', ' ')}. Approve it or exclude the employee`, staffId, sheetStatus: sheet.status })
     }
 
     const e = earningsFor(state, staffId, period.id)
@@ -838,19 +838,19 @@ export function runGate(state, period, opts = {}) {
       // flagging future appointments would train approvers to ignore the gate.
       const today = todayISO()
       const unverified = e.lines.filter((l) => l.meta?.billable && l.date <= today && !/^verified/.test(l.meta?.evv || ''))
-      if (unverified.length) warnings.push({ code: 'evv-missing', why: `${unverified.length} visit${unverified.length > 1 ? 's' : ''} for ${staff?.name || staffId} lack visit verification (EVV) — confirm delivered before paying`, staffId, count: unverified.length, apptIds: unverified.map((l) => l.apptId) })
+      if (unverified.length) warnings.push({ code: 'evv-missing', why: `${unverified.length} visit${unverified.length > 1 ? 's' : ''} for ${staff?.name || staffId} have no visit verification (EVV). Confirm they were delivered before paying`, staffId, count: unverified.length, apptIds: unverified.map((l) => l.apptId) })
     }
     const net = grossToNet(state, staffId, period.id)
-    if (net.netCents < 0) blockers.push({ code: 'negative-net', why: `${staff?.name || staffId} would take home ${(net.netCents / 100).toFixed(2)} — deductions exceed pay`, staffId })
+    if (net.netCents < 0) blockers.push({ code: 'negative-net', why: `${staff?.name || staffId} would take home ${(net.netCents / 100).toFixed(2)}. Deductions exceed pay`, staffId })
     if (profile.payType === 'hourly' && e.workedHours > 0 && net.netCents >= 0) {
       const eff = net.grossCents / e.workedHours
-      if (eff < 16) warnings.push({ code: 'below-min-wage', why: `${staff?.name || staffId} averages ${(eff / 100).toFixed(2)}/hour against hours worked — below the federal minimum wage`, staffId })
+      if (eff < 16) warnings.push({ code: 'below-min-wage', why: `${staff?.name || staffId} averages ${(eff / 100).toFixed(2)}/hour for hours worked, below the federal minimum wage`, staffId })
     }
   }
 
   if (!included.length) blockers.push({ code: 'no-employees', why: 'No employees are selected for this run' })
   if (payroll.otMultiplier < 1.5) blockers.push({ code: 'ot-rate', why: `Overtime multiplier ${payroll.otMultiplier}× is below the 1.5× federal minimum` })
-  if (payroll.rounding.mode !== 'none') warnings.push({ code: 'rounding', why: `Time rounding is on (${payroll.rounding.mode}, ${payroll.rounding.mins} min). Rounding may not consistently favour the employer — spot-check the register each period.` })
+  if (payroll.rounding.mode !== 'none') warnings.push({ code: 'rounding', why: `Time rounding is on (${payroll.rounding.mode}, ${payroll.rounding.mins} min). Rounding must not favor the employer over time. Spot-check the register each period.` })
 
   return { ok: blockers.length === 0, blockers, warnings, included }
 }
@@ -934,17 +934,17 @@ export function planSheet(state, staffId, periodId, action, opts = {}) {
   let next = { ...cur, audit: [...(cur.audit || []), { at, who, action: `sheet ${action}` }] }
   if (action === 'submit') {
     if (!['open', 'rejected'].includes(cur.status)) {
-      return { ok: false, msg: `A ${cur.status} timesheet cannot be resubmitted — reopen it deliberately first` }
+      return { ok: false, msg: `A ${cur.status} timesheet cannot be resubmitted. Reopen it first` }
     }
     const t = timesheet(state, staffId, periodId)
-    if (!t.lines.length) return { ok: false, msg: 'Nothing to submit — no payable time in this period' }
+    if (!t.lines.length) return { ok: false, msg: 'Nothing to submit. There is no payable time in this period' }
     next = { ...next, status: 'submitted', submittedAt: at, submittedBy: who }
   } else if (action === 'approve') {
     if (cur.status !== 'submitted') return { ok: false, msg: 'Only a submitted timesheet can be approved' }
     // segregation of duties: the person who submitted should not approve
     const payroll = state.settings?.payroll || defaultPayrollSettings()
     if (payroll.approvals.separateApprover && cur.submittedBy && cur.submittedBy === who) {
-      return { ok: false, msg: `Segregation of duties: ${who} submitted this timesheet — a different approver must sign off` }
+      return { ok: false, msg: `Segregation of duties: ${who} submitted this timesheet. A different person must approve it` }
     }
     next = { ...next, status: 'approved', approvedAt: at, approvedBy: who }
   } else if (action === 'reject') {
@@ -960,7 +960,7 @@ export function planSheet(state, staffId, periodId, action, opts = {}) {
     const isFlat = ['BONUS', 'BONUSX', 'MILE', 'EXP'].includes(adj.code)
     const hours = Number(adj.hours)
     if (!(hours > 0)) return { ok: false, msg: isFlat ? 'Enter a positive amount' : 'Enter positive hours' }
-    if (!isFlat && hours > 24) return { ok: false, msg: 'A single adjustment above 24 hours looks wrong — split it or fix the entry' }
+    if (!isFlat && hours > 24) return { ok: false, msg: 'An adjustment above 24 hours looks wrong. Split it or fix the entry' }
     const entry = { id: `adj-${at}-${(cur.adjustments || []).length}`, code: adj.code, date: adj.date, hours, note: adj.note || '', by: who, at }
     next = { ...next, adjustments: [...(cur.adjustments || []), entry], audit: [...next.audit, { at, who, action: 'sheet adjustment', detail: `${adj.code} ${hours}${isFlat ? ' ($)' : 'h'} ${adj.date}` }] }
   } else if (action === 'removeAdjustment') {
@@ -987,7 +987,7 @@ export function planRun(state, period, action, opts = {}) {
 
   const run = runs[opts.runId]
   if (!run) return { ok: false, msg: 'Pay run not found' }
-  if (run.status === 'voided') return { ok: false, msg: 'This run is voided — create a new one' }
+  if (run.status === 'voided') return { ok: false, msg: 'This run is voided. Create a new one' }
 
   if (action === 'submit') {
     if (run.status !== 'draft') return { ok: false, msg: 'Only a draft run can be sent for approval' }
@@ -997,11 +997,11 @@ export function planRun(state, period, action, opts = {}) {
   if (action === 'approve') {
     if (!['draft', 'pending_approval'].includes(run.status)) return { ok: false, msg: `A ${RUN_STATUS_LABEL[run.status]} run cannot be approved` }
     if (payroll.approvals.requireApproval && run.preparedBy && run.preparedBy === who && payroll.approvals.separateApprover) {
-      return { ok: false, msg: `Segregation of duties: ${who} prepared this run — approval must come from a second person` }
+      return { ok: false, msg: `Segregation of duties: ${who} prepared this run. A second person must approve it` }
     }
     const gate = runGate(state, period, { included: run.included, runId: run.id })
-    if (!gate.ok) return { ok: false, msg: `Cannot approve — ${gate.blockers.length} blocker(s): ${gate.blockers[0].why}`, gate }
-    return { ok: true, msg: `${run.no} approved — ready to process`, runs: { [run.id]: { ...run, status: 'approved', approvedAt: at, approvedBy: who, gate, audit: [...(run.audit || []), nowAudit(opts, 'approved')] } } }
+    if (!gate.ok) return { ok: false, msg: `Cannot approve. ${gate.blockers.length} blocker(s): ${gate.blockers[0].why}`, gate }
+    return { ok: true, msg: `${run.no} approved and ready to process`, runs: { [run.id]: { ...run, status: 'approved', approvedAt: at, approvedBy: who, gate, audit: [...(run.audit || []), nowAudit(opts, 'approved')] } } }
   }
 
   if (action === 'process') {
@@ -1021,19 +1021,19 @@ export function planRun(state, period, action, opts = {}) {
       const cur = (state.paySheets || {})[key] || { id: key, staffId, periodId: period.id, status: 'open', adjustments: [], audit: [] }
       sheets[key] = { ...cur, status: 'processed', processedAt: at, runId: run.id, audit: [...(cur.audit || []), { at, who, action: 'processed in pay run', detail: run.no }] }
     }
-    return { ok: true, msg: `${run.no} processed — ${fresh.totals.staff} staff · net ${(fresh.totals.netCents / 100).toLocaleString()} · register locked`, runs: { [run.id]: processed }, sheets }
+    return { ok: true, msg: `${run.no} processed: ${fresh.totals.staff} staff, net ${(fresh.totals.netCents / 100).toLocaleString()}. Register locked`, runs: { [run.id]: processed }, sheets }
   }
 
   if (action === 'void') {
     if (run.locked && !opts.force) return { ok: false, msg: 'A processed run is locked. Voiding a processed run needs an explicit reversal decision.' }
     return {
-      ok: true, msg: `${run.no} voided — no money moved`,
+      ok: true, msg: `${run.no} voided. No money moved`,
       runs: { [run.id]: { ...run, status: 'voided', voidedAt: at, voidedBy: who, note: opts.note || '', audit: [...(run.audit || []), nowAudit(opts, 'voided', opts.note)] } },
     }
   }
 
   if (action === 'exclude' || action === 'include') {
-    if (run.status !== 'draft') return { ok: false, msg: 'Only a draft run can change its employee list — reopen it first' }
+    if (run.status !== 'draft') return { ok: false, msg: 'Only a draft run can change its employee list. Reopen it first' }
     const set = new Set(run.included)
     if (action === 'exclude') set.delete(opts.staffId); else set.add(opts.staffId)
     const included = [...set]
@@ -1049,7 +1049,7 @@ export function planRun(state, period, action, opts = {}) {
   }
 
   if (action === 'reopen') {
-    if (run.status === 'processed') return { ok: false, msg: 'Processed registers are immutable — post an off-cycle adjustment instead' }
+    if (run.status === 'processed') return { ok: false, msg: 'A processed register cannot be changed. Post an off-cycle adjustment instead' }
     return { ok: true, msg: `${run.no} reopened for edits`, runs: { [run.id]: { ...run, status: 'draft', audit: [...(run.audit || []), nowAudit(opts, 'reopened')] } } }
   }
   return { ok: false, msg: `Unknown pay run action ${action}` }

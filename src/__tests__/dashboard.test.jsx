@@ -345,7 +345,7 @@ describe('drill-down drawer', () => {
     expect(dataBtn.textContent).toMatch(/Underlying data \(\d+\)/)
     fireEvent.click(dataBtn)
     const drawer = await screen.findByTestId('dsh-drawer')
-    expect(drawer.textContent).toContain('the data behind it')
+    expect(drawer.textContent).toContain('underlying data')
     const rows = Array.from(drawer.querySelectorAll('.dd-row'))
     expect(rows.length).toBeGreaterThan(10)
     const firstDate = rows[0].querySelector('time').textContent

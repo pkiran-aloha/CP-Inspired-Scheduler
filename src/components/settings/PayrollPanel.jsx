@@ -60,7 +60,7 @@ function PayrollGeneral({ state, actions, toast, readOnly, payroll }) {
           <Row label="Mileage reimbursement rate" hint="IRS or practice mileage reimbursement ($/mi) synced with System Settings">
             <NumberField value={payroll.mileageRate ?? state.settings.mileageRate ?? 0.67} min={0} max={5} step={0.01} suffix="$/mi" disabled={readOnly} testid="set-pay-mileage" onCommit={(v) => { set({ mileageRate: v }); actions.updateSettings({ mileageRate: v }) }} />
           </Row>
-          <Row label="Workweek starts" hint="The FLSA workweek boundary used for the 40-hour test — usually Monday, not the calendar week start">
+          <Row label="Workweek starts" hint="The FLSA workweek used for the 40-hour test. Usually Monday, not the calendar week start">
             <Select value={String(payroll.workWeekStart)} disabled={readOnly} testid="set-pay-weekstart" wide={180}
               options={WEEKDAYS.map((d, i) => ({ value: String(i), label: d }))} onChange={(v) => set({ workWeekStart: Number(v) })} />
           </Row>
@@ -73,8 +73,8 @@ function PayrollGeneral({ state, actions, toast, readOnly, payroll }) {
           </Row>
         </div>
         <Banner tone="info" testid="set-pay-note">
-          Gross-to-net here is an <b>estimate</b> for the local demo — it is not a filing engine, and no tax is remitted. Rates and
-          the tax tables live in Payroll → Setup.
+          Gross-to-net is a local <b>estimate</b>. It is not a filing engine and no tax is remitted. Rates and tax tables are in
+          Payroll Setup.
         </Banner>
       </Section>
 
@@ -98,21 +98,20 @@ function PayrollGeneral({ state, actions, toast, readOnly, payroll }) {
         </div>
       </Section>
 
-      <Section title="Cancellation policy" sub="The bands applied to sessions a status marks as cancellation / no-show" testId="set-pay-cancel">
+      <Section title="Cancellation policy" sub="Pay for sessions marked as a cancellation or no-show" testId="set-pay-cancel" wiki="payroll" info={<>
+        Notice at or above the free window pays nothing. Inside the window, the short-notice share is paid. A no-show or a
+        cancellation at the door pays the no-show share. Which statuses count is set in
+        {' '}<a href="#" onClick={(e) => { e.preventDefault(); actions.setUI({ settingsModule: 'appointment-status', settingsSub: null }) }}>Settings, Appointment Status</a>.
+      </>}>
         <div className="set-grid2">
           <Row label="Free-notice window"><NumberField value={cancel.freeNoticeHours} min={0} max={168} suffix="hours" disabled={readOnly} testid="set-pay-free" onCommit={(v) => set({ cancelPolicy: { ...cancel, freeNoticeHours: v } })} /></Row>
           <Row label="Short-notice pay"><NumberField value={cancel.payShortNoticePct} min={0} max={100} suffix="%" disabled={readOnly} testid="set-pay-short" onCommit={(v) => set({ cancelPolicy: { ...cancel, payShortNoticePct: v } })} /></Row>
           <Row label="No-show / at-the-door pay"><NumberField value={cancel.payNoShowPct} min={0} max={100} suffix="%" disabled={readOnly} testid="set-pay-noshow" onCommit={(v) => set({ cancelPolicy: { ...cancel, payNoShowPct: v } })} /></Row>
           <Row label="Notice not recorded"><NumberField value={cancel.payUnknownNoticePct} min={0} max={100} suffix="%" disabled={readOnly} testid="set-pay-unknown" onCommit={(v) => set({ cancelPolicy: { ...cancel, payUnknownNoticePct: v } })} /></Row>
         </div>
-        <p className="set-hint">
-          A cancellation with notice at or above the free window pays nothing; inside the window it pays the short-notice share; a
-          no-show or a cancellation at the door pays the no-show share. Which statuses trigger this is set in
-          {' '}<a href="#" onClick={(e) => { e.preventDefault(); actions.setUI({ settingsModule: 'appointment-status', settingsSub: null }) }}>Settings → Appointment Status</a>.
-        </p>
       </Section>
 
-      <Section title="Approval workflow" sub="The controls that keep payroll honest" testId="set-pay-approvals">
+      <Section title="Approval workflow" sub="Who submits, approves and processes a run" testId="set-pay-approvals">
         <div className="set-grid2">
           <Row label="Timesheets must be submitted"><Toggle on={approvals.requireTimesheet !== false} disabled={readOnly} testid="set-pay-reqsheet" onChange={(v) => set({ approvals: { ...approvals, requireTimesheet: v } })} /></Row>
           <Row label="Run requires approval before processing"><Toggle on={approvals.requireApproval !== false} disabled={readOnly} testid="set-pay-reqapprove" onChange={(v) => set({ approvals: { ...approvals, requireApproval: v } })} /></Row>
@@ -152,6 +151,12 @@ function EarningCodes({ state, actions, toast, readOnly }) {
         title="Earning codes"
         sub={`${codes.filter((c) => c.kind === 'worked').length} worked · ${codes.length} total`}
         testId="set-codes"
+        wiki="payroll"
+        info={<>
+          The payroll engine, register, pay stub and QuickBooks export all read the built-in codes. You can rename them; the
+          engine keeps their behavior. A <b>regular-rate</b> code must be taxable, because the FLSA regular rate is built from
+          taxable wages. A code used by a timesheet, run or claim line cannot be deleted.
+        </>}
         actions={<button className="btn btn-sm btn-primary" disabled={readOnly} data-testid="set-code-add" onClick={() => setEditor({ id: '', label: '', short: '', kind: 'worked', pto: false, mapping: '', otEligible: true, doubleTime: false, regularRate: true, taxable: true, nondisc: false, duty: '', notes: '', active: true })}>{Icon.plus({ size: 12 })} Add earning code</button>}
       >
         <DataTable
@@ -184,11 +189,6 @@ function EarningCodes({ state, actions, toast, readOnly }) {
             </div>
           )}
         />
-        <Banner tone="info" testid="set-code-note">
-          Built-in codes are read by the payroll engine, the register, the stub and the QuickBooks export — rename them freely, but the
-          engine keeps its behaviour. A <b>regular-rate</b> code must be taxable: the FLSA regular rate is built from taxable wages.
-          Codes in use by a timesheet, run or claim line cannot be deleted.
-        </Banner>
 
         {editor && (
           <div className="set-editor" data-testid="set-code-editor">
@@ -217,19 +217,19 @@ function EarningCodes({ state, actions, toast, readOnly }) {
         )}
       </Section>
 
-      <Section title="Default earning codes" sub="Fallback earning codes for non-clinical appointments, drive time, and breaks" testId="set-pay-defaults">
+      <Section title="Default earning codes" sub="Used for non-clinical appointments, drive time and breaks" testId="set-pay-defaults">
         <div className="set-grid2">
           <Row label="Non-Service Appointment" hint="Used when an administrative or training block has no service-specific earning code">
             <Select value={defaults.nonService || 'ADMIN'} disabled={readOnly} wide={220} testid="set-pay-def-nonservice"
-              options={codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.label}` }))} onChange={(v) => setDefaults({ nonService: v })} />
+              options={codes.map((c) => ({ value: c.id, label: `${c.id}: ${c.label}` }))} onChange={(v) => setDefaults({ nonService: v })} />
           </Row>
           <Row label="Drive Time Appointment" hint="Earning code credited for travel between client sessions">
             <Select value={defaults.drive || 'DRIVE'} disabled={readOnly} wide={220} testid="set-pay-def-drive"
-              options={codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.label}` }))} onChange={(v) => setDefaults({ drive: v })} />
+              options={codes.map((c) => ({ value: c.id, label: `${c.id}: ${c.label}` }))} onChange={(v) => setDefaults({ drive: v })} />
           </Row>
           <Row label="Break Time Appointment" hint="Earning code used when paid breaks are enabled">
             <Select value={defaults.breakTime || 'PTO'} disabled={readOnly} wide={220} testid="set-pay-def-break"
-              options={codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.label}` }))} onChange={(v) => setDefaults({ breakTime: v })} />
+              options={codes.map((c) => ({ value: c.id, label: `${c.id}: ${c.label}` }))} onChange={(v) => setDefaults({ breakTime: v })} />
           </Row>
         </div>
       </Section>
@@ -250,10 +250,14 @@ function OvertimeRules({ state, actions, toast, readOnly, payroll }) {
   }
   return (
     <>
-      <Section title="Weekly overtime (FLSA)" sub="The 40-hour workweek test that drives the premium" testId="set-ot-weekly">
+      <Section title="Weekly overtime (FLSA)" sub="The 40-hour workweek test that sets the premium" testId="set-ot-weekly" wiki="payroll" info={<>
+        The premium is calculated, never entered. Hours above the threshold in a workweek are multiplied by the straight-time
+        regular rate. Nondiscretionary bonuses are added to the regular rate first.
+        {mult === 1.5 ? ' At 1.5× the premium is half the regular rate, the federal standard.' : ` At ${mult}× the premium is ${(mult - 1).toFixed(2)}× the regular rate.`}
+      </>}>
         <div className="set-grid2">
           <Row label="Overtime starts after"><NumberField value={weeklyOt} min={1} max={168} suffix="hours / week" disabled={readOnly} testid="set-ot-after" onCommit={(v) => set({ otAfterHours: v })} /></Row>
-          <Row label="Overtime multiplier" hint="Federal minimum is 1.5×; the run gate blocks anything lower">
+          <Row label="Overtime multiplier" hint="Federal minimum is 1.5×. The run gate blocks anything lower">
             <NumberField value={mult} min={1.5} max={3} step={0.1} suffix="×" disabled={readOnly} testid="set-ot-mult" onCommit={(v) => set({ otMultiplier: v })} />
           </Row>
           <Row label="Workweek starts">
@@ -261,23 +265,18 @@ function OvertimeRules({ state, actions, toast, readOnly, payroll }) {
               options={WEEKDAYS.map((d, i) => ({ value: String(i), label: d }))} onChange={(v) => set({ workWeekStart: Number(v) })} />
           </Row>
         </div>
-        <Banner tone="info" testid="set-ot-explain">
-          The premium is <b>derived</b>, never entered: hours above the threshold in a workweek are multiplied by the straight-time
-          regular rate. Nondiscretionary bonuses are spread into the regular rate first — the rule most manual payrolls miss.
-          {mult === 1.5 ? ' At 1.5× the premium is half the regular rate, the federal standard.' : ` At ${mult}× the premium is ${(mult - 1).toFixed(2)}× the regular rate.`}
-        </Banner>
       </Section>
-      <Section title="Daily overtime (state rules)" sub="Informational policy note only — never priced by the wage engine" testId="set-ot-daily">
+      <Section title="Daily overtime (state rules)" sub="Policy note only. Never priced by the wage engine" testId="set-ot-daily">
         <div className="set-grid2">
           <Row label="Apply daily overtime"><Toggle on={!!payroll.dailyOt} disabled={readOnly} testid="set-ot-daily-on" onChange={(v) => set({ dailyOt: v, ...(v && !payroll.dailyOtHours ? { dailyOtHours: 8, dailyOtMultiplier: 1.5 } : {}) })} /></Row>
-          <Row label="Daily overtime after" hint="Informational — not priced"><NumberField value={payroll.dailyOtHours ?? 8} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-hours" onCommit={(v) => set({ dailyOtHours: v })} /></Row>
-          <Row label="Daily multiplier" hint="Informational — not priced"><NumberField value={payroll.dailyOtMultiplier ?? 1.5} min={1.5} max={3} step={0.1} suffix="×" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-mult" onCommit={(v) => set({ dailyOtMultiplier: v })} /></Row>
-          <Row label="Double time after" hint="Informational — not priced"><NumberField value={payroll.doubleTimeHours ?? 12} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-double-hours" onCommit={(v) => set({ dailyOtHours: payroll.dailyOtHours ?? 8, doubleTimeHours: v })} /></Row>
+          <Row label="Daily overtime after" hint="Informational, not priced"><NumberField value={payroll.dailyOtHours ?? 8} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-hours" onCommit={(v) => set({ dailyOtHours: v })} /></Row>
+          <Row label="Daily multiplier" hint="Informational, not priced"><NumberField value={payroll.dailyOtMultiplier ?? 1.5} min={1.5} max={3} step={0.1} suffix="×" disabled={readOnly || !payroll.dailyOt} testid="set-ot-daily-mult" onCommit={(v) => set({ dailyOtMultiplier: v })} /></Row>
+          <Row label="Double time after" hint="Informational, not priced"><NumberField value={payroll.doubleTimeHours ?? 12} min={1} max={24} step={0.5} suffix="hours" disabled={readOnly || !payroll.dailyOt} testid="set-ot-double-hours" onCommit={(v) => set({ dailyOtHours: payroll.dailyOtHours ?? 8, doubleTimeHours: v })} /></Row>
         </div>
         <Banner tone="warn" testid="set-ot-daily-note">
-          These thresholds are <b>saved as a policy note only</b>. The wage engine prices weekly overtime — the global threshold
-          and each office's Weekly OT — and nothing else. Daily overtime, double time and seventh-day rules never change a
-          calculated wage. Do not rely on these controls for payroll until the calculator and a legal review cover them.
+          These thresholds are <b>saved as a policy note only</b>. The wage engine prices weekly overtime only (the global
+          threshold and each office's Weekly OT). Daily overtime, double time and seventh-day rules never change a calculated
+          wage. Do not rely on them for payroll until the calculator and a legal review cover them.
         </Banner>
       </Section>
       <Section title="Office overtime rules" sub="Per-office overtime thresholds and effective windows" testId="set-ot-offices">
@@ -317,17 +316,17 @@ function OvertimeRules({ state, actions, toast, readOnly, payroll }) {
         />
         <p className="set-hint" data-testid="set-ot-offices-note">
           Only <b>Weekly OT</b> is priced (per office, else the global threshold). Daily OT, Daily DT, 7th Day OT and 7th Day DT
-          are informational policy notes — saved with the workspace, never fed to wage calculations.
+          are informational policy notes. They are saved with the workspace and never used in wage calculations.
         </p>
         {officeEditor && (
           <div className="set-editor" data-testid="set-ot-office-editor">
-            <div className="set-editor-head"><b>Overtime rules — {officeEditor.officeName}</b><button className="iconbtn" onClick={() => setOfficeEditor(null)} aria-label="Close">{Icon.x({ size: 13 })}</button></div>
+            <div className="set-editor-head"><b>Overtime rules: {officeEditor.officeName}</b><button className="iconbtn" onClick={() => setOfficeEditor(null)} aria-label="Close">{Icon.x({ size: 13 })}</button></div>
             <div className="set-grid2">
-              <Row label="Daily Overtime (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.dailyOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-dot" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyOtHours: v })} /></Row>
-              <Row label="Daily Double Time (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.dailyDtHours ?? 12} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-ddt" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyDtHours: v })} /></Row>
-              <Row label="Weekly Overtime (hrs)" hint="Priced — hours above this in a workweek earn the overtime premium"><NumberField value={officeEditor.weeklyOtHours ?? 40} min={1} max={168} step={1} suffix="hrs" testid="set-ot-off-wot" onCommit={(v) => setOfficeEditor({ ...officeEditor, weeklyOtHours: v })} /></Row>
-              <Row label="7th Day Overtime (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.seventhDayOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7ot" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayOtHours: v })} /></Row>
-              <Row label="7th Day Double Time (hrs)" hint="Informational — not priced by the wage engine"><NumberField value={officeEditor.seventhDayDtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7dt" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayDtHours: v })} /></Row>
+              <Row label="Daily Overtime (hrs)" hint="Informational, not priced by the wage engine"><NumberField value={officeEditor.dailyOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-dot" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyOtHours: v })} /></Row>
+              <Row label="Daily Double Time (hrs)" hint="Informational, not priced by the wage engine"><NumberField value={officeEditor.dailyDtHours ?? 12} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-ddt" onCommit={(v) => setOfficeEditor({ ...officeEditor, dailyDtHours: v })} /></Row>
+              <Row label="Weekly Overtime (hrs)" hint="Priced: hours above this in a workweek earn the overtime premium"><NumberField value={officeEditor.weeklyOtHours ?? 40} min={1} max={168} step={1} suffix="hrs" testid="set-ot-off-wot" onCommit={(v) => setOfficeEditor({ ...officeEditor, weeklyOtHours: v })} /></Row>
+              <Row label="7th Day Overtime (hrs)" hint="Informational, not priced by the wage engine"><NumberField value={officeEditor.seventhDayOtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7ot" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayOtHours: v })} /></Row>
+              <Row label="7th Day Double Time (hrs)" hint="Informational, not priced by the wage engine"><NumberField value={officeEditor.seventhDayDtHours ?? 8} min={0} max={24} step={0.5} suffix="hrs" testid="set-ot-off-7dt" onCommit={(v) => setOfficeEditor({ ...officeEditor, seventhDayDtHours: v })} /></Row>
               <Row label="Effective Date"><TextField value={officeEditor.effectiveDate || ''} wide={140} testid="set-ot-off-eff" onCommit={(v) => setOfficeEditor({ ...officeEditor, effectiveDate: v })} /></Row>
               <Row label="Expiration Date"><TextField value={officeEditor.expirationDate || ''} wide={140} testid="set-ot-off-exp" onCommit={(v) => setOfficeEditor({ ...officeEditor, expirationDate: v })} /></Row>
             </div>

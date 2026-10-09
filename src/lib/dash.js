@@ -189,14 +189,14 @@ export function pulseKpis(appts, days, prior, filter, clients) {
 /* ---------------- widget registry ---------------- */
 
 export const WIDGETS = {
-  kpis: { name: 'Practice Pulse', icon: 'checkCircle', blurb: 'Sessions, charge, attendance & no-shows with period deltas', span: 6, defaultCfg: {} },
+  kpis: { name: 'Practice Pulse', icon: 'checkCircle', blurb: 'Sessions, charges, attendance and no-shows, with change from the last period', span: 6, defaultCfg: {} },
   trend: { name: 'Volume Trend', icon: 'spark', blurb: 'Any metric bucketed by day, week or month', span: 4, defaultCfg: { metric: 'sessions', bucket: 'auto' } },
-  donut: { name: 'Mix', icon: 'pie', blurb: 'Appointment type or status share — click a slice to filter everything', span: 2, defaultCfg: { field: 'type' } },
+  donut: { name: 'Mix', icon: 'pie', blurb: 'Share by appointment type or status. Click a slice to filter the board.', span: 2, defaultCfg: { field: 'type' } },
   bars: { name: 'Top Breakdown', icon: 'rows', blurb: 'Leaders by staff, client, program or payer', span: 3, defaultCfg: { dim: 'staff', metric: 'revenue', top: 8 } },
-  ledger: { name: 'Appointment Ledger', icon: 'clipboard', blurb: 'The filtered appointments themselves — convention titles, crew, overlap flags, one click into the record', span: 3, defaultCfg: { rows: 12, order: 'asc' } },
-  heat: { name: 'Week Heatmap', icon: 'table', blurb: 'Delivered minutes per weekday × hour — click a cell to jump', span: 3, defaultCfg: {} },
+  ledger: { name: 'Appointment Ledger', icon: 'clipboard', blurb: 'The filtered appointments, with staff and overlap flags. Click a row to open it.', span: 3, defaultCfg: { rows: 12, order: 'asc' } },
+  heat: { name: 'Week Heatmap', icon: 'table', blurb: 'Delivered minutes by weekday and hour. Click a cell to open that day.', span: 3, defaultCfg: {} },
   intake: { name: 'Intake Pipeline', icon: 'user', blurb: 'Referral funnel, conversion rate and the requests waiting on a decision', span: 3, defaultCfg: {} },
-  billing: { name: 'Billing Health', icon: 'dollar', blurb: 'Clean-claim and denial rates, net collection, cash, days in A/R, A/R over 90, charge lag and recoupments — formulas on hover', span: 6, defaultCfg: {} },
+  billing: { name: 'Billing Health', icon: 'dollar', blurb: 'Clean-claim and denial rates, net collection, cash, days in A/R, A/R over 90, charge lag and recoupments. Hover a figure for its formula.', span: 6, defaultCfg: {} },
 }
 
 export const DEFAULT_DASH = [

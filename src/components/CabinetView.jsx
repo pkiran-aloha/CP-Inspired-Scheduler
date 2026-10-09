@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { SectionBar } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
+import InfoTip from '../ui/InfoTip'
 import { todayISO } from '../lib/date'
 import { CABINET_CATEGORIES, CABINET_OWNERS, expiryState, daysLeft, ownerName, cabinetAlerts } from '../lib/cabinet'
 import { PDU_KINDS, rbtPduTarget } from '../lib/credentials'
@@ -37,7 +38,7 @@ export default function CabinetView() {
 
   return (
     <div className="sectionpage" data-testid="cab-view">
-      <SectionBar icon="clipboard" title="Cabinet" sub="Documents that expire: credentials, licenses, checks, insurance, consents. Details only; no files are stored.">
+      <SectionBar icon="clipboard" title="Cabinet" sub="Details only. No files are stored." info="Track documents that expire: credentials, licenses, background checks, insurance and consents.">
         <button className="btn btn-sm btn-primary" data-testid="cab-add" onClick={() => setForm({ ...blank, ownerId: staff[0]?.id || '' })}>{Icon.plus({ size: 13 })} Add document</button>
       </SectionBar>
       <div className="sec-body" style={{ padding: 16 }}>
@@ -114,7 +115,7 @@ function CeuLog() {
     <div className="panel" data-testid="ceu-log" style={{ marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid var(--line)' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
         <b style={{ fontSize: 14 }}>Training &amp; CEU log</b>
-        <span className="muted" style={{ fontSize: 12 }}>Counted by Reports → Credentials &amp; PDUs. BACB: BCBA 32 and BCaBA 20 CEUs per 2-year cycle; RBTs need a yearly competency assessment.</span>
+        <InfoTip label="Training and CEU log" testid="ceu-info">Entries count toward the Credentials &amp; PDUs report. BACB requires 32 CEUs per 2-year cycle for a BCBA and 20 for a BCaBA. RBTs need a yearly competency assessment.</InfoTip>
         <label style={{ marginLeft: 'auto', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>RBT PDU target (h / year)
           <input className="input" style={{ width: 70, height: 28 }} type="number" min="0" step="0.25" data-testid="ceu-target" value={target} onChange={(e) => setTarget(e.target.value)} />
           <button className="btn btn-xs" data-testid="ceu-target-save" onClick={() => say(actions.settingsOp('credentials.patch', { patch: { rbtPduHours: target } }))}>Save</button>
