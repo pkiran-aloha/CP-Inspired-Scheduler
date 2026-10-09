@@ -108,7 +108,7 @@ function ServiceTypesView() {
         <button className="btn btn-sm btn-primary" data-testid="sv-add" onClick={() => setEdit('new')}>{Icon.plus({ size: 12 })} Add Service Type</button>
       </div>
       <div className="an-wrap" style={{ paddingTop: 10 }}>
-        <div className="py-tbl sv-tbl" data-testid="svcs-table">
+        <div className="py-tbl py-cards sv-tbl" data-testid="svcs-table">
           <div className="py-thead sv-head">
             <span>Service Type</span>
             <span>Billing Code</span>
@@ -342,7 +342,7 @@ function CfDefsView() {
         <button className="btn btn-sm btn-primary" data-testid="cf-add" onClick={() => setEdit('new')}>{Icon.plus({ size: 12 })} Add Custom Field</button>
       </div>
       <div className="an-wrap" style={{ paddingTop: 10 }}>
-        <div className="py-tbl cf-tbl" data-testid="cfdefs-table">
+        <div className="py-tbl py-cards cf-tbl" data-testid="cfdefs-table">
           <div className="py-thead">
             <span>Field Template</span>
             <span>Type</span>
