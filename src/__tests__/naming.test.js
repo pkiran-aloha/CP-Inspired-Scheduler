@@ -8,26 +8,26 @@ const STAFF = { s1: { id: 's1', name: 'Dhananjay Masal', role: 'RBT · Center' }
 const base = { type: 'service', start: 540, end: 600, clients: CLIENTS, staff: STAFF, settings: {} }
 
 describe('appointment naming conventions', () => {
-  it('chart style is the default: Last, First — Service · collapsed time', () => {
-    expect(apptAutoTitle({ ...base, clientIds: ['c1'] })).toBe('Reyes, Ana — Service · 9–10 AM')
+  it('chart style is the default: Last, First · Service · collapsed time', () => {
+    expect(apptAutoTitle({ ...base, clientIds: ['c1'] })).toBe('Reyes, Ana · Service · 9–10 AM')
     expect(fmtRange(600, 690, false)).toBe('10–11:30 AM')
     expect(fmtRange(690, 840, false)).toBe('11:30 AM–2 PM')
   })
   it('all three styles + group +n + crew suffix behave', () => {
-    expect(apptAutoTitle({ ...base, clientIds: ['c1'], settings: { apptNameStyle: 'plain' } })).toBe('Ana Reyes — Service · 9–10 AM')
+    expect(apptAutoTitle({ ...base, clientIds: ['c1'], settings: { apptNameStyle: 'plain' } })).toBe('Ana Reyes · Service · 9–10 AM')
     expect(apptAutoTitle({ ...base, clientIds: ['c1'], settings: { apptNameStyle: 'code' } })).toBe('253T · Reyes, A. · 9–10 AM')
-    expect(apptAutoTitle({ ...base, clientIds: ['c1', 'c2', 'c3'] })).toBe('Reyes, Ana +2 — Service · 9–10 AM')
-    expect(apptAutoTitle({ ...base, clientIds: ['c1'], staffIds: ['s1'], settings: { apptNameStaff: true } })).toBe('Reyes, Ana — Service · 9–10 AM (Dhananjay M., RBT)')
-    expect(apptAutoTitle({ ...base, clientIds: ['c1'], staffIds: ['s1', 's2'], settings: { apptNameStaff: true, h24: true } })).toBe('Reyes, Ana — Service · 09:00–10:00 (Dhananjay M., RBT; Neha P., BCBA)'.replace(';', ','))
+    expect(apptAutoTitle({ ...base, clientIds: ['c1', 'c2', 'c3'] })).toBe('Reyes, Ana +2 · Service · 9–10 AM')
+    expect(apptAutoTitle({ ...base, clientIds: ['c1'], staffIds: ['s1'], settings: { apptNameStaff: true } })).toBe('Reyes, Ana · Service · 9–10 AM (Dhananjay M., RBT)')
+    expect(apptAutoTitle({ ...base, clientIds: ['c1'], staffIds: ['s1', 's2'], settings: { apptNameStaff: true, h24: true } })).toBe('Reyes, Ana · Service · 09:00–10:00 (Dhananjay M., RBT; Neha P., BCBA)'.replace(';', ','))
     expect(apptAutoTitle({ ...base, type: 'drive' })).toBe('Drive Time · 9–10 AM') // crew/break blocks with no client
     expect(clientLabel({ name: 'Solo' }, 'ehr')).toBe('Solo')
   })
   it('title extras compose: program, location, service line and CPT-first codes', () => {
     const settings = { apptTitleExtras: { program: true, location: true, service: true } }
-    expect(apptAutoTitle({ ...base, clientIds: ['c1'], serviceOverride: 'dtt', locationOverride: 'Clinic Room 2', settings })).toBe('Reyes, Ana — 1:1 Discrete Trial Training · 9–10 AM @ Clinic Room 2')
+    expect(apptAutoTitle({ ...base, clientIds: ['c1'], serviceOverride: 'dtt', locationOverride: 'Clinic Room 2', settings })).toBe('Reyes, Ana · 1:1 Discrete Trial Training · 9–10 AM @ Clinic Room 2')
     // c1 has no program in this fixture → the program segment is gracefully omitted (no stray separators)
     const withProg = { ...base, clients: { ...CLIENTS, c1: { ...CLIENTS.c1, program: 'EIBI · Day program' } } }
-    expect(apptAutoTitle({ ...withProg, clientIds: ['c1'], serviceOverride: 'dtt', locationOverride: 'Main Center', settings })).toBe('Reyes, Ana · EIBI · Day program — 1:1 Discrete Trial Training · 9–10 AM @ Main Center')
+    expect(apptAutoTitle({ ...withProg, clientIds: ['c1'], serviceOverride: 'dtt', locationOverride: 'Main Center', settings })).toBe('Reyes, Ana · EIBI · Day program · 1:1 Discrete Trial Training · 9–10 AM @ Main Center')
     expect(apptAutoTitle({ ...withProg, clientIds: ['c1'], serviceOverride: 'social', settings: { ...settings, apptNameStyle: 'code' } })).toBe('97153 · Reyes, A. · EIBI · Day program · 9–10 AM')
   })
   it('title health audit flags legacy / blank / overlong and leaves the rest', () => {
@@ -36,7 +36,7 @@ describe('appointment naming conventions', () => {
       t2: { id: 't2', title: '   ' },
       t3: { id: 't3', title: 'x'.repeat(73) },
       t4: { id: 't4', title: 'x'.repeat(72) },
-      t5: { id: 't5', title: 'Reyes, Ana — Service · 9–10 AM' },
+      t5: { id: 't5', title: 'Reyes, Ana · Service · 9–10 AM' },
     }
     const audit = titleAudit(appts)
     expect(audit.total).toBe(3)
@@ -50,7 +50,7 @@ describe('appointment naming conventions', () => {
     expect(st.appts.t2.title.length).toBeGreaterThan(3)
     expect(st.appts.t3.title.length).toBeLessThanOrEqual(72)
     expect(st.appts.t4.title).toBe('x'.repeat(72)) // untouched
-    expect(st.appts.t5.title).toBe('Reyes, Ana — Service · 9–10 AM') // untouched
+    expect(st.appts.t5.title).toBe('Reyes, Ana · Service · 9–10 AM') // untouched
   })
   it('flagOverlaps marks same-day shared-staff collisions in both rows', () => {
     const rows = [

@@ -1,17 +1,17 @@
 /* ============================================================================
- * Appointment naming conventions — Aloha ABA
+ * Appointment naming conventions, Aloha ABA
  * ----------------------------------------------------------------------------
  * Schedules are only as good as their scannability. The industry convention
  * across EHR and ABA scheduling platforms (chart-first, sortable, code-aware)
- * is: CLIENT — SERVICE · TIME, with optional assigned-crew suffix.
+ * is: CLIENT · SERVICE · TIME, with optional assigned-crew suffix.
  *
  * Three supported styles, chosen in Settings → Appointment naming:
- *   ehr   Chart style     “Reyes, Ana — Service · 9–10 AM”     (default; alphabetical scanning)
- *   plain Display style   “Ana Reyes — Service · 9–10 AM”      (front-desk friendly)
+ *   ehr   Chart style     “Reyes, Ana · Service · 9–10 AM”     (default; alphabetical scanning)
+ *   plain Display style   “Ana Reyes · Service · 9–10 AM”      (front-desk friendly)
  *   code  Code-first      “253T · Reyes, A. · 9–10 AM”         (billing-oriented)
  *
  * Multi-client groups follow the standard “+n” suffix (e.g. “Reyes, Ana +2”).
- * The auto-title is a STARTING point — user-entered titles are never rewritten.
+ * The auto-title is a STARTING point; user-entered titles are never rewritten.
  * `LEGACY_TITLE_RE` matches the old “(Type) 9 AM - 10 AM” generator so Settings
  * can offer a one-click restyle of auto-titles only.
  * ==========================================================================*/
@@ -21,8 +21,8 @@ import { TYPES } from './model'
 import { SVC_LABEL, SVC_CODE } from './seed'
 
 export const NAME_STYLES = {
-  ehr: { label: 'Chart', desc: 'Last, First — Service · Time. The EHR scanning convention; sorts alphabetically.' },
-  plain: { label: 'Display', desc: 'First Last — Service · Time. Easier to read on shared staff calendars.' },
+  ehr: { label: 'Chart', desc: 'Last, First · Service · Time. The EHR scanning convention; sorts alphabetically.' },
+  plain: { label: 'Display', desc: 'First Last · Service · Time. Easier to read on shared staff calendars.' },
   code: { label: 'Code-first', desc: 'CPT/category · Last, F. · Time. For billing boards.' },
 }
 
@@ -88,7 +88,7 @@ export function apptAutoTitle({ type, clientIds = [], staffIds = [], start = 0, 
     const code = (ex.service && svcKey && SVC_CODE[svcKey]) || CODE[type] || svc
     return `${code}${head ? ` · ${head}` : ''} · ${time}${loc}${crew}`
   }
-  return `${head ? `${head} — ` : ''}${svcText} · ${time}${loc}${crew}`
+  return `${head ? `${head} · ` : ''}${svcText} · ${time}${loc}${crew}`
 }
 
 /* ---------- title health ---------- */

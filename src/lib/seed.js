@@ -60,10 +60,10 @@ const py = (name, aka, type, svcList, required, status, o = {}) => ({
   policy: PAYER_POLICY[name] || { kind: 'commercial', avgDays: 25, timely: 120, coins: 0.8, copay: 0 },
 })
 export const PAYERS = [
-  py('Blue Shield CA', 'BSCA', 'Insurance', 'ABA + related services', 'Yes — after authorization is on file', 'active', { street: '333 Market St', city: 'San Francisco', zip: '94111', phone: '(800) 555-0114', contacts: [{ kind: 'Main', number: '(800) 555-0114' }, { kind: 'Fax', number: '(866) 555-0114' }], email: 'behavioral.reviews@bsca.example.com', evvId: 'BSCA-4471', thirdPartyId: 'TPA-1180' }),
-  py('Aetna', 'Aetna Better Health of CA', 'Insurance', 'ABA Standard', 'Yes — after authorization is on file', 'active', { street: '360 W 1st St', city: 'Long Beach', zip: '90802', phone: '(800) 555-0127', contacts: [{ kind: 'Main', number: '(800) 555-0127' }, { kind: 'Fax', number: '(562) 555-0127' }, { kind: 'Claims portal', number: 'auths.aetna.example.com/aba' }], email: 'provider.relations@aetna.example.com', evvId: 'AET-LB-221' }),
+  py('Blue Shield CA', 'BSCA', 'Insurance', 'ABA + related services', 'Yes, after authorization is on file', 'active', { street: '333 Market St', city: 'San Francisco', zip: '94111', phone: '(800) 555-0114', contacts: [{ kind: 'Main', number: '(800) 555-0114' }, { kind: 'Fax', number: '(866) 555-0114' }], email: 'behavioral.reviews@bsca.example.com', evvId: 'BSCA-4471', thirdPartyId: 'TPA-1180' }),
+  py('Aetna', 'Aetna Better Health of CA', 'Insurance', 'ABA Standard', 'Yes, after authorization is on file', 'active', { street: '360 W 1st St', city: 'Long Beach', zip: '90802', phone: '(800) 555-0127', contacts: [{ kind: 'Main', number: '(800) 555-0127' }, { kind: 'Fax', number: '(562) 555-0127' }, { kind: 'Claims portal', number: 'auths.aetna.example.com/aba' }], email: 'provider.relations@aetna.example.com', evvId: 'AET-LB-221' }),
   py('Regence BCBS', '', 'Insurance', 'ABA + related services', 'No', 'active', { street: '700 SW 36th Ave', city: 'Tualatin', state: 'OR', zip: '97062', phone: '(800) 555-0136', contacts: [{ kind: 'Main', number: '(800) 555-0136' }, { kind: 'Fax', number: '(503) 555-0136' }], email: 'aba.intake@regence.example.com', evvId: 'REG-OR-830' }),
-  py('UnitedHealthcare', 'UHC Community Plan', 'Insurance', 'ABA Standard', 'Yes — after authorization is on file', 'active', { street: '2801 N Main St', city: 'Santa Ana', zip: '92705', phone: '(844) 555-0149', contacts: [{ kind: 'Main', number: '(844) 555-0149' }, { kind: 'Claims portal', number: 'prov-portal.uhc.example.com' }], email: 'ca.medicaidUHCP@uhc.example.com', evvId: 'UHC-CA-115', thirdPartyId: 'FACET-7741' }),
+  py('UnitedHealthcare', 'UHC Community Plan', 'Insurance', 'ABA Standard', 'Yes, after authorization is on file', 'active', { street: '2801 N Main St', city: 'Santa Ana', zip: '92705', phone: '(844) 555-0149', contacts: [{ kind: 'Main', number: '(844) 555-0149' }, { kind: 'Claims portal', number: 'prov-portal.uhc.example.com' }], email: 'ca.medicaidUHCP@uhc.example.com', evvId: 'UHC-CA-115', thirdPartyId: 'FACET-7741' }),
   py('Medicaid (CA)', 'Medi-Cal', 'Government', 'ABA Standard', 'No', 'active', { street: '701 P St', city: 'Sacramento', zip: '95814', phone: '(800) 555-0158', addressNotes: 'Eligibility file via county welfare node, not state line.', email: 'dhcs.provider@ca.example.gov', evvId: 'MEDI-CAL-001' }),
   py('Self-pay', 'Private Pay', 'Self-pay', 'None', 'No', 'active', { addressNotes: 'Family invoice mailed monthly; no payer record on file.', email: 'billing.office@aloha.example.com' }),
   py('Fremont Unified School District', 'FUSD', 'School district', 'School-based', 'No', 'active', { street: '3315 Old Gilman St', city: 'Fremont', zip: '94538', phone: '(510) 555-0171', contacts: [{ kind: 'Main', number: '(510) 555-0171' }, { kind: 'Fax', number: '(510) 555-0172' }], email: 'special.edservices@fusd.example.edu', evvId: 'FUSD-SEPA-9' }),
@@ -312,7 +312,7 @@ const NOTE_POOL = {
 }
 const DOC_POOL = [
   ['Session Note {d}.pdf', 60, 'Session note'], ['Data Sheet {d}.csv', 12, 'Data export'], ['Parent Debrief Notes.docx', 34, 'Session note'],
-  ['VB-MAPP Milestones {d}.pdf', 220, 'Assessment report'], ['Insurance Auth — {y}.pdf', 90, 'Consent / auth'], ['IEP Snapshot.png', 480, 'IEP / IFSP'], ['BIP Revision Draft.pdf', 150, 'Assessment report'],
+  ['VB-MAPP Milestones {d}.pdf', 220, 'Assessment report'], ['Insurance Auth {y}.pdf', 90, 'Consent / auth'], ['IEP Snapshot.png', 480, 'IEP / IFSP'], ['BIP Revision Draft.pdf', 150, 'Assessment report'],
 ]
 
 function docsFor(rnd, date, title) {
@@ -474,7 +474,7 @@ export function buildSeed(todayISO) {
             occ(staffIds, di, ds, de)
             push({
               type: 'drive', date: di, start: ds, end: de,
-              title: `${ttl} — ${c.name.split(' ')[0]}`, staffIds, clientIds: [c.id], status: 'active',
+              title: `${ttl} · ${c.name.split(' ')[0]}`, staffIds, clientIds: [c.id], status: 'active',
               location: 'En route', recurrence: 'weekly', seriesId: `${seriesId}-d${off < 0 ? 'a' : 'b'}`,
               notes: rnd() < 0.25 ? 'Traffic delay logged. Drove straight from the previous school site.' : '',
               billing: { code: 'H2019', unitMins: 15, minutes: 20, units: 0, rate: 0, mileage: true, distance: dist, mileageRate: 0.7 },
@@ -489,7 +489,7 @@ export function buildSeed(todayISO) {
           if (fits(staffIds, di, bs, bs + blen)) {
             occ(staffIds, di, bs, bs + blen)
             push({
-              type: 'break', date: di, start: bs, end: bs + blen, title: 'Break — reset & restock',
+              type: 'break', date: di, start: bs, end: bs + blen, title: 'Break: reset & restock',
               staffIds, clientIds: [], status: 'active', notes: pick(rnd, ['Reinforcer prep for afternoon block.', 'Water + 5 min decompress.']),
               custom: {},
             })
@@ -522,7 +522,7 @@ export function buildSeed(todayISO) {
     if (ms != null) {
       occ(mids, mdi, ms, ms + 60)
       push({
-        type: 'unavailable', date: mdi, start: ms, end: ms + 60, title: 'Team meeting — programming review',
+        type: 'unavailable', date: mdi, start: ms, end: ms + 60, title: 'Team meeting: programming review',
         staffIds: mids, clientIds: [], status: 'active', location: 'Clinic Room 2',
         notes: 'Agenda: caseload moves, auth expirations, safety drill.', recurrence: 'weekly', seriesId: 'sr-meeting', custom: {},
       })
@@ -538,7 +538,7 @@ export function buildSeed(todayISO) {
       occ(trainees, tdi, ts, ts + 90)
       push({
         type: 'unavailable', date: tdi, start: ts, end: ts + 90,
-        title: 'ABA group training — reinforcement & protocol fidelity',
+        title: 'ABA group training: reinforcement & protocol fidelity',
         staffIds: trainees, clientIds: [], status: td < todayISO ? 'completed' : 'active', location: 'Clinic Room 1',
         notes: 'Led by the clinical supervisor: DRA procedures, fidelity checklist review, role-play.',
         recurrence: 'weekly', seriesId: 'sr-aba-training', custom: {},
@@ -580,7 +580,7 @@ export function buildSeed(todayISO) {
   }
 
   // PTO / training blocks scattered over the horizon (per-staff, varied)
-  const ptoTitles = ['PTO — family trip', 'Unavail — court date', 'Conference travel (ABAI)', 'Unavail — medical appt', 'Clinic closed — staff training', 'Licence CEU workshop']
+  const ptoTitles = ['PTO: family trip', 'Unavail: court date', 'Conference travel (ABAI)', 'Unavail: medical appt', 'Clinic closed: staff training', 'Licence CEU workshop']
   for (const st of STAFF) {
     const n = Math.floor(rnd() * 3)
     for (let i = 0; i <= n; i++) {
@@ -673,7 +673,7 @@ export function buildDemoClaims(appts, clients, settings, today) {
       c.status = 'paid'
       c.closedAt = Math.max(c.submittedAt + dayMs, Math.min(t0 - dayMs, c.submittedAt + Math.round(pol.avgDays * (0.65 + rnd() * 0.7) + 1) * dayMs))
       c.remittance = { checkNo: `CHK-${isoDate(new Date(c.closedAt)).slice(2, 7).replace('-', '')}-${String(120 + i)}`, amount: c.paid, adj: c.adj, at: c.closedAt, note: short ? 'Contractual adjustment per fee schedule' : '' }
-      c.history.push({ at: c.closedAt, ev: `Payment posted — $${c.paid.toLocaleString()} via ${c.remittance.checkNo}${short ? ` (${c.adj.toLocaleString()} adjustment)` : ''}` })
+      c.history.push({ at: c.closedAt, ev: `Payment posted: $${c.paid.toLocaleString()} via ${c.remittance.checkNo}${short ? ` (${c.adj.toLocaleString()} adjustment)` : ''}` })
     } else if (age >= 13) {
       c.submittedAt = stamp(Math.max(3, age - 4))
       c.history.push({ at: c.submittedAt, ev: c.mode === 'selfpay' ? 'Invoice marked sent to family; the app sends nothing' : `Marked submitted to ${c.payer}; claim file saved locally, not transmitted` })
@@ -696,7 +696,7 @@ export function buildDemoClaims(appts, clients, settings, today) {
     const d = DENIAL_REASONS.find((x) => x.id === (di === 0 ? 'timely' : 'verif'))
     c.status = 'denied'
     c.denial = { code: d.id, reason: d.label, fix: d.fix, note: '', at: stamp(1) }
-    c.history.push({ at: stamp(1), ev: `Denied — ${d.label}` })
+    c.history.push({ at: stamp(1), ev: `Denied: ${d.label}` })
   })
   // One draft deliberately held at the submission gate — a flagged-verification line —
   // so Submit demonstrates exactly why the payer would bounce it.
@@ -707,7 +707,7 @@ export function buildDemoClaims(appts, clients, settings, today) {
     const simClaims = Object.fromEntries(claims.map((x) => [x.id, x]))
     const held = assembleClaims(sim, planClaims(sim, [flagged]), { seqStart: nextClaimSeq(simClaims), at: t0 - dayMs }).claims[0]
     if (held) {
-      held.history.push({ at: t0 - dayMs, ev: 'Submission held — 1 line failed the verification gate' })
+      held.history.push({ at: t0 - dayMs, ev: 'Submission held: 1 line failed the verification gate' })
       claims.push(held)
       const a0 = out[flagged.id]
       out[flagged.id] = { ...a0, claimId: held.id, billing: { ...(a0.billing || {}), status: 'claimed', claimNo: held.no } }
@@ -738,7 +738,7 @@ export function seedFamilyShares(claims, clients, max = 3) {
     out[c.id] = {
       ...c, paid, status: 'partially_paid', closedAt: null, remittance: rem,
       history: [...c.history.filter((h) => !/^Payment posted/.test(h.ev)),
-        { at: rem.at, ev: `Payment posted — $${paid.toLocaleString()} via ${rem.checkNo}${c.adj ? ` (${c.adj.toLocaleString()} adjustment)` : ''} · $${share} patient responsibility reported` }],
+        { at: rem.at, ev: `Payment posted: $${paid.toLocaleString()} via ${rem.checkNo}${c.adj ? ` (${c.adj.toLocaleString()} adjustment)` : ''} · $${share} patient responsibility reported` }],
     }
   }
   return out
@@ -762,8 +762,8 @@ export const REFERRAL_SOURCES = [
   { id: 'rs-slp', name: 'Little Voices Speech & OT', kind: 'Other provider (SLP/OT)', contact: 'Marcy Lin, CCC-SLP', phone: '(408) 555-0305', email: 'hello@littlevoices.example.com', npi: '1558302941', ownerId: 's11', status: 'active', since: '2024-11-11', dormantDays: 90, notes: 'Open to co-treatment. Flag speech co-treatment requests.' },
   { id: 'rs-self', name: 'Family self-referral', kind: 'Self / family', contact: '—', phone: '', email: '', npi: '', ownerId: 's12', status: 'active', since: '2022-01-04', dormantDays: 999, notes: 'Word of mouth and returning families. Ask the family to bring the diagnostic report.' },
   { id: 'rs-web', name: 'Website / online form', kind: 'Web form / marketing', contact: '—', phone: '', email: 'web@alohaaba.example.com', npi: '', ownerId: 's12', status: 'active', since: '2023-02-15', dormantDays: 45, notes: 'Response-time target: 15 minutes in business hours.' },
-  { id: 'rs-hospital', name: 'Valley Children’s Hospital — Neurodevelopment', kind: 'Hospital / ED', contact: 'Discharge planning', phone: '(559) 555-0310', email: 'referrals@vch.example.org', npi: '1029384756', ownerId: 's9', status: 'active', since: '2025-04-02', dormantDays: 90, notes: 'Discharge-driven referrals; timeline is tight, escalate on receipt.' },
-  { id: 'rs-community', name: 'Autism Society — South Bay chapter', kind: 'Community organisation', contact: 'Helpline volunteers', phone: '(408) 555-0311', email: 'southbay@autismsociety.example.org', npi: '', ownerId: 's12', status: 'active', since: '2024-05-19', dormantDays: 180, notes: 'High-volume, lower-conversion source; expect insurance eligibility issues.' },
+  { id: 'rs-hospital', name: 'Valley Children’s Hospital (Neurodevelopment)', kind: 'Hospital / ED', contact: 'Discharge planning', phone: '(559) 555-0310', email: 'referrals@vch.example.org', npi: '1029384756', ownerId: 's9', status: 'active', since: '2025-04-02', dormantDays: 90, notes: 'Discharge-driven referrals; timeline is tight, escalate on receipt.' },
+  { id: 'rs-community', name: 'Autism Society (South Bay chapter)', kind: 'Community organisation', contact: 'Helpline volunteers', phone: '(408) 555-0311', email: 'southbay@autismsociety.example.org', npi: '', ownerId: 's12', status: 'active', since: '2024-05-19', dormantDays: 180, notes: 'High-volume, lower-conversion source; expect insurance eligibility issues.' },
   { id: 'rs-legacy-peds', name: 'Evergreen Family Medicine', kind: 'Pediatrician', contact: 'Front office', phone: '(408) 555-0312', email: '', npi: '1338274610', ownerId: null, status: 'dormant', since: '2021-03-10', dormantDays: 60, notes: 'No referrals since the practice changed ownership. The relationship owner left.' },
 ]
 

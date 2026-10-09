@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/gfe.js, src/components/GfeDialog.jsx, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/billingdocs-wiring and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on AR Manager and Generate Invoice); feat/copy-and-infotips on 2026-10-09 (copy pass, no em dashes, guidance behind InfoTips)._
+_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/billingdocs-wiring and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on AR Manager and Generate Invoice); feat/copy-and-infotips on 2026-10-09 (copy pass, no em dashes, guidance behind InfoTips); chore/emdash-data on 2026-10-09 (the last stored values with em dashes, the appointment auto-title and export header lines now use plain separators; a workspace migration updates saved data and old backups)._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 

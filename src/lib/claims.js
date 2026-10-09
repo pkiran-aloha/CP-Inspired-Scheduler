@@ -739,7 +739,7 @@ export function claimCsv(state, claim) {
   const org = state.settings.org || {}
   const client = (state.clients || []).find((c) => c.id === claim.clientId) || {}
   const L = [
-    `# ${org.name || 'Practice'} — Claim ${claim.no} (${claim.status}) · ${claim.mode === 'selfpay' ? 'Self-pay invoice' : claim.payer}`,
+    `# ${org.name || 'Practice'}: Claim ${claim.no} (${claim.status}) · ${claim.mode === 'selfpay' ? 'Self-pay invoice' : claim.payer}`,
     `# Client ${client.name || claim.clientId} · member ${memberIdOf(claim.method === 'secondary' ? client.secondary : client) || 'not on file'} · DOS ${claim.dosFrom} → ${claim.dosTo} · Auth ${authNoOf(claim.method === 'secondary' ? client.secondary : client) || 'not on file'}`,
     `# Charges ${claim.charges.toFixed(2)} · Adjustments ${(claim.adj || 0).toFixed(2)} · Primary payer paid ${(claim.paid || 0).toFixed(2)} · Secondary received ${(claim.secondaryPaid || 0).toFixed(2)} · Patient received ${(claim.patientPaid || 0).toFixed(2)} · ${claim.method === 'secondary' ? 'Filing balance (not additional A/R)' : 'Primary A/R'} ${dueOf(claim).toFixed(2)}`,
     'line,date_of_service,hcpcs,mod,description,units,rate,charge,rendered_by',
@@ -750,7 +750,7 @@ export function claimCsv(state, claim) {
 export function claimsCsv(state, claims) {
   const org = state.settings.org || {}
   const L = [
-    `# ${org.name || 'Practice'} — claims register · ${claims.length} claim${claims.length > 1 ? 's' : ''}`,
+    `# ${org.name || 'Practice'}: claims register · ${claims.length} claim${claims.length > 1 ? 's' : ''}`,
     'claim,ledger_role,client,payer,mode,dos_from,dos_to,lines,units,charges,adj,payer_paid,secondary_received,patient_received,balance,remaining_reported_patient_share,status,submitted,paid_on',
     ...claims.map((c) => {
       const client = (state.clients || []).find((x) => x.id === c.clientId) || {}

@@ -18,6 +18,7 @@ import { seedRecords } from '../lib/demoRecords'
 import { planPduEntry } from '../lib/credentials'
 import { planTask, planTaskDone } from '../lib/tasks'
 import { planMessage, readUpdates } from '../lib/messages'
+import { migrateEmDashData } from '../lib/emDashMigration'
 import { planSettingsOp, normalizeSettingsMasters, appendImportLog, evaluateAppointmentValidations, isCancelStatus, stopViolationsForDraft, validationFlagsForDraft, touchesSchedule } from '../lib/settingsMasters'
 import { hasIntegrationSecrets, stripIntegrationSecrets } from '../lib/integrationSecrets'
 import { planImport } from '../lib/dataImport'
@@ -44,7 +45,7 @@ export const serializeForStorage = (state) => {
   return JSON.stringify({ ...state, settings, history: [] })
 }
 const normalizeWorkspace = (state) => {
-  const normalized = normalizeRecurrence(normalizeStaffEducation(normalizeAppealedClaims(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(state, uid)))))))))))))))
+  const normalized = normalizeRecurrence(normalizeStaffEducation(normalizeAppealedClaims(normalizeUnitNorms(normalizeAuthUnits(normalizeSettingsMasters(normalizeVerificationForms(normalizeIntake(normalizeCobLedger(normalizeBillingIds(normalizeBillingV2(normalizeLegacyCustom(normalizeApptPcfs(normalizeAbaHours(normalizePayerCf(migrateEmDashData(state), uid)))))))))))))))
   return { ...normalized, security: normalizeSecurity(normalized.security, normalized.staff) }
 }
 

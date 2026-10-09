@@ -223,7 +223,7 @@ describe('downstream systems', () => {
   it('carries the flag onto the payroll line and totals it without changing pay', () => {
     const s = state([
       appt('p1', { staffIds: ['s3'], date: '2026-06-16', start: 540, end: 660, title: 'ABA group training' }),
-      appt('p2', { staffIds: ['s3'], date: '2026-06-17', start: 540, end: 600, abaHr: false, title: 'Unavail — medical appt' }),
+      appt('p2', { staffIds: ['s3'], date: '2026-06-17', start: 540, end: 600, abaHr: false, title: 'Unavail: medical appt' }),
     ])
     const period = periodFor(s.settings.payroll, '2026-06-16')
     const lines = scheduleLines(s, 's3', period)

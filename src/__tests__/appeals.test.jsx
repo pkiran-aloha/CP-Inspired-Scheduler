@@ -79,7 +79,7 @@ describe('appeals', () => {
     fireEvent.change(screen.getByTestId('appeal-note'), { target: { value: 'Session notes attached.' } })
     fireEvent.click(screen.getByTestId('appeal-letter'))
     const text = await readBlob(window.URL.createObjectURL.mock.calls[0][0])
-    expect(text).toContain(`Re: Appeal — Claim ${claim.no}`)
+    expect(text).toContain(`Re: Appeal · Claim ${claim.no}`)
     expect(text).toContain(`Denial reason: ${claim.denial.reason}`)
     expect(text).toContain('meets medical necessity criteria')
     expect(text).toContain('Session notes attached.')
