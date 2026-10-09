@@ -140,12 +140,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .viewseg button.on { background: var(--panel); color: var(--text); box-shadow: var(--shadow-1); }
 .viewseg button:hover:not(.on) { color: var(--text); }
 
-.userchip {
-  display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 4px; border-radius: 10px;
-  border: 1px solid var(--line); background: var(--panel); font-weight: 600; font-size: 12.5px; box-shadow: var(--shadow-1);
-}
-.userchip .avatar { width: 22px; height: 22px; font-size: 9px; }
-
 .avatar {
   width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center;
   color: #fff; font-weight: 700; font-size: 10.5px; letter-spacing: 0.02em; flex: none;
@@ -1434,7 +1428,6 @@ table.dir-table { width: 100%; border-collapse: separate; border-spacing: 0; fon
   .brand .bt, .brand small { display: none; }
   .brand { padding-right: 0; }
   .range-sub { display: none; }
-  .uc-name { display: none; }
 }
 @media (max-width: 1000px) {
   .appt-label { display: none; }
@@ -2704,10 +2697,6 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .pay-phase-head.tone-bad .pay-phase-eyebrow { color: var(--danger, #b91c1c); }
 .pay-phase-head h3 { margin: 2px 0 2px; font-size: 16px; font-weight: 800; letter-spacing: -.25px; }
 .pay-phase-sub { font-size: 12.3px; color: var(--text-2); line-height: 1.55; max-width: 78ch; }
-
-.pay-guide { list-style: none; margin: 0 0 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 12px; background: linear-gradient(180deg, var(--panel-2), color-mix(in srgb, var(--panel-2) 45%, var(--panel))); }
-.pay-guide li { display: flex; gap: 10px; align-items: flex-start; font-size: 12.3px; line-height: 1.55; color: var(--text-2); }
-.pay-guide-n { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 6px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-size: 10px; font-weight: 800; border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
 
 .btn.pay-next { gap: 4px; box-shadow: 0 3px 12px -3px color-mix(in srgb, var(--accent) 55%, transparent); }
 .btn.pay-next:disabled { box-shadow: none; }
@@ -4347,9 +4336,6 @@ tr:hover .rpv-act button, .rpv-act button:focus-visible { opacity: 1; }
 /* The nav rail's account avatar also carries .nr-ic (inline-flex, no alignment), which
    pinned the initials to the tile's top-left corner. Centre them explicitly. */
 .nr-preview-avatar { display: inline-grid; place-items: center; flex: none; line-height: 1; font-size: 10px; letter-spacing: 0.02em; }
-/* Top-bar chip: keep "Name · Org" on one line beside the avatar and caret. */
-.userchip .uc-name { white-space: nowrap; }
-.userchip > svg { flex: none; color: var(--muted); }
 
 /* InfoTip: click/Enter toggletip that holds a screen's guidance text (src/ui/InfoTip.jsx) */
 .set-sec-title { display: flex; align-items: center; gap: 4px; }

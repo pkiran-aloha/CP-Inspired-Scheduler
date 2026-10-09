@@ -47,15 +47,13 @@ describe('Billing stat tiles', () => {
 })
 
 describe('Profile selector', () => {
-  it('shows the account initials in the rail avatar and the top-bar chip, with the caret beside the name', () => {
+  it('shows the account initials in the rail avatar, the one profile control (Calendar has no second chip)', () => {
     render(<App />)
     const railAvatar = document.querySelector('[data-testid="nav-demo-preview"] .nr-preview-avatar')
     expect(railAvatar.textContent).toMatch(/^[A-Z]{1,2}$/)
     fireEvent.click(screen.getByTestId('nav-calendar'))
-    const chip = document.querySelector('.userchip')
-    expect(chip.querySelector('.avatar').textContent).toBe(railAvatar.textContent)
-    expect(chip.querySelector('.uc-name').textContent).toMatch(/\S · \S/)
-    expect(chip.lastElementChild.tagName.toLowerCase()).toBe('svg')
+    expect(document.querySelectorAll('.nr-preview-avatar')).toHaveLength(1)
+    expect(document.querySelector('.userchip')).toBeNull()
   })
 
   it('centres the rail avatar initials (the rail icon class is inline-flex with no alignment)', () => {

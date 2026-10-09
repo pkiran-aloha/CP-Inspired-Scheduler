@@ -99,15 +99,15 @@ describe('settings sidebar — every module and sub-tab renders once', () => {
   })
 
   it.each(['rail', 'keyboard shortcut', 'profile menu', 'command palette'])('expands a saved collapsed sidebar when Settings opens from the %s', async (entry) => {
-    saveUI({ nav: true, section: 'calendar' }) // the profile menu lives on the calendar top bar
+    saveUI({ nav: true, section: 'calendar' })
     R(<App />)
     expect(screen.getByTestId('navrail').classList.contains('collapsed')).toBe(true)
 
     if (entry === 'rail') fireEvent.click(screen.getByTestId('nav-settings'))
     else if (entry === 'keyboard shortcut') fireEvent.keyDown(window, { key: '0' })
     else if (entry === 'profile menu') {
-      fireEvent.click(screen.getByText(/Admin · Aloha/))
-      fireEvent.click(screen.getByText('Settings', { selector: '.menu *' }))
+      fireEvent.click(within(screen.getByTestId('nav-demo-preview')).getAllByRole('button')[0])
+      fireEvent.click(screen.getByTestId('profile-settings'))
     } else {
       fireEvent.keyDown(window, { key: 'k', ctrlKey: true })
       const input = await screen.findByTestId('palette-input')

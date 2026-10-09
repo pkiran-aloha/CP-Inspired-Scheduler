@@ -36,6 +36,47 @@ describe('landing page', () => {
     expect(screen.getByTestId('nav-calendar').classList.contains('on')).toBe(true)
   })
 
+  it('inbox and profile menu are reachable from the Dashboard and work, with no second copy on Calendar', async () => {
+    render(<App />)
+    expect(screen.getByTestId('nav-dashboard').classList.contains('on')).toBe(true)
+    fireEvent.click(screen.getByTestId('inbox-open'))
+    const panel = await screen.findByTestId('inbox-panel')
+    fireEvent.click(within(panel).getByTestId('inbox-close'))
+    await waitFor(() => expect(screen.queryByTestId('inbox-panel')).toBeNull())
+
+    const openMenu = () => { fireEvent.click(within(screen.getByTestId('nav-demo-preview')).getAllByRole('button')[0]); return screen.getByTestId('profile-menu') }
+    expect(within(openMenu()).getByText('Undo last change')).toBeTruthy()
+    fireEvent.click(screen.getByTestId('open-security-accounts'))
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('aloha-aba.v3')).ui.section).toBe('settings'))
+    expect(screen.queryByTestId('profile-menu')).toBeNull()
+    fireEvent.change(within(openMenu()).getByTestId('nav-demo-account-switch'), { target: { value: 'account-s1' } })
+    await waitFor(() => expect(JSON.parse(localStorage.getItem('aloha-aba.v3')).security.currentUserId).toBe('account-s1'))
+
+    fireEvent.click(screen.getByTestId('nav-calendar'))
+    expect(screen.getAllByTestId('inbox-open')).toHaveLength(1)
+    expect(screen.getAllByTestId('nav-demo-preview')).toHaveLength(1)
+  })
+
+  it('on a phone the rail starts collapsed even after an expand was saved, and still opens on request', () => {
+    const s = blankState()
+    localStorage.setItem('aloha-aba.v3', JSON.stringify({ ...s, ui: { ...s.ui, section: 'dashboard', nav: false } }))
+    const orig = window.matchMedia
+    window.matchMedia = (query) => ({ matches: /max-width: (760|1279)px/.test(query), addEventListener() {}, removeEventListener() {} })
+    try {
+      render(<App />)
+      const rail = screen.getByTestId('navrail')
+      expect(rail.classList.contains('collapsed')).toBe(true)
+      fireEvent.click(screen.getByTestId('nav-collapse'))
+      expect(rail.classList.contains('collapsed')).toBe(false)
+      fireEvent.click(screen.getByTestId('nav-billing')) // picking a section folds it away
+      expect(rail.classList.contains('collapsed')).toBe(true)
+      fireEvent.click(screen.getByTestId('nav-settings')) // Settings' module list lives in the rail
+      expect(rail.classList.contains('collapsed')).toBe(false)
+    } finally {
+      window.matchMedia = orig
+    }
+  })
+
   it('key 1 opens the Dashboard and key 2 the Calendar', () => {
     renderCal()
     fireEvent.keyDown(window, { key: '1' })
@@ -117,12 +158,13 @@ describe('scheduler shell', () => {
     expect(container.querySelectorAll('.chip').length).toBe(before)
   })
 
-  it('profile menu opens and Settings dialog is reachable', () => {
+  it('profile menu opens from the rail and Settings is reachable; the board keeps its .ics export', () => {
     renderCal()
-    fireEvent.click(screen.getByText(/Admin · Aloha/))
-    expect(screen.getByText('Export current range (.ics)')).toBeTruthy()
-    fireEvent.click(screen.getByText('Settings', { selector: '.menu *' }))
-    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeTruthy()
+    expect(screen.getByTestId('export-ics')).toBeTruthy()
+    fireEvent.click(within(screen.getByTestId('nav-demo-preview')).getAllByRole('button')[0])
+    fireEvent.click(screen.getByTestId('profile-settings'))
+    expect(screen.getByTestId('nav-settings').classList.contains('on')).toBe(true)
+    expect(screen.queryByTestId('profile-menu')).toBeNull()
   })
 
   it('switches to horizontal Timeline view (time left→right, one row per day)', async () => {
@@ -548,8 +590,8 @@ describe('smart scheduling: backfill, suggestions & analytics', () => {
 
   it('settings expose the smart-scheduling control panel', async () => {
     renderCal()
-    fireEvent.click(screen.getByText(/Admin · Aloha/))
-    fireEvent.click(screen.getByText('Settings', { selector: '.menu *' }))
+    fireEvent.click(within(screen.getByTestId('nav-demo-preview')).getAllByRole('button')[0])
+    fireEvent.click(screen.getByTestId('profile-settings'))
     expect(await screen.findByText('Smart scheduling')).toBeTruthy()
     expect(screen.getByText('Care-team affinity')).toBeTruthy()
     expect(screen.getByText('Min backfill confidence')).toBeTruthy()
