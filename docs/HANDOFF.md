@@ -40,6 +40,14 @@ Last updated **2026-10-08** (configuration-audit and architecture-mismatch clean
 - **Checked.** Headless Edge at 1440x900, 1280x720 and 390x844 in all three modes, light and dark: calendar, dashboard, billing, reports, booking dialog. No horizontal page scroll; the booking dialog Save stays in view in every mode.
 - **Tests.** `viewDensity.test.jsx` (mode parsing, calendar hour heights, settings validation, any role may switch, Settings picker sets the attribute and persists across reload, default Normal, palette switch).
 
+### Billing tile icons and profile avatar (`fix/billing-icons`, 2026-10-08)
+
+- **Billing tiles.** Eight Billing sub-screens drew the same glyph on every stat tile (dollar on AR Manager and Payment Center, file on Generate Invoice and Billed Files, shield on Appeals, Verification Forms, Secondary Queue and Provider Identifier). Each view now has a `TILE_ICON` map keyed by tile test id, one glyph per metric, all at 16px in the existing tinted 32px chip. The Billing desk KPI cards already had distinct glyphs and were left alone; the QuickBooks tiles have no icons and were left alone.
+- **New icons** in `Icons.jsx`, same 24-unit stroke style: `percent`, `wallet`, `hourglass`, `eraser`, `cheque`, `transfer`, `inbox`, `folder`, `gavel`. `phone`, `house`, `heart` and `star` ignored their props (always 16px); fixed.
+- **Profile selector root cause.** The navigation rail's account avatar has both `.nr-ic` (inline-flex with no alignment) and `.nr-preview-avatar`, which set a size but never a centring display, so the initials sat in the tile's top-left corner and touched its rounded edge. Appended rule: `.nr-preview-avatar { display: inline-grid; place-items: center }`. The Calendar top-bar chip also wrapped "Admin · Aloha" onto two lines; `.uc-name` is now `nowrap` and the caret is muted.
+- **Tests.** New `billingTileIcons.test.jsx`: every Billing tile strip has distinct 16px glyphs, the rail and top-bar avatars show the same initials with the caret after the name, the centring rule exists, and every icon honours `size`.
+- **Checked visually** in headless Edge (light, dark, 390px phone).
+
 ### Dashboard is the landing page (`feat/dashboard-landing`, 2026-10-08)
 
 - **What.** Fresh workspaces and app loads open on the Dashboard. It is first in the NavRail, the command palette's "Jump to" list and `firstAccessibleSection` (so a role without Dashboard access falls back to its first permitted section). Digit keys follow sidebar order: `1` Dashboard, `2` Calendar, `3` Clients, `4` Staff, `5` Billing, `6` Analytics, `7` Reports, `8` Masters, `9` Payroll (`0` Settings). Keyboard sheet, wiki and marketing copy updated.

@@ -2,7 +2,7 @@
 
 _Sources: src/lib/dash.js, src/lib/billingKpis.js, src/lib/reports.js, src/lib/analytics.js, src/lib/rpTrends.js, src/lib/reportViz.js, src/lib/exportKit.js, src/components/DashboardView.jsx, src/components/ReportsView.jsx, src/components/reports/Charts.jsx, src/ui/Icons.jsx, src/components/AnalyticsView.jsx, src/state/store.jsx, src/lib/workspaceBackup.js_
 
-_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, feat/local-screen-lock and feat/reports-revamp branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); feat/reports-visuals on 2026-10-08 (one chart per report, KPI sparklines, catalogue icons, table cell meters); unrelated behavior unchanged._
+_Last synced against main 73e0236 plus the perf/lazy-views, fix/workspace-persistence, feat/local-screen-lock and feat/reports-revamp branches on 2026-10-08; feat/dashboard-landing on 2026-10-08 (Dashboard is the landing page, section keys renumbered); feat/reports-visuals on 2026-10-08 (one chart per report, KPI sparklines, catalogue icons, table cell meters); unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (new stat-tile icons added to Icons.jsx and every icon now honours its size prop; no report change)._
 
 [Wiki home](README.md) · Related: [Scheduling](scheduling.md), [Payroll](payroll.md), [Intake](intake.md), [Settings](settings.md)
 

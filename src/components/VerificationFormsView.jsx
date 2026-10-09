@@ -8,6 +8,8 @@ import { download } from '../lib/ics'
 import { isoDate, addDays, parseISO, fmtDayLabel } from '../lib/date'
 import { PersonAvatar } from '../ui/avatars'
 import { buildVerificationForm } from '../lib/billingDocs'
+// One glyph per metric (no two tiles on a screen share one).
+const TILE_ICON = { 'vf-kpi-total': 'clipboard', 'vf-kpi-pending': 'clock', 'vf-kpi-verified': 'checkCircle', 'vf-kpi-expired': 'hourglass' }
 
 export default function VerificationFormsView() {
   const state = useStore()
@@ -58,7 +60,7 @@ export default function VerificationFormsView() {
           ['Expired', kpis.expired, 'Renew', '#ef4444', 'vf-kpi-expired'],
         ].map(([label, val, sub, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 14 })}</span>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon[TILE_ICON[testId]]({ size: 16 })}</span>
             <div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div>
           </div>
         ))}

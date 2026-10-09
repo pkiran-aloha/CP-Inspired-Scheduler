@@ -7,6 +7,8 @@ import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO, fmtDayLabel, todayISO } from '../lib/date'
 import { dueOf, secondaryEligible } from '../lib/claims'
 import { PersonAvatar } from '../ui/avatars'
+// One glyph per metric (no two tiles on a screen share one).
+const TILE_ICON = { 'sb-kpi-ready': 'file', 'sb-kpi-submitted': 'clock', 'sb-kpi-paid': 'checkCircle', 'sb-kpi-denied': 'ban', 'sb-kpi-remaining': 'dollar' }
 
 const money = (n) => `$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 
@@ -90,7 +92,7 @@ export default function SecondaryBillingView() {
           ['Remaining', money(stats.totalRemaining), '#f59e0b', 'sb-kpi-remaining'],
         ].map(([label, val, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', borderRadius: 12, padding: '12px 16px', minWidth: 160 }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 14 })}</span>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon[TILE_ICON[testId]]({ size: 16 })}</span>
             <span><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span></span>
           </div>
         ))}

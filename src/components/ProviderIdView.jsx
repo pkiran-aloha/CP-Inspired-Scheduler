@@ -4,6 +4,8 @@ import { SectionBar } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { PersonAvatar } from '../ui/avatars'
+// One glyph per metric (no two tiles on a screen share one).
+const TILE_ICON = { 'pi-kpi-total': 'users', 'pi-kpi-bcba': 'badge', 'pi-kpi-bt': 'user', 'pi-kpi-missing': 'alert' }
 
 export default function ProviderIdView() {
   const state = useStore()
@@ -59,7 +61,7 @@ export default function ProviderIdView() {
           ['Missing NPI', kpis.missing, 'Needs attention', '#ef4444', 'pi-kpi-missing'],
         ].map(([label, val, sub, color, testId]) => (
           <div key={label} className="rp-sumchip on" data-testid={testId} style={{ background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', minWidth: 140, borderRadius: 12, padding: '12px 16px' }}>
-            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 14 })}</span>
+            <span style={{ width: 32, height: 32, borderRadius: 9, background: `${color}14`, color, display: 'grid', placeItems: 'center' }}>{Icon[TILE_ICON[testId]]({ size: 16 })}</span>
             <div><b style={{ fontSize: 18, fontWeight: 800 }}>{val}</b><span style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>{label}</span><span style={{ fontSize: 12, color: 'var(--muted)' }}>{sub}</span></div>
           </div>
         ))}
