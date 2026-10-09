@@ -247,7 +247,7 @@ export function PayersList() {
         </div>
       )}
 
-        <div className="py-tbl" data-testid="payers-table">
+        <div className="py-tbl py-cards" data-testid="payers-table">
           <div className="py-thead">
             <button className="sortable" data-testid="py-sort-name" onClick={() => flip('name')}>Payer Name{arrow('name')}</button>
             <button className="sortable" data-testid="py-sort-type" onClick={() => flip('type')}>Type{arrow('type')}</button>

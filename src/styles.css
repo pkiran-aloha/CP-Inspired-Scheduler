@@ -2171,14 +2171,21 @@ body.dsh-moving .dsh-w:not(.is-drag) .dsh-w-head, body.dsh-moving .dw-rz { point
 .pcf-chip { display: inline-flex; align-items: baseline; gap: 6px; background: var(--panel-3); border: 1px solid var(--line); border-radius: 9px; padding: 3px 9px; font-size: 11.5px; }
 .pcf-chip b { font-weight: 680; color: var(--text-2); }
 .pcf-chip i { font-style: normal; color: var(--accent); font-weight: 620; }
+/* Card rows for the Masters tables only (.py-cards). Billing and Payroll reuse .py-tbl with inline
+   columns: they keep every header and cell and scroll inside .py-tbl instead. Each row is its own
+   grid, so zero item minimums keep header and rows on the same tracks; a floor that grows with the
+   column count makes wide tables scroll instead of crushing cells (5 columns or fewer need none). */
+.py-tbl:not(.py-cards) > :is(.py-thead, .py-trow) > * { min-width: 0; }
 @media (max-width: 1180px) {
-  .py-thead { display: none; }
-  .py-trow, .sv-tbl .py-trow { grid-template-columns: minmax(0, 1fr) auto; grid-auto-rows: auto; row-gap: 4px; padding: 10px 14px; }
-  .py-trow > .py-idcell { grid-row: span 2; }
-  .py-trow > .py-tgo { align-self: center; opacity: 1; }
-  .py-cell:nth-child(4), .py-cell:nth-child(5) { display: none; }
-  .py-cell:nth-child(6) { grid-column: 2; justify-content: flex-end; }
-  .py-cell:nth-child(7) { grid-column: 2; justify-content: flex-end; }
+  .py-tbl:not(.py-cards):has(> .py-thead > :nth-child(6)) > :is(.py-thead, .py-trow) { min-width: 800px; }
+  .py-tbl:not(.py-cards):has(> .py-thead > :nth-child(8)) > :is(.py-thead, .py-trow) { min-width: 880px; }
+  .py-cards .py-thead { display: none; }
+  .py-cards .py-trow { grid-template-columns: minmax(0, 1fr) auto; grid-auto-rows: auto; row-gap: 4px; padding: 10px 14px; }
+  .py-cards .py-trow > .py-idcell { grid-row: span 2; }
+  .py-cards .py-trow > .py-tgo { align-self: center; opacity: 1; }
+  .py-cards .py-cell:nth-child(4), .py-cards .py-cell:nth-child(5) { display: none; }
+  .py-cards .py-cell:nth-child(6) { grid-column: 2; justify-content: flex-end; }
+  .py-cards .py-cell:nth-child(7) { grid-column: 2; justify-content: flex-end; }
   .sv-tbl .py-cell:nth-child(4), .sv-tbl .py-cell:nth-child(5) { display: flex; }
   .pcf-f { flex-direction: column; align-items: flex-start; gap: 4px; }
   .pcf-f > label { flex: none; }
