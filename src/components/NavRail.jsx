@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
@@ -10,7 +10,9 @@ import { stagedAppts } from '../lib/claims'
 import { cabinetAlerts } from '../lib/cabinet'
 import { RANGE_PRESETS } from '../lib/analytics'
 import { useMedia } from '../lib/useMedia'
-import { canAccessSection, resolveAccount } from '../lib/security'
+import { DEMO_RESET_AREAS, canAccessSection, currentAccount, resolveAccount } from '../lib/security'
+import { notificationsFor } from '../lib/tasks'
+import { unreadCount } from '../lib/messages'
 import { SETTINGS_MODULES } from '../lib/settingsMasters'
 import { addDays, isoDate, parseISO, todayISO } from '../lib/date'
 
@@ -77,7 +79,25 @@ export default function NavRail() {
   // as an icon strip there by default (tooltips carry the labels). Any explicit
   // collapse/expand click wins and persists across sections and reloads.
   const narrow = useMedia('(max-width: 1279px)')
-  const collapsed = ui.nav ?? (section === 'calendar' || narrow)
+  // On a phone an open rail leaves almost no room for the screen, so the saved
+  // expand choice (made on a wider screen, or by any Settings visit) is ignored:
+  // the rail starts collapsed and opens only on request, or for Settings, whose
+  // module list lives here. Picking another section folds it away again.
+  const phone = useMedia('(max-width: 760px)')
+  const [phoneOpen, setPhoneOpen] = useState(false)
+  useEffect(() => setPhoneOpen(section === 'settings' || section === 'security'), [section])
+  const collapsed = phone ? !phoneOpen : ui.nav ?? (section === 'calendar' || narrow)
+  const me = currentAccount(state)
+  const inboxCount = notificationsFor(state, me?.staffId || null, todayISO(), (area) => state.canAccess(area, 'view')).length + unreadCount(state, me?.id || null)
+  const canResetDemo = state.canAccessAllOffices && DEMO_RESET_AREAS.every((area) => state.canAccess(area, 'full'))
+  const previewRef = useRef(null)
+  useEffect(() => {
+    if (!previewOpen) return
+    const close = (e) => { if (!previewRef.current?.contains(e.target)) setPreviewOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [previewOpen])
+  const menuGo = (fn) => () => { fn(); setPreviewOpen(false) }
   const wantedSettingsMod = section === 'security' ? 'security' : ui.settingsModule
   const activeSettingsMod = SETTINGS_MODULES.some((m) => m.id === wantedSettingsMod)
     ? wantedSettingsMod
@@ -213,12 +233,19 @@ export default function NavRail() {
       </div>
 
       <div className="nr-foot">
-        <div className={`nr-preview ${previewOpen ? 'open' : ''}`} data-testid="nav-demo-preview">
-          <button className="nr-item nr-preview-trigger" type="button" onClick={() => setPreviewOpen((open) => !open)} aria-expanded={previewOpen} aria-label={`Local demo account preview: ${state.currentAccount?.name || 'No active user'}`} title="Switch local demo account preview">
+        <button className="nr-item" type="button" data-testid="inbox-open" onClick={() => actions.setUI({ inboxPanel: true })} title={`Inbox: ${inboxCount} notification${inboxCount === 1 ? '' : 's'} and your tasks`}>
+          <span className="nr-ic">
+            {Icon.mail({ size: 15 })}
+            {inboxCount > 0 && <span className="nr-badge hot" data-testid="inbox-count">{inboxCount > 99 ? '99+' : inboxCount}</span>}
+          </span>
+          {!collapsed && <span className="nr-label">Inbox</span>}
+        </button>
+        <div className={`nr-preview ${previewOpen ? 'open' : ''}`} data-testid="nav-demo-preview" ref={previewRef}>
+          <button className="nr-item nr-preview-trigger" type="button" onClick={() => setPreviewOpen((open) => !open)} aria-expanded={previewOpen} aria-label={`Local demo account preview: ${state.currentAccount?.name || 'No active user'}`} title="Profile: demo account, settings and undo" aria-haspopup="true">
             <span className="nr-ic nr-preview-avatar">{String(state.currentAccount?.name || 'User').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}</span>
             {!collapsed && <span className="nr-preview-label"><b>{state.currentAccount?.name || 'No active user'}</b><i>{state.currentRole?.name || 'No role'} · demo</i></span>}
           </button>
-          {previewOpen && <div className="nr-preview-popover" role="group" aria-label="Local demo account switcher">
+          {previewOpen && <div className="nr-preview-popover" role="group" aria-label="Profile menu" data-testid="profile-menu">
             <b>Local demo preview</b>
             <span>{state.currentRole?.name || 'No role'} · not a sign-in session</span>
             <select aria-label="Preview demo account from navigation" value={state.currentAccount?.id || ''} onChange={(event) => {
@@ -234,6 +261,12 @@ export default function NavRail() {
                 return <option key={account.id} value={account.id}>{account.name} · {role?.name || 'No role'}</option>
               })}
             </select>
+            <div className="menu-sep" />
+            {state.canAccess('security', 'view') && <button className="menu-item" onClick={menuGo(() => actions.setUI({ settings: true, settingsModule: 'security', settingsSub: 'accounts' }))} data-testid="open-security-accounts">{Icon.shield({ size: 14 })} Manage accounts &amp; roles</button>}
+            {state.canAccess('settings', 'view') && <button className="menu-item" onClick={menuGo(() => actions.setUI({ settings: true, settingsModule: 'system' }))} data-testid="profile-settings">{Icon.dots({ size: 14 })} Settings</button>}
+            <button className="menu-item" onClick={menuGo(() => window.print())}>{Icon.print({ size: 14 })} Print / save as PDF</button>
+            <button className="menu-item" onClick={menuGo(() => { if (actions.undo()?.ok) toast({ message: 'Undone', kind: 'info' }) })}>{Icon.undo({ size: 14 })} Undo last change</button>
+            {canResetDemo && <button className="menu-item" onClick={menuGo(() => { actions.reseed(); toast({ message: 'Demo schedule regenerated', kind: 'ok' }) })}>{Icon.zap({ size: 14 })} Regenerate demo data</button>}
           </div>}
         </div>
         {!collapsed && (
@@ -264,7 +297,7 @@ export default function NavRail() {
         <div className="nr-build" data-testid="app-build" title={"Build running in this tab. If a newer one is deployed, you will be offered a refresh."}>
           {collapsed ? 'v36' : `v36 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>
-        <button className="nr-item" onClick={() => actions.setUI({ nav: !collapsed })} data-testid="nav-collapse" title={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
+        <button className="nr-item" onClick={() => (phone ? setPhoneOpen(collapsed) : actions.setUI({ nav: !collapsed }))} data-testid="nav-collapse" title={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
           <span className="nr-ic">{collapsed ? Icon.chevronR({ size: 14 }) : Icon.chevronL({ size: 14 })}</span>
           {!collapsed && <span className="nr-label">Collapse</span>}
         </button>

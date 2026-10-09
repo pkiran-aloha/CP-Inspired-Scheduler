@@ -7,9 +7,6 @@ import { STATUS_ORDER, STATUSES } from '../lib/model'
 import { apptStatusList, isCancelStatus, telehealthRoomFor } from '../lib/settingsMasters'
 import { buildICS, download } from '../lib/ics'
 import { scanNeedsCover } from '../lib/smart'
-import { DEMO_RESET_AREAS, currentAccount, resolveAccount } from '../lib/security'
-import { notificationsFor } from '../lib/tasks'
-import { unreadCount } from '../lib/messages'
 
 function useOutside(ref, cb, on) {
   useEffect(() => {
@@ -26,15 +23,9 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
   const state = useStore()
   const { ui, settings, actions } = state
   const canSchedule = state.canAccess('calendar', 'view')
-  const inboxCount = notificationsFor(state, currentAccount(state)?.staffId || null, todayISO(), (area) => state.canAccess(area, 'view')).length + unreadCount(state, currentAccount(state)?.id || null)
   const canScheduleEdit = state.canAccess('calendar', 'full')
-  const canOpenSettings = state.canAccess('settings', 'view')
-  const canManageSecurity = state.canAccess('security', 'view')
-  const canResetDemo = state.canAccessAllOffices && DEMO_RESET_AREAS.every((area) => state.canAccess(area, 'full'))
-  const activeAccount = state.currentAccount
-  const activeRole = state.currentRole
   const toast = useToast()
-  const [menu, setMenu] = useState(null) // 'filter' | 'user'
+  const [menu, setMenu] = useState(null) // 'filter'
   const wrapRef = useRef(null)
   useOutside(wrapRef, () => setMenu(null), !!menu)
 
@@ -175,10 +166,9 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
         {cover > 0 && <span className="cov-n" data-testid="cover-count">{cover}</span>}
       </button>}
 
-      <button className={`iconbtn cover-btn ${inboxCount ? 'alert' : ''}`} data-testid="inbox-open" onClick={() => actions.setUI({ inboxPanel: true })} title={`Inbox: ${inboxCount} notification${inboxCount === 1 ? '' : 's'} and your tasks`}>
-        {Icon.mail({ size: 15 })}
-        {inboxCount > 0 && <span className="cov-n" data-testid="inbox-count">{inboxCount}</span>}
-      </button>
+      {canSchedule && <button className="iconbtn" onClick={exportICS} title="Export current range (.ics)" aria-label="Export current range (.ics)" data-testid="export-ics">
+        {Icon.download({ size: 15 })}
+      </button>}
 
       <button className="iconbtn pal-btn" onClick={onPalette} title="Search clients, staff, reports and actions (⌘K)" data-testid="palette-open">
         <kbd>⌘K</kbd>
@@ -190,86 +180,6 @@ export default function TopBar({ onPalette,  onNew, onNav, days, label, sub }) {
       {canScheduleEdit && <button className="btn btn-primary" onClick={onNew} title="New appointment (N)">
         {Icon.plus({ size: 15, strokeWidth: 2.4 })} <span className="appt-label">Appointment</span>
       </button>}
-
-      <div className="rel">
-        <button className="userchip" onClick={() => setMenu(menu === 'user' ? null : 'user')} aria-haspopup="true">
-          <span className="avatar" style={{ background: 'linear-gradient(135deg,#6366f1,#8b5cf6)' }}>
-            {(activeAccount?.name || 'User').trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('').toUpperCase()}
-          </span>
-          <span className="uc-name">{activeAccount?.name || 'No active user'} · {(settings.org?.name || 'Aloha ABA Center').split(' ')[0]}</span> {Icon.chevDown({ size: 12 })}
-        </button>
-        {menu === 'user' && (
-          <div className="menu topbar-user-menu">
-            <div className="demo-account-preview">
-              <b>Local demo account preview</b>
-              <span>{activeRole?.name || 'No role'} · not a sign-in session</span>
-              <select aria-label="Preview demo account" value={activeAccount?.id || ''} onChange={(e) => {
-                const account = resolveAccount(state, state.security.accounts.find((item) => item.id === e.target.value))
-                const result = actions.switchDemoAccount(e.target.value)
-                if (result?.ok) toast({ message: `Previewing as ${account?.name || 'selected account'}`, kind: 'info' })
-                else if (result?.msg) toast({ message: result.msg, kind: 'warn' })
-                setMenu(null)
-              }} data-testid="demo-account-switch">
-                {state.security.accounts.filter((account) => account.status === 'active').map((stored) => {
-                  const account = resolveAccount(state, stored)
-                  const role = state.security.roles.find((item) => item.id === account.roleId)
-                  return <option key={account.id} value={account.id}>{account.name} · {role?.name || 'No role'}</option>
-                })}
-              </select>
-            </div>
-            {canManageSecurity && <button className="menu-item" onClick={() => { actions.setUI({ settings: true, settingsModule: 'security', settingsSub: 'accounts' }); setMenu(null) }} data-testid="open-security-accounts">{Icon.shield({ size: 14 })} Manage accounts &amp; roles</button>}
-            {canSchedule && <button
-              className="menu-item"
-              onClick={() => {
-                exportICS()
-                setMenu(null)
-              }}
-            >
-              {Icon.download({ size: 14 })} Export current range (.ics)
-            </button>}
-            <button
-              className="menu-item"
-              onClick={() => {
-                window.print()
-                setMenu(null)
-              }}
-            >
-              {Icon.print({ size: 14 })} Print / save as PDF
-            </button>
-            {canOpenSettings && <button
-              className="menu-item"
-              onClick={() => {
-                actions.setUI({ settings: true, settingsModule: 'system' })
-                setMenu(null)
-              }}
-            >
-              {Icon.dots({ size: 14 })} Settings
-            </button>}
-            <div className="menu-sep" />
-            <button
-              className="menu-item"
-              onClick={() => {
-                const result = actions.undo()
-                if (result?.ok) toast({ message: 'Undone', kind: 'info' })
-                setMenu(null)
-              }}
-            >
-              {Icon.undo({ size: 14 })} Undo last change
-            </button>
-            <div className="menu-sep" />
-            {canResetDemo && <button
-              className="menu-item"
-              onClick={() => {
-                actions.reseed()
-                toast({ message: 'Demo schedule regenerated', kind: 'ok' })
-                setMenu(null)
-              }}
-            >
-              {Icon.zap({ size: 14 })} Regenerate demo data
-            </button>}
-          </div>
-        )}
-      </div>
 
     </header>
   )
