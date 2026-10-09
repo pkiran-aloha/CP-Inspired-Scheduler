@@ -39,7 +39,7 @@ Last updated **2026-10-09** (plain copy and InfoTips landed; before that, config
 - **Fix.** CSS block at the end of `styles.css`: toolbars and segmented filters inside a section page wrap and shrink; list + detail splits carry `.bil-split` and become one `minmax(0, 1fr)` column under 1100 px (`!important`, because the columns are inline); under 760 px the claim facts grid goes to two columns, the claim footer to one, the pipeline connectors hide, and the section header and its strips stop pinning (`--secbar-h: 0px`) so a wrapped header does not cover a third of the phone screen. The A/R hidden table is `display: none`. The pipeline row and aging chips wrap.
 - **Verified.** Headless Edge probe of every Billing sub-screen plus the Billing tabs: section page `scrollWidth` equals `clientWidth` at 390 px (relaxed, normal, tight; light and dark), 760 px and 1024 px; 1440 px unchanged.
 - **Not changed (noted).** Under 1180 px an older generic rule (`.py-cell:nth-child(4), (5) { display: none }`, meant for the payroll table) hides the 4th and 5th cells of every Billing table, for example Status and View on Verification Forms. Rows stay clickable. Worth a follow-up that scopes that rule.
-- **Tests.** `billingNarrow.test.jsx`: each split carries `.bil-split`, the CSS rules exist, the A/R header table is out of layout.
+- **Tests.** `billingNarrow.test.jsx`: each split carries `.bil-split`, the CSS rules exist, the A/R header table is out of layout. Full suite: 113 files, 1,142 tests passed; build passes.
 
 ### Inbox and profile menu on every screen (`fix/global-header`, 2026-10-09)
 
