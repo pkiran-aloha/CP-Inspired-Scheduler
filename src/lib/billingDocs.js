@@ -24,16 +24,16 @@ export function buildPatientShareDraft(state, { clientIds = [], balanceOnly = fa
   const total = rows.reduce((s, r) => s + r.total, 0)
   const due = rows.reduce((s, r) => s + r.due, 0)
   const lines = [
-    `Draft patient share — ${state.settings?.org?.name || 'Practice'} — ${today}`,
-    `Range ${from} → ${to} — ${balanceOnly ? 'Reported patient balances only' : 'All primary claims'}`,
+    `Draft patient share: ${state.settings?.org?.name || 'Practice'} · ${today}`,
+    `Range ${from} → ${to} · ${balanceOnly ? 'Reported patient balances only' : 'All primary claims'}`,
     'DRAFT: Only explicit payer-reported patient responsibility and self-pay are shown as patient share. Verify COB and coverage before billing. Unassigned payer balances are excluded.',
     '',
     ...rows.flatMap((r) => [
-      `Client: ${r.client?.name || r.client?.id} — ${r.claims.length} primary claims — Charges ${money(r.total)} — Reported patient share ${money(r.due)}`,
+      `Client: ${r.client?.name || r.client?.id} · ${r.claims.length} primary claims · Charges ${money(r.total)} · Reported patient share ${money(r.due)}`,
       ...r.claims.map((c) => `  ${c.no} | ${c.dosFrom} | ${c.payer} | ${money(c.charges)} | Patient receipts ${money(c.patientPaid || 0)} | Practice A/R ${money(Math.max(0, dueOf(c)))} | Remaining reported patient share ${money(patientResponsibilityOf(state, c))} | ${c.status}`),
       '',
     ]),
-    `Total charges ${money(total)} — Reported patient share ${money(due)} (verify before sending)`,
+    `Total charges ${money(total)} · Reported patient share ${money(due)} (verify before sending)`,
   ]
   return { fileName: `Patient-share-draft-${today}.txt`, content: lines.join('\n'), rows, total, due }
 }
@@ -164,7 +164,7 @@ export function buildAppealLetter(state, opts = {}) {
     '',
     `Date: ${isoDate(new Date())}`,
     `Payer: ${claim.payer}`,
-    `Re: Appeal — Claim ${claim.no} · Client ${client.name || ''} · DOS ${claim.dosFrom} → ${claim.dosTo}`,
+    `Re: Appeal · Claim ${claim.no} · Client ${client.name || ''} · DOS ${claim.dosFrom} → ${claim.dosTo}`,
     // denial.code is the practice's own reason id (Settings → Billing), not a CARC, so print only the reason.
     `Denial reason: ${claim.denial?.reason || 'not recorded'}`,
     '',
@@ -177,7 +177,7 @@ export function buildAppealLetter(state, opts = {}) {
     'Sincerely,',
     `${org.name || ''}`,
     '',
-    '# Confidential — contains health information',
+    '# Confidential: contains health information',
   ].join('\n')
   return { fileName: `Appeal-${claim.no}.txt`, content }
 }

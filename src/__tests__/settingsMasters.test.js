@@ -147,9 +147,9 @@ describe('planSettingsOp guards', () => {
     expect(planSettingsOp(fresh(), 'status.upsert', { item: { key: 'family-cancel', label: 'Family cancel', pays: true, payrollCode: 'CANC', cancelBand: true } }).ok).toBe(true)
     expect(planSettingsOp(fresh(), 'earningCode.remove', { id: 'REG' }).ok).toBe(false) // shipped system code
     expect(planSettingsOp(fresh(), 'earningCode.remove', { id: 'TRAIN' }).ok).toBe(false) // also shipped
-    const add = planSettingsOp(fresh(), 'earningCode.upsert', { item: { id: 'TUTOR', label: 'Tutor session — paid', kind: 'worked' } })
+    const add = planSettingsOp(fresh(), 'earningCode.upsert', { item: { id: 'TUTOR', label: 'Tutor session (paid)', kind: 'worked' } })
     expect(add.ok).toBe(true)
-    expect(add.patch.payroll.earningCodes.some((c) => c.id === 'TUTOR')).toBe(true)
+    expect(add.patch.payroll.earningCodes.find((c) => c.id === 'TUTOR')?.short).toBe('Tutor session')
     // a code a timesheet already uses cannot be deleted
     const used = fresh()
     used.paySheets = { sh1: { id: 'sh1', status: 'draft', adjustments: [{ code: 'TUTOR', minutes: 30 }] } }

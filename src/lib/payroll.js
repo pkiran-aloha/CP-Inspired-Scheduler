@@ -29,7 +29,7 @@ import { countsAsAbaHours } from './abaHours'
 // `regularRate` — the pay is part of the FLSA regular rate (drives the premium)
 // `nondisc`     — a nondiscretionary addition that must be spread into the rate
 export const EARNING_CODES = [
-  { id: 'REG', label: 'Regular — direct treatment', short: 'Regular', kind: 'worked', otEligible: true, regularRate: true, taxable: true, duty: 'Direct care' },
+  { id: 'REG', label: 'Regular (direct treatment)', short: 'Regular', kind: 'worked', otEligible: true, regularRate: true, taxable: true, duty: 'Direct care' },
   { id: 'SUP', label: 'Supervision / overlap', short: 'Supervision', kind: 'worked', otEligible: true, regularRate: true, taxable: true, duty: 'Clinical supervision' },
   { id: 'EVAL', label: 'Assessment / evaluation', short: 'Assessment', kind: 'worked', otEligible: true, regularRate: true, taxable: true, duty: 'Assessment' },
   { id: 'DRIVE', label: 'Drive time (between clients)', short: 'Drive', kind: 'worked', otEligible: true, regularRate: true, taxable: true, duty: 'Travel between sites' },
@@ -39,8 +39,8 @@ export const EARNING_CODES = [
   { id: 'OT', label: 'Overtime premium (0.5× regular rate)', short: 'OT premium', kind: 'premium', otEligible: false, regularRate: false, taxable: true, duty: 'FLSA overtime' },
   { id: 'PTO', label: 'Paid time off', short: 'PTO', kind: 'leave', otEligible: false, regularRate: false, taxable: true, duty: 'Leave' },
   { id: 'HOL', label: 'Holiday pay', short: 'Holiday', kind: 'leave', otEligible: false, regularRate: false, taxable: true, duty: 'Holiday' },
-  { id: 'BONUS', label: 'Bonus — nondiscretionary', short: 'Bonus', kind: 'bonus', otEligible: false, regularRate: true, nondisc: true, taxable: true, duty: 'Bonus' },
-  { id: 'BONUSX', label: 'Bonus — discretionary', short: 'Bonus (disc.)', kind: 'bonus', otEligible: false, regularRate: false, taxable: true, duty: 'Discretionary bonus' },
+  { id: 'BONUS', label: 'Bonus (nondiscretionary)', short: 'Bonus', kind: 'bonus', otEligible: false, regularRate: true, nondisc: true, taxable: true, duty: 'Bonus' },
+  { id: 'BONUSX', label: 'Bonus (discretionary)', short: 'Bonus (disc.)', kind: 'bonus', otEligible: false, regularRate: false, taxable: true, duty: 'Discretionary bonus' },
   { id: 'MILE', label: 'Mileage reimbursement (non-taxable)', short: 'Mileage', kind: 'expense', otEligible: false, regularRate: false, taxable: false, duty: 'Reimbursement' },
   { id: 'EXP', label: 'Expense reimbursement (non-taxable)', short: 'Expense', kind: 'expense', otEligible: false, regularRate: false, taxable: false, duty: 'Reimbursement' },
 ]
@@ -229,7 +229,7 @@ export function defaultProfile(staff, idx = 0) {
     tax: { filingStatus: 'single', dependents: 0, extraWithholding: 0, exempt: false },
     deductions: defaultDeductions(staff, idx),
     benefits: { ptoBalanceHours: salaried ? 80 : 40, ptoAccrualHoursPerPeriod: salaried ? 6.15 : 2 },
-    workerCompClass: salaried ? '8810 — Clerical' : '8834 — Home health / therapy',
+    workerCompClass: salaried ? '8810: Clerical' : '8834: Home health / therapy',
     note: '',
     createdAt: 0,
   }
@@ -633,7 +633,7 @@ export const defaultPayrollSettings = () => ({
     suta: { rate: 0.027, wageBase: 7000 },
     workersComp: { defaultRate: 0.012 },
   },
-  glAccounts: { wages: '6100 Payroll — clinical wages', taxes: '6150 Payroll taxes', benefits: '6160 Benefits', net: '2100 Payroll clearing' },
+  glAccounts: { wages: '6100 Payroll (clinical wages)', taxes: '6150 Payroll taxes', benefits: '6160 Benefits', net: '2100 Payroll clearing' },
 })
 
 const applyBrackets = (annual, brackets) => {

@@ -464,7 +464,7 @@ export default function ClientsView() {
                             <div style={{ marginTop: 8, fontSize: 11.3 }} className="muted">
                               Payer: <b style={{ color: 'var(--text)' }}>{c.insurer}</b> · Guardian: {c.guardian} · Auth {c.authStart?.slice(5)} → {c.authEnd?.slice(5)}
                               <br />
-                              {Icon.dollar({ size: 11 })} Claims: DOB <b style={{ color: 'var(--text)' }}>{c.dob || 'missing'}</b> · Sex <b style={{ color: 'var(--text)' }}>{c.sex || '—'}</b> · Member <span className="ln-code">{memberIdOf(c) || 'missing'}</span>{(!c.dob || !c.sex) && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> — add both before CMS-1500 filing</span>}
+                              {Icon.dollar({ size: 11 })} Claims: DOB <b style={{ color: 'var(--text)' }}>{c.dob || 'missing'}</b> · Sex <b style={{ color: 'var(--text)' }}>{c.sex || '—'}</b> · Member <span className="ln-code">{memberIdOf(c) || 'missing'}</span>{(!c.dob || !c.sex) && <span style={{ color: 'var(--danger)', fontWeight: 700 }}> · add both before CMS-1500 filing</span>}
                               {c.intakeId && <><br />{Icon.zap({ size: 11 })} Converted from intake <b style={{ color: 'var(--text)' }}>{c.intakeNo}</b>{c.intakeSourceLabel ? <> · referred by <b style={{ color: 'var(--text)' }}>{c.intakeSourceLabel}</b></> : null}{c.intakeConvertedAt ? <> on {new Date(c.intakeConvertedAt).toLocaleDateString()}</> : null}
                                 <button className="btn btn-sm" style={{ height: 20, marginLeft: 6 }} data-testid={`cli-intake-${c.id}`} onClick={() => actions.setUI({ section: 'intake', intakeSel: c.intakeId })}>Open intake request</button></>}
                             </div>
@@ -513,7 +513,7 @@ export default function ClientsView() {
               { icon: 'badge', label: 'Diagnosis (ICD-10)', value: dxCodesOf(c.dxCodes).join(', ') || 'Not on file' },
               ...(c.intakeId ? [{ icon: 'zap', label: 'Intake origin', value: `${c.intakeNo || 'request'}${c.intakeSourceLabel ? ` · ${c.intakeSourceLabel}` : ''}` }] : []),
             ]}
-            meter={{ label: 'Auth burn-down · last 4 weeks', pct: burn, tone: burn > 105 ? 'bad' : burn >= 80 ? 'ok' : 'warn', caption: `${m.hours}h delivered of ${(c.authWeekly || 0) * 4}h authorized — ${c.authStart ? c.authStart.slice(0, 10) : '—'} → ${c.authEnd ? c.authEnd.slice(0, 10) : '—'}` }}
+            meter={{ label: 'Auth burn-down · last 4 weeks', pct: burn, tone: burn > 105 ? 'bad' : burn >= 80 ? 'ok' : 'warn', caption: `${m.hours}h delivered of ${(c.authWeekly || 0) * 4}h authorized · ${c.authStart ? c.authStart.slice(0, 10) : '—'} → ${c.authEnd ? c.authEnd.slice(0, 10) : '—'}` }}
             tiles={[
               { v: m.sessions, l: 'sessions 4w' },
               { v: `${m.hours}h`, l: 'delivered' },

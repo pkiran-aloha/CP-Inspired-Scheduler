@@ -202,7 +202,7 @@ export function specToPdf(spec) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(13)
     const pg = pages[pi]
     const span = `rows ${pg.rows.length ? pg.rows[0].ri + 1 : 1}\u2013${pg.rows.length ? pg.rows[pg.rows.length - 1].ri + 1 : 0}`
-    const cont = pages.length > 1 ? `  (${pi > 0 ? `continued \u2014 ${span}` : span})` : ''
+    const cont = pages.length > 1 ? `  (${pi > 0 ? `continued, ${span}` : span})` : ''
     doc.text(wrap(T(`${spec.title}${cont}`), CW - 200, 13), M, 26)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6)
     doc.text(wrap(T(`${spec.range}  \u00b7  Scope: ${spec.scope}  \u00b7  ${spec.rows.length} rows`), CW - 200, 7.6), M, 40)

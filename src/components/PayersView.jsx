@@ -14,7 +14,7 @@ import { useToast } from '../ui/Toast'
  */
 const PY_TYPES = ['Insurance', 'Government', 'School district', 'Self-pay', 'Employer plan']
 const SVC_LISTS = ['None', 'ABA Standard', 'ABA + related services', 'School-based', 'Telehealth']
-const REQ_OPTS = ['No', 'Yes', 'Yes — after authorization is on file']
+const REQ_OPTS = ['No', 'Yes', 'Yes, after authorization is on file']
 const US_STATES = ['CA', 'OR', 'WA', 'NV', 'AZ', 'TX', 'NY', 'FL', 'Other']
 const CONTACT_KINDS = ['Main', 'Fax', 'Email', 'Claims portal']
 const PAGE_SIZE = 12

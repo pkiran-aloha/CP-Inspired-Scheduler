@@ -150,7 +150,7 @@ export function glJournalRows(run, state) {
   // Debit: what the practice spent. Credit: who the money is owed to or held for.
   // It must balance to the cent — an unbalanced payroll journal is how a ledger
   // quietly stops tying out.
-  rows.push([date, jno, accounts.wages || '6100 Payroll — clinical wages', `Gross wages ${run.periodStart} → ${run.periodEnd}`, money2(t.grossCents || 0), ''])
+  rows.push([date, jno, accounts.wages || '6100 Payroll (clinical wages)', `Gross wages ${run.periodStart} → ${run.periodEnd}`, money2(t.grossCents || 0), ''])
   rows.push([date, jno, accounts.taxes || '6150 Payroll taxes', 'Employer payroll taxes (FICA, FUTA, SUTA, WC)', money2(t.employerCents || 0), ''])
   if (t.reimbursementCents) rows.push([date, jno, '6170 Reimbursements', 'Mileage / expense reimbursements paid with payroll', money2(t.reimbursementCents), ''])
   rows.push([date, jno, accounts.net || '2100 Payroll clearing', 'Net pay to be disbursed', '', money2(t.netCents || 0)])

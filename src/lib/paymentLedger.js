@@ -171,7 +171,7 @@ export function buildPatientReceiptAudit(state) {
     return `"${safe.replace(/"/g, '""')}"`
   }
   return [
-    '# Local patient receipt audit only — no card processing, bank reconciliation or refund confirmation',
+    '# Local patient receipt audit only. No card processing, bank reconciliation or refund confirmation',
     'payment_id,claim,source_remittance_claim,client,client_id,date,recorded_at,kind,method,reference,amount,reversal_of,note,local_status',
     ...payments.map((p) => [
       p.id, state.claims?.[p.claimId]?.no || p.claimId,

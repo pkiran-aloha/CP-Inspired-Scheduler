@@ -127,12 +127,12 @@ export const DEFAULT_CUSTOM_LISTS = [
   list('cancel-reasons', 'general', 'Cancellation reasons', 'Offered when a session is cancelled. Used in the no-show and cancellation analytics.', ['Client ill', 'Family emergency', 'School holiday', 'Staff illness', 'Weather', 'Transportation', 'No reason given']),
   list('appt-sources', 'general', 'Appointment sources', 'How the appointment was booked.', ['Parent request', 'School request', 'Clinician scheduled', 'Auto-recurrence', 'Intake conversion']),
   list('contact-methods', 'general', 'Contact methods', 'Preferred way to reach a family or payer.', ['Phone call', 'Text message', 'Email', 'Portal message', 'In person']),
-  list('document-types', 'general', 'Document types', 'Documents tracked on the intake checklist and client chart.', ['Diagnostic report', 'Referral', 'IEP / IFSP', 'Insurance card', 'Guardianship paperwork', 'Consent — treatment', 'Consent — telehealth']),
-  list('waitlist-priorities', 'general', 'Waitlist priorities', 'How urgently an intake request is waiting for a slot.', ['Urgent — start within 2 weeks', 'Routine — start within 30 days', 'Flexible — no target date']),
+  list('document-types', 'general', 'Document types', 'Documents tracked on the intake checklist and client chart.', ['Diagnostic report', 'Referral', 'IEP / IFSP', 'Insurance card', 'Guardianship paperwork', 'Consent: treatment', 'Consent: telehealth']),
+  list('waitlist-priorities', 'general', 'Waitlist priorities', 'How urgently an intake request is waiting for a slot.', ['Urgent: start within 2 weeks', 'Routine: start within 30 days', 'Flexible: no target date']),
   list('service-categories', 'service-type', 'Service categories', 'Grouping used on the service master and rate cards.', ['Direct treatment', 'Assessment', 'Supervision', 'Caregiver training', 'Group treatment', 'School support']),
   list('service-settings', 'service-type', 'Service settings', 'Where the service is delivered.', ['Center', 'Home', 'School', 'Community', 'Telehealth']),
   list('delivery-modes', 'service-type', 'Delivery modes', 'How the session is staffed and delivered.', ['1:1', 'Group', 'Co-treatment', 'Parent-led', 'Remote']),
-  list('modifiers', 'service-type', 'Billing modifiers', 'Modifiers offered when a service line needs one.', ['HM — group', 'HO — masters level', 'HN — bachelors level', 'GT — telehealth', '95 — synchronous telehealth', 'U6 — hourly']),
+  list('modifiers', 'service-type', 'Billing modifiers', 'Modifiers offered when a service line needs one.', ['HM: group', 'HO: masters level', 'HN: bachelors level', 'GT: telehealth', '95: synchronous telehealth', 'U6: hourly']),
 ]
 
 export const QUALIFICATION_TYPES = [
@@ -1183,7 +1183,7 @@ export function planSettingsOp(state, op, payload = {}) {
       const pto = item.pto != null ? !!item.pto : (item.kind === 'leave' || !!existing?.pto)
       const otEligible = item.overtime != null ? !!item.overtime : (item.otEligible !== false)
       const row = {
-        id, label, short: clean(item.short, 24) || label.split('—')[0].trim(),
+        id, label, short: clean(item.short, 24) || label.split(/[—(:]/)[0].trim(),
         kind: item.kind || (pto ? 'leave' : existing?.kind || 'worked'),
         pto,
         mapping: clean(item.mapping ?? existing?.mapping, 32),

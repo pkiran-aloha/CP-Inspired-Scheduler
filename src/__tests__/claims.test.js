@@ -255,7 +255,7 @@ describe('claims engine', () => {
     const st = state([appt('a1', 'c1'), appt('a2', 'c1', { date: d(-11) })])
     const { claims } = assembleClaims(st, planClaims(st, stagedAppts(st, null)), { seqStart: 1 })
     const csv = claimCsv(st, claims[0])
-    expect(csv).toContain('# Test Co — Claim CLM-')
+    expect(csv).toContain('# Test Co: Claim CLM-')
     expect(csv).toContain('line,date_of_service,hcpcs')
     expect(csv.split('\n').length).toBe(6) // 3 meta + header + 2 lines
     expect(csv).toContain(',97151,')
