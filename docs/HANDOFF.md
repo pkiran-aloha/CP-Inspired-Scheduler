@@ -7,7 +7,7 @@ Last updated **2026-10-08** (configuration-audit and architecture-mismatch clean
   - `C:\Users\PrateekKiran\Documents\GitHub\CP-Inspired-Scheduler`: the main checkout. Git works there, but node/npm cannot write under `Documents` (see below).
   - `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`: **use this one to run tests, the dev server and builds.** It has `node_modules` and `.claude/launch.json`.
   - An older clone at `C:\Users\PrateekKiran\aloha` is stale. Ignore it.
-- State at handoff (2026-10-08): `origin/main` contains every branch; all feature, fix, docs and arena branches were verified merged (or patch-identical / superseded) and deleted, local and remote. Landed 2026-10-07/08, newest first: report visuals, Dashboard landing, reports desk revamp, local screen lock (#13), CMS-1500 chart values only (#10), billing builders wired (#12), Vitest 4 + clean `npm audit` (REL-01), workspace persistence fix, appointment location sources, visual booking rail, bundle code-splitting (REL-01), UI rule cleanup, recurrence series, smart scheduling picks.
+- State at handoff (2026-10-08): `origin/main` contains every branch; all feature, fix, docs and arena branches were verified merged (or patch-identical / superseded) and deleted, local and remote. Landed 2026-10-07/08, newest first: view density modes, report visuals, Dashboard landing, reports desk revamp, local screen lock (#13), CMS-1500 chart values only (#10), billing builders wired (#12), Vitest 4 + clean `npm audit` (REL-01), workspace persistence fix, appointment location sources, visual booking rail, bundle code-splitting (REL-01), UI rule cleanup, recurrence series, smart scheduling picks.
 
 ## How the maintainer works
 
@@ -31,6 +31,14 @@ Last updated **2026-10-08** (configuration-audit and architecture-mismatch clean
 - **Verification.** Focused claims/CMS-1500/payer-settings/Billing tests pass. Full `npm test`: **96 files, 1,000 tests passed**. `npm run build` passes; Vite still warns that the main JS bundle is over 500 kB (the existing REL-01 bundle-splitting issue, intentionally out of scope). JSDOM canvas/navigation and payer-list key warnings are pre-existing, unrelated and non-failing.
 
 ## Shipped (newest first)
+
+### View density: relaxed, normal, tight (`feat/density-modes`, 2026-10-08)
+
+- **What.** A **View density** setting with three modes. Normal is today's look and has no density CSS at all. Relaxed: body 14.5px, 40px controls, 12px table cell padding, 20px card padding, 18px gaps, roomier nav and dialog header/footer, 11 calendar hours per screen. Tight: body 13px, 28px controls, 4px cell padding, 10px card padding, 8px gaps, 15 calendar hours per screen (an hour is never under 44px, so a 15-minute session stays 11px tall). Small buttons keep their 24px minimum in Tight (WCAG 2.2 target size).
+- **Where.** Settings, System, General Settings, Display and workspace (`set-sys-density-*`), and the command palette ("View density: ..."). Stored as `settings.density` beside `settings.theme` and written the same way (`setSettings`, one Undo step, exempt from area checks like the theme; `system.patch` validates it). Missing or unknown values read as Normal, so no migration.
+- **How.** `App.jsx` sets `data-density` on `<html>`. The last block of `src/styles.css` defines size tokens under `:root[data-density='relaxed'|'tight']` and applies them through `:where()` selectors, so they replace base component rules but leave purpose-built variants (booking wizard buttons, widget tool buttons) alone. `src/lib/viewDensity.js` holds the modes and `calendarHourPx` used by `TimeGrid`.
+- **Checked.** Headless Edge at 1440x900, 1280x720 and 390x844 in all three modes, light and dark: calendar, dashboard, billing, reports, booking dialog. No horizontal page scroll; the booking dialog Save stays in view in every mode.
+- **Tests.** `viewDensity.test.jsx` (mode parsing, calendar hour heights, settings validation, any role may switch, Settings picker sets the attribute and persists across reload, default Normal, palette switch).
 
 ### Billing tile icons and profile avatar (`fix/billing-icons`, 2026-10-08)
 

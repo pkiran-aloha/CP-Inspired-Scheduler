@@ -20,6 +20,7 @@ import { providerIdIssues } from './providerIds'
 import { planReasonLists, posFor } from './claims'
 import { travelChecksForStaffDay } from './travel'
 import { hasIntegrationSecrets, stripIntegrationSecrets } from './integrationSecrets'
+import { DENSITIES } from './viewDensity'
 
 /* ── module registry ─────────────────────────────────────────────────────────
  * The sidebar, settings panels and the palette all read this one list, so a
@@ -1494,10 +1495,11 @@ export function planSettingsOp(state, op, payload = {}) {
     case 'system.patch': {
       const patch = { ...payload.patch }
       const next = { ...settings }
-      for (const key of ['theme', 'weekStart', 'h24', 'defaultRate', 'mileageRate', 'workday', 'apptNameStyle', 'apptTitleExtras', 'apptNameStaff', 'analytics', 'notifications', 'billing', 'system']) {
+      for (const key of ['theme', 'density', 'weekStart', 'h24', 'defaultRate', 'mileageRate', 'workday', 'apptNameStyle', 'apptTitleExtras', 'apptNameStaff', 'analytics', 'notifications', 'billing', 'system']) {
         if (key in patch) next[key] = patch[key]
       }
       if (next.theme && !['light', 'dark'].includes(next.theme)) return fail('Pick light or dark.')
+      if (next.density != null && !DENSITIES.includes(next.density)) return fail('Pick relaxed, normal or tight.')
       if (next.weekStart != null && ![0, 1, 2, 3, 4, 5, 6].includes(Number(next.weekStart))) return fail('Pick a week-start day.')
       if (next.defaultRate != null && !(Number(next.defaultRate) >= 0 && Number(next.defaultRate) <= 1000)) return fail('Default rate must be between $0 and $1,000 per unit.')
       if (next.mileageRate != null && !(Number(next.mileageRate) >= 0 && Number(next.mileageRate) <= 10)) return fail('Mileage rate must be between $0 and $10 per mile.')

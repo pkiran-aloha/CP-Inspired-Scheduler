@@ -4,6 +4,7 @@ import { DAY_SHORT, fmtDur, fmtTime, parseISO, snap, todayISO } from '../lib/dat
 import { SNAP, TYPES, findConflicts } from '../lib/model'
 import { ABA_HOURS_EXPLAIN, abaHoursCfg, countsAsAbaHours } from '../lib/abaHours'
 import { isCancelStatus } from '../lib/settingsMasters'
+import { calendarHourPx, densityOf } from '../lib/viewDensity'
 import { Icon, TypeGlyph } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import StackPopover from './StackPopover'
@@ -76,7 +77,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const pph = geom.h ? clamp(Math.round((geom.h - 8) / 13), 52, 88) : 56
+  const pph = calendarHourPx(geom.h, densityOf(settings))
   const minPerPx = 1440 / (24 * pph)
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 7.4 * pph

@@ -4283,6 +4283,66 @@ tr:hover .rpv-act button, .rpv-act button:focus-visible { opacity: 1; }
   .rpc [data-tip]::after { display: none; }
 }
 
+/* ================= View density (Settings > System > Display, command palette) =================
+   data-density on <html>: relaxed | normal | tight. Normal is the original look and
+   gets no rules here. Rules are wrapped in :where() so they carry the specificity of
+   the base component rule only: they win over the base rule (they come later) but
+   leave purpose-built variants (wizard buttons, widget tool buttons) alone.
+   Sizes only, no color, so light and dark themes share the tokens. Tight keeps
+   body text at 13px and every control at least 28px tall (WCAG 2.2 target size is 24px).
+   The calendar hour height is set in JS (src/lib/viewDensity.js). */
+:root[data-density='relaxed'] {
+  --d-body: 14.5px; --d-text: 13.5px; --d-lh: 1.55;
+  --d-ctl-h: 40px; --d-ctl-y: 10px; --d-ctl-x: 16px; --d-ctl-fs: 14px; --d-iconbtn: 36px;
+  --d-cell-y: 12px; --d-cell-x: 14px; --d-head-y: 11px;
+  --d-card: 20px; --d-gap: 18px; --d-field-gap: 7px;
+  --d-nav-y: 11px; --d-nav-fs: 13.8px;
+  --d-modal-y: 18px; --d-modal-x: 22px;
+}
+:root[data-density='tight'] {
+  --d-body: 13px; --d-text: 12.2px; --d-lh: 1.35;
+  --d-ctl-h: 28px; --d-ctl-y: 4px; --d-ctl-x: 10px; --d-ctl-fs: 13px; --d-iconbtn: 28px;
+  --d-cell-y: 4px; --d-cell-x: 8px; --d-head-y: 5px;
+  --d-card: 10px; --d-gap: 8px; --d-field-gap: 3px;
+  --d-nav-y: 5px; --d-nav-fs: 12.8px;
+  --d-modal-y: 10px; --d-modal-x: 14px;
+}
+:where(:root[data-density='relaxed'], :root[data-density='tight']) body { font-size: var(--d-body); }
+
+/* controls */
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .btn:where(:not(.btn-sm, .btn-xs)) { min-height: var(--d-ctl-h); padding: var(--d-ctl-y) var(--d-ctl-x); font-size: var(--d-ctl-fs); }
+/* small buttons: tight leaves them at their 24px minimum; relaxed gives them a 32px row */
+:where(:root[data-density='relaxed']) .btn-sm { min-height: 32px; padding: 6px 12px; font-size: 13px; }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) :is(.input, .select):not(textarea) { min-height: var(--d-ctl-h); padding-top: var(--d-ctl-y); padding-bottom: var(--d-ctl-y); font-size: var(--d-ctl-fs); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .iconbtn { width: var(--d-iconbtn); height: var(--d-iconbtn); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .viewseg button { min-height: calc(var(--d-ctl-h) - 6px); padding-top: calc(var(--d-ctl-y) - 2px); padding-bottom: calc(var(--d-ctl-y) - 2px); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .field { gap: var(--d-field-gap); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .grid2 { gap: var(--d-gap); }
+
+/* cards, tiles and dashboard widgets */
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .panel { padding: var(--d-card); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .dsh-grid { gap: var(--d-gap); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .dsh-w-head { padding: calc(var(--d-card) - 3px) var(--d-card) calc(var(--d-card) - 5px); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .dsh-w-body { padding: 2px var(--d-card) var(--d-card); }
+
+/* tables and table-like grids (directories, intake, analytics, reports, billing, ERA, security) */
+:where(:root[data-density='relaxed'], :root[data-density='tight']) :is(.dir-table, .an-table, .iq-table, .rpv-table, .pc-era-table, .sec-account-table, .table) td {
+  padding-top: var(--d-cell-y); padding-bottom: var(--d-cell-y); padding-left: var(--d-cell-x); padding-right: var(--d-cell-x); line-height: var(--d-lh);
+}
+:where(:root[data-density='relaxed'], :root[data-density='tight']) :is(.dir-table, .an-table, .iq-table, .pc-era-table, .sec-account-table, .table) th { padding-top: var(--d-head-y); padding-bottom: var(--d-head-y); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .rpv-sort { padding-top: var(--d-head-y); padding-bottom: var(--d-head-y); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .py-trow { padding-top: var(--d-cell-y); padding-bottom: var(--d-cell-y); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .py-thead { padding-top: var(--d-head-y); padding-bottom: var(--d-head-y); }
+:where(:root[data-density='relaxed']) :is(.dir-table, .an-table, .iq-table, .rpv-table, .table) td, :where(:root[data-density='relaxed']) .py-cell { font-size: var(--d-text); }
+
+/* nav rail, report catalog */
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .nr-item { padding-top: var(--d-nav-y); padding-bottom: var(--d-nav-y); font-size: var(--d-nav-fs); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .rpv-item { padding-top: calc(var(--d-nav-y) - 1px); padding-bottom: calc(var(--d-nav-y) - 1px); }
+
+/* dialogs: header and footer only, so the booking dialog body and its Save button keep their room */
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .modal-head { padding: var(--d-modal-y) var(--d-modal-x); }
+:where(:root[data-density='relaxed'], :root[data-density='tight']) .modal-foot { padding: calc(var(--d-modal-y) - 4px) var(--d-modal-x); }
+
 /* ================= profile selector avatar + Billing stat-tile glyphs ================= */
 /* The nav rail's account avatar also carries .nr-ic (inline-flex, no alignment), which
    pinned the initials to the tile's top-left corner. Centre them explicitly. */
