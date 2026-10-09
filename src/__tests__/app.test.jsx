@@ -180,7 +180,7 @@ describe('scheduler shell', () => {
 
   it('clicking a chip opens the detail card with series info & cancel', () => {
     const { container } = renderCal()
-    const chip = container.querySelector('.chip:not(.stack)')
+    const chip = container.querySelector('.chip:not(.stack):not(.cancelled)') // a seeded cancellation can be first on some days
     fireEvent.pointerDown(chip, { button: 0 })
     fireEvent.pointerUp(chip)
     expect(screen.getByRole('button', { name: /Duplicate/ })).toBeTruthy()
@@ -193,7 +193,7 @@ describe('scheduler shell', () => {
     const weatherCancels = (appts) => Object.values(appts).filter((a) => a.status === 'cancelled' && a.cancelReason === 'Weather').length
     const before = weatherCancels(blankState().appts)
     const { container } = renderCal()
-    const chip = container.querySelector('.chip:not(.stack)')
+    const chip = container.querySelector('.chip:not(.stack):not(.cancelled)') // a seeded cancellation can be first on some days
     fireEvent.pointerDown(chip, { button: 0 })
     fireEvent.pointerUp(chip)
     fireEvent.click(screen.getByTestId('dc-cancel'))
