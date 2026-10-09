@@ -165,7 +165,7 @@ export default function SignaturePad({ value, onChange, staffName, staffId, cert
             onPointerLeave={up}
           />
         ) : (
-          <div className="muted" style={{ fontSize: 12, padding: '18px 0', textAlign: 'center' }}>Canvas unsupported here — use Type mode.</div>
+          <div className="muted" style={{ fontSize: 12, padding: '18px 0', textAlign: 'center' }}>This browser cannot draw here. Use Type mode.</div>
         )
       ) : (
         <input className="input" placeholder={`${staffName || 'Type your full name'}`} value={typed} onChange={(e) => setTyped(e.target.value)} style={{ fontStyle: 'italic', fontSize: 16 }} data-testid="sig-type" />

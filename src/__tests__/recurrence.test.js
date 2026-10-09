@@ -173,7 +173,7 @@ describe('series edits (Google semantics)', () => {
     expect(next.appts.r4.status).toBe('completed') // kept, now on the new series
     expect(tail.filter((a) => a.date === state.appts.r4.date)).toHaveLength(1)
     expect(next.appts.r5).toBeUndefined() // past the 6-count, replaced
-    expect(plan.msg).toMatch(/Series rebuilt — Weekly on Mon, Wed, 6 times/)
+    expect(plan.msg).toMatch(/Series rebuilt: Weekly on Mon, Wed, 6 times/)
     expect(plan.msg).toMatch(/1 kept as it is \(1 completed\)/)
     // regression: a rebuild used to be three dispatches (update, remove, create) = three Undo steps
     expect(reducer(next, { type: 'undo' }).appts).toBe(state.appts)

@@ -4,6 +4,7 @@ import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
 import { Dropdown, InlineSelect, InlineText } from './fields'
 import { Banner } from './settings/kit'
+import InfoTip from '../ui/InfoTip'
 import { CfPickRow } from './CfPick.jsx'
 import CfDefModal from './CfDefModal.jsx'
 import { PayerForm, RemoveArm } from './PayersView'
@@ -46,7 +47,7 @@ export default function PayerDetail({ payer, onBack }) {
   const countFor = (name) => state.clients.filter((c) => (c.insurer || '') === name).length
   const removePayer = () => {
     const used = countFor(p.name)
-    if (used) { toast({ message: `${p.name} still has ${used} client${used === 1 ? '' : 's'} on file — reassign them before removing`, kind: 'error' }); return false }
+    if (used) { toast({ message: `${p.name} still has ${used} client${used === 1 ? '' : 's'} on file. Reassign them before removing the payer.`, kind: 'error' }); return false }
     actions.removePayer(p.id)
     toast({ message: `${p.name} removed from the directory`, kind: 'info' })
     onBack()
@@ -131,13 +132,13 @@ function ProfileTab({ p, patch }) {
   const usedBy = (id) => (state.payers || []).filter((x) => (x.cf || []).includes(id)).length
   const saveCf = (v) => {
     if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setCfEdit(null); return }
-    if (cfEdit === 'new') { actions.addCfDef(v); toast({ message: `Template “${v.label}” created — tick it for ${p.name} to apply`, kind: 'ok' }) }
-    else { actions.updateCfDef({ id: cfEdit.id, ...v }); toast({ message: `Template “${v.label}” updated — every payer using it follows`, kind: 'ok' }) }
+    if (cfEdit === 'new') { actions.addCfDef(v); toast({ message: `Template “${v.label}” created. Tick it to use it for ${p.name}.`, kind: 'ok' }) }
+    else { actions.updateCfDef({ id: cfEdit.id, ...v }); toast({ message: `Template “${v.label}” updated for every payer that uses it.`, kind: 'ok' }) }
     setCfEdit(null)
   }
   const delDef = (t) => {
     const n = usedBy(t.id)
-    if (n) { toast({ message: `“${t.label}” is picked by ${n} payer${n === 1 ? '' : 's'} — unlink it there first`, kind: 'error' }); return }
+    if (n) { toast({ message: `“${t.label}” is picked by ${n} payer${n === 1 ? '' : 's'}. Unlink it there first.`, kind: 'error' }); return }
     actions.removeCfDef(t.id)
     toast({ message: `Template “${t.label}” removed from the master`, kind: 'info' })
   }
@@ -173,7 +174,7 @@ function ProfileTab({ p, patch }) {
       </div>
 
       <div className="an-card pd-card" data-testid="pd-billids">
-        <div className="an-head">{Icon.dollar({ size: 13 })} Billing identifiers<span className="an-spacer" /><span className="muted" style={{ fontSize: 10.6 }}>group / plan / payer-specific IDs · filing window</span></div>
+        <div className="an-head">{Icon.dollar({ size: 13 })} Billing identifiers<InfoTip label="Billing identifiers" wiki="billing-and-claims" testid="pd-billids-info">These IDs feed claim routing (837P and CMS-1500 box 11) and the timely filing check. Leave a field blank to use the payer default.</InfoTip><span className="an-spacer" /></div>
         <div className="pd-kvgrid">
           <div className="pd-kv"><span>Group #</span><span><InlineText testid={`pd-ext-group-${p.id}`} value={(p.ext||{}).group||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), group:String(v).trim() } }, 'group # saved')} /></span></div>
           <div className="pd-kv"><span>Plan #</span><span><InlineText testid={`pd-ext-plan-${p.id}`} value={(p.ext||{}).plan||''} placeholder="—" onCommit={(v)=>patch({ ext:{ ...(p.ext||{}), plan:String(v).trim() } }, 'plan # saved')} /></span></div>
@@ -184,14 +185,14 @@ function ProfileTab({ p, patch }) {
           <div className="pd-kv"><span>Filing deadline (days)</span><span><InlineText testid={`pd-ext-filing-${p.id}`} value={(p.ext||{}).filingDeadlineDays??''} placeholder="payer default" onCommit={(v)=>{ const n=String(v).trim()===''?null:Number(v); patch({ ext:{ ...(p.ext||{}), filingDeadlineDays: Number.isFinite(n)?n:null } }, n?'filing window saved':'filing window cleared') }} /></span></div>
           <div className="pd-kv"><span>Secondary Box 18</span><span style={{ display:'flex', alignItems:'center', gap:8 }}><button type="button" className={`toggle ${(p.ext||{}).requiresSecondaryBox18!==false?'on':''}`} data-testid={`pd-ext-box18-${p.id}`} onClick={()=>patch({ ext:{ ...(p.ext||{}), requiresSecondaryBox18: !((p.ext||{}).requiresSecondaryBox18!==false) } }, 'Box 18 flag saved')} /><i className="muted" style={{ fontSize:11 }}>{(p.ext||{}).requiresSecondaryBox18!==false?'Require on secondary':'Skip'}</i></span></div>
         </div>
-        <p className="pd-note" style={{ marginTop:8 }}>These IDs flow into claim routing (837P / CMS-1500 box 11) and into the timely-filing gate. Leave blank to use the payer’s default.</p>
+        
       </div>
 
       <div className="an-card pd-card" data-testid="pd-cf">
         <div className="an-head">{Icon.badge({ size: 13 })} Custom Fields{fields.length > 0 && <span className="pd-cfn">{fields.length}</span>}<span className="an-spacer" />
-          <span className="muted" style={{ fontSize: 10.6 }}>selectable · never pre-selected</span>
+          <InfoTip label="Custom Fields" wiki="billing-and-claims" testid="pd-cf-info">Fields are defined once in the Custom Fields master. This payer picks which ones apply. Staff add them to a session from the booking dialog (opt-in, never pre-selected), and saved values show on the appointment detail. No claim, CMS-1500 or export reads them yet.</InfoTip>
         </div>
-        <p className="pd-note">Fields are defined once in the Custom Fields master — this payer only picks which ones apply. Sessions add them opt-in from the booking dialog, and captured values show on the appointment detail; no claim, CMS-1500 or export reads them yet.</p>
+        
         {fields.length === 0 && <div className="muted pd-cfempty">No fields picked yet.</div>}
         {fields.length > 0 && (
           <div className="pcf-rows" data-testid="pd-cf-list">
@@ -204,7 +205,7 @@ function ProfileTab({ p, patch }) {
                 {(d.type === 'select' || d.type === 'multi') && (d.options || []).slice(0, 3).map((o) => <span className="tag soft" key={o}>{o}</span>)}
                 {(d.options || []).length > 3 && <i className="muted cf-optmore">+{d.options.length - 3}</i>}
                 {d.required ? <span className="tag warn">Required</span> : <span className="muted">Optional</span>}
-                {d.source === 'inline' ? <span className="tag" title="Defined inline before templates existed — promote it to the master to reuse">legacy</span> : <span className="tag soft">from master</span>}
+                {d.source === 'inline' ? <span className="tag" title="Defined on this payer before templates existed. Save it to the master to reuse it.">legacy</span> : <span className="tag soft">from master</span>}
                 {d.source === 'inline' && (
                   <button className="btn btn-sm cf-upbtn" data-testid={`pcf-upgrade-${d.id}`} title="Save as a reusable template in the Custom Fields master"
                     onClick={() => {
@@ -230,14 +231,14 @@ function ProfileTab({ p, patch }) {
         <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setPick(false) }}>
           <div className="modal pm-modal py-modal" data-testid="pd-cf-picker" role="dialog" aria-modal="true" aria-label="Add custom fields">
             <div className="modal-head pm-head">
-              <h3>Add Custom Fields — {p.name}</h3>
-              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>tick what this payer requires — or manage the definitions right here</span>
+              <h3>Add Custom Fields: {p.name}</h3>
+              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>Tick the fields this payer requires, or edit the templates here</span>
               <span className="an-spacer" />
               <span className="muted" style={{ fontSize: 11, marginRight: 8 }}>{(p.cf || []).length} picked</span>
               <button className="iconbtn modal-x" aria-label="Close" data-testid="pd-cf-picker-close" onClick={() => setPick(false)}>{Icon.x({ size: 14 })}</button>
             </div>
             <div className="modal-body">
-              {scopedTemplates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No payer-scoped templates yet — scope one to Payer Profile on the Custom Fields master page, or create one with “Add template” below.</div>}
+              {scopedTemplates.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No payer templates yet. Set a template’s scope to Payer Profile on the Custom Fields master page, or use “Add template” below.</div>}
               <div className="cf-picklist">
                 {scopedTemplates.map((t) => {
                   const on = (p.cf || []).includes(t.id)
@@ -246,7 +247,7 @@ function ProfileTab({ p, patch }) {
                     <CfPickRow key={t.id} def={t} on={on} disabled={t.status === 'inactive' && !on} testid={`pd-cfpick-${t.id}`}
                       onToggle={(v) => setFields(v ? [...(p.cf || []), t.id] : (p.cf || []).filter((x) => x !== t.id))}>
                       <button className="iconbtn" title={`Used by ${used} payer${used === 1 ? '' : 's'}`} style={{ cursor: 'default', pointerEvents: 'none', width: 'auto', padding: '0 4px' }}><i className="muted" style={{ fontSize: 10, fontStyle: 'normal' }}>×{used}</i></button>
-                      <button className="iconbtn" title="Edit this template — opens the full field editor" data-testid={`pd-cfm-edit-${t.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCfEdit(t) }}>{Icon.edit({ size: 12 })}</button>
+                      <button className="iconbtn" title="Edit this template in the full field editor" data-testid={`pd-cfm-edit-${t.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCfEdit(t) }}>{Icon.edit({ size: 12 })}</button>
                       <button className="iconbtn" title={used ? 'Unlink from every payer before deleting' : 'Delete this template from the master'} data-testid={`pd-cfm-del-${t.id}`} disabled={!!used} onClick={(e) => { e.preventDefault(); e.stopPropagation(); delDef(t) }}>{Icon.trash({ size: 12 })}</button>
                     </CfPickRow>
                   )
@@ -286,9 +287,9 @@ function ServicesTab({ p, patch }) {
   const setCell = (c, key, val) => {
     if (c.kind === 'linked') {
       const prev = (p.svcOv || {})[c.master.id] || {}
-      patch({ svcOv: { ...(p.svcOv || {}), [c.master.id]: { ...prev, [key]: val } } }, `${LBL[key] || key} on ${c.master.label} — saved for ${p.name}`)
+      patch({ svcOv: { ...(p.svcOv || {}), [c.master.id]: { ...prev, [key]: val } } }, `${LBL[key] || key} on ${c.master.label} saved for ${p.name}`)
     } else {
-      patch({ svcs: mine.map((x) => (x.id === c.local.id ? { ...x, [key]: val } : x)) }, `${LBL[key] || key} on ${c.local.label} — updated`)
+      patch({ svcs: mine.map((x) => (x.id === c.local.id ? { ...x, [key]: val } : x)) }, `${LBL[key] || key} on ${c.local.label} updated`)
     }
   }
   const cards = [
@@ -331,13 +332,13 @@ function ServicesTab({ p, patch }) {
   return (
     <div className="pd-body">
       <div className="pd-svctools">
-        {!p.services.length && <div className="pd-note pd-allnote" data-testid="pd-svc-all">{Icon.info({ size: 12 })} No explicit contract — billing treats every active service type as contracted. “Contract services” narrows the list; “Add Service” creates one only for {p.name}.</div>}
+        {!p.services.length && <div className="pd-note pd-allnote" data-testid="pd-svc-all">{Icon.info({ size: 12 })} No contract list, so every active service type counts as contracted. Use “Contract services” to narrow it, or add a service only for {p.name}.</div>}
         <span className="an-spacer" />
         <button className="btn btn-sm" data-testid="pd-svc-contract" onClick={() => setPicker(true)}>{Icon.clipboard({ size: 12 })} Contract services</button>
         <button className="btn btn-sm btn-primary" data-testid="pd-svc-add" onClick={() => setForm({ mode: 'new' })}>{Icon.plus({ size: 12 })} New Payer-Only Service</button>
       </div>
       <div className="svc-cards" data-testid="pd-svc-cards">
-        {cards.length === 0 && <div className="muted pd-cfempty">No services on this payer yet — use “New Payer-Only Service” above to create one just for this payer, or “Contract services” to attach master service types.</div>}
+        {cards.length === 0 && <div className="muted pd-cfempty">No services on this payer yet. Use “New Payer-Only Service” to create one for this payer, or “Contract services” to attach master service types.</div>}
         {cards.map((c) => {
           const o = c.kind === 'linked' ? ((p.svcOv || {})[c.master.id] || {}) : c.local
           const label = c.kind === 'linked' ? (o.label || c.master.label) : c.local.label
@@ -348,7 +349,7 @@ function ServicesTab({ p, patch }) {
               <div className="svc-cardhead">
                 <b>{label}</b>
                 <span className="tag">{o.code || c.master?.code || ''}</span>
-                {c.kind === 'local' && <span className="pd-chip" title="Created on this payer — not in the global master">payer-only</span>}
+                {c.kind === 'local' && <span className="pd-chip" title="Created on this payer. Not in the master list.">payer-only</span>}
                 <span className="svc-cardacts">
                   <button className="iconbtn" title="Modify this service line" data-testid={`pd-ovr-${c.id}`} onClick={() => setForm(c.kind === 'linked' ? { mode: 'linked', svc: c.master } : { mode: 'local', svc: c.local })}>{Icon.edit({ size: 12 })}</button>
                   <button className="iconbtn" title={c.kind === 'linked' ? 'Uncontract this service for this payer' : 'Delete from this payer'} data-testid={`pd-unlink-${c.id}`} onClick={() => unlink(c)}>{Icon.trash({ size: 12 })}</button>
@@ -357,7 +358,7 @@ function ServicesTab({ p, patch }) {
               <div className="svc-dates">
                 <span className={`svc-date${o.effective ? ' on' : ''}`}>{o.effective ? `Effective ${o.effective}` : 'No effective date'}</span>
                 <span className={`svc-date${o.expiration ? ' exp' : ''}`}>{o.expiration ? `Expires ${o.expiration}` : 'No expiration'}</span>
-                {inactive && <span className="svc-date off">Inactive — hidden in booking</span>}
+                {inactive && <span className="svc-date off">Inactive, hidden in booking</span>}
               </div>
               <div className="svc-rows">
                 <div><span>Billing Code</span><InlineText testid={`pd-cell-code-${c.id}`} numeric={false} value={o.billingCode || ''} placeholder={o.code || c.master?.code || 'override master'} onCommit={(v) => setCell(c, 'billingCode', String(v).trim().toUpperCase())} /></div>
@@ -377,20 +378,20 @@ function ServicesTab({ p, patch }) {
                 <div>{(c.local?.credentials || c.master?.credentials || []).length ? (c.local?.credentials || c.master?.credentials).map((x) => <span className="tag" key={x}>{x}</span>) : <i className="muted">None</i>}</div>
               </div>
               <button className="btn btn-sm svc-ovrbtn" data-testid={`pd-ovrbtn-${c.id}`} onClick={() => setForm(c.kind === 'linked' ? { mode: 'linked', svc: c.master } : { mode: 'local', svc: c.local })}>
-                {Icon.edit({ size: 12 })} Edit this service line{hasOvr || c.kind === 'local' ? ' — overrides active' : ' — set modifier, charge &amp; contract rate'}
+                {Icon.edit({ size: 12 })} Edit this service line{hasOvr || c.kind === 'local' ? ' (overrides active)' : ': modifier, charge and contract rate'}
               </button>
             </div>
           )
         })}
       </div>
-      <button className="svc-fab" data-testid="pd-svc-fab" title="Add service — contract from the master or create a payer-only one" onClick={() => setPicker(true)}>{Icon.plus({ size: 16 })}</button>
+      <button className="svc-fab" data-testid="pd-svc-fab" title="Add a service from the master or create one for this payer" onClick={() => setPicker(true)}>{Icon.plus({ size: 16 })}</button>
 
       {picker && (
         <div className="overlay pm-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) setPicker(false) }}>
           <div className="modal pm-modal py-modal" data-testid="pd-svc-picker" role="dialog" aria-modal="true" aria-label="Contracted services">
             <div className="modal-head pm-head">
-              <h3>Services — {p.name}</h3>
-              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>tick what this payer reimburses</span>
+              <h3>Services: {p.name}</h3>
+              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>Tick the services this payer reimburses</span>
               <span className="an-spacer" />
               <button className="btn btn-sm btn-primary" data-testid="pd-svc-new" onClick={() => { setPicker(false); setForm({ mode: 'new' }) }}>{Icon.plus({ size: 12 })} New payer-only service</button>
               <button className="iconbtn modal-x" aria-label="Close" data-testid="pd-svc-picker-close" onClick={() => setPicker(false)}>{Icon.x({ size: 14 })}</button>
@@ -475,18 +476,18 @@ function PayerSvcForm({ payer, form, onClose, onSave }) {
     </label>
   )
   return (
-    <div className="modal pm-modal py-modal ovr-form" data-testid="ovr-modal" role="dialog" aria-modal="true" aria-label={linked ? `Service line — ${form.svc.label}` : form.mode === 'local' ? `Edit service — ${form.svc.label}` : 'Add Service'} tabIndex={-1}>
+    <div className="modal pm-modal py-modal ovr-form" data-testid="ovr-modal" role="dialog" aria-modal="true" aria-label={linked ? `Service line: ${form.svc.label}` : form.mode === 'local' ? `Edit service: ${form.svc.label}` : 'Add Service'} tabIndex={-1}>
       <div className="modal-head pm-head">
-        <h3>{linked ? `Service — ${form.svc.label}` : form.mode === 'local' ? `Service — ${form.svc.label}` : 'Add Service'}</h3>
+        <h3>{linked || form.mode === 'local' ? `Service: ${form.svc.label}` : 'Add Service'}</h3>
         <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>for {payer.name}</span>
         <span className="an-spacer" />
         <button className="iconbtn modal-x" aria-label="Close" data-testid="ovr-close" onClick={onClose}>{Icon.x({ size: 14 })}</button>
       </div>
       <div className="modal-body">
         <div className="ovr-top">
-          <Fld k="label" label="Service Name" req={false} hint={linked ? '' : 'e.g. Parent Coaching — Telehealth'}>
+          <Fld k="label" label="Service Name" req={false} hint={linked ? '' : 'e.g. Parent Coaching (Telehealth)'}>
             {linked
-              ? <div className="ovr-lockname" data-testid="ovr-label-locked" title="Master service name — change it on the Service Types master">{form.svc.label}</div>
+              ? <div className="ovr-lockname" data-testid="ovr-label-locked" title="Master service name. Change it on the Service Types master.">{form.svc.label}</div>
               : <input className={`input${errs.label ? ' err' : ''}`} value={f.label} data-testid="ovr-label" placeholder="New payer-only service" onChange={(e) => set('label', e.target.value)} />}
           </Fld>
           {!linked && (
@@ -512,7 +513,7 @@ function PayerSvcForm({ payer, form, onClose, onSave }) {
         <Fld k="credentials" label={`Required Credentials (AND, not OR)`} half>
           <div className="st-credchips" data-testid="ovr-creds">
             {CREDENTIALS.map((c) => (
-              <button key={c} type="button" className={`tag pick${f.credentials.includes(c) ? ' on' : ''}`} data-testid={`ovr-cred-${c}`} disabled={linked} title={linked ? 'Master-level — change on the Service Types list' : 'Toggle'} onClick={() => set('credentials', f.credentials.includes(c) ? f.credentials.filter((x) => x !== c) : [...f.credentials, c])}>{c}</button>
+              <button key={c} type="button" className={`tag pick${f.credentials.includes(c) ? ' on' : ''}`} data-testid={`ovr-cred-${c}`} disabled={linked} title={linked ? 'Set on the Service Types master' : 'Toggle'} onClick={() => set('credentials', f.credentials.includes(c) ? f.credentials.filter((x) => x !== c) : [...f.credentials, c])}>{c}</button>
             ))}
           </div>
         </Fld>
@@ -525,7 +526,7 @@ function PayerSvcForm({ payer, form, onClose, onSave }) {
             <Dropdown testid="ovr-code" value={f.code} onChange={(v) => set('code', v)} options={BILL_CODES.map((c) => ({ value: c.id, label: c.id, sub: c.label.split(' · ')[1] }))} />
           </Fld>
           <Fld k="modifier" label="Add Modifier">
-            <Dropdown testid="ovr-modifier" value={f.modifier} onChange={(v) => set('modifier', v)} options={[{ value: '', label: '— none —' }, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} />
+            <Dropdown testid="ovr-modifier" value={f.modifier} onChange={(v) => set('modifier', v)} options={[{ value: '', label: 'None' }, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} />
           </Fld>
         </div>
         <div className="py-two">
@@ -579,7 +580,7 @@ function RuleBody({ p, section, patch, saved }) {
     const missing = (state.staff || []).map((s) => providerIdIssues(state, { ...p, rules: { ...rules, providerId: idRule } }, s.id)[0]).filter(Boolean)
     return (
       <div className="pr-sec" data-testid="pr-ids">
-        <SecHead t="Provider IDs" s="Which identifier this payer expects for the rendering provider. Claims, the appointment validation and the CMS-1500 follow it." />
+        <SecHead t="Provider IDs" s="The identifier this payer expects for the rendering provider. Claims, appointment checks and the CMS-1500 use it." />
         <div className="pr-seg" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }} role="radiogroup" aria-label="Provider identifier rule">
           {PROVIDER_ID_RULES.map((r) => (
             <button key={r.id} role="radio" aria-checked={idRule === r.id} className={`pd-opt${idRule === r.id ? ' on' : ''}`} data-testid={`ids-${r.id}`} onClick={() => setIdRule(r.id)}>
@@ -590,7 +591,7 @@ function RuleBody({ p, section, patch, saved }) {
         <div className={`pr-banner${missing.length ? '' : ' ok'}`} data-testid="ids-readiness" style={{ marginTop: 10 }}>
           {Icon[missing.length ? 'alert' : 'checkCircle']({ size: 12 })}{' '}
           {missing.length
-            ? <>{missing.length} staff member{missing.length === 1 ? '' : 's'} can't be billed to {p.name} under this rule yet — first: {missing[0]}. Add the identifiers in Billing → Provider IDs.</>
+            ? <>{missing.length} staff member{missing.length === 1 ? '' : 's'} can't be billed to {p.name} under this rule yet, starting with {missing[0]}. Add their identifiers in Billing → Provider IDs.</>
             : <>Every staff member has the identifiers this rule needs.</>}
         </div>
         <SaveRow onCancel={saved} onSave={() => commit('providerId', idRule, `${p.name} now bills with ${PROVIDER_ID_RULES.find((r) => r.id === idRule).label}`)} />
@@ -612,7 +613,7 @@ function RuleBody({ p, section, patch, saved }) {
     }
     return (
       <div className="pr-sec" data-testid="pr-terms">
-        <SecHead t="Payment Terms" s="What billing expects from this payer. Claim aging, payment presets, copay estimates, the timely-filing gate and CMS-1500 box 7b read these values." />
+        <SecHead t="Payment Terms" s="What billing expects from this payer. Claim aging, payment presets, copay estimates, the timely filing check and CMS-1500 box 7b use these values." />
         <div className="pr-fields">
           <div className="pr-frow" data-testid="terms-row-kind">
             <span className="pr-flabel">Payer kind</span>
@@ -632,7 +633,7 @@ function RuleBody({ p, section, patch, saved }) {
     const upd = (i, k, v) => setConc((c) => ({ ...c, rules: c.rules.map((r, j) => (j === i ? { ...r, [k]: v } : r)) }))
     return (
       <div className="pr-sec" data-testid="pr-concurrent">
-        <SecHead t="Concurrent Billing" s="Two or more overlapping service types for the same client on the same slot." />
+        <SecHead t="Concurrent Billing" s="Rules for two or more service types that overlap for the same client in the same time slot." />
         <div className="pr-seg">
           <button className={`pd-opt${conc.allowed ? ' on' : ''}`} data-testid="conc-allowed" onClick={() => setConc({ ...conc, allowed: true })}><b>Allowed</b><span>Overlapping codes may be billed together.</span></button>
           <button className={`pd-opt${!conc.allowed ? ' on' : ''}`} data-testid="conc-notallowed" onClick={() => setConc({ ...conc, allowed: false })}><b>Not Allowed</b><span>Overlapping service hours are flagged and merged before the claim is built.</span></button>
@@ -662,7 +663,7 @@ function RuleBody({ p, section, patch, saved }) {
     // Audit CFG-06: options with no reader in claim assembly / CMS-1500 code are
     // disabled and labelled, so the panel never implies an effect the claim output
     // does not have.
-    const NA = 'Not available in this build — saved with the payer record but not applied when the CMS-1500 is assembled.'
+    const NA = 'Not available in this build. Saved with the payer but not applied to the CMS-1500.'
     const sel = (k, label, list, hint, na = false) => (
       <div className="pr-frow" data-testid={`clm-row-${k}`}>
         <span className="pr-flabel" title={na ? NA : (hint || '')}>{label}{na ? ' (not available)' : ''}</span>
@@ -679,16 +680,14 @@ function RuleBody({ p, section, patch, saved }) {
     }
     return (
       <div className="pr-sec" data-testid="pr-claims">
-        <SecHead t="Claims Settings" s="Boxes and routing options applied when this payer’s CMS-1500 is assembled." />
+        <SecHead t="Claims Settings" s="Box and routing options used when this payer’s CMS-1500 is built. Box 32, same-day merging, credential modifiers, the mileage code and the claim split keys take effect." />
         <Banner tone="info" testid="pr-claims-na-note">
-          Working options: Box 32 behavior, same-day merging, credential modifiers, payer-specific mileage code and the claim split keys below.
-          Box 17, Box 19, Box 33B, Box 33B2, claim file grouping, appointment time and the taxonomy / rendering
-          checkboxes are saved with the payer record but not yet applied when the claim is assembled — they stay
-          disabled so the panel does not imply an effect the CMS-1500 does not have.
+          Box 17, Box 19, Box 33B, Box 33B2, file grouping, appointment time and the taxonomy and rendering
+          checkboxes are saved but not yet applied to the claim, so they are disabled.
         </Banner>
         <div className="pr-fields">
           <div className="pr-frow" data-testid="clm-row-mileageCode">
-            <label className="pr-flabel" htmlFor="clm-mileageCode" title="Optional 5-character CPT/HCPCS code approved by this payer. CPT 14220 is intentionally rejected because it is not a mileage code.">Payer mileage code</label>
+            <label className="pr-flabel" htmlFor="clm-mileageCode" title="Optional 5-character CPT or HCPCS code approved by this payer. CPT 14220 is refused because it is not a mileage code.">Payer mileage code</label>
             <input
               id="clm-mileageCode"
               className="input"
@@ -702,17 +701,17 @@ function RuleBody({ p, section, patch, saved }) {
             />
           </div>
           <p className="muted" style={{ gridColumn: '1 / -1', margin: '-2px 0 2px', fontSize: 11.5 }}>
-            Enter only a payer-approved code when the contract covers mileage. Leave blank if mileage is not covered; insurance mileage lines are held until a code is set or mileage is removed. After setting or changing this value, void and rebuild existing drafts. No code is guessed.
+            Use only a code the payer approved. Leave blank if the contract does not cover mileage; insurance mileage lines stay held until a code is set. After a change, void and rebuild existing drafts.
           </p>
           <div className="pr-frow" data-testid="clm-row-separateBy">
-            <span className="pr-flabel" title="Split claims that would otherwise mix these values. A session records one clinician, so both provider choices split by that clinician; “Supervising Provider” is not offered because sessions record no supervisor.">Separate Claim By</span>
-            <Dropdown testid="clm-separateBy" value={clm.separateBy || '—'} onChange={(v) => setClm({ ...clm, separateBy: v })} options={[{ value: '—', label: '—' }, { value: 'Rendering Provider', label: 'Rendering Provider (the session’s clinician)' }, { value: 'Service Provider', label: 'Service Provider (same split — the session’s clinician)' }, { value: 'Place of Service', label: 'Place of Service' }]} />
+            <span className="pr-flabel" title="Split claims that would mix these values. A session records one clinician, so both provider options split by that clinician. Sessions record no supervisor, so there is no Supervising Provider option.">Separate Claim By</span>
+            <Dropdown testid="clm-separateBy" value={clm.separateBy || '—'} onChange={(v) => setClm({ ...clm, separateBy: v })} options={[{ value: '—', label: '—' }, { value: 'Rendering Provider', label: 'Rendering Provider (the session’s clinician)' }, { value: 'Service Provider', label: 'Service Provider (also the session’s clinician)' }, { value: 'Place of Service', label: 'Place of Service' }]} />
           </div>
-          {sel('box17', 'Box 17 — Referring Provider', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider', 'Always Display if a Referring Provider exists, even if same as billing provider'], undefined, true)}
-          {sel('box19', 'Box 19 — Continue Hospital Info', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider'], undefined, true)}
-          {sel('box32', 'Box 32 — Service Facility Name & Location', ['Auto-populate if blank, leave blank if same as billing NPI', 'Always display Service Facility Name and Location', 'Never display Service Facility Name and Location'])}
-          {sel('box33B', 'Box 33B — Payer ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], 'Only shown when it differs from Box 33A', true)}
-          {sel('box33B2', 'Secondary Payer — ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], undefined, true)}
+          {sel('box17', 'Box 17: Referring Provider', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider', 'Always Display if a Referring Provider exists, even if same as billing provider'], undefined, true)}
+          {sel('box19', 'Box 19: Continue Hospital Info', ['Display only when rendering provider is different', 'Always Display Referring Provider', 'Do not display Referring Provider'], undefined, true)}
+          {sel('box32', 'Box 32: Service Facility Name & Location', ['Auto-populate if blank, leave blank if same as billing NPI', 'Always display Service Facility Name and Location', 'Never display Service Facility Name and Location'])}
+          {sel('box33B', 'Box 33B: Payer ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], 'Only shown when it differs from Box 33A', true)}
+          {sel('box33B2', 'Secondary Payer: ID Type', ['—', 'Medicaid Number', 'Group Number', 'Payer ID', 'NPI'], undefined, true)}
           {sel('file', 'Claim File Options', ['One file per claim', 'One claim per file', 'One file per payer per day'], 'How claim files are grouped for the clearing house', true)}
           {sel('apptTime', 'Include Appointment Time on Claim', ['Do not include', 'Include appointment start time', 'Include appointment start & end time'], undefined, true)}
         </div>
@@ -721,7 +720,7 @@ function RuleBody({ p, section, patch, saved }) {
           {chk('renderTaxo', 'Include Rendering Provider Taxonomy Code on Claim', true)}
           {chk('billTaxo', 'Include Billing Provider Taxonomy Code on Claim', true)}
           {chk('mergeSameDay', 'Merge appointments for same day, same client and same service provider into one charge line')}
-          {chk('credentialMods', "Add the rendering provider's credential modifier to each line (HO BCBA · HN BCaBA · HM RBT · HP Psychologist), the Medicaid norm")}
+          {chk('credentialMods', "Add the rendering provider's credential modifier to each line (HO for BCBA, HN for BCaBA, HM for RBT, HP for Psychologist). This is the Medicaid norm.")}
         </div>
         <SaveRow onCancel={saved} onSave={saveClaims} />
       </div>
@@ -731,7 +730,7 @@ function RuleBody({ p, section, patch, saved }) {
   if (section === 'appt') {
     return (
       <div className="pr-sec" data-testid="pr-appt">
-        <SecHead t="Appointment Settings" s="Rules enforced while completing an appointment for this payer." />
+        <SecHead t="Appointment Settings" s="Rules checked when an appointment for this payer is completed." />
         <div className="pr-togrow" data-testid="appt-sig-row">
           <div><b>Client Signature required to complete appointment</b><span className="muted">Verification tab of the appointment will block “Complete” until a signature is captured.</span></div>
           <button role="switch" aria-checked={Boolean(appt.sigRequired)} className={`pd-switch${appt.sigRequired ? ' on' : ''}`} data-testid="appt-sig" onClick={() => setAppt({ ...appt, sigRequired: !appt.sigRequired })}><i /></button>
@@ -744,15 +743,15 @@ function RuleBody({ p, section, patch, saved }) {
   if (section === 'qual') {
     const upd = (i, k, v) => setQm((x) => x.map((r, j) => (j === i ? { ...r, [k]: v } : r)))
     const move = (i, d) => setQm((x) => { const y = [...x]; const j = i + d; if (y[j]) [y[i], y[j]] = [y[j], y[i]]; return y })
-    const none = { value: '', label: '— none —' }
+    const none = { value: '', label: 'None' }
     const noEducation = (state.staff || []).filter((s) => !s.education).length
     return (
       <div className="pr-sec" data-testid="pr-qual">
-        <SecHead t="Qualification Modifiers" s="The first row whose level matches the rendering provider's education (or a part of their role) adds its pair to the claim line, after the credential and before the place-of-service modifier. Order decides which row wins; a blank modifier adds nothing." />
+        <SecHead t="Qualification Modifiers" s="The first row that matches the rendering provider's education (or part of their role) adds its modifiers to the claim line, after the credential modifier and before the place of service modifier. Row order decides which row wins. A blank modifier adds nothing." />
         <div className={`pr-banner${noEducation ? '' : ' ok'}`} data-testid="qm-readiness">
           {Icon[noEducation ? 'alert' : 'checkCircle']({ size: 12 })}{' '}
           {noEducation
-            ? <>{noEducation} staff member{noEducation === 1 ? '' : 's'} {noEducation === 1 ? 'has' : 'have'} no education level recorded — their lines carry no qualification modifier. Set it on the staff record (Staff → Edit).</>
+            ? <>{noEducation} staff member{noEducation === 1 ? '' : 's'} {noEducation === 1 ? 'has' : 'have'} no education level recorded, so their lines get no qualification modifier. Set it on the staff record (Staff → Edit).</>
             : <>Every staff member has an education level recorded.</>}
         </div>
         {qm.map((r, i) => (
@@ -777,18 +776,18 @@ function RuleBody({ p, section, patch, saved }) {
     const upd = (i, k, v) => setPos((x) => ({ ...x, rows: x.rows.map((r, j) => (j === i ? { ...r, [k]: v } : r)) }))
     return (
       <div className="pr-sec" data-testid="pr-pos">
-        <SecHead t="Place of Service Modifiers" s="Extra modifiers keyed to the place-of-service code on the encounter." />
+        <SecHead t="Place of Service Modifiers" s="Extra modifiers added based on the session's place of service code." />
         {pos.rows.map((r, i) => (
           <div className="pr-prow" key={i} data-testid={`pos-row-${i}`}>
             <Dropdown testid={`pos-code-${i}`} value={r.pos} onChange={(v) => upd(i, 'pos', v)} options={POS_CODES.map((x) => ({ value: x.id, label: x.id, sub: x.label.split(' · ')[1] }))} />
-            <Dropdown testid={`pos-mod-${i}`} value={r.mod || ''} onChange={(v) => upd(i, 'mod', v)} options={[{ value: '', label: '— none —' }, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} />
+            <Dropdown testid={`pos-mod-${i}`} value={r.mod || ''} onChange={(v) => upd(i, 'mod', v)} options={[{ value: '', label: 'None' }, ...MODIFIERS.map((m) => ({ value: m, label: m }))]} />
             <button className="iconbtn" title="Remove row" data-testid={`pos-del-${i}`} onClick={() => setPos({ ...pos, rows: pos.rows.filter((_, j) => j !== i) })}>{Icon.trash({ size: 12 })}</button>
           </div>
         ))}
         <button className="btn btn-sm pr-addrule" data-testid="pos-add" onClick={() => setPos({ ...pos, rows: [...pos.rows, { pos: '99', mod: '' }] })}>{Icon.plus({ size: 12 })} Add row</button>
         <div className="pr-checks">
-          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleOther} disabled data-testid="pos-hide02" onChange={(e) => setPos({ ...pos, hideTeleOther: e.target.checked })} /><span>Hide POS-02 (other than patient home) in Appointment Location — not available: every video location codes POS-10, so there are no POS-02 locations to hide</span></label>
-          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleHome} data-testid="pos-hide10" onChange={(e) => setPos({ ...pos, hideTeleHome: e.target.checked })} /><span>Hide POS-10 (rendered from home) in Appointment Location — telehealth locations leave the booking picker for this payer’s clients</span></label>
+          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleOther} disabled data-testid="pos-hide02" onChange={(e) => setPos({ ...pos, hideTeleOther: e.target.checked })} /><span>Hide POS-02 (other than patient home) in Appointment Location (not available: every video location uses POS-10, so there are no POS-02 locations to hide)</span></label>
+          <label className="pr-check"><input type="checkbox" checked={pos.hideTeleHome} data-testid="pos-hide10" onChange={(e) => setPos({ ...pos, hideTeleHome: e.target.checked })} /><span>Hide POS-10 (rendered from home) in Appointment Location. Telehealth locations are removed from the booking picker for this payer’s clients.</span></label>
         </div>
         <SaveRow onCancel={saved} onSave={() => { patch({ rules: { ...rules, posMods: pos.rows, hideTeleOther: pos.hideTeleOther, hideTeleHome: pos.hideTeleHome } }, 'POS modifiers saved'); saved() }} />
       </div>
@@ -803,11 +802,11 @@ function RuleBody({ p, section, patch, saved }) {
   }, [state.svcs, state.payers])
   return (
     <div className="pr-sec" data-testid="pr-mue">
-      <SecHead t="MUEs" s="Medically Unlikely Edits — maximum units per code per day (and, if the payer sets one, per week). The booking dialog warns when a client's sessions would exceed them." />
+      <SecHead t="MUEs" s="Medically Unlikely Edits: the most units per code per day, and per week if the payer sets a weekly cap. The booking dialog warns when a client's sessions would go over." />
       <div className="pr-banner" data-testid="mue-banner">{Icon.alert({ size: 12 })} These MUEs are applied for all <b>Uncompleted</b> appointments for {p.name}.</div>
       <div className="pr-frow" data-testid="mue-daily-row">
         <span className="pr-flabel">Daily Limit (All Codes)</span>
-        <Dropdown testid="mue-daily" value={mue.daily || ''} onChange={(v) => setMue({ ...mue, daily: v })} options={[{ value: '', label: '— none —' }, ...MUE_LIMITS.map((m) => ({ value: m, label: m }))]} />
+        <Dropdown testid="mue-daily" value={mue.daily || ''} onChange={(v) => setMue({ ...mue, daily: v })} options={[{ value: '', label: 'None' }, ...MUE_LIMITS.map((m) => ({ value: m, label: m }))]} />
       </div>
       <div className="pr-muetable">
         <div className="pr-muehead"><span>Billing Code</span><span>Daily limit</span><span>Weekly limit</span></div>
@@ -825,7 +824,7 @@ function RuleBody({ p, section, patch, saved }) {
 }
 
 function SecHead({ t, s }) {
-  return <div className="pr-head"><b>{t}</b><span>{s}</span></div>
+  return <div className="pr-head"><b>{t}</b>{s && <InfoTip label={t} wiki="billing-and-claims" testid="pr-info">{s}</InfoTip>}</div>
 }
 function SaveRow({ onSave, onCancel }) {
   return (

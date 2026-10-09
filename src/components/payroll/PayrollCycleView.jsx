@@ -3,6 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
+import InfoTip from '../../ui/InfoTip'
 import {
   money, hrs, PayKpis, PeriodPicker, StatusPill, PaySubNav,
   PAY_PHASES, runProgress, groupGate,
@@ -35,7 +36,7 @@ function CheckSummary({ gate, onShow }) {
   const headline = blocked
     ? `${blockers.length} blocker${blockers.length === 1 ? '' : 's'} stop this cycle`
     : warnings.length
-      ? `${warnings.length} exception${warnings.length === 1 ? '' : 's'} to review — nothing blocking`
+      ? `${warnings.length} exception${warnings.length === 1 ? '' : 's'} to review, none blocking`
       : 'All payroll controls passed'
   return (
     <div className={`pay-gate ${tone}`} data-testid="pay-cycle-checks">
@@ -65,7 +66,7 @@ function PhaseCard({ phase, index, state, detail, cta, onOpen }) {
       className={`pay-pcard ${state}`}
       data-testid={`pay-cycle-phase-${index}`}
       onClick={onOpen}
-      title={`${phase.label} — ${phase.sub}`}
+      title={`${phase.label}: ${phase.sub}`}
     >
       <span className={`pay-pcard-ic ${state}`}>
         {state === 'done' ? Icon.check({ size: 15 }) : Icon[phase.icon] ? Icon[phase.icon]({ size: 15 }) : Icon.spark({ size: 15 })}
@@ -167,14 +168,14 @@ export default function PayrollCycleView() {
   const phaseCta = ['Open phase 1', 'Open the register', 'Open approval', run?.status === 'processed' ? 'Open the locked run' : 'Open processing']
 
   const cta = !run
-    ? { label: 'Start payroll — phase 1', testId: 'pay-cycle-cta', phase: 0, hint: 'Select the cycle, then build the register' }
+    ? { label: 'Start payroll (phase 1)', testId: 'pay-cycle-cta', phase: 0, hint: 'Select the cycle, then build the register' }
     : run.status === 'processed'
-      ? { label: 'Open the locked register', testId: 'pay-cycle-cta', phase: 3, hint: `${run.no} is paid and frozen — download the files again here` }
+      ? { label: 'Open the locked register', testId: 'pay-cycle-cta', phase: 3, hint: `${run.no} is paid and locked. Download the files again here` }
       : {
-        label: run.status === 'approved' ? 'Continue — process & pay' : 'Continue — review the register',
+        label: run.status === 'approved' ? 'Continue to processing' : 'Continue to the register',
         testId: 'pay-cycle-cta',
         phase: progress.step,
-        hint: `${RUN_STATUS_LABEL[run.status]} · ${run.no} — next: ${PAY_PHASES[progress.step].label} (phase ${progress.step + 1} of ${PAY_PHASES.length})`,
+        hint: `${RUN_STATUS_LABEL[run.status]}, ${run.no}. Next: ${PAY_PHASES[progress.step].label} (phase ${progress.step + 1} of ${PAY_PHASES.length})`,
       }
 
   return (
@@ -182,8 +183,11 @@ export default function PayrollCycleView() {
       <SectionBar icon="badge" title="Payroll" sub={
         lastProcessed
           ? `Last payroll processed on ${new Date(lastProcessed.processedAt).toLocaleDateString('en-US', { dateStyle: 'medium' })} · ${lastProcessed.no}`
-          : 'Welcome to Payroll — no payroll has been processed yet'
-      }>
+          : 'No payroll processed yet'
+      } wiki="payroll" info={<>
+        Payroll runs in four phases: period, register, approval and processing. The register locks only in phase 4, after an
+        independent approval. Nothing on this page moves money.
+      </>}>
         <button className="btn btn-sm" data-testid="pay-cycle-runs" onClick={() => go('pay-runs')} style={{ borderRadius: 10 }}>{Icon.rows({ size: 13 })} Pay runs</button>
       </SectionBar>
 
@@ -218,7 +222,7 @@ export default function PayrollCycleView() {
               Phase {progress.step + 1} of {PAY_PHASES.length} · {PAY_PHASES[progress.step].label}
             </span>
           )}
-          {run?.status === 'processed' && <span className="pay-hero-note">All {PAY_PHASES.length} phases complete — register locked</span>}
+          {run?.status === 'processed' && <span className="pay-hero-note">All {PAY_PHASES.length} phases complete. Register locked.</span>}
         </div>
       </div>
 
@@ -249,11 +253,16 @@ export default function PayrollCycleView() {
         <div className="pay-card pay-card-flat" data-testid="pay-cycle-checks-card">
           <div className="pay-card-head">
             <div>
-              <b>Checks on this cycle {run ? `· ${run.no}` : ''}</b>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                <b>Checks on this cycle {run ? `· ${run.no}` : ''}</b>
+                <InfoTip label="cycle checks" wiki="payroll" testid="pay-cycle-checks-info">
+                  Blockers stop approval. Exceptions are recorded on the run for the approver. Each affected employee is listed with the fix.
+                </InfoTip>
+              </span>
               <div className="muted" style={{ fontSize: 12 }} data-testid="pay-cycle-checks-src">
                 {run
                   ? `As recorded on ${run.no}'s register (re-checked when it was approved or processed).`
-                  : 'Live from the calendar, timesheets, pay profiles and setup — re-run every time this page opens.'}
+                  : 'Live from the calendar, timesheets, pay profiles and setup. Rechecked each time this page opens.'}
               </div>
             </div>
             <button className="btn btn-sm" data-testid="pay-cycle-open-register" onClick={() => openWizard(run ? progress.step : 0)}>
@@ -261,10 +270,6 @@ export default function PayrollCycleView() {
             </button>
           </div>
           <CheckSummary gate={gate} onShow={showFirstIssue} />
-          <div className="pay-hint">
-            Blockers stop approval; exceptions are recorded on the run for the approver. Either way, every affected employee is listed
-            with the exact fix — no names buried in a toast.
-          </div>
         </div>
 
         <div className="pay-card pay-card-flat" data-testid="pay-cycle-recent">
@@ -278,7 +283,7 @@ export default function PayrollCycleView() {
           {runs.length === 0 ? (
             <div className="py-empty" style={{ padding: 18, textAlign: 'center' }} data-testid="pay-cycle-runs-empty">
               <b>No pay runs yet</b>
-              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Start with phase 1 — the register is built from the calendar.</div>
+              <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Start with phase 1. The register is built from the calendar.</div>
             </div>
           ) : (
             <div className="pay-lines">
@@ -333,11 +338,6 @@ export default function PayrollCycleView() {
           sub="Cycles, overtime, rounding and approval controls"
           onOpen={() => go('pay-setup')}
         />
-      </div>
-
-      <div className="pay-hint" style={{ margin: '16px' }}>
-        Nothing on this page moves money. Payroll is a four-phase path — period, register, approval, processing — and the register only
-        locks in phase 4, after an independent approval.
       </div>
 
       {issue && <ReviewRegisterModal issue={issue} run={run} onClose={() => setIssue(null)} />}

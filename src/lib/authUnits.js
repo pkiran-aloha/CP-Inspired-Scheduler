@@ -251,9 +251,9 @@ export function unitCheckFor(state, client, draft = {}, { today } = {}) {
     if (!pool[rule.code]) {
       add('warn', `${rule.code} is not on this client's authorization (units on file: ${Object.keys(pool).join(', ')}). The payer can deny every ${rule.code} unit.`)
     } else if (row.remaining < 0) {
-      add(row.pct >= cfg.blockAtPct ? 'stop' : 'warn', `${rule.code}: ${row.committed} units committed against ${row.authorized} authorized — over by ${-row.remaining} units (${row.pct}%).`)
+      add(row.pct >= cfg.blockAtPct ? 'stop' : 'warn', `${rule.code}: ${row.committed} units committed against ${row.authorized} authorized, over by ${-row.remaining} units (${row.pct}%).`)
     } else if (row.pct >= cfg.warnAtPct) {
-      add('warn', `${rule.code}: ${row.pct}% of the authorized units are committed — ${row.remaining} units left.`)
+      add('warn', `${rule.code}: ${row.pct}% of the authorized units are committed. ${row.remaining} units left.`)
     }
     if (ledger.converted) notes.push('These units were converted from weekly hours. Check them against the payer’s authorization letter and save the client to confirm.')
   }

@@ -3297,7 +3297,7 @@ button.py-stat:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(-
 .set-sec { border: 1px solid var(--line); border-radius: 14px; background: var(--panel-2); padding: 12px 13px; margin-top: 10px; box-shadow: var(--shadow-1); }
 .set-sec-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .set-sec-head b { font-size: 12.8px; letter-spacing: -.01em; display: block; }
-.set-sec-head span { font-size: 10.8px; color: var(--muted); display: block; margin-top: 2px; }
+.set-sec-head > div > span:not(.set-sec-title) { font-size: 10.8px; color: var(--muted); display: block; margin-top: 2px; }
 .set-sec-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .set-sec-body { display: flex; flex-direction: column; }
 .set-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 22px; }
@@ -4350,3 +4350,17 @@ tr:hover .rpv-act button, .rpv-act button:focus-visible { opacity: 1; }
 /* Top-bar chip: keep "Name · Org" on one line beside the avatar and caret. */
 .userchip .uc-name { white-space: nowrap; }
 .userchip > svg { flex: none; color: var(--muted); }
+
+/* InfoTip: click/Enter toggletip that holds a screen's guidance text (src/ui/InfoTip.jsx) */
+.set-sec-title { display: flex; align-items: center; gap: 4px; }
+.secbar-title { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.infotip { display: inline-flex; align-items: center; vertical-align: middle; }
+.infotip-btn { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.infotip-btn:hover, .infotip-btn[aria-expanded='true'] { color: var(--accent); background: var(--accent-soft); }
+.infotip-panel { margin: 0; position: fixed; z-index: 1000; display: block; max-width: calc(100vw - 16px); padding: 12px 14px; border: 1px solid var(--line-2); border-radius: var(--r-md); background: var(--panel); color: var(--text-2); box-shadow: var(--shadow-2); font-size: 12.5px; font-weight: 450; line-height: 1.55; letter-spacing: 0; text-align: left; text-transform: none; white-space: normal; animation: infotip-in 0.12s ease-out; }
+.infotip-body { display: block; }
+.infotip-body > * + * { display: block; margin-top: 6px; }
+.infotip-more { display: inline-block; margin-top: 8px; padding: 0; border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600; cursor: pointer; }
+.infotip-more:hover { text-decoration: underline; }
+@keyframes infotip-in { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .infotip-panel { animation: none; } }

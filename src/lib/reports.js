@@ -61,7 +61,7 @@ const REPORTS_RAW = [
   // ---------- Operations ----------
   {
     id: 'attendance', cat: 'operations', name: 'Attendance & Session Ledger', icon: 'clipboard',
-    blurb: 'Every clinical appointment in range with outcome, staff, units and charge — the master ledger.',
+    blurb: 'Every clinical appointment in range with outcome, staff, units and charge.',
     build(state, ctx) {
       const clients = byIdMap(state.clients)
       const staff = byIdMap(state.staff)
@@ -93,7 +93,7 @@ const REPORTS_RAW = [
   },
   {
     id: 'utilization', cat: 'operations', name: 'Staff Utilization vs Target', icon: 'spark',
-    blurb: 'Booked hours against each person’s target week — the core productivity report.',
+    blurb: 'Booked hours against each person’s target week.',
     build(state, ctx) {
       const list = scoped(state, ctx.days, ctx.scope)
       const weeks = weeksOf(ctx.days)
@@ -139,13 +139,13 @@ const REPORTS_RAW = [
           { label: 'Over target (>100%)', value: rows.filter((r) => r.utilPct > 100).length },
           { label: 'Under 60%', value: rows.filter((r) => r.utilPct < 60).length },
         ],
-        note: 'Target = personal target-week hours × weeks in range. Meetings & PTO are booked time but not billable, so they count toward utilization, not revenue.',
+        note: 'Target is each person’s weekly target hours times the weeks in range. Meetings and PTO count toward utilization but not revenue, because they are booked but not billable.',
       }
     },
   },
   {
     id: 'cover', cat: 'operations', name: 'Cancellations & Backfill Log', icon: 'alert',
-    blurb: 'What got cancelled, whether smart backfill recovered the slot, and dollars still at risk.',
+    blurb: 'Cancelled sessions, whether backfill recovered the slot, and the dollars still at risk.',
     build(state, ctx) {
       const clients = byIdMap(state.clients)
       const staff = byIdMap(state.staff)
@@ -178,7 +178,7 @@ const REPORTS_RAW = [
   },
   {
     id: 'cancelReasons', cat: 'operations', name: 'Cancellation Root Cause', icon: 'alert',
-    blurb: 'Why sessions were cancelled or missed: the recorded reason, whose side it was on, and the day and time it clusters on.',
+    blurb: 'Why sessions were cancelled or missed, which side the reason was on, and when it happens most.',
     build(state, ctx) {
       const list = scoped(state, ctx.days, ctx.scope).filter((a) => (a.type === 'service' || a.type === 'evaluation') && isCancelStatus(state.settings, a.status))
       const rows = cancelReasonRows(list)
@@ -196,13 +196,13 @@ const REPORTS_RAW = [
           { label: 'Practice side', value: `${pct('practice')}%` },
           { label: 'No reason recorded', value: list.filter((a) => !a.cancelReason).length },
         ],
-        note: 'Reasons come from Settings → Custom Lists → Cancellation reasons. A reason naming staff, a clinician, scheduling or the practice counts as practice side; practice-side cancellations are left out of a family’s attendance history in the risk score. "Clusters on" needs at least two sessions on the same day or time band.',
+        note: 'Reasons come from Settings → Custom Lists → Cancellation reasons. A reason naming staff, a clinician, scheduling or the practice counts as practice side. Practice-side cancellations do not count against a family’s attendance in the risk score. "Clusters on" needs at least two sessions on the same day or time band.',
       }
     },
   },
   {
     id: 'gaps', cat: 'operations', name: 'Open Staff Capacity (Gaps)', icon: 'clock',
-    blurb: 'Booked vs available minutes per staff-day — sellable hours hiding inside the schedule.',
+    blurb: 'Booked against available minutes per staff day, showing open hours that could be scheduled.',
     build(state, ctx) {
       const wd = state.settings.workday || [8, 18]
       const capMin = (wd[1] - wd[0]) * 60
@@ -245,7 +245,7 @@ const REPORTS_RAW = [
   // ---------- Clinical & compliance ----------
   {
     id: 'auth', cat: 'clinical', name: 'Authorization Burn-down', icon: 'shield',
-    blurb: 'Delivered weekly hours vs each client’s authorized hours — pace, overruns and expiry risk.',
+    blurb: 'Delivered weekly hours against each client’s authorized hours, with pace, overruns and expiry risk.',
     build(state, ctx) {
       const today = todayISO()
       const weeks = weeksOf(ctx.days)
@@ -282,7 +282,7 @@ const REPORTS_RAW = [
   },
   {
     id: 'authUtil', cat: 'clinical', name: 'Authorization Utilization', icon: 'shield',
-    blurb: 'Every authorization by code across its own window: authorized, used, scheduled and remaining units, utilization against where the window should be, and when to start the renewal.',
+    blurb: 'Each authorization by code over its own window: authorized, used, scheduled and remaining units, pace, and when to start the renewal.',
     build(state, ctx) {
       const today = todayISO()
       const team = ctx.scope?.team ? (state.teams || []).find((t) => t.id === ctx.scope.team) : null
@@ -337,13 +337,13 @@ const REPORTS_RAW = [
           { label: 'Renewals to start', value: new Set(rows.filter((r) => r.renew).map((r) => r.client)).size },
           { label: 'Codes not authorized', value: rows.filter((r) => r.status === 'Not on authorization').length },
         ],
-        note: 'Measured across each authorization’s own window, not the report range. Units follow each payer’s unit size and rounding. Used = delivered before today; Projected = used + scheduled. Expected % is how far through the window today is; a code using less than 80% of that is under-utilized, which weakens the renewal request. Renewal starts at 30 days left or 75% committed. "Verify" marks units converted from weekly hours that nobody has checked against the payer letter yet.',
+        note: 'Measured across each authorization’s own window, not the report range. Units follow each payer’s unit size and rounding. Used is delivered before today. Projected is used plus scheduled. Expected % is how far through the window today is. A code below 80% of that is under-utilized, which weakens the renewal request. Renewal starts at 30 days left or 75% committed. "Verify" marks units converted from weekly hours that nobody has checked against the payer letter yet.',
       }
     },
   },
   {
     id: 'reassess', cat: 'clinical', name: 'Re-assessment Due Dates', icon: 'repeat',
-    blurb: 'VB-MAPP / ABLLS-R cadence — last assessment, next due date, who owns it.',
+    blurb: 'VB-MAPP and ABLLS-R cadence: last assessment, next due date and owner.',
     build(state, ctx) {
       const today = todayISO()
       const evals = rawList(state, Object.keys(state.appts).length ? allDays(state) : []).filter((a) => a.type === 'evaluation' && a.status !== 'cancelled')
@@ -368,13 +368,13 @@ const REPORTS_RAW = [
           { label: 'Due ≤3 weeks', value: rows.filter((r) => r.status === 'Due soon').length },
           { label: 'Missing baseline', value: rows.filter((r) => r.status === 'No baseline on file').length },
         ],
-        note: 'Default cycle: 180 days between standardized re-assessments (payer-mandated in most CA auths).',
+        note: 'Default cycle is 180 days between standardized re-assessments, which most CA authorizations require.',
       }
     },
   },
   {
     id: 'supervision', cat: 'clinical', name: 'BCBA Supervision Coverage', icon: 'eye',
-    blurb: 'Monthly supervision cadence for every RBT / trainee — BACB compliance at a glance.',
+    blurb: 'Monthly supervision for every RBT and trainee against the BACB requirement.',
     build(state, ctx) {
       const list = scoped(state, ctx.days, ctx.scope)
       const isSup = (s) => /BCBA|BCaBA/.test(s.role || '')
@@ -409,7 +409,7 @@ const REPORTS_RAW = [
   },
   {
     id: 'credentials', cat: 'clinical', name: 'Credentials & PDUs', icon: 'badge',
-    blurb: 'Every clinician against what renewal needs: BCBA and BCaBA CEUs per cycle, RBT competency, supervision and the practice PDU target.',
+    blurb: 'Each clinician against renewal requirements: BCBA and BCaBA CEUs, RBT competency, supervision and the practice PDU target.',
     build(state, ctx) {
       const today = todayISO()
       const rows = (state.staff || [])
@@ -432,7 +432,7 @@ const REPORTS_RAW = [
           { label: 'Competency due', value: rows.filter((r) => r.status === 'Competency assessment due').length },
           { label: 'Renewal overdue', value: rows.filter((r) => r.status === 'Renewal overdue').length },
         ],
-        note: `BACB: BCBA 32 and BCaBA 20 CEUs per 2-year cycle; RBTs renew yearly with a competency assessment and at least 5% supervision. RBT PDU target: ${rbtPduTarget(state)} h a year (practice setting). Renewal dates come from credentials in Staff → Cabinet; entries are logged there too. Verify against the BACB handbook for your cycle.`,
+        note: `BACB: BCBA 32 and BCaBA 20 CEUs per 2-year cycle; RBTs renew yearly with a competency assessment and at least 5% supervision. RBT PDU target: ${rbtPduTarget(state)} h a year (practice setting). Renewal dates and entries come from Staff → Cabinet. Verify against the BACB handbook for your cycle.`,
       }
     },
   },
@@ -479,7 +479,7 @@ const REPORTS_RAW = [
   // ---------- Billing & claims ----------
   {
     id: 'claimready', cat: 'billing', name: 'Claim-Ready Lines', icon: 'dollar',
-    blurb: 'Completed, verified, unit-correct lines ready to submit right now.',
+    blurb: 'Completed, verified lines with correct units, ready to submit.',
     build(state, ctx) {
       const clients = byIdMap(state.clients)
       const staff = byIdMap(state.staff)
@@ -507,7 +507,7 @@ const REPORTS_RAW = [
           { label: 'Total charges', value: `$${total.toLocaleString()}` },
           { label: 'Distinct clients', value: new Set(rows.map((r) => r.client)).size },
         ],
-        note: 'Blocked lines are intentionally excluded — see the Blocked Claims report for what needs fixing first.',
+        note: 'Blocked lines are left out. The Blocked Claims report lists what to fix.',
       }
     },
   },
@@ -557,7 +557,7 @@ const REPORTS_RAW = [
   },
   {
     id: 'revenueCode', cat: 'billing', name: 'Revenue by Code × Bucket', icon: 'dollar',
-    blurb: 'CPT-level revenue rolled up per day/week/month — mix shifts and rate sanity.',
+    blurb: 'Revenue by CPT code per day, week or month, to spot mix shifts and rate errors.',
     build(state, ctx) {
       const buckets = ctx.buckets
       const rows = []
@@ -590,7 +590,7 @@ const REPORTS_RAW = [
   },
   {
     id: 'claims', cat: 'billing', name: 'Claims Register', icon: 'file',
-    blurb: 'Every claim form with lifecycle status, aging, adjustments and remittance outcome.',
+    blurb: 'Every claim with status, aging, adjustments and remittance outcome.',
     build(state, ctx) {
       const clients = byIdMap(state.clients)
       const all = Object.values(state.claims || {})
@@ -628,13 +628,13 @@ const REPORTS_RAW = [
           { label: 'Awaiting payer', value: `$${money('submitted').toLocaleString()}` },
           { label: 'Denied', value: `$${money('denied').toLocaleString()}` },
         ],
-        note: 'COB filings appear in this register for review but are excluded from receivable summaries. Only primary balances count once; this is not service-line allocation.',
+        note: 'COB filings are listed for review but left out of receivable totals. Only primary balances count, once each. This is not service-line allocation.',
       }
     },
   },
   {
     id: 'payer', cat: 'billing', name: 'Payer Mix & Billing Status', icon: 'building',
-    blurb: 'Revenue split by insurer / self-pay, plus what is still unsubmitted per payer.',
+    blurb: 'Revenue by insurer and self-pay, plus what is still unsubmitted per payer.',
     build(state, ctx) {
       const clients = byIdMap(state.clients)
       const acc = {}
@@ -675,7 +675,7 @@ const REPORTS_RAW = [
   // ---------- People & payroll ----------
   {
     id: 'payroll', cat: 'people', name: 'Payroll & Session Hours', icon: 'team',
-    blurb: 'Hours by category, mileage and estimated labor cost vs revenue per staff.',
+    blurb: 'Hours by category, mileage, and estimated labor cost against revenue per staff member.',
     build(state, ctx) {
       const list = scoped(state, ctx.days, ctx.scope)
       const agg = {}
@@ -725,7 +725,7 @@ const REPORTS_RAW = [
 
   {
     id: 'abahours', cat: 'people', name: 'Behavior-Analytic Hours (⚡ ABA Time)', icon: 'zap',
-    blurb: 'Non-service time marked as behavior-analytic, per person and activity — the ledger behind RBT / BCAT, graduate-student and state-certification tracking.',
+    blurb: 'Non-service time marked as behavior-analytic, per person and activity. Use it to track RBT, BCAT, graduate-student and state certification hours.',
     build(state, ctx) {
       const { rows } = abaStaffRows(state, { days: ctx.days, ...(ctx.scope?.staff ? { staffId: ctx.scope.staff } : {}) })
       const out = rows
@@ -762,7 +762,7 @@ const REPORTS_RAW = [
   // ---------- Data quality ----------
   {
     id: 'quality', cat: 'quality', name: 'Data Quality & Validations', icon: 'checkCircle',
-    blurb: 'Live cross-module validations: billing completeness, auth overruns, supervision gaps, double-books.',
+    blurb: 'Checks across modules for missing billing, authorization overruns, supervision gaps and double-bookings.',
     build(state, ctx) {
       const issues = validationIssues(state, ctx.days, ctx.scope)
       const rows = issues.map((i) => ({ sev: i.sev, cat: i.cat, message: i.msg, who: i.who, date: i.date || '—', fix: i.fix, _link: i.link }))
@@ -778,13 +778,13 @@ const REPORTS_RAW = [
           { label: 'Notices', value: rows.filter((r) => r.sev === 'notice').length },
           { label: 'Fixable in one click', value: rows.filter((r) => r.fix.startsWith('Auto')).length },
         ],
-        note: rows.length ? 'Click any row to jump straight to the record — the same validations run live in the appointment wizard.' : undefined,
+        note: rows.length ? 'Click a row to open the record. The booking dialog runs the same checks.' : undefined,
       }
     },
   },
   {
     id: 'intake', cat: 'operations', name: 'Intake Pipeline & Referral Conversion', icon: 'user',
-    blurb: 'Every pre-client request with stage, age against SLA, referral source and outcome — the access & conversion report.',
+    blurb: 'Every intake request with stage, age against SLA, referral source and outcome.',
     build(state) {
       const list = Object.values(state.intakeRequests || {})
       const sources = (state.referralSources || [])
@@ -828,8 +828,8 @@ const REPORTS_RAW = [
           { label: 'New this week', value: k.newThisWeek },
           { label: 'Converted / closed', value: `${k.won} / ${k.lost}` },
           { label: 'Conversion', value: k.conversionRate == null ? 'not enough data' : `${k.conversionRate}%` },
-          { label: 'Median → first contact', value: k.medianFirstContact == null ? '—' : `${k.medianFirstContact}d` },
-          { label: 'Median → assessment', value: k.medianToAssessment == null ? '—' : `${k.medianToAssessment}d` },
+          { label: 'Median days to first contact', value: k.medianFirstContact == null ? '—' : `${k.medianFirstContact}d` },
+          { label: 'Median days to assessment', value: k.medianToAssessment == null ? '—' : `${k.medianToAssessment}d` },
           { label: 'Past stage SLA', value: k.overdue.length },
           { label: 'No touch in 5 days', value: k.stalled.length },
           { label: 'On the waitlist', value: k.waitingFamilies },
@@ -866,10 +866,10 @@ export function validationIssues(state, days, scope) {
           const rule = unitRuleFor(state, a)
           push('error', 'Billing', `${TYPES[a.type].label} completed with 0 billable units`, who, `Auto-fill ${unitsFor(a.end - a.start, rule.unitMins, rule.rounding)} units`, { kind: 'appt', id: a.id, date: a.date }, a.date)
         }
-        if (!(a.billing.rate > 0) && !a.billing.mileage) push('error', 'Billing', `Unit rate is $0 — claim would pay nothing`, who, 'Set rate from code table', { kind: 'appt', id: a.id, date: a.date }, a.date)
+        if (!(a.billing.rate > 0) && !a.billing.mileage) push('error', 'Billing', `Unit rate is $0, so the claim would pay nothing`, who, 'Set rate from code table', { kind: 'appt', id: a.id, date: a.date }, a.date)
       }
       if (TYPES[a.type].hasVerification && a.verification?.verifyStatus !== 'verified') {
-        push(a.verification?.verifyStatus === 'flagged' ? 'error' : 'warn', 'Verification', a.verification ? 'Session verification flagged — cannot bill' : 'Session completed but not verified/signed', who, 'Open session → Verify & sign', { kind: 'appt', id: a.id, date: a.date }, a.date)
+        push(a.verification?.verifyStatus === 'flagged' ? 'error' : 'warn', 'Verification', a.verification ? 'Session verification flagged. It cannot be billed.' : 'Session completed but not verified/signed', who, 'Open session → Verify & sign', { kind: 'appt', id: a.id, date: a.date }, a.date)
       }
     }
     if (overlapsType(a) && a.status !== 'cancelled' && !(a.staffIds || []).length) push('error', 'Scheduling', 'Appointment occupies time but has no staff assigned', who, 'Assign staff (suggestions available)', { kind: 'appt', id: a.id, date: a.date }, a.date)
@@ -880,10 +880,10 @@ export function validationIssues(state, days, scope) {
     if (a.abaHr === true) {
       const whoStaff = namesOf(a.staffIds, staff) || '—'
       const act = abaActivityById(a.abaActivity)
-      if (isServiceAppt(a)) push('error', 'ABA Hours', `⚡ ABA Hours on a service appointment (${TYPES[a.type]?.label || a.type}) — service time draws on the client's authorization instead`, whoStaff, 'Untick ⚡ ABA Hr or rebook as a non-service block', { kind: 'appt', id: a.id, date: a.date }, a.date)
-      else if (act && !act.qualifies) push('error', 'ABA Hours', `“${act.label}” is not behavior-analytic time — it cannot count toward certification hours`, whoStaff, 'Pick a qualifying activity or untick ⚡ ABA Hr', { kind: 'appt', id: a.id, date: a.date }, a.date)
+      if (isServiceAppt(a)) push('error', 'ABA Hours', `⚡ ABA Hours on a service appointment (${TYPES[a.type]?.label || a.type}). Service time counts against the client's authorization instead.`, whoStaff, 'Untick ⚡ ABA Hr or rebook as a non-service block', { kind: 'appt', id: a.id, date: a.date }, a.date)
+      else if (act && !act.qualifies) push('error', 'ABA Hours', `“${act.label}” is not behavior-analytic time and cannot count toward certification hours`, whoStaff, 'Pick a qualifying activity or untick ⚡ ABA Hr', { kind: 'appt', id: a.id, date: a.date }, a.date)
       else if (!act) push('warn', 'ABA Hours', '⚡ ABA Hours marked without an activity', whoStaff, 'Open the block and choose the behavior-analytic activity', { kind: 'appt', id: a.id, date: a.date }, a.date)
-      if (countsAsAbaHours(a) && !(a.staffIds || []).length) push('warn', 'ABA Hours', '⚡ ABA Hours with no staff assigned — nobody is credited', whoStaff, 'Add the staff member who did the work', { kind: 'appt', id: a.id, date: a.date }, a.date)
+      if (countsAsAbaHours(a) && !(a.staffIds || []).length) push('warn', 'ABA Hours', '⚡ ABA Hours with no staff assigned, so nobody is credited', whoStaff, 'Add the staff member who did the work', { kind: 'appt', id: a.id, date: a.date }, a.date)
     }
   }
   // Medicaid / CPT: time for one code, one client, one date of service is added up and
@@ -943,8 +943,8 @@ export function validationIssues(state, days, scope) {
       }
     }
   }
-  for (const g of clashAgg.values()) push('error', 'Scheduling', `Double-booked staff: ${g.n > 1 ? `${g.n} overlapping appointments` : 'two overlapping appointments'} on ${fmtD(g.date)}`, staff[g.staff]?.name || '—', 'Resolve on the calendar — suggestions will re-offer the slot', { kind: 'staff', id: g.staff, date: g.date }, g.date)
-  for (const g of ptoAgg.values()) push('warn', 'Scheduling', `${g.n} session(s) overlap “${g.title}” on ${fmtD(g.date)} — historical clash, import-time`, staff[g.staff]?.name || '—', 'Reassign to a float or cancel', { kind: 'appt', id: g.appt, date: g.date }, g.date)
+  for (const g of clashAgg.values()) push('error', 'Scheduling', `Double-booked staff: ${g.n > 1 ? `${g.n} overlapping appointments` : 'two overlapping appointments'} on ${fmtD(g.date)}`, staff[g.staff]?.name || '—', 'Resolve on the calendar. Suggestions will offer the slot again.', { kind: 'staff', id: g.staff, date: g.date }, g.date)
+  for (const g of ptoAgg.values()) push('warn', 'Scheduling', `${g.n} session(s) overlap “${g.title}” on ${fmtD(g.date)} (historical clash from import)`, staff[g.staff]?.name || '—', 'Reassign to a float or cancel', { kind: 'appt', id: g.appt, date: g.date }, g.date)
 
   // client-side: auth pace + expiry (uses last 7 days)
   const last7 = Array.from({ length: 7 }, (_, i) => isoDate(addDays(parseISO(today), i - 6)))
@@ -998,7 +998,7 @@ const esc = (v) => {
 }
 export function toCSV(result, meta) {
   const head = [
-    `# ${meta.org?.name || 'Aloha ABA'} — ${meta.def.name}`,
+    `# ${meta.org?.name || 'Aloha ABA'}: ${meta.def.name}`,
     `# Range: ${meta.days[0]} → ${meta.days[meta.days.length - 1]} (${meta.days.length} days, bucket: ${meta.gran})`,
     `# Scope: ${meta.scopeLabel || 'All records'}`,
     `# Generated: ${new Date().toISOString()}`,

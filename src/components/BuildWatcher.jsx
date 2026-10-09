@@ -33,9 +33,9 @@ export default function BuildWatcher() {
   }, [stale])
   if (!stale) return null
   return (
-    <button type="button" className="build-update" data-testid="app-update" title="A newer build is deployed — click to reload the app"
+    <button type="button" className="build-update" data-testid="app-update" title="A newer build is deployed. Click to reload the app."
       onClick={() => window.location.reload()}>
-      {Icon.repeat({ size: 13 })} New version deployed — click to refresh
+      {Icon.repeat({ size: 13 })} New version available. Click to refresh.
     </button>
   )
 }

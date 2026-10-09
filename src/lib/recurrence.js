@@ -347,7 +347,7 @@ export function planSeriesTx(state, input, { today = todayISO(), ids = [], weekS
   if (input.op === 'remove') {
     if (scope === 'one' || !anchor.seriesId) {
       const why = lock(anchor)
-      if (why) return fail(`This session is ${LOCK_WORDS[why]} — it cannot be deleted.`)
+      if (why) return fail(`This session is ${LOCK_WORDS[why]}, so it cannot be deleted.`)
       return { ok: true, msg: 'Appointment deleted', upserts: [], deleteIds: [anchor.id], newIds, firstId: null }
     }
     const kept = []
@@ -432,12 +432,12 @@ export function planSeriesTx(state, input, { today = todayISO(), ids = [], weekS
 
   const screened = screenOccurrences(state, drafts, { removeIds: deleteIds, today })
   const anchorRejected = screened.rejected.find((r) => r.id === anchor.id)
-  if (anchorRejected) return fail(`This occurrence cannot be saved — ${anchorRejected.reasons[0]}`)
+  if (anchorRejected) return fail(`This occurrence cannot be saved: ${anchorRejected.reasons[0]}`)
   const all = [...upserts, ...screened.accepted]
   const rebuilt = ruleChanged || dateChanged
   const touched = screened.accepted.length
   const head = rebuilt
-    ? `Series ${newRule ? `rebuilt — ${describeRule(newRule, newDate)}` : 'ended — this session no longer repeats'} · ${touched} occurrence${touched === 1 ? '' : 's'} saved${deleteIds.length ? ` · ${deleteIds.length} replaced` : ''}`
+    ? `Series ${newRule ? `rebuilt: ${describeRule(newRule, newDate)}` : 'ended. This session no longer repeats'}. ${touched} occurrence${touched === 1 ? '' : 's'} saved${deleteIds.length ? `, ${deleteIds.length} replaced` : ''}.`
     : scope === 'all' ? `Updated all ${touched} occurrence${touched === 1 ? '' : 's'}` : `Updated this & ${Math.max(0, touched - 1)} following`
   return {
     ok: true,

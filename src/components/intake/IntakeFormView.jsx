@@ -77,14 +77,14 @@ export default function IntakeFormView() {
     if (!form.lastName.trim()) e.lastName = 'Last name is required'
     // A first call rarely has the full address: only what the next step needs is required.
     if (!form.office) e.office = 'Select the office'
-    if (!form.dob) e.dob = 'Date of birth is required — it drives age eligibility and claims'
+    if (!form.dob) e.dob = 'Date of birth is required for age eligibility and claims'
     else if (form.dob > todayISO()) e.dob = 'Date of birth cannot be in the future'
     if (form.zip.trim() && !/^\d{5}(-\d{4})?$/.test(form.zip.trim())) e.zip = 'ZIP code must be 5 digits (or ZIP+4)'
     const phone = form.phones.find((p) => p.number.trim())
     if (!phone) e.phone = 'At least one phone number is required'
     else if (phone.number.replace(/\D/g, '').length < 10) e.phone = 'Phone number needs at least 10 digits'
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) e.email = 'Email address looks invalid'
-    if (!form.guardian.name.trim()) e.guardian = 'Guardian name is required — they are the consenting party'
+    if (!form.guardian.name.trim()) e.guardian = 'Guardian name is required. The guardian gives consent'
     if (!form.guardian.phone.trim() && !form.guardian.email.trim()) e.guardianContact = 'Guardian needs a phone or email'
     if (!form.ownerId) e.ownerId = 'Assign an intake owner so the request has an accountable person'
     if (form.referralSourceId && !referralSources.some((s) => s.id === form.referralSourceId)) e.referralSourceId = 'Unknown referral source'
@@ -128,7 +128,7 @@ export default function IntakeFormView() {
 
   return (
     <div className="sectionpage">
-      <SectionBar icon="user" title={existing ? `Intake request · ${existing.no}` : 'New intake request'} sub="Capture the referral once — every downstream module reads from this record">
+      <SectionBar icon="user" title={existing ? `Intake request · ${existing.no}` : 'New intake request'} info="Enter the referral once. Clients, scheduling, billing and reports read from this record." wiki="intake">
         <span className="iq-completeness" title="Fields that downstream modules depend on">{filled}% complete</span>
         <button className="btn btn-sm" data-testid="iq-form-cancel" onClick={() => { actions.setUI({ section: 'intake', intakeEdit: null }) }}>Cancel</button>
         <button className="btn btn-sm btn-primary" data-testid="iq-form-save" onClick={() => save()}>{Icon.check({ size: 12 })} Save</button>
@@ -140,7 +140,7 @@ export default function IntakeFormView() {
           <div className="iq-banner ok" data-testid="iq-saved-banner">
             {Icon.checkCircle({ size: 14 })}
             <b>Saved.</b>&nbsp;{fullName(previewReq)} is in the pipeline at <b>{stageDef(form.stage).label}</b>
-            {blockers.length ? <> — {blockers.length} requirement{blockers.length > 1 ? 's' : ''} before it can advance.</> : ' — ready to advance.'}
+            {blockers.length ? <>. {blockers.length} requirement{blockers.length > 1 ? 's' : ''} left before it can advance.</> : '. Ready to advance.'}
             <button className="btn btn-sm" data-testid="iq-saved-open" onClick={() => actions.setUI({ section: 'intake', intakeSel: savedId, intakeEdit: null })}>Open the request</button>
           </div>
         )}
@@ -155,8 +155,8 @@ export default function IntakeFormView() {
         <div className="iq-formcard">
           <header className="iq-formhead">
             <div>
-              <b>{existing ? `Edit intake request — ${existing.no}` : 'New intake request'}</b>
-              <span>Demographics, referral attribution, screening and benefits — one pass, no duplicate entry later.</span>
+              <b>{existing ? `Edit intake request ${existing.no}` : 'New intake request'}</b>
+              <span>Demographics, referral, screening and benefits.</span>
             </div>
             <span className="iq-formbadge" aria-hidden="true">{Icon.user({ size: 18 })}</span>
           </header>
@@ -245,7 +245,7 @@ export default function IntakeFormView() {
                   <span className="muted" data-testid="iq-photo-name">{photo ? `${photo.name} · ${Math.round(photo.size / 1024)} KB` : 'Upload profile picture'}</span>
                   {photo && <button className="btn btn-sm" data-testid="iq-photo-clear" onClick={() => set('photo', null)}>Remove</button>}
                 </div>
-                <p className="iq-note">{Icon.info({ size: 11 })} The image is referenced locally in this browser demo — it is never uploaded, and binary content is deliberately excluded from workspace backups.</p>
+                <p className="iq-note">{Icon.info({ size: 11 })} The image stays in this browser. It is not uploaded and is not included in workspace backups.</p>
               </Sec>
             </div>
 
@@ -266,11 +266,11 @@ export default function IntakeFormView() {
                   <label className="iq-fld"><span>Emergency phone</span>
                     <input className="input" value={form.emergency.phone} onChange={(e) => setSub('emergency', 'phone', e.target.value)} data-testid="iq-emergency-phone" /></label>
                   <label className="iq-fld wide"><span>Guardianship / custody note</span>
-                    <input className="input" value={form.guardianshipNote} placeholder="Only if someone other than the parent consents — this adds a required document" onChange={(e) => set('guardianshipNote', e.target.value)} data-testid="iq-guardianship" /></label>
+                    <input className="input" value={form.guardianshipNote} placeholder="Only if someone other than a parent consents (adds a required document)" onChange={(e) => set('guardianshipNote', e.target.value)} data-testid="iq-guardianship" /></label>
                 </div>
               </Sec>
 
-              <Sec n={5} title="Referral & source" icon="zap" hint="Attribution is carried onto the client chart — it powers the source scorecard." testid="iq-sec-referral">
+              <Sec n={5} title="Referral & source" icon="zap" hint="Copied to the client chart and used in the source scorecard." testid="iq-sec-referral">
                 <div className="iq-grid2">
                   <label className={`iq-fld ${errs.referralSourceId ? 'bad' : ''}`}><span>Referral source</span>
                     <Dropdown value={form.referralSourceId || ''} onChange={(v) => set('referralSourceId', v || null)} options={[{ value: '', label: 'Not recorded' }, ...referralSources.filter((s) => s.status !== 'inactive').map((s) => ({ value: s.id, label: s.name, sub: `${s.kind}${s.contact && s.contact !== '—' ? ` · ${s.contact}` : ''}` }))]} testid="iq-source" searchable />
@@ -319,7 +319,7 @@ export default function IntakeFormView() {
                 </div>
               </Sec>
 
-              <Sec n={7} title="Insurance & benefits" icon="shield" hint="A five-minute VOB here prevents the most common denial later." testid="iq-sec-benefits">
+              <Sec n={7} title="Insurance & benefits" icon="shield" hint="Verifying benefits now prevents the most common denial." testid="iq-sec-benefits">
                 <div className="iq-grid2">
                   <label className="iq-fld"><span>Primary payer</span>
                     <Dropdown value={form.payerId || ''} onChange={(v) => set('payerId', v || null)} options={[{ value: '', label: 'Not selected (self-pay)' }, ...payers.filter((p) => p.status === 'active').map((p) => ({ value: p.id, label: p.name, sub: p.type }))]} testid="iq-payer" searchable /></label>
@@ -338,7 +338,7 @@ export default function IntakeFormView() {
                   <label className="iq-fld"><span>Secondary payer (COB)</span>
                     <Dropdown value={form.secondaryPayerId || ''} onChange={(v) => set('secondaryPayerId', v || null)} options={[{ value: '', label: 'None' }, ...payers.filter((p) => p.status === 'active').map((p) => ({ value: p.id, label: p.name }))]} testid="iq-secondary" searchable /></label>
                 </div>
-                <p className="iq-note">{Icon.info({ size: 11 })} Benefits are verified in full on the request itself (Benefits tab), where the payer representative, call date and reference number are recorded — {INTAKE_DOCS.length} tracked documents follow the same checklist.</p>
+                <p className="iq-note">{Icon.info({ size: 11 })} Full verification happens on the request (Benefits tab), with the payer representative, call date and reference number. {INTAKE_DOCS.length} tracked documents use the same checklist.</p>
               </Sec>
 
               <Sec n={8} title="Notes & tags" icon="edit" testid="iq-sec-notes">

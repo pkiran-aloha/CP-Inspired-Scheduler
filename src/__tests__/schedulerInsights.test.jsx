@@ -183,7 +183,7 @@ describe('scheduler insights panel', () => {
     await openPanel()
     expect(screen.getByText(/Nothing leaves this browser and nothing is transmitted/)).toBeTruthy()
     fireEvent.click(screen.getByTestId('si-tab-risk'))
-    expect(await screen.findByText(/no clinical judgement is implied/)).toBeTruthy()
+    expect(await screen.findByText(/not a clinical judgement/)).toBeTruthy()
   })
 
   it('closes back to the calendar', async () => {

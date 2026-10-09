@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
+import InfoTip from '../ui/InfoTip'
 import { requestLock } from './ScreenLock'
 import { scanNeedsCover } from '../lib/smart'
 import { intakeKpis } from '../lib/intake'
@@ -17,7 +18,7 @@ const RANGE_PRESET_OPTS = RANGE_PRESETS
 // (billing badge = completed billable lines with units that are not marked billed yet)
 
 export const SECTIONS = [
-  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '1', desc: 'Widget analytics board — build your own' },
+  { id: 'dashboard', label: 'Dashboard', icon: 'dashboard', kbd: '1', desc: 'Your own board of widgets' },
   { id: 'calendar', label: 'Calendar', icon: 'cal', kbd: '2', desc: 'Scheduling board, timeline & agenda' },
   { id: 'clients', label: 'Clients', icon: 'pin', kbd: '3', desc: 'Caseloads, authorizations & programs', subs: [
     { id: 'roster', to: 'clients', label: 'Client List' },
@@ -32,7 +33,7 @@ export const SECTIONS = [
     { id: 'staff-roster', to: 'staff', label: 'Staff Roster' },
     { id: 'cabinet', to: 'cabinet', label: 'Cabinet' },
   ] },
-  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '5', desc: 'Claim lifecycle — stage, submit, collect', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
+  { id: 'billing', label: 'Billing', icon: 'dollar', kbd: '5', desc: 'Stage claims, record submission, post payments', subs: [{ id: 'desk', to: 'billing', label: 'Billing' }, { id: 'ar', to: 'bil-ar', label: 'AR Manager' }, { id: 'payments', to: 'bil-payments', label: 'Payment Center' }, { id: 'invoice', to: 'bil-invoice', label: 'Generate Invoice' }, { id: 'verify', to: 'bil-verify', label: 'Verification Forms' }, { id: 'qbo', to: 'bil-qbo', label: 'QuickBooks' }, { id: 'secondary', to: 'bil-secondary', label: 'Secondary Queue' }, { id: 'appeals', to: 'bil-appeals', label: 'Appeals' }, { id: 'files', to: 'bil-files', label: 'Billed Files' }, { id: 'providers', to: 'bil-providers', label: 'Provider Identifier' }] },
   { id: 'analytics', label: 'Analytics', icon: 'spark', kbd: '6', desc: 'Trends, utilization & outcomes' },
   { id: 'reports', label: 'Reports', icon: 'file', kbd: '7', desc: 'Exportable PMS reports & validations' },
   { id: 'payroll', label: 'Payroll', icon: 'badge', kbd: '9', desc: 'Timesheets, pay runs & provider export', subs: [
@@ -139,7 +140,7 @@ export default function NavRail() {
                   actions.setUI({ section: target })
                 }
               }}
-              title={`${s.label}${collapsed ? ` — ${s.desc}` : ''}  (${s.kbd})`}
+              title={`${s.label}${collapsed ? `: ${s.desc}` : ''}  (${s.kbd})`}
               aria-current={active ? 'page' : undefined}
             >
               <span className="nr-ic">
@@ -260,7 +261,7 @@ export default function NavRail() {
           <span className="nr-ic">{state.settings.theme === 'dark' ? Icon.sun({ size: 15 }) : Icon.moon({ size: 15 })}</span>
           {!collapsed && <span className="nr-label">Theme</span>}
         </button>
-        <div className="nr-build" data-testid="app-build" title={"Build running in this tab — if a newer one is deployed, you’ll be offered a refresh"}>
+        <div className="nr-build" data-testid="app-build" title={"Build running in this tab. If a newer one is deployed, you will be offered a refresh."}>
           {collapsed ? 'v36' : `v36 · build ${typeof __APP_BUILD__ !== 'undefined' ? __APP_BUILD__ : 'dev'}`}
         </div>
         <button className="nr-item" onClick={() => actions.setUI({ nav: !collapsed })} data-testid="nav-collapse" title={collapsed ? 'Expand navigation' : 'Collapse navigation'}>
@@ -273,14 +274,17 @@ export default function NavRail() {
 }
 
 /** Shared page header for non-calendar sections. */
-export function SectionBar({ icon, title, sub, children }) {
+export function SectionBar({ icon, title, sub, info, wiki, children }) {
   const state = useStore()
   const { actions } = state
   return (
     <header className="secbar no-print">
       <span className="secbar-ic">{Icon[icon]({ size: 17 })}</span>
       <div className="secbar-t">
-        <h2>{title}</h2>
+        <div className="secbar-title">
+          <h2>{title}</h2>
+          {info && <InfoTip label={title} wiki={wiki} testid="secbar-info">{info}</InfoTip>}
+        </div>
         {sub && <span>{sub}</span>}
       </div>
       <div className="secbar-actions">{children}</div>

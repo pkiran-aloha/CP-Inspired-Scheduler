@@ -227,7 +227,7 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
           ? `Resized to ${fmtDur(dur)}`
           : `Moved to ${date} · ${fmtTime(start, settings.h24)}`,
       kind: clash.length ? 'warn' : 'ok',
-      ...(clash.length ? { message: `Moved — overlaps ${clash[0].other.title} (${clash[0].who})` } : {}),
+      ...(clash.length ? { message: `Moved. It overlaps ${clash[0].other.title} (${clash[0].who}).` } : {}),
       action: { label: 'Undo', onClick: () => actions.move(prev.id, { date: prev.date, start: prev.start, end: prev.end }) },
     })
   }
@@ -387,9 +387,9 @@ export default function TimeGrid({ days, onPickSlot, onQuickCreate, onOpenDetail
         <div className="panel tg-hint" style={{ position: 'absolute', bottom: 26, left: '50%', transform: 'translateX(-50%)' }}>
           {Icon.info({ size: 15 })}
           <span>
-            Tip: <span className="kbd">drag</span> on the grid to block time, <span className="kbd">click</span> a slot to book, <span className="kbd">N</span> new appointment. Overlaps are grouped — click a stack to expand.
+            Tip: <span className="kbd">drag</span> on the grid to block time, <span className="kbd">click</span> a slot to book, press <span className="kbd">N</span> for a new appointment. Click a stack of overlaps to expand it.
           </span>
-          <button className="iconbtn" style={{ width: 20, height: 20 }} onClick={() => setHint(false)}>
+          <button className="iconbtn" style={{ width: 20, height: 20 }} onClick={() => setHint(false)} aria-label="Dismiss tip">
             {Icon.x({ size: 11 })}
           </button>
         </div>
@@ -426,7 +426,7 @@ function StackCard({ g, h24, conflict, onOpen, pph = 56 }) {
       style={{ '--c': t.color, '--cd': t.ink, top: `calc(${top}% + 1px)`, height: `calc(${height}% - 2px)`, minHeight: minH, left: g.slot != null ? `calc(${(g.slot * 100) / (g.slots || 1)}% + 2px)` : 2, right: 2, width: 'auto', background: `color-mix(in srgb, ${t.color} 9%, var(--panel))` }}
       role="button"
       tabIndex={0}
-      title={`${g.overflow ? `${g.items.length} more appointments in this window` : `${g.items.length} overlapping appointments`} · ${fmtTime(g.start, h24)}–${fmtTime(g.end, h24)} — click to expand`} 
+      title={`${g.overflow ? `${g.items.length} more appointments in this window` : `${g.items.length} overlapping appointments`} · ${fmtTime(g.start, h24)}–${fmtTime(g.end, h24)}. Click to expand.`} 
       onPointerDown={(e) => e.stopPropagation()}
       onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
       onKeyDown={(e) => {
@@ -490,7 +490,7 @@ function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayI
         zIndex: dayDelta ? 12 : undefined,
       }}
       onPointerDown={(e) => onDown(e, a, dayIdx, null)}
-      title={`${a.title} · ${fmtTime(start, h24)}–${fmtTime(end, h24)}${conflict ? ' — has a conflict' : ''}`}
+      title={`${a.title} · ${fmtTime(start, h24)}–${fmtTime(end, h24)}${conflict ? ' (has a conflict)' : ''}`}
       role="button"
       tabIndex={0}
     >
@@ -527,7 +527,7 @@ function Chip({ a, h24, conflict, selected, staffById, clientsById, onDown, dayI
       )}
       {conflict && <span className="flag">{Icon.alert({ size: 12, strokeWidth: 2.2 })}</span>}
       {a.seriesId && (
-        <span className="flag" style={{ right: conflict ? 20 : 4, color: a.edited ? 'var(--accent)' : 'var(--text-2)' }} title={a.edited ? 'Series exception — differs from the repeating default' : 'Part of a repeating series'}>
+        <span className="flag" style={{ right: conflict ? 20 : 4, color: a.edited ? 'var(--accent)' : 'var(--text-2)' }} title={a.edited ? 'Series exception: differs from the repeating default' : 'Part of a repeating series'}>
           {Icon.repeat({ size: 11 })}
           {a.edited ? <span role="img" aria-label="Changed from series" title="Changed from series" style={{ display: 'inline-flex', marginLeft: 1 }}>{Icon.edit({ size: 9, strokeWidth: 2.2 })}</span> : null}
         </span>

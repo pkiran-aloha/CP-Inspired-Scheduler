@@ -873,7 +873,7 @@ function createActions(state, dispatch, rawState = state) {
     settingsOp: (op, payload = {}) => {
       if (!canAccess(rawState, 'settings', 'full')) return { ok: false, msg: 'Settings changes need full access to the Workspace settings module.' }
       if (String(op).startsWith('office.') && !currentAccount(rawState)?.officeIds?.includes('*')) {
-        return { ok: false, msg: 'The office master is shared by every location — it needs all-office scope.' }
+        return { ok: false, msg: 'The office list is shared by every location, so changing it needs all-office scope.' }
       }
       const plan = planSettingsOp(rawState, op, payload)
       if (!plan.ok) return plan
@@ -938,7 +938,7 @@ function createActions(state, dispatch, rawState = state) {
       if (!cur) return { ok: false, msg: 'Appointment not found.' }
       const next = { ...cur, date, start, end }
       const stops = stopViolationsForDraft(state, next)
-      if (stops.length) return { ok: false, msg: `Cannot move “${next.title || 'Appointment'}” — a Stop rule blocks that slot: ${stops.map((s) => s.label).join('; ')}` }
+      if (stops.length) return { ok: false, msg: `Cannot move “${next.title || 'Appointment'}”. A Stop rule blocks that slot: ${stops.map((s) => s.label).join('; ')}` }
       // dragging one occurrence of a series makes it an exception that remembers its slot
       const exception = cur.seriesId && (date !== cur.date || start !== cur.start || end !== cur.end)
         ? { edited: true, ...(date !== cur.date ? { originalDate: cur.originalDate || cur.date } : {}) } : {}
@@ -994,7 +994,7 @@ function createActions(state, dispatch, rawState = state) {
     generateClaims: (apptIds) => {
       const pool = apptIds && apptIds.length ? stagedAppts(state, null).filter((a) => apptIds.includes(a.id)) : stagedAppts(state, null)
       const plans = planClaims(state, pool)
-      if (!plans.length) return { ok: false, msg: 'Nothing claim-ready to assemble — fix Blocked lines first' }
+      if (!plans.length) return { ok: false, msg: 'Nothing is ready to assemble. Fix the Blocked lines first.' }
       const { claims, apptPatch } = assembleClaims(state, plans)
       // Self-pay invoices and their sequence are part of the SAME undoable tx.
       const invoices = {}
@@ -1007,7 +1007,7 @@ function createActions(state, dispatch, rawState = state) {
       dispatch({ type: 'claimsTx', claimUpserts: claims, apptPatches: apptPatch,
         ...(seq !== (state.settings?.billing?.invoiceSeq || 1) ? { invoices, billing: { invoiceSeq: seq } } : {}) })
       const lines = claims.reduce((t, c) => t + c.lines.length, 0)
-      return { ok: true, msg: `${claims.length} claim form${claims.length > 1 ? 's' : ''} assembled — ${lines} charge lines staged → drafted`, ids: claims.map((c) => c.id) }
+      return { ok: true, msg: `${claims.length} claim form${claims.length > 1 ? 's' : ''} assembled from ${lines} staged charge lines, now in Drafted`, ids: claims.map((c) => c.id) }
     },
     submitClaims: (ids, { recordFile = false } = {}) => {
       const sent = []
@@ -1038,7 +1038,7 @@ function createActions(state, dispatch, rawState = state) {
         } }
       }
       if (claimUpserts.length) dispatch({ type: 'claimsTx', claimUpserts, apptPatches, billedFiles })
-      if (!sent.length) return { ok: false, msg: gated.length ? `All ${gated.length} claim(s) held by gates — see the ⚠ on each` : 'Nothing to submit' }
+      if (!sent.length) return { ok: false, msg: gated.length ? `All ${gated.length} claim(s) held by gates. Open each one to see why.` : 'Nothing to submit' }
       return { ok: true, msg: `${sent.length} claim${sent.length > 1 ? 's' : ''} marked submitted · file saved in Billed Files, nothing transmitted${gated.length ? ` · ${gated.length} held by validation gates` : ''}`, sent, gated, fileId: billedFiles && Object.keys(billedFiles)[0] }
     },
     postPayment: (id, payload) => {
@@ -1162,7 +1162,7 @@ function createActions(state, dispatch, rawState = state) {
       const run = newRun(rawState, period, scopedOptions)
       const decision = dispatch({ type: 'payrollTx', scope: 'run', op: 'create', periodId: period.id, options: scopedOptions })
       if (decision?.ok === false) return decision
-      return { ok: true, msg: `${run.no} created — ${scopedOptions.included.length} employees · ${gate.blockers.length} blocker(s), ${gate.warnings.length} warning(s)`, id: run.id, gate }
+      return { ok: true, msg: `${run.no} created: ${scopedOptions.included.length} employees, ${gate.blockers.length} blocker(s), ${gate.warnings.length} warning(s)`, id: run.id, gate }
     },
     payrollRun: (runId, op, options = {}) => {
       const run = (state.payRuns || {})[runId]
@@ -1274,7 +1274,7 @@ function createActions(state, dispatch, rawState = state) {
       const appeal = { date: payload.date || todayISO(), template: payload.template || 'med_necessity', note: payload.note || '', outcome: null, createdAt: at }
       // An appeal is a marker on the claim, not a status: the claim keeps its own status (a
       // denial stays denied and stays in A/R) and no money is invented here.
-      const patched = { ...c, appeal, history: [...(c.history || []), { at, ev: `Appeal filed — ${appeal.template}` }] }
+      const patched = { ...c, appeal, history: [...(c.history || []), { at, ev: `Appeal filed: ${appeal.template}` }] }
       dispatch({ type: 'claimsTx', claimUpserts: [patched] })
       return { ok: true, msg: `${c.no} appeal filed` }
     },
@@ -1289,10 +1289,10 @@ function createActions(state, dispatch, rawState = state) {
       const won = outcome === 'won'
       const patched = {
         ...c, appeal, status: won ? 'submitted' : c.status,
-        history: [...(c.history || []), { at, ev: won ? 'Appeal won — awaiting the payer payment' : 'Appeal lost — claim stays denied' }],
+        history: [...(c.history || []), { at, ev: won ? 'Appeal won. Waiting for the payer payment.' : 'Appeal lost. Claim stays denied.' }],
       }
       dispatch({ type: 'claimsTx', claimUpserts: [patched] })
-      return { ok: true, msg: won ? `${c.no} marked won — post the payer payment to close it` : `${c.no} marked lost` }
+      return { ok: true, msg: won ? `${c.no} marked won. Post the payer payment to close it.` : `${c.no} marked lost` }
     },
     updateClaim: (id, patch) => {
       const c = state.claims[id]
@@ -1327,22 +1327,22 @@ function createActions(state, dispatch, rawState = state) {
       const c = state.claims[id]
       if (!c || c.status !== 'submitted' || (c.method !== 'secondary' && c.secondary)) return { ok: false, msg: 'Only a submitted claim without a pending primary COB change can be denied here' }
       dispatch({ type: 'claimsTx', claimUpserts: [denyPatch(c, payload, state).claim] })
-      return { ok: true, msg: `${c.no} marked denied — ${denialOf(payload.code, state).fix}` }
+      return { ok: true, msg: `${c.no} marked denied. ${denialOf(payload.code, state).fix}` }
     },
     rebillClaim: (id, dropIds) => {
       const c = state.claims[id]
       if (!c || c.method === 'secondary' || c.secondary || c.status !== 'denied') return { ok: false, msg: 'Resolve COB before rebilling a denied primary claim' }
-      if ((dropIds || []).length >= c.lines.length) return { ok: false, msg: 'Rebill needs at least one kept line — use Void to drop the whole claim' }
+      if ((dropIds || []).length >= c.lines.length) return { ok: false, msg: 'Rebill needs at least one kept line. Use Void to drop the whole claim.' }
       const { voided, next, apptPatches } = rebillPatch(state, c, dropIds || [])
       dispatch({ type: 'claimsTx', claimUpserts: [voided, next], apptPatches })
-      return { ok: true, msg: `${next.no} drafted from ${c.no}${dropIds?.length ? ` — ${dropIds.length} disputed line(s) back to staging` : ''}`, newId: next.id }
+      return { ok: true, msg: `${next.no} drafted from ${c.no}${dropIds?.length ? `. ${dropIds.length} disputed line(s) moved back to staging` : ''}`, newId: next.id }
     },
     voidClaim: (id) => {
       const c = state.claims[id]
       if (!c || c.method === 'secondary' || c.secondary || !['draft', 'submitted'].includes(c.status)) return { ok: false, msg: 'Resolve or cancel secondary filings before voiding an open primary claim' }
       const tx = releasePatch(state, c)
       dispatch({ type: 'claimsTx', claimUpserts: [tx.claim], apptPatches: tx.apptPatches })
-      return { ok: true, msg: `${c.no} voided — ${c.lines.length} line${c.lines.length > 1 ? 's' : ''} back in staging` }
+      return { ok: true, msg: `${c.no} voided. ${c.lines.length} line${c.lines.length > 1 ? 's' : ''} moved back to staging` }
     },
     dropClaimLine: (claimId, apptId) => {
       const c = state.claims[claimId]
@@ -1351,10 +1351,10 @@ function createActions(state, dispatch, rawState = state) {
       const apptPatches = r.released.map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null } } }))
       if (r.removeClaim) {
         dispatch({ type: 'claimsTx', claimDel: [claimId], apptPatches })
-        return { ok: true, msg: `${c.no} had its last line removed — claim dissolved, line back in staging` }
+        return { ok: true, msg: `${c.no} had its last line removed, so the claim was closed out. The line is back in staging.` }
       }
       dispatch({ type: 'claimsTx', claimUpserts: [r.claim], apptPatches })
-      return { ok: true, msg: `Line moved back to staging — ${c.no} re-totaled` }
+      return { ok: true, msg: `Line moved back to staging. ${c.no} re-totaled.` }
     },
     fileSecondaryClaim: (id) => {
       const options = { at: Date.now(), newId: uid() }
@@ -1405,7 +1405,7 @@ function createActions(state, dispatch, rawState = state) {
       if (!cur) return { ok: false, msg: 'Request not found' }
       const now = Date.now()
       const at = { id: uid(), at: now, ...contact }
-      const next = { ...cur, contacts: [...(cur.contacts || []), at], updatedAt: now, events: [...(cur.events || []), { at: now, by: at.by || null, ev: `Contact logged — ${at.outcome} (${at.channel})` }] }
+      const next = { ...cur, contacts: [...(cur.contacts || []), at], updatedAt: now, events: [...(cur.events || []), { at: now, by: at.by || null, ev: `Contact logged: ${at.outcome} (${at.channel})` }] }
       // A logged contact is what moves a request out of `new` — but only through
       // the same gate the pipeline rail enforces (an owner must be assigned too),
       // so the auto-advance can never do what a manual move is refused.
@@ -1433,11 +1433,11 @@ function createActions(state, dispatch, rawState = state) {
       const blockers = gateBlockers(merged, target)
       if (blockers.length) return { ok: false, msg: `${blockers.length} requirement${blockers.length > 1 ? 's' : ''} outstanding: ${blockers.map((b) => b.label).join('; ')}`, blockers }
       const ev = reopened
-        ? `Reopened — back to ${stageDef(target).label}${cur.lost?.reason ? ` (was closed: ${LOST_REASONS.find((x) => x.id === cur.lost.reason)?.label || cur.lost.reason})` : ''}`
+        ? `Reopened, back to ${stageDef(target).label}${cur.lost?.reason ? ` (was closed: ${LOST_REASONS.find((x) => x.id === cur.lost.reason)?.label || cur.lost.reason})` : ''}`
         : `Moved to ${stageDef(target).label}`
       merged.events = [...(cur.events || []), { at: now, by, ev }]
       dispatch({ type: 'intakeTx', upserts: [merged] })
-      return { ok: true, msg: reopened ? 'Reopened — back in the pipeline as a new referral' : `Moved to ${stageDef(target).label}` }
+      return { ok: true, msg: reopened ? 'Reopened. Back in the pipeline as a new referral.' : `Moved to ${stageDef(target).label}` }
     },
     deleteIntake: (id) => dispatch({ type: 'intakeTx', deletes: [id] }),
     /**
@@ -1460,10 +1460,10 @@ function createActions(state, dispatch, rawState = state) {
         ...cur,
         waitlist: { ...cur.waitlist, ...payload, lastReviewAt: now },
         updatedAt: now,
-        events: [...(cur.events || []), { at: now, ev: `Waitlist reviewed — next check-in ${payload.reviewBy}` }],
+        events: [...(cur.events || []), { at: now, ev: `Waitlist reviewed. Next check-in ${payload.reviewBy}` }],
       }
       dispatch({ type: 'intakeTx', upserts: [next] })
-      return { ok: true, msg: `Waitlist check-in recorded — next review ${payload.reviewBy}` }
+      return { ok: true, msg: `Waitlist check-in recorded. Next review ${payload.reviewBy}` }
     },
     /** Referral source register (upstream relationships). */
     saveReferralSource: (item) => {
@@ -1480,7 +1480,7 @@ function createActions(state, dispatch, rawState = state) {
       const inUse = Object.values(state.intakeRequests || {}).some((r) => r.referralSourceId === id)
       if (inUse) {
         dispatch({ type: 'intakeTx', sources: (state.referralSources || []).map((s) => (s.id === id ? { ...s, status: 'dormant' } : s)) })
-        return { ok: true, retired: true, msg: 'Source is attributed to live requests — marked dormant instead of deleted' }
+        return { ok: true, retired: true, msg: 'Live requests use this source, so it was marked dormant instead of deleted' }
       }
       dispatch({ type: 'intakeTx', sources: (state.referralSources || []).filter((s) => s.id !== id) })
       return { ok: true }
@@ -1491,12 +1491,12 @@ function createActions(state, dispatch, rawState = state) {
       if (!cur) return { ok: false, msg: 'Request not found' }
       if (!date || start == null || end == null || Number.isNaN(start) || Number.isNaN(end)) return { ok: false, msg: 'Assessment needs a date and time' }
       if (end <= start) return { ok: false, msg: 'The assessment must end after it starts' }
-      if (!clinicianId) return { ok: false, msg: 'Pick the assessing clinician — the visit needs an owner on the calendar' }
+      if (!clinicianId) return { ok: false, msg: 'Pick the assessing clinician. The visit needs an owner on the calendar.' }
       if (!(state.staff || []).some((s) => s.id === clinicianId)) return { ok: false, msg: 'That clinician is not on the staff roster' }
       // the booking IS the move to Scheduled, so it obeys the same stage graph as the rail
       const rebook = cur.stage === 'scheduled' && !(cur.apptId && state.appts?.[cur.apptId])
-      if (!nextStages(cur.stage).includes('scheduled') && !rebook) return { ok: false, msg: `Cannot book from ${stageDef(cur.stage).label} — the request must be in Clinical review or on the Waitlist` }
-      if (cur.apptId && state.appts?.[cur.apptId]) return { ok: false, msg: 'An assessment visit is already on the calendar — change it from the calendar' }
+      if (!nextStages(cur.stage).includes('scheduled') && !rebook) return { ok: false, msg: `Cannot book from ${stageDef(cur.stage).label}. The request must be in Clinical review or on the Waitlist.` }
+      if (cur.apptId && state.appts?.[cur.apptId]) return { ok: false, msg: 'An assessment visit is already on the calendar. Change it from the calendar.' }
       const apptId = uid()
       const appt = {
         id: apptId, type: 'evaluation', title: `Intake assessment · ${[cur.firstName, cur.lastName].filter(Boolean).join(' ')}`,
@@ -1512,11 +1512,11 @@ function createActions(state, dispatch, rawState = state) {
       const next = {
         ...cur, apptId, apptDate: date, clinicianId, bcbaAssignedId: cur.bcbaAssignedId || clinicianId, updatedAt: now,
         stage: 'scheduled', stageSince: rebook ? cur.stageSince : now,
-        events: [...(cur.events || []), { at: now, by: by || null, ev: `Assessment booked for ${date}${rebook ? '' : ` — moved to ${stageDef('scheduled').label}`}` }],
+        events: [...(cur.events || []), { at: now, by: by || null, ev: `Assessment booked for ${date}${rebook ? '' : `, moved to ${stageDef('scheduled').label}`}` }],
       }
       dispatch({ type: 'intakeTx', upserts: [next], apptUpserts: [appt] })
       const review = checks.warns.length ? ` Review: ${checks.warns.map((i) => i.message).join(' ')}` : ''
-      return { ok: true, apptId, msg: `Assessment booked ${date} — it is on the calendar now.${review}` }
+      return { ok: true, apptId, msg: `Assessment booked for ${date}. It is on the calendar now.${review}` }
     },
   }
 }

@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { CMS_TYPES, FORMATS } from '../lib/master'
 import { InlineText, InlineSelect } from './fields'
 import { Icon } from '../ui/Icons'
+import InfoTip from '../ui/InfoTip'
 import { useToast } from '../ui/Toast'
 
 /**
@@ -62,9 +63,9 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
     </label>
   )
   return (
-    <div className="modal pm-modal py-modal" role="dialog" aria-modal="true" aria-label={payer ? `Edit payer — ${payer.name}` : 'Add Payer'} data-testid="payer-form" tabIndex={-1}>
+    <div className="modal pm-modal py-modal" role="dialog" aria-modal="true" aria-label={payer ? `Edit payer: ${payer.name}` : 'Add Payer'} data-testid="payer-form" tabIndex={-1}>
       <div className="modal-head pm-head">
-        <h3>{payer ? `Payer — ${payer.name}` : 'Add Payer'}</h3>
+        <h3>{payer ? `Payer: ${payer.name}` : 'Add Payer'}</h3>
         <button className="iconbtn modal-x" aria-label="Close" data-testid="py-close" onClick={() => onClose()}>{Icon.x({ size: 14 })}</button>
       </div>
       <div className="modal-body">
@@ -73,10 +74,10 @@ export function PayerForm({ payer, onClose, used = 0, onRemove }) {
             <div className="py-sec">{Icon.shield({ size: 12 })} Payer identity</div>
             <Fld k="name" label="Payer Name" req />
             <div className="py-countwrap"><span className="py-count" data-testid="py-count">{form.name.length}/60</span></div>
-            <Fld k="aka" label="Payer AKA" hint="Also known as — appears in searches" />
+            <Fld k="aka" label="Payer AKA" hint="Other name, used in search" />
             <Fld k="type" label="Payer Type" req>
               <select className={`input${errs.type ? ' err' : ''}`} value={form.type} data-testid="py-type" onChange={(e) => set('type', e.target.value)}>
-                <option value="">— choose —</option>
+                <option value="">Choose</option>
                 {PY_TYPES.map((t) => <option key={t}>{t}</option>)}
               </select>
             </Fld>
@@ -194,7 +195,7 @@ export function PayersList() {
     toast({ message: `${v.name} added to the payer directory`, kind: 'ok' })
   }
   // inline edits write straight to the payer record — no modal round-trip
-  const patch = (p, changes, what) => { actions.updatePayer({ id: p.id, ...changes }); if (what) toast({ message: `${p.name} — ${what}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } }) }
+  const patch = (p, changes, what) => { actions.updatePayer({ id: p.id, ...changes }); if (what) toast({ message: `${p.name}: ${what}`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.undo() } }) }
   const patchPhone = (p, phone) => {
     const list = (p.contacts || []).slice()
     const i = list.findIndex((c) => c.kind === 'Main')
@@ -214,8 +215,7 @@ export function PayersList() {
       <div className="py-band" data-testid="py-band">
         <span className="py-band-ic">{Icon.users({ size: 17 })}</span>
         <div className="py-band-t">
-          <h2>Payer directory</h2>
-          <p>Every contract the front desk books against. Click a row for the full record — profile, services & billing rules; edit any cell in place.</p>
+          <div className="secbar-title"><h2>Payer directory</h2><InfoTip label="Payer directory" wiki="billing-and-claims" testid="py-info">Every payer the front desk can book against. Click a row to open the full record: profile, services and billing rules. You can edit any cell in the table directly.</InfoTip></div>
         </div>
         <span className="an-spacer" />
         <button className="btn btn-sm btn-primary" data-testid="py-add" onClick={() => setModal('new')}>{Icon.plus({ size: 12 })} Add Payer</button>
@@ -231,7 +231,7 @@ export function PayersList() {
         <header className="py-sech">
           <span className="py-sech-ic">{Icon.table({ size: 13 })}</span>
           <b>Master list</b>
-          <i>sortable · inline-editable</i>
+          <i>Sort by any column. Edit cells in place.</i>
           <span className="an-spacer" />
           <input className="input" style={{ width: 200, height: 29 }} placeholder="Search payers, IDs, cities…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="py-search" />
           <button className={`btn btn-sm${activeOnly ? ' btn-primary' : ''}`} data-testid="py-active-filter" onClick={() => setActiveOnly((v) => !v)} title="Show active payers only">{Icon.check({ size: 12 })} Active</button>
@@ -258,9 +258,9 @@ export function PayersList() {
             <span>Status</span>
             <span />
           </div>
-          {view.length === 0 && <div className="py-empty py-tempty">No payers match — clear the filters or add one from the top of the page.</div>}
+          {view.length === 0 && <div className="py-empty py-tempty">No payers match. Clear the filters or add a payer.</div>}
           {view.map((p) => (
-            <div className="py-trow" key={p.id} data-testid={`py-row-${p.id}`} onClick={() => actions.setUI({ payerSel: p.id })} title="Open the payer record — profile, services & billing rules">
+            <div className="py-trow" key={p.id} data-testid={`py-row-${p.id}`} onClick={() => actions.setUI({ payerSel: p.id })} title="Open the payer record">
               <div className="py-idcell">
                 <span className="py-av" style={{ background: colorFor(p.name) }}>{initialsOf(p.name)}<i className={`py-dot${p.status === 'active' ? '' : ' off'}`} /></span>
                 <span className="py-idtxt">
@@ -281,7 +281,7 @@ export function PayersList() {
               <div className="py-cell"><InlineText testid={`py-phone-${p.id}`} value={phoneOf(p)} placeholder="add phone" onCommit={(v) => patchPhone(p, String(v).trim())} /></div>
               <div className="py-cell">
                 <button className={`py-statustog${p.status === 'active' ? ' on' : ''}`} data-testid={`py-status-${p.id}`} title="Toggle active / inactive"
-                  onClick={(e) => { e.stopPropagation(); patch(p, { status: p.status === 'active' ? 'inactive' : 'active' }, p.status === 'active' ? 'marked inactive — hidden from client files' : 'marked active') }}>
+                  onClick={(e) => { e.stopPropagation(); patch(p, { status: p.status === 'active' ? 'inactive' : 'active' }, p.status === 'active' ? 'marked inactive and hidden from client files' : 'marked active') }}>
                   <i />{p.status === 'active' ? 'Active' : 'Inactive'}
                 </button>
               </div>
@@ -316,7 +316,7 @@ export function RemoveArm({ name, used, onRemove, idp }) {
   useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(false), 3500); return () => clearTimeout(t) }, [armed])
   return (
     <button className={`btn btn-sm${armed ? ' btn-danger-armed' : ''}`} data-testid={`py-remove${idp ? `-${idp}` : ''}`}
-      title={used ? 'Clients still reference this payer — reassign them first' : 'Remove this payer from the directory'}
+      title={used ? 'Clients still use this payer. Reassign them first.' : 'Remove this payer from the directory'}
       onClick={() => (armed ? onRemove() : setArmed(true))}>
       {Icon.trash({ size: 12 })} {armed ? 'Click again to remove' : used ? `In use by ${used}` : 'Remove payer'}
     </button>

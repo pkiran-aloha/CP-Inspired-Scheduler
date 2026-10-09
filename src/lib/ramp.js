@@ -182,10 +182,10 @@ export function rampBoard(state, { today = todayISO(), weeks = RAMP_WEEKS } = {}
   const renewalsTotal = buckets.reduce((t, b) => t + b.renewals.length, 0)
 
   const note =
-    'Demand is the authorized weekly hours on file plus open intake requests at their requested hours — a ramp from known work, ' +
+    'Demand is the authorized weekly hours on file plus open intake requests at their requested hours. This is a ramp from known work, ' +
     'not a forecast of referrals, and intake is never weighted by a conversion rate. Renewals are never assumed: an authorization ' +
     'ending inside the horizon drops to zero and the week is marked. Supply is each clinician\u2019s working day minus blocked-out ' +
-    `time, ${openDows.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}, split RBT vs BCBA. Read-only: nothing here is booked, moved or sent.`
+    `time, ${openDows.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}, split RBT and BCBA. Read-only: nothing here is booked, moved or sent.`
 
   return {
     weeks: buckets,

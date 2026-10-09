@@ -90,7 +90,7 @@ export function planClaimPayment(state, id, payload = {}, { at = Date.now(), pay
     note: payload.note || '', reconciled: !!payload.reconciled, attachments: [], source: payload.source || null,
     reversalOf: null, createdAt: at, createdBy: 'Aloha (local)' }
   return { ok: true, claimUpserts, payments: { [paymentId]: payment }, payment,
-    msg: `${patched.no}${patched.status === 'paid' ? ' paid' : ''} — $${paid.toFixed(2)} posted${adjustment ? ` · $${adjustment.toFixed(2)} adjustment` : ''}${parent ? ' (linked primary updated)' : ''}` }
+    msg: `${patched.no}${patched.status === 'paid' ? ' paid' : ''}: $${paid.toFixed(2)} posted${adjustment ? `, $${adjustment.toFixed(2)} adjustment` : ''}${parent ? ' (linked primary updated)' : ''}` }
 }
 
 // Patient cash belongs to the primary receivable, even when a secondary filing
@@ -133,7 +133,7 @@ export function planPatientReceipt(state, id, payload = {}, { at = Date.now(), p
     reconciled: false, attachments: [], reversalOf: null, createdAt: at, createdBy: 'Aloha (local)' }
   const invoices = invoicePatch(state, updated, at)
   return { ok: true, claimUpserts: [updated], payments: { [paymentId]: payment }, invoices, payment,
-    msg: `Patient receipt ${ref} — $${paid.toFixed(2)} recorded locally for ${claim.no}; ${Math.max(0, balance).toFixed(2)} remains in practice A/R` }
+    msg: `Patient receipt ${ref}: $${paid.toFixed(2)} recorded for ${claim.no}. $${Math.max(0, balance).toFixed(2)} remains in practice A/R.` }
 }
 
 export function planUnappliedReceipt(state, payload = {}, { at = Date.now(), paymentId } = {}) {
@@ -156,7 +156,7 @@ export function planUnappliedReceipt(state, payload = {}, { at = Date.now(), pay
     payer: String(payload.payer || client.insurer || 'Unapplied'), date, method: payload.method || 'check',
     ref, note: payload.note || '', kind: 'unapplied', claimId: null, reversalOf: null, createdAt: at,
     reconciled: false, attachments: [], createdBy: 'Aloha (local)' }
-  return { ok: true, payments: { [paymentId]: payment }, payment, msg: `Unapplied receipt ${ref} recorded for ${client.name} — not applied to a claim` }
+  return { ok: true, payments: { [paymentId]: payment }, payment, msg: `Unapplied receipt ${ref} recorded for ${client.name}. Not applied to a claim.` }
 }
 
 // An exportable local audit trail, not proof of a bank deposit or a refund.
@@ -207,7 +207,7 @@ export function planVoidClaimPayment(state, paymentId, { at = Date.now(), revers
       return fail('Patient receipt no longer reconciles with the primary; review before reversing')
     }
     const updated = { ...claim, patientPaid: r2((claim.patientPaid || 0) - pay.amount),
-      history: [...(claim.history || []), { at, ev: `Patient receipt ${pay.ref} reversed locally — $${pay.amount.toFixed(2)}; no bank refund issued` }] }
+      history: [...(claim.history || []), { at, ev: `Patient receipt ${pay.ref} reversed in this app: $${pay.amount.toFixed(2)}. No bank refund issued.` }] }
     const balance = dueOf(updated)
     updated.status = balance <= 0 ? 'paid' : (updated.paid || updated.secondaryPaid || updated.patientPaid || updated.adj) ? 'partially_paid' : updated.submittedAt ? 'submitted' : 'draft'
     updated.closedAt = balance <= 0 ? claim.closedAt || at : null
@@ -215,7 +215,7 @@ export function planVoidClaimPayment(state, paymentId, { at = Date.now(), revers
       date: new Date(at).toISOString().slice(0, 10), reversalOf: pay.id, reconciled: false,
       note: `Local reversal of patient receipt ${pay.ref}; refund not issued`, createdAt: at }
     return { ok: true, claimUpserts: [updated], payments: { [reversalId]: reversal }, invoices: invoicePatch(state, updated, at), reversal,
-      msg: `Patient receipt ${pay.ref} reversed locally — no refund or bank transaction issued` }
+      msg: `Patient receipt ${pay.ref} reversed in this app. No refund or bank transaction was made.` }
   }
   const parentClaim = claim.method === 'secondary' ? state.claims?.[claim.secondary] : claim
   if ((parentClaim?.patientPaid || 0) > 0) return fail('Reverse allocated patient receipts locally before changing their payer remittance')
@@ -241,7 +241,7 @@ export function planVoidClaimPayment(state, paymentId, { at = Date.now(), revers
   const patched = { ...claim, paid: remainingPaid, adj: remainingAdj, status,
     closedAt: status === 'paid' ? claim.closedAt : null,
     remittance: claim.remittance?.checkNo === pay.ref ? null : claim.remittance,
-    history: [...(claim.history || []), { at, ev: `Payment voided — $${pay.amount.toFixed(2)} reversed (${pay.ref})` }] }
+    history: [...(claim.history || []), { at, ev: `Payment voided: $${pay.amount.toFixed(2)} reversed (${pay.ref})` }] }
   const claimUpserts = [patched]
   if (parent) {
     const nextPaid = r2((parent.secondaryPaid || 0) - pay.amount)
@@ -254,7 +254,7 @@ export function planVoidClaimPayment(state, paymentId, { at = Date.now(), revers
     patientResp: pay.patientResp == null ? null : r2(-pay.patientResp), ref: `VOID-${pay.ref}`, date: new Date(at).toISOString().slice(0, 10),
     reversalOf: pay.id, reconciled: false, note: `Reversal of ${pay.ref}`, createdAt: at }
   return { ok: true, claimUpserts, payments: { [reversalId]: reversal }, reversal,
-    msg: `Payment ${pay.ref} voided — reversal posted${parent ? ' on both COB ledgers' : ''}` }
+    msg: `Payment ${pay.ref} voided. Reversal posted${parent ? ' on both COB ledgers' : ''}.` }
 }
 
 // ---------- recoupments: the payer takes money back on a claim it already paid ----------
@@ -266,7 +266,7 @@ export const RECOUP_REASONS = [
   { id: 'overpayment', label: 'Overpayment / paid in error' },
   { id: 'duplicate', label: 'Duplicate payment' },
   { id: 'eligibility', label: 'Retro eligibility / termed coverage' },
-  { id: 'cob', label: 'Coordination of benefits — other payer primary' },
+  { id: 'cob', label: 'Coordination of benefits: other payer is primary' },
   { id: 'audit', label: 'Audit / medical-record review' },
   { id: 'auth', label: 'No or invalid authorization' },
   { id: 'other', label: 'Other (see note)' },
@@ -279,13 +279,13 @@ export const RECOUP_METHODS = [
 export function planRecoupment(state, id, payload = {}, { at = Date.now(), paymentId } = {}) {
   const claim = state.claims?.[id]
   if (!claim) return fail('Claim not found')
-  if (claim.mode === 'selfpay') return fail('Self-pay invoices have no payer to recoup — reverse the receipt instead')
-  if (claim.method === 'secondary') return fail('Secondary recoupments are not supported here — record them on the secondary payer’s remittance outside Aloha')
+  if (claim.mode === 'selfpay') return fail('Self-pay invoices have no payer to recoup. Reverse the receipt instead.')
+  if (claim.method === 'secondary') return fail('Secondary recoupments are not supported here. Record them on the secondary payer’s remittance outside Aloha.')
   if (claim.status === 'void') return fail('A void claim has nothing to recoup')
   if (claimIsLinked(state, claim)) return fail('Resolve or cancel the linked secondary filing before recording a recoupment on the primary')
   const amount = cents(payload.amount)
   if (amount === null || amount <= 0) return fail('Enter the recouped amount in dollars and cents')
-  if (amount > cents(claim.paid || 0)) return fail(`The payer only paid $${r2(claim.paid || 0).toFixed(2)} on this claim — a recoupment cannot exceed it`)
+  if (amount > cents(claim.paid || 0)) return fail(`The payer only paid $${r2(claim.paid || 0).toFixed(2)} on this claim. A recoupment cannot exceed that.`)
   const ref = String(payload.ref || '').trim()
   if (ref.length < 3) return fail('Add the payer’s reference (letter, ERA trace or PLB number) so the take-back can be matched')
   if (activeRef(state, id, ref)) return fail(`Reference ${ref} is already on this claim’s ledger`)
@@ -301,7 +301,7 @@ export function planRecoupment(state, id, payload = {}, { at = Date.now(), payme
     ...claim,
     paid: r2((cents(claim.paid || 0) - amount) / 100),
     recouped: r2((cents(claim.recouped || 0) + amount) / 100),
-    history: [...(claim.history || []), { at, ev: `Recouped by ${claim.payer} — $${dollars.toFixed(2)} (${reasonLabel}, ref ${ref}); balance reopened` }],
+    history: [...(claim.history || []), { at, ev: `Recouped by ${claim.payer}: $${dollars.toFixed(2)} (${reasonLabel}, ref ${ref}). Balance reopened.` }],
   }
   const balance = dueOf(updated)
   updated.status = balance <= 0 ? 'paid' : (updated.paid || updated.secondaryPaid || updated.patientPaid || updated.adj) ? 'partially_paid' : updated.submittedAt ? 'submitted' : 'draft'
@@ -312,5 +312,5 @@ export function planRecoupment(state, id, payload = {}, { at = Date.now(), payme
     note: String(payload.note || '').trim().slice(0, 500), reconciled: false, createdAt: at,
   }
   return { ok: true, claimUpserts: [updated], payments: { [paymentId]: entry }, invoices: invoicePatch(state, updated, at), entry,
-    msg: `Recoupment of $${dollars.toFixed(2)} recorded on ${claim.no} — $${r2(balance).toFixed(2)} is open again for rebilling or appeal` }
+    msg: `Recoupment of $${dollars.toFixed(2)} recorded on ${claim.no}. $${r2(balance).toFixed(2)} is open again for rebilling or appeal.` }
 }

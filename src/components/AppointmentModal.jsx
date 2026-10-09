@@ -184,7 +184,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
   const [cfEdit, setCfEdit] = useState(null) // 'new' | def — template editor, opened from INSIDE the picker
   const saveCf = (v) => {
     if (!v || typeof v !== 'object' || 'nativeEvent' in v || v.target) { setCfEdit(null); return }
-    if (cfEdit === 'new') { actions.addCfDef(v); toast({ message: `Template “${v.label}” created — tick it to capture on this session`, kind: 'ok' }) }
+    if (cfEdit === 'new') { actions.addCfDef(v); toast({ message: `Template “${v.label}” created. Tick it to capture it on this session.`, kind: 'ok' }) }
     else { actions.updateCfDef({ id: cfEdit.id, ...v }); toast({ message: `Template “${v.label}” updated`, kind: 'ok' }) }
     setCfEdit(null)
   }
@@ -193,7 +193,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     const n = { ...(f.pcfs || {}) }
     delete n[t.id]
     set({ pcfs: n })
-    toast({ message: `Template “${t.label}” removed from the master — a value already captured on this session is kept as saved`, kind: 'info' })
+    toast({ message: `Template “${t.label}” removed from the master. A value already captured on this session is kept as saved.`, kind: 'info' })
   }
   const statusCfg = statusFor(settings, f.status)
   const sysCfg = systemConfigFor(settings)
@@ -291,7 +291,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     checkGroups.push({
       key: 'clash', tone: 'warn', icon: 'clash', testid: 'appt-check-clash',
       title: 'Time clash', sub: `${conflicts.length} overlap${conflicts.length === 1 ? '' : 's'} on the calendar`,
-      lines: conflicts.map((c) => ({ text: `${c.who} — “${c.other.title}” ${fmtTime(c.other.start, settings.h24)}–${fmtTime(c.other.end, settings.h24)}` })),
+      lines: conflicts.map((c) => ({ text: `${c.who}: “${c.other.title}” ${fmtTime(c.other.start, settings.h24)}–${fmtTime(c.other.end, settings.h24)}` })),
       foot: 'You can still save; the booking is flagged on the calendar.',
     })
   }
@@ -324,7 +324,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       ),
       foot: authGuardCfgNow.mode === 'stop' && authWorst.severity === 'stop'
         ? 'Refused while Settings keeps the authorization guard in Stop mode.'
-        : `You can still save — the practice's guard is set to ${authGuardCfgNow.mode}.`,
+        : `You can still save. The practice's guard is set to ${authGuardCfgNow.mode}.`,
     })
   }
   if (riskVerdict && riskVerdict.band !== 'low' && riskVerdict.band !== 'done') {
@@ -332,7 +332,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       key: 'risk', tone: riskVerdict.band === 'high' ? 'warn' : 'flag', icon: 'pulse', testid: 'appt-risk',
       title: `Cancellation risk ${riskVerdict.score}/100`, sub: riskVerdict.action,
       lines: riskVerdict.factors.slice(0, 3).map((x) => ({ text: x.detail })),
-      foot: `Modelled locally from this workspace's own history (practice rate ${Math.round(riskVerdict.model.base * 100)}%) — a prompt to confirm, never a reminder sent for you.`,
+      foot: `Modelled locally from this workspace's own history (practice rate ${Math.round(riskVerdict.model.base * 100)}%). A prompt to confirm; no reminder is sent.`,
     })
   }
   if (obBlock) {
@@ -387,8 +387,8 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
           <span className="cb">{warnsAcked && Icon.check({ size: 10, strokeWidth: 3 })}</span>
           <span style={{ fontSize: 12, fontWeight: 600 }}>
             {warnsAcked
-              ? `Warnings reviewed — saving is allowed`
-              : `I've reviewed these ${valReport.warns.length} warning${valReport.warns.length === 1 ? '' : 's'} — save anyway`}
+              ? `Warnings reviewed. Saving is allowed.`
+              : `I've reviewed these ${valReport.warns.length} warning${valReport.warns.length === 1 ? '' : 's'}. Save anyway`}
           </span>
         </label>
       ) : null,
@@ -481,18 +481,18 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     if (authBlock) {
       setTab('info')
       toast({
-        message: `${authBlock.client.name} is past the authorization on file — ${authBlock.reasons[0] || ''} Change the guard in Settings → System → Authorization to save anyway.`,
+        message: `${authBlock.client.name} is past the authorization on file. ${authBlock.reasons[0] || ''} To save anyway, change the guard in Settings → System → Authorization.`,
         kind: 'warn',
       })
       return
     }
     if (payerSigRequired && f.status === 'completed' && !clientSigned) {
-      toast({ message: `${billPayer?.name || 'This payer'} requires a client signature to complete — capture it on the Verification tab`, kind: 'warn' })
+      toast({ message: `${billPayer?.name || 'This payer'} requires a client signature to complete. Capture it on the Verification tab.`, kind: 'warn' })
       setTab('verify')
       return
     }
     if (staffSigRequired && f.status === 'completed' && !signed) {
-      toast({ message: 'The practice requires a staff verification signature before a session can be completed — capture it on the Verification tab', kind: 'warn' })
+      toast({ message: 'The practice requires a staff verification signature before a session can be completed. Capture it on the Verification tab.', kind: 'warn' })
       setTab('verify')
       return
     }
@@ -533,7 +533,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
     const created = screened.accepted.map(({ validationFlags, ...a }) => a)
     const rejected = screened.rejected
     if (!created.length) {
-      const why = rejected[0] ? ` — ${rejected[0].date}: ${rejected[0].reasons[0]}` : ''
+      const why = rejected[0] ? ` (${rejected[0].date}: ${rejected[0].reasons[0]})` : ''
       toast({ message: `No occurrence can be booked${why}`, kind: 'warn' })
       return
     }
@@ -551,7 +551,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
       setTitleTouched(false)
       setDirty(false)
       setTab('info')
-      toast({ message: `Created${created.length > 1 ? ` ${created.length} occurrences` : ''}${rejectedNote} — ready for the next one`, kind: 'ok' })
+      toast({ message: `Created${created.length > 1 ? ` ${created.length} occurrences` : ''}${rejectedNote}. Ready for the next one.`, kind: 'ok' })
       return
     }
     onSaved(created.length > 1 ? `Created ${created.length} occurrences${rejectedNote}` : `Appointment created${rejectedNote}`, created[0])
@@ -651,7 +651,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
               <div className="wiz-main">
                 {mode === 'edit' && isSeries && (
                   <div className="panel" style={{ borderColor: 'color-mix(in srgb, var(--accent) 40%, var(--line))', background: 'var(--accent-soft)', padding: '9px 12px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12 }}>{Icon.repeat({ size: 13 })} Repeating series — apply changes to:</span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 700, fontSize: 12 }}>{Icon.repeat({ size: 13 })} Repeating series. Apply changes to:</span>
                     {[['one', 'This occurrence'], ['following', 'This & following'], ['all', `All ${siblings.length}`]].map(([v, l]) => (
                       <button key={v} type="button" data-testid={`scope-${v}`} className={`checkbox ${scope === v ? 'on' : ''}`} disabled={v === 'one' && ruleChanged} aria-pressed={scope === v} onClick={() => setScope(v)}>{l}</button>
                     ))}
@@ -757,7 +757,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <div className="am-abahead">
                             <span>{Icon.zap({ size: 13 })}</span>
                             <div>
-                              <b>ABA Hours — behavior-analytic time</b>
+                              <b>ABA Hours: behavior-analytic time</b>
                               <span className="muted">{ABA_HOURS_EXPLAIN} It is not billed and does not touch any client authorization.</span>
                             </div>
                           </div>
@@ -770,13 +770,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                               value={f.abaActivity || ''}
                               onChange={(v) => set({ abaActivity: v })}
                               options={[
-                                { value: '', label: '— choose the activity —' },
+                                { value: '', label: 'Choose the activity' },
                                 ...ABA_QUALIFYING_ACTIVITIES.map((a) => ({ value: a.id, label: a.label, sub: a.hint })),
                                 ...ABA_NON_QUALIFYING_ACTIVITIES.map((a) => ({ value: a.id, label: `✗ ${a.label}`, sub: a.hint })),
                               ]}
                             />
                             <div className="muted" style={{ fontSize: 11.5, marginTop: 4 }}>
-                              {abaAct ? abaAct.hint : 'Counts: group training in behavior-analytic principles outside client sessions; graduate students designing or reviewing interventions in non-billable time. Never counts: cleaning the clinic, general admin such as stimulus preparation.'}
+                              {abaAct ? abaAct.hint : 'Pick the activity. The lists below show what counts.'}
                             </div>
                           </div>
                           <div className="am-abaexamples">
@@ -787,7 +787,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           </div>
                           <div className="muted" data-testid="aba-hours-credit" style={{ marginTop: 6, fontSize: 11.5 }}>
                             {f.staffIds.length
-                              ? `Credited to ${f.staffIds.map((id) => `${staffById[id]?.name || id} (${abaTrackFor(staffById[id]).label})`).join(', ')} — ${fmtDur(dur)} each.`
+                              ? `Credited to ${f.staffIds.map((id) => `${staffById[id]?.name || id} (${abaTrackFor(staffById[id]).label})`).join(', ')}, ${fmtDur(dur)} each.`
                               : 'Add a staff member so these hours can be credited to someone.'}
                           </div>
                         </div>
@@ -836,14 +836,14 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       )}
                       {showClinic && (
                         <div className="pcf-card" data-testid="am-pcf">
-                          <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields<i>optional · nothing pre-filled · add only what you capture</i>
+                          <div className="pcf-head">{Icon.badge({ size: 12 })} Custom fields<i>optional, nothing pre-filled</i>
                             <button type="button" className="btn btn-sm pcf-addbtn" data-testid="am-pcf-add" onClick={() => setCfPick(true)}>{Icon.plus({ size: 12 })} Add Custom Fields</button>
                           </div>
-                          {apptPcfDefs.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment yet — “Add Custom Fields” lists the templates scoped to Schedule Appointment, and you can define a new one right there.</div>}
+                          {apptPcfDefs.length === 0 && <div className="muted pcf-empty" data-testid="am-pcf-empty">No custom fields on this appointment yet. “Add Custom Fields” lists the templates scoped to Schedule Appointment, and you can create a new one there.</div>}
                           {apptPcfDefs.map((d) => (
                             d._stale ? (
                               <div className="pcf-f pcf-stale" key={d.id} data-testid={`pcf-f-${d.id}`}>
-                                <label>{d.label}<i className="muted"> · template removed from master — kept as saved</i></label>
+                                <label>{d.label}<i className="muted"> (template removed from master, kept as saved)</i></label>
                                 <div className="muted" style={{ fontSize: 12.5 }}>
                                   {Array.isArray((f.pcfs || {})[d.id]?.value) ? ((f.pcfs || {})[d.id].value.join(', ') || '—') : ((f.pcfs || {})[d.id]?.value === '' || (f.pcfs || {})[d.id]?.value == null ? '—' : String((f.pcfs || {})[d.id].value))}
                                 </div>
@@ -901,13 +901,13 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                           <div className="modal pm-modal py-modal" data-testid="am-pcf-picker" role="dialog" aria-modal="true" aria-label="Add custom fields">
                             <div className="modal-head pm-head">
                               <h3>Add custom fields</h3>
-                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>templates scoped to Schedule Appointment in the Custom Fields master — or define a new one below</span>
+                              <span className="muted" style={{ fontSize: 11.5, marginLeft: 10 }}>Templates scoped to Schedule Appointment, or create one below</span>
                               <span className="an-spacer" />
                               <button className="iconbtn modal-x" aria-label="Close" data-testid="am-pcf-picker-close" onClick={() => setCfPick(false)}>{Icon.x({ size: 14 })}</button>
                             </div>
                             <div className="modal-body">
                               <div className="cf-picklist">
-                                {pickerDefs.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No appointment-scoped templates yet — scope one to Schedule Appointment on the master page, or create one with “Add template” below.</div>}
+                                {pickerDefs.length === 0 && <div className="muted pd-cfempty" style={{ padding: '18px 2px' }}>No appointment templates yet. Scope one to Schedule Appointment on the master page, or create one with “Add template” below.</div>}
                                 {pickerDefs.map((d) => {
                                   const on = (f.pcfs || {})[d.id] !== undefined
                                   return (
@@ -918,7 +918,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                                         else delete n[d.id]
                                         set({ pcfs: n })
                                       }}>
-                                      <button className="iconbtn" title="Edit this template — opens the full field editor" data-testid={`am-cfm-edit-${d.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCfEdit(d) }}>{Icon.edit({ size: 12 })}</button>
+                                      <button className="iconbtn" title="Edit this template" data-testid={`am-cfm-edit-${d.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setCfEdit(d) }}>{Icon.edit({ size: 12 })}</button>
                                       <button className="iconbtn" title="Delete this template from the master" data-testid={`am-cfm-del-${d.id}`} onClick={(e) => { e.preventDefault(); e.stopPropagation(); delDef(d) }}>{Icon.trash({ size: 12 })}</button>
                                     </CfPickRow>
                                   )
@@ -1025,16 +1025,16 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
 
                     {payerSigRequired && (
                       <div className={`am-note ${clientSigned ? 'ok' : 'warn'}`} data-testid="am-sig-note">
-                        {clientSigned ? `Client/guardian signature captured — ${billPayer?.name || 'this payer'} completion requirement met.` : `${billPayer?.name || 'This payer'} requires a client signature to complete this appointment.`}
+                        {clientSigned ? `Client or guardian signature captured. ${billPayer?.name || 'This payer'}'s completion requirement is met.` : `${billPayer?.name || 'This payer'} requires a client signature to complete this appointment.`}
                       </div>
                     )}
                     {staffSigRequired && (
                       <div className={`am-note ${signed ? 'ok' : 'warn'}`} data-testid="am-staffsig-note">
-                        {signed ? 'Staff verification signature captured — the practice completion requirement is met.' : 'The practice requires a staff verification signature before this appointment can be completed.'}
+                        {signed ? 'Staff verification signature captured. The practice completion requirement is met.' : 'The practice requires a staff verification signature before this appointment can be completed.'}
                       </div>
                     )}
                     <div data-testid="am-staff-sig">
-                      <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Staff verification signature — who verified this session</div>
+                      <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>Staff verification signature (who verified this session)</div>
                       <SignaturePad
                         value={f.verification?.signature}
                         staffName={(verifier || staffById[f.staffIds?.[0]] || {}).name}
@@ -1049,7 +1049,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                     </div>
                     {payerSigRequired && (
                       <div style={{ marginTop: 10 }} data-testid="am-client-sig">
-                        <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>{billPayer?.name} requires a client/guardian signature — {guardianName}</div>
+                        <div className="muted" style={{ fontSize: 11.5, marginBottom: 4 }}>{billPayer?.name} requires a client or guardian signature: {guardianName}</div>
                         <SignaturePad
                           value={f.verification?.clientSignature}
                           staffName={guardianName}
@@ -1080,7 +1080,7 @@ export default function AppointmentModal({ mode, initial, onClose, onSaved, onBa
                       <div style={{ marginTop: 6 }}>
                         Drop files here or <b style={{ color: 'var(--accent)' }}>browse</b>
                       </div>
-                      <div style={{ fontSize: 10.5, marginTop: 3 }}>Consents, reports, IEPs — file names are kept in this demo</div>
+                      <div style={{ fontSize: 10.5, marginTop: 3 }}>Consents, reports, IEPs. Only file names are kept in this demo.</div>
                     </div>
                     <input ref={fileRef} type="file" multiple hidden onChange={(e) => attach(e.target.files)} />
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>

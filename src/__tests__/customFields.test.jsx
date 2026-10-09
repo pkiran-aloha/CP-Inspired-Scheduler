@@ -103,10 +103,11 @@ describe('custom-field scopes (audit CFG-07)', () => {
   it('the payer profile copy no longer promises automatic appointment/export propagation', async () => {
     render(<App />)
     await openDetail('py-aetna')
-    const note = screen.getByTestId('pd-cf').querySelector('.pd-note')
+    fireEvent.click(screen.getByTestId('pd-cf-info-btn')) // the guidance sits behind the Custom Fields info button
+    const note = screen.getByTestId('pd-cf-info-panel')
     expect(note.textContent).not.toMatch(/automatically/)
     expect(note.textContent).toMatch(/opt-in/)
-    expect(note.textContent).toMatch(/no claim, CMS-1500 or export reads them yet/)
+    expect(note.textContent).toMatch(/no claim, CMS-1500 or export reads them yet/i)
   })
 })
 

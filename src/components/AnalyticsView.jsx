@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { SectionBar, RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
+import InfoTip from '../ui/InfoTip'
 import { DAY_SHORT, addDays, fmtDayLabel, isoDate, parseISO, todayISO } from '../lib/date'
 import { TYPES } from '../lib/model'
 import { statusColorOf } from '../lib/settingsMasters'
@@ -141,7 +142,7 @@ export default function AnalyticsView() {
   const setSlider = (v) => actions.setUI({ anchor: isoDate(addDays(hStart, v)) })
 
   const exportCSV = () => {
-    const lines = [`# Aloha ABA analytics — ${METRICS[cfg.metric].label} by ${cfg.gran}, ${range.label} (${cfg.agg})`, 'period,value']
+    const lines = [`# Aloha ABA analytics: ${METRICS[cfg.metric].label} by ${cfg.gran}, ${range.label} (${cfg.agg})`, 'period,value']
     for (const s of series) lines.push(`${s.key},${s.value}`)
     lines.push('')
     lines.push(`# breakdown by ${DIMS[cfg.dim].label}`)
@@ -178,7 +179,12 @@ export default function AnalyticsView() {
 
   return (
     <div className="sectionpage">
-      <SectionBar icon="spark" title="Analytics" sub={`${range.label} · ${METRICS[cfg.metric].label} by ${cfg.gran === 'auto' ? 'auto' : cfg.gran} · aggregated ${cfg.agg}`}>
+      <SectionBar
+        icon="spark"
+        title="Analytics"
+        wiki="dashboard-and-reports"
+        info="Pick a metric, a breakdown and a chart. Slide the window or use the range picker to move through time. Click a point, bar, cell or row to open the calendar there. Compare adds the previous window as a dashed line. Report this opens the same range in Reports."
+        sub={`${range.label} · ${METRICS[cfg.metric].label} by ${cfg.gran === 'auto' ? 'auto' : cfg.gran} · aggregated ${cfg.agg}`}>
         <RangePicker
           preset={cfg.preset}
           onPreset={(p) => actions.setUI({ anPreset: p })}
@@ -190,7 +196,7 @@ export default function AnalyticsView() {
         <button className="btn btn-sm" onClick={exportCSV} title="Download this view as CSV">
           {Icon.download({ size: 13 })} CSV
         </button>
-        <button className="btn btn-sm" onClick={toReports} data-testid="an-to-reports" title="Carry this range & drill-down into the report builder">
+        <button className="btn btn-sm" onClick={toReports} data-testid="an-to-reports" title="Open this range and drill-down in Reports">
           {Icon.file({ size: 13 })} Report this
         </button>
       </SectionBar>
@@ -209,7 +215,7 @@ export default function AnalyticsView() {
             aria-label="Slide the analytics window across the demo horizon"
             style={{ backgroundSize: `${(sliderVal / 168) * 100}% 100%` }}
           />
-          <span className="anv-slider-lbl">{isoDate(parseISO(days[0]))} → {isoDate(parseISO(days[days.length - 1]))}</span>
+          <span className="anv-slider-lbl">{isoDate(parseISO(days[0]))} to {isoDate(parseISO(days[days.length - 1]))}</span>
           <button className="btn btn-sm btn-ghost" onClick={() => actions.setUI({ anchor: todayISO() })}>Reset</button>
         </div>
 
@@ -230,7 +236,7 @@ export default function AnalyticsView() {
                 <option key={k} value={k}>{d.label}</option>
               ))}
             </select>
-            <i className="muted">Pivot entity for the breakdown table</i>
+            <i className="muted">Groups the breakdown table</i>
           </label>
           <div className="anv-ctl">
             <span>Chart</span>
@@ -294,7 +300,7 @@ export default function AnalyticsView() {
           <div className="an-intake-h">
             <span className="pi">{Icon.zap({ size: 14 })}</span>
             <b>Intake pipeline</b>
-            <span className="muted">referrals are the leading indicator for every metric on this page</span>
+            <InfoTip label="Intake pipeline" wiki="intake" testid="an-intake-info">New referrals today become the sessions, hours and revenue shown on this page later.</InfoTip>
             <button className="btn btn-sm" data-testid="an-intake-open" onClick={() => actions.setUI({ section: 'intake' })}>Open pipeline</button>
             <button className="btn btn-sm" data-testid="an-intake-report" onClick={() => actions.setUI({ section: 'reports', repSel: 'intake' })}>Full report</button>
           </div>
@@ -311,8 +317,8 @@ export default function AnalyticsView() {
         <div className={`anv-main ${cfg.chart === 'heat' || cfg.chart === 'donut' ? 'wide1' : ''}`}>
           <section className="panel an-card anv-trend" data-testid="an-trend">
             <h3>
-              <span className="pi">{Icon.cal({ size: 14 })}</span> {METRICS[cfg.metric].label} — per {buckets.length > 1 ? cfg.gran === 'auto' ? 'bucket' : cfg.gran : 'day'}
-              <span className="an-legend muted">{buckets.length} buckets{prevSeries ? ' · ghost = prior period' : ''}</span>
+              <span className="pi">{Icon.cal({ size: 14 })}</span> {METRICS[cfg.metric].label} per {buckets.length > 1 ? cfg.gran === 'auto' ? 'bucket' : cfg.gran : 'day'}
+              <span className="an-legend muted">{buckets.length} buckets{prevSeries ? ', dashed line is the prior period' : ''}</span>
             </h3>
             <div className="anv-scroll">
               {(cfg.chart === 'line' || cfg.chart === 'bars') && (
@@ -342,7 +348,7 @@ export default function AnalyticsView() {
                         <g key={s.key}>
                           {prevSeries && prevSeries[i] && <rect x={xOf(i) - bw / 2 - 3} y={yOf(prevSeries[i].value)} width={3} height={H - 18 - yOf(prevSeries[i].value)} rx={1.5} fill="var(--muted)" opacity={0.55} />}
                           <rect x={xOf(i) - bw / 2} y={yOf(s.value)} width={bw} height={Math.max(2, H - 18 - yOf(s.value))} rx={4} fill="var(--accent-2)" className="anv-hit" onClick={() => actions.setUI({ anchor: s.start, section: 'calendar', view: cfg.gran === 'day' ? 'day' : 'week' })}>
-                            <title>{`${s.label}: ${METRICS[cfg.metric].fmt(s.value)} — click opens this bucket in the calendar`}</title>
+                            <title>{`${s.label}: ${METRICS[cfg.metric].fmt(s.value)}. Click to open this bucket in the calendar.`}</title>
                           </rect>
                         </g>
                       )
@@ -371,7 +377,7 @@ export default function AnalyticsView() {
                           key={hi}
                           className="hc"
                           style={{ background: c.count ? `color-mix(in srgb, var(--accent) ${Math.round(18 + (c.count / maxHeat) * 78)}%, var(--panel-3))` : 'var(--panel-3)' }}
-                          title={`${DAY_SHORT[dow]} ${heat.hourStart + hi}:00 — ${c.count} session(s), ${c.minutes}m`}
+                          title={`${DAY_SHORT[dow]} ${heat.hourStart + hi}:00, ${c.count} session${c.count === 1 ? '' : 's'}, ${c.minutes} min`}
                         >
                           {c.count || ''}
                         </span>
@@ -408,7 +414,7 @@ export default function AnalyticsView() {
                       const m = rangeMetrics(state, b.days)
                       return (
                         <tr key={b.key} className="anv-hit" onClick={() => actions.setUI({ anchor: b.start, section: 'calendar', view: 'week' })}>
-                          <td>{b.label} <span className="muted">({b.start.slice(5)}→{b.end.slice(5)})</span></td>
+                          <td>{b.label} <span className="muted">({b.start.slice(5)} to {b.end.slice(5)})</span></td>
                           <td className="r">{m.sessions}</td>
                           <td className="r">{m.hours}</td>
                           <td className="r">{m.units}</td>
@@ -435,13 +441,13 @@ export default function AnalyticsView() {
                 </table>
               )}
             </div>
-            <div className="an-foot muted">Scroll sideways for more buckets · click a {cfg.chart === 'table' ? 'row' : cfg.chart === 'heat' ? 'cell' : 'point'} to jump the calendar there · {cfg.agg === 'avg' ? 'values are per-week averages' : cfg.agg === 'peak' ? 'values are busiest-day peaks' : 'values are bucket totals'}</div>
+            <div className="an-foot muted">{cfg.agg === 'avg' ? 'Values are weekly averages.' : cfg.agg === 'peak' ? 'Values are the busiest day in each bucket.' : 'Values are bucket totals.'}</div>
           </section>
 
           {cfg.chart !== 'heat' && cfg.chart !== 'donut' && (
             <section className="panel an-card">
               <h3>
-                <span className="pi">{Icon.team({ size: 14 })}</span> Breakdown — {DIMS[cfg.dim].label}
+                <span className="pi">{Icon.team({ size: 14 })}</span> Breakdown by {DIMS[cfg.dim].label.toLowerCase()}
                 <span className="an-legend muted">bar = revenue</span>
               </h3>
               <div className="anv-scroll">
@@ -480,7 +486,7 @@ export default function AnalyticsView() {
                     {!pivot.length && (
                       <tr>
                         <td colSpan={6}>
-                          <span className="muted">Nothing scheduled in this window for {DIMS[cfg.dim].label.toLowerCase()} — slide the range.</span>
+                          <span className="muted">Nothing scheduled in this window for {DIMS[cfg.dim].label.toLowerCase()}. Move the range to see more.</span>
                         </td>
                       </tr>
                     )}
@@ -545,7 +551,7 @@ export default function AnalyticsView() {
             <div className="an-foot muted" style={{ marginTop: 8 }}>
               {cur.needsCover > 0 ? (
                 <button className="btn btn-sm" onClick={() => actions.setUI({ inbox: true })}>
-                  {cur.needsCover} recoverable — fix now {Icon.chevronR({ size: 12 })}
+                  {cur.needsCover} open to backfill {Icon.chevronR({ size: 12 })}
                 </button>
               ) : (
                 'Nothing recoverable in range'

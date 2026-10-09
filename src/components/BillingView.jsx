@@ -22,6 +22,7 @@ import { loadPdf } from '../lib/exportKit'
 const cms1500Toast = (mode, what) => (mode === 'data'
   ? `CMS-1500 data for ${what} downloaded. Print at actual size (100%) onto genuine red 02/12 forms. Nothing was sent.`
   : `CMS-1500 review copy for ${what} downloaded. It is not for OCR submission; use "Red form print" for a paper claim. Nothing was sent.`)
+const withUndo = (m) => `${String(m).replace(/\.$/, '')}. Press U to undo.`
 const money = (n) =>`$${(Math.round(n * 100) / 100).toLocaleString(undefined, { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`
 const AGING_DOT = { current: '#10b981', '31-60': '#f5990b', '61-90': '#f97316', '91-120': '#ef4444', '121+': '#b91c1c' }
 const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
@@ -126,15 +127,15 @@ export default function BillingView({ initialTab }) {
   const toggle = (id) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
   const generate = () => {
     const r = actions.generateClaims(picked.size ? [...picked] : null)
-    toast({ message: `${r.msg} — press U to dissolve`, kind: r.ok ? 'ok' : 'warn' })
+    toast({ message: r.ok ? withUndo(r.msg) : r.msg, kind: r.ok ? 'ok' : 'warn' })
     if (r.ok) { setPicked(new Set()); setTab('claims'); setStatusF('all'); if (r.ids?.length) setSel(r.ids[0]) }
   }
   const processBilling = () => {
     const readyIds = Object.values(claims).filter((c) => c.status === 'draft' && c.method !== 'secondary').filter((c) => { const g = claimGate(state, c); return g.ok }).map((c) => c.id)
-    if (!readyIds.length) { toast({ message: 'No gate-clean drafts to process — fix gated drafts first', kind: 'warn' }); return }
+    if (!readyIds.length) { toast({ message: 'No drafts are ready to submit. Fix the held drafts first.', kind: 'warn' }); return }
     // Submission and its downloadable file share one undo snapshot.
     const r = actions.submitClaims(readyIds, { recordFile: true })
-    toast({ message: `${r.msg}${r.ok ? ' — billed file generated' : ''}`, kind: r.ok ? 'ok' : 'warn' })
+    toast({ message: r.ok ? `${String(r.msg).replace(/\.$/, '')}. Billed file created.` : r.msg, kind: r.ok ? 'ok' : 'warn' })
   }
   const exportStageCsv = () => {
     const inv = `${bill.invoicePrefix || 'INV'}-${range.days[0].slice(0, 7).replace('-', '')}`
@@ -153,10 +154,10 @@ export default function BillingView({ initialTab }) {
     const rule = unitRuleFor(state, { ...a, billingCode: code.id })
     const units = unitsFor(a.end - a.start, rule.unitMins, rule.rounding)
     actions.update(a.id, { billing: { ...(a.billing || {}), code: code.id, unitMins: rule.unitMins, rounding: rule.rounding, minutes: a.end - a.start, units, rate: a.billing?.rate || code.rate, mileage: a.billing?.mileage ?? a.type === 'drive' } })
-    toast({ message: `Units auto-filled (${units} × ${code.id}) — re-run batch`, kind: 'ok' })
+    toast({ message: `Units filled in (${units} × ${code.id}). Assemble the batch again.`, kind: 'ok' })
   }
 
-  const tx = (r) => { toast({ message: r.ok ? `${r.msg} — press U to undo` : r.msg, kind: r.ok ? 'ok' : 'warn' }); return r }
+  const tx = (r) => { toast({ message: r.ok ? withUndo(r.msg) : r.msg, kind: r.ok ? 'ok' : 'warn' }); return r }
   const submit = (id) => tx(actions.submitClaims([id]))
   const submitAllDrafts = () => tx(actions.submitClaims(Object.values(claims).filter((c) => c.status === 'draft' && c.method !== 'secondary').map((c) => c.id)))
   const voidClaim = (id) => tx(actions.voidClaim(id))
@@ -166,7 +167,7 @@ export default function BillingView({ initialTab }) {
     if (r.ok && r.newId) { setStatusF('all'); setSel(r.newId) }
   }
   const dropLine = (cid, aid) => tx(actions.dropClaimLine(cid, aid))
-  const writeOff = (id) => { const c = claims[id]; tx(actions.postPayment(id, { amount: 0, adj: Math.max(0, dueOf(c)), checkNo: `WO-${c.no}`, kind: 'writeoff', note: 'Written off — uncollectible; review any COB first' })) }
+  const writeOff = (id) => { const c = claims[id]; tx(actions.postPayment(id, { amount: 0, adj: Math.max(0, dueOf(c)), checkNo: `WO-${c.no}`, kind: 'writeoff', note: 'Written off as uncollectible. Check for COB first.' })) }
 
   const TabBtn = ({ id, label, n, warn, icon }) => (
     <button className={`tab ${tab === id ? 'on' : ''}`} data-testid={`bil-tab-${id}`} onClick={() => setTab(id)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>
@@ -177,7 +178,7 @@ export default function BillingView({ initialTab }) {
 
   return (
     <div className="sectionpage" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="dollar" title="Billing" sub={`Revenue cycle — stage → form → submit → pay · ${range.label} · ${stats.drafts.n + stats.pending.n + stats.denied.n + stats.paid.n} claims`}>
+      <SectionBar icon="dollar" title="Billing" sub={`${range.label} · ${stats.drafts.n + stats.pending.n + stats.denied.n + stats.paid.n} claims`} wiki="billing-and-claims" info={<><span>Billing has four steps. Staging lists completed sessions that are ready to bill. Assemble groups them into claim forms by client, payer and month. Submit marks claims as sent. Post payment records what came back.</span><span>Everything stays in this workspace. Nothing is sent to a payer or clearinghouse.</span></>}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ bilPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         {tab === 'stage' && (
           <>
@@ -190,7 +191,7 @@ export default function BillingView({ initialTab }) {
             </div>
             <button className="btn btn-sm" onClick={exportStageCsv} data-testid="bil-export" style={{ borderRadius: 10 }}>{Icon.download({ size: 13 })} Export</button>
             <button className="btn btn-sm btn-primary" disabled={!staged.length} onClick={generate} data-testid="bil-generate" style={{ borderRadius: 10 }}>{Icon.file({ size: 12 })} Assemble {picked.size || staged.length} → {plans.length} forms</button>
-            <button className="btn btn-sm" data-testid="bil-process" onClick={processBilling} title="Submit all gate-clean drafts + generate billed file" style={{ borderRadius: 10, background: '#10b981', color: '#fff', border: 'none' }}>{Icon.zap({ size: 12 })} Process</button>
+            <button className="btn btn-sm" data-testid="bil-process" onClick={processBilling} title="Submit every draft that passes its checks and create the billed file" style={{ borderRadius: 10, background: '#10b981', color: '#fff', border: 'none' }}>{Icon.zap({ size: 12 })} Process</button>
           </>
         )}
         {tab === 'claims' && (
@@ -222,7 +223,7 @@ export default function BillingView({ initialTab }) {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           {AGING_BUCKETS.map((b) => (
-            <span key={b} title={`Days out ${AGING_BUCKET_LABELS[b]} days · submitted claims in range, aged on the same clock and buckets as the AR Manager`} className={`rp-sumchip ${stats.pending.buckets[b] ? 'on' : ''}`} style={{ padding: '8px 12px', opacity: stats.pending.buckets[b] ? 1 : 0.4, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span key={b} title={`Submitted claims ${AGING_BUCKET_LABELS[b]} days out, aged the same way as the AR Manager`} className={`rp-sumchip ${stats.pending.buckets[b] ? 'on' : ''}`} style={{ padding: '8px 12px', opacity: stats.pending.buckets[b] ? 1 : 0.4, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 4, background: AGING_DOT[b] }} />
               <b>{money(stats.pending.buckets[b] || 0)}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{AGING_BUCKET_LABELS[b]}</span>
             </span>
@@ -235,7 +236,7 @@ export default function BillingView({ initialTab }) {
         <KpiCard testId="bil-kpi-draft" icon={Icon.edit({ size: 18 })} color={Object.keys(gatedIds).length ? '#ef4444' : '#f59e0b'} label="Drafts" value={`${stats.drafts.n}`} sub={stats.drafts.n ? `${money(stats.drafts.$)} · ${Object.keys(gatedIds).length ? `${Object.keys(gatedIds).length} gated` : 'ready to submit'}` : 'nothing pending'} onClick={() => { setTab('claims'); setStatusF('draft') }} alert={Object.keys(gatedIds).length} />
         <KpiCard testId="bil-kpi-pending" icon={Icon.clock({ size: 18 })} color="#0ea5e9" label="Awaiting Payer" value={money(stats.pending.$)} sub={`${stats.pending.n} out${stats.pending.late ? ` · ${stats.pending.late} past cycle` : ''}`} onClick={() => { setTab('claims'); setStatusF('submitted') }} alert={stats.pending.late} />
         <KpiCard testId="bil-kpi-denied" icon={Icon.ban({ size: 18 })} color={stats.denied.n ? '#ef4444' : '#9ca3af'} label="Denied" value={`${stats.denied.n}`} sub={stats.denied.n ? `${money(stats.denied.$)} needs action` : 'none open'} onClick={() => { setTab('claims'); setStatusF('denied') }} alert={stats.denied.n} />
-        <KpiCard testId="bil-kpi-paid" icon={Icon.dollar({ size: 18 })} color="#10b981" label={`Paid · ${range.label}`} value={money(stats.paid.$)} sub={`${stats.paid.n} remittances · ${stats.denialRate}% denial`} onClick={() => { setTab('claims'); setStatusF('paid') }} />
+        <KpiCard testId="bil-kpi-paid" icon={Icon.dollar({ size: 18 })} color="#10b981" label={`Paid, ${range.label}`} value={money(stats.paid.$)} sub={`${stats.paid.n} remittances · ${stats.denialRate}% denial`} onClick={() => { setTab('claims'); setStatusF('paid') }} />
         <KpiCard testId="bil-kpi-cycle" icon={Icon.cal({ size: 18 })} color="#6b7280" label="Avg Days to Pay" value={stats.avgDaysToPay ?? '—'} sub={stats.avgDaysToPay ? 'across paid claims' : 'no history yet'} />
         <span className="muted" style={{ marginLeft: 'auto', fontSize: 12, display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ width: 22, height: 22, borderRadius: 7, background: '#fee2e2', color: '#ef4444', display: 'grid', placeItems: 'center' }}>{Icon.ban({ size: 11 })}</span> held back <b style={{ color: '#ef4444' }}>{money(blocked.reduce((t, r) => t + r.estCharge, 0))}</b></span>
       </div>
@@ -255,7 +256,7 @@ export default function BillingView({ initialTab }) {
           <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-1)', border: '1px solid var(--line)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', background: 'var(--panel-2)' }}>
               <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 16 })}</span>
-              <div><b style={{ fontSize: 14 }}>Staging Queue</b><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{staged.length} lines · {picked.size ? `${picked.size} selected` : 'forms group by client × payer × month'}</span></div>
+              <div><b style={{ fontSize: 14 }}>Staging Queue</b><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{staged.length} lines · {picked.size ? `${picked.size} selected` : 'forms group by client, payer and month'}</span></div>
               <div style={{ marginLeft: 'auto' }}>
                 <button className="btn btn-sm" data-testid="bil-pickall" onClick={() => setPicked(picked.size === staged.length ? new Set() : new Set(staged.map((a) => a.id)))} style={{ borderRadius: 9 }}>{picked.size === staged.length ? 'Clear' : `Select all (${staged.length})`}</button>
               </div>
@@ -288,7 +289,7 @@ export default function BillingView({ initialTab }) {
                   </div>
                 )
               })}
-              {!staged.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }}><b>{blocked.length ? `Nothing claim-ready — ${blocked.length} blocked line(s) need fixes` : 'Everything in this window is on a claim or paid'}</b><div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Slide the range or check the desk.</div></div>}
+              {!staged.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }}><b>{blocked.length ? `Nothing is ready to bill. ${blocked.length} blocked line(s) need fixes.` : 'Every session in this range is on a claim or paid'}</b><div className="muted" style={{ fontSize: 12, marginTop: 6 }}>Change the date range or open the Claim Desk.</div></div>}
             </div>
           </div>
           <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-1)', position: 'sticky', top: 16, border: '1px solid var(--line)' }}>
@@ -310,7 +311,7 @@ export default function BillingView({ initialTab }) {
                   {Icon.zap({ size: 14 })} Assemble {plans.length} forms · {money(plans.reduce((t, p) => t + p.charges, 0))}
                 </button>
               )}
-              {!plans.length && <div className="py-empty" style={{ padding: 32, textAlign: 'center' }}><b style={{ fontSize: 13 }}>Import-ready lines appear here as you select staging rows.</b><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Pick sessions to see claim grouping</div></div>}
+              {!plans.length && <div className="py-empty" style={{ padding: 32, textAlign: 'center' }}><b style={{ fontSize: 13 }}>No forms to preview</b><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Select staging rows to see how they group into claims.</div></div>}
             </div>
           </div>
         </div>
@@ -347,12 +348,12 @@ export default function BillingView({ initialTab }) {
                   </button>
                 )
               })}
-              {!list.length && <div className="py-empty" style={{ padding: 40, textAlign: 'center' }}><b>No claims match</b><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Assemble some from Staging, or clear filter.</div></div>}
+              {!list.length && <div className="py-empty" style={{ padding: 40, textAlign: 'center' }}><b>No claims match</b><div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Assemble claims from Staging, or clear the filter.</div></div>}
             </div>
           </div>
 
           {claim ? <ClaimForm claim={claim} gated={gatedIds[claim.id]} disputed={disputed} setDisputed={setDisputed} payOpen={payOpen} setPayOpen={setPayOpen} denyOpen={denyOpen} setDenyOpen={setDenyOpen} onSubmit={() => submit(claim.id)} onVoid={() => voidClaim(claim.id)} onRebill={() => rebill(claim.id)} onWriteOff={() => writeOff(claim.id)} onDropLine={(aid) => dropLine(claim.id, aid)} clientOf={clientOf} staffOf={staffOf} /> : (
-            <div className="panel" style={{ borderRadius: 14, padding: 40, textAlign: 'center', border: '1px dashed var(--line)' }}><h3 style={{ margin: '0 0 8px' }}>The desk is empty</h3><p className="muted" style={{ fontSize: 13 }}>Assemble staging lines into claim forms and they'll queue here.</p><button className="btn btn-sm btn-primary" onClick={() => setTab('stage')} style={{ marginTop: 16, borderRadius: 10 }}>Go to staging</button></div>
+            <div className="panel" style={{ borderRadius: 14, padding: 40, textAlign: 'center', border: '1px dashed var(--line)' }}><h3 style={{ margin: '0 0 8px' }}>No claims yet</h3><p className="muted" style={{ fontSize: 13 }}>Claims you assemble from Staging appear here.</p><button className="btn btn-sm btn-primary" onClick={() => setTab('stage')} style={{ marginTop: 16, borderRadius: 10 }}>Go to staging</button></div>
           )}
         </div>
       )}
@@ -362,7 +363,7 @@ export default function BillingView({ initialTab }) {
           <div className="panel" data-testid="bil-secondary" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
             <div style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
               <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 16 })}</span>
-              <div><b style={{ fontSize: 14 }}>Secondary Queue</b><div className="muted" style={{ fontSize: 12 }}>{Object.values(claims).filter((c) => secondaryEligible(state, c)).length} eligible · Clients with secondary insurance</div></div>
+              <div><b style={{ fontSize: 14 }}>Secondary Queue</b><div className="muted" style={{ fontSize: 12 }}>{Object.values(claims).filter((c) => secondaryEligible(state, c)).length} eligible claims for clients with secondary insurance</div></div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, padding: 20 }}>
               <div>
@@ -403,7 +404,7 @@ export default function BillingView({ initialTab }) {
           <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
               <span style={{ width: 32, height: 32, borderRadius: 9, background: '#fee2e2', color: '#ef4444', display: 'grid', placeItems: 'center' }}>{Icon.ban({ size: 16 })}</span>
-              <div><b style={{ fontSize: 14 }}>Blocked Lines — {blocked.length}</b><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{money(blocked.reduce((t, r) => t + r.estCharge, 0))} held</span></div>
+              <div><b style={{ fontSize: 14 }}>Blocked lines ({blocked.length})</b><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{money(blocked.reduce((t, r) => t + r.estCharge, 0))} held</span></div>
             </div>
             <div className="py-tbl">
               <div className="py-thead" style={{ gridTemplateColumns: '80px 100px 1.4fr 1.8fr 100px 120px', background: 'var(--panel-2)', fontSize: 11 }}><span>Type</span><span>Date</span><span>Client</span><span>Issue</span><span>Charge</span><span>Actions</span></div>
@@ -420,7 +421,7 @@ export default function BillingView({ initialTab }) {
                   </div>
                 </div>
               ))}
-              {!blocked.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }}><b>No blocked lines in this window</b><div className="muted" style={{ fontSize: 12 }}>All sessions are claim-ready or already claimed</div></div>}
+              {!blocked.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }}><b>No blocked lines in this window</b><div className="muted" style={{ fontSize: 12 }}>Every session is ready to bill or already on a claim.</div></div>}
             </div>
           </div>
         </div>
@@ -447,7 +448,7 @@ export default function BillingView({ initialTab }) {
                 {/* One notice rule practice-wide: the risk model and the Overbooking backtest both
                     read this. A well-noticed family cancellation stops counting as a lost slot. */}
                 <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }} title="Hours of notice a cancellation must give before the practice is treated as able to refill the slot. Read by the no-show risk model and the Overbooking backtest.">Late-cancel notice (h)</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }} title="Hours of notice that let the practice refill a cancelled slot. Used by the no-show risk model and the Overbooking backtest.">Late-cancel notice (h)</span>
                   <input className="input" style={{ borderRadius: 10, height: 40 }} data-testid="bi-latecancel" type="number" min={0} max={168} step={1} value={bill.lateCancelHours ?? 24}
                     onChange={(e) => setBill({ lateCancelHours: Math.max(0, Math.min(168, e.target.value === '' ? 24 : Number(e.target.value))) })} />
                 </label>
@@ -462,7 +463,7 @@ export default function BillingView({ initialTab }) {
                 </label>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px', borderRadius: 12, border: '1px solid var(--line)', background: bill.autoUnits !== false ? '#eff6ff' : 'var(--panel)', cursor: 'pointer' }}>
                   <input type="checkbox" checked={bill.autoUnits !== false} onChange={() => setBill({ autoUnits: bill.autoUnits === false })} data-testid="bi-autounits" />
-                  <span><b style={{ fontSize: 13 }}>Auto-fill units from duration & code</b><span className="muted" style={{ display: 'block', fontSize: 12 }}>Powers the one-click fixes on Blocked</span></span>
+                  <span><b style={{ fontSize: 13 }}>Auto-fill units from duration & code</b><span className="muted" style={{ display: 'block', fontSize: 12 }}>Used by the Auto-fix button on Blocked</span></span>
                 </label>
               </div>
               <div style={{ marginTop: 20 }}>
@@ -504,7 +505,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
   const editable = claim.method !== 'secondary' && !claim.secondary && (claim.status === 'draft' || claim.status === 'denied')
   const toggleDispute = (aid) => setDisputed((s) => { const n = new Set(s); n.has(aid) ? n.delete(aid) : n.add(aid); return n })
   const export1500 = async (mode) => {
-    if (claim.method === 'secondary') { toast({ message: 'Secondary COB details are not mapped to a compliant CMS-1500. Verify and file externally.', kind: 'warn' }); return }
+    if (claim.method === 'secondary') { toast({ message: 'Secondary COB details are not mapped to a CMS-1500. Verify and file outside this app.', kind: 'warn' }); return }
     if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     try { claimTo1500(state, claim, { mode }).save(`${claim.no}-1500${mode === 'data' ? '-red-form' : ''}.pdf`) } catch (e) { toast({ message: `PDF export failed: ${e.message}`, kind: 'warn' }); return }
     toast({ message: cms1500Toast(mode, claim.no), kind: 'ok' })
@@ -513,7 +514,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
   return (
     <section className="clm-doc panel" data-testid="clm-form" style={{ borderRadius: 14, border: '1px solid var(--line)' }}>
       <header style={{ padding: '18px 20px', borderBottom: '1px solid var(--line)', background: 'var(--panel-2)' }}>
-        {claim.method === 'secondary' && <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Claim-level COB filing of {claim.parentNo}; not an additional receivable. Original service lines are for review only and are not allocated to a compliant secondary 837/CMS-1500.</p>}
+        {claim.method === 'secondary' && <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>COB filing for {claim.parentNo}, not a new receivable. The service lines are for review only and are not mapped to a secondary 837 or CMS-1500.</p>}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <span className={`cd-mode ${claim.mode}`} style={{ fontSize: 10, fontWeight: 800, padding: '4px 10px', borderRadius: 20, background: claim.mode === 'selfpay' ? '#fef3c7' : '#dbeafe', border: '1px solid var(--line)' }}>{claim.mode === 'selfpay' ? 'INVOICE' : 'CLAIM'}</span>
           <h2 style={{ fontSize: 18, margin: 0 }}>{claim.no}{claim.version > 1 ? <em style={{ fontSize: 11, background: '#6366f1', color: '#fff', padding: '2px 8px', borderRadius: 20, marginLeft: 8 }}>v{claim.version}</em> : null}</h2>
@@ -529,7 +530,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
           {claim.status === 'partially_paid' && (claim.method === 'secondary' || !claim.secondary) && <button className="btn btn-sm btn-primary" data-testid="clm-pay" onClick={() => setPayOpen(true)} style={{ borderRadius: 9 }}>{Icon.dollar({ size: 12 })} More remittance</button>}
           {claim.status === 'denied' && claim.method !== 'secondary' && !claim.secondary && (<><button className="btn btn-sm btn-primary" data-testid="clm-rebill" onClick={onRebill} style={{ borderRadius: 9 }}>{Icon.repeat({ size: 12 })} Rebill{disputed.size ? ` (${disputed.size})` : ''}</button><button className="btn btn-sm" data-testid="clm-writeoff" onClick={onWriteOff} style={{ borderRadius: 9 }}>Write off</button></>)}
           {(claim.status === 'draft' || claim.status === 'submitted') && claim.method !== 'secondary' && !claim.secondary && <button className="btn btn-sm" data-testid="clm-void" onClick={onVoid} style={{ borderRadius: 9 }}>{Icon.trash({ size: 12 })} Void</button>}
-          <button className="btn btn-sm" data-testid="clm-cms1500" disabled={claim.method === 'secondary'} title={claim.method === 'secondary' ? 'Secondary COB PDF is not mapped; verify externally' : 'Print primary CMS-1500'} onClick={() => export1500('copy')} style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} CMS-1500</button>
+          <button className="btn btn-sm" data-testid="clm-cms1500" disabled={claim.method === 'secondary'} title={claim.method === 'secondary' ? 'No CMS-1500 for secondary COB claims. Verify outside this app.' : 'Print primary CMS-1500'} onClick={() => export1500('copy')} style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} CMS-1500</button>
           <button className="btn btn-sm" data-testid="clm-cms1500-data" disabled={claim.method === 'secondary'} title="Data only, to print onto genuine red CMS-1500 (02/12) forms" onClick={() => export1500('data')} style={{ borderRadius: 9 }}>{Icon.print({ size: 12 })} Red form print</button>
           <span style={{ width: 1, height: 20, background: 'var(--line)', margin: '0 4px' }} />
           <button className="btn btn-sm" onClick={() => { download(`${claim.no}.csv`, claimCsv(state, claim)); toast({ message: `${claim.no} exported`, kind: 'ok' }) }} data-testid="clm-csv" style={{ borderRadius: 9 }}>{Icon.download({ size: 12 })} CSV</button>
@@ -549,10 +550,10 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
         {claim.timelyDue && (() => { const today = new Date().toISOString().slice(0, 10); const overdue = today > claim.timelyDue; return overdue ? <span className="sev-pill sev-error">timely filing past due {claim.timelyDue}</span> : <span className="sev-pill sev-notice">filing due {claim.timelyDue}</span> })()}
         {claim.status === 'denied' && <span><b>{claim.denial.reason}.</b> {claim.denial.fix}.</span>}
         {claim.status === 'paid' && <span>Paid {money(claim.paid)} via {claim.remittance?.checkNo || '—'} · {relDay(claim.remittance?.at)}</span>}
-        {claim.status === 'submitted' && <span>Waiting on {claim.mode === 'selfpay' ? 'family payment' : claim.payer}{age ? ` — ${age.days} days out` : ''}</span>}
+        {claim.status === 'submitted' && <span>Waiting on {claim.mode === 'selfpay' ? 'family payment' : claim.payer}{age ? `, ${age.days} days out` : ''}</span>}
         {claim.status === 'draft' && gated ? <span><b>Submission held:</b> {gate.bad.map((b) => b.why).slice(0, 2).join(' · ')}</span> : null}
-        {claim.status === 'partially_paid' && <span>Partially paid — {money(due)} open</span>}
-        {claim.status === 'void' && <span>Voided — {claim.lines.length} lines returned to staging.</span>}
+        {claim.status === 'partially_paid' && <span>Partially paid. {money(due)} open.</span>}
+        {claim.status === 'void' && <span>Voided. {claim.lines.length} lines returned to staging.</span>}
       </div>
 
       <div className="py-tbl cd-lines" data-testid="clm-lines">
@@ -594,7 +595,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
         </div>
         <div className="panel" style={{ borderRadius: 12, padding: 16, border: '1px solid var(--line)' }}>
           <b style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--muted)' }}>Billing Note</b>
-          <textarea className="input" rows={3} placeholder="Context for next person on this claim" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} data-testid="clm-note" style={{ marginTop: 12, borderRadius: 10, fontSize: 13 }} />
+          <textarea className="input" rows={3} placeholder="Notes for the next person on this claim" value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} data-testid="clm-note" style={{ marginTop: 12, borderRadius: 10, fontSize: 13 }} />
           {noteDraft !== (claim.note || '') && <button className="btn btn-sm" style={{ marginTop: 10, borderRadius: 9 }} data-testid="clm-note-save" onClick={() => { actions.addClaimNote(claim.id, noteDraft); toast({ message: 'Note saved', kind: 'ok' }) }}>Save note</button>}
           {claim.remittance?.note ? <div style={{ fontSize: 12, marginTop: 10, color: 'var(--muted)' }}>Remittance note: {claim.remittance.note}</div> : null}
         </div>
@@ -622,13 +623,13 @@ function PayModal({ claim, onClose }) {
   const parent = claim.method === 'secondary' ? state.claims[claim.secondary] : null
   const post = () => {
     const r = actions.postPayment(claim.id, { amount, adj, patientResp, checkNo: check.trim(), kind, note: note.trim() })
-    toast({ message: r.ok ? `${r.msg} — press U to undo` : r.msg, kind: r.ok ? 'ok' : 'warn' })
+    toast({ message: r.ok ? withUndo(r.msg) : r.msg, kind: r.ok ? 'ok' : 'warn' })
     if (r.ok) onClose()
   }
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(560px, 92vw)', borderRadius: 14 }} data-testid="pay-modal">
-        <div className="modal-head" style={{ padding: '16px 20px' }}><h2 style={{ fontSize: 16, margin: 0 }}>Post Payment — {claim.no}</h2><button className="modal-x" aria-label="Close" onClick={onClose} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 14 })}</button></div>
+        <div className="modal-head" style={{ padding: '16px 20px' }}><h2 style={{ fontSize: 16, margin: 0 }}>Post payment: {claim.no}</h2><button className="modal-x" aria-label="Close" onClick={onClose} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 14 })}</button></div>
         <div className="modal-body" style={{ padding: 20 }}>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }} data-testid="pay-quick-row">
             {posts.map((p) => (<button key={p.id} className="btn btn-xs" data-testid={`pay-quick-${p.id}`} onClick={() => { setAmount(p.amount.toFixed(2)); setAdj((p.adj || 0).toFixed(2)); setPatientResp(''); setKind(p.id === 'writeoff' ? 'writeoff' : null); setNote(p.note || '') }} style={{ borderRadius: 20 }}>{p.label}</button>))}
@@ -641,8 +642,8 @@ function PayModal({ claim, onClose }) {
           </div>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}><span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>Reported patient responsibility $ (blank unless documented on remittance)</span><input className="input" type="number" min="0" step="0.01" style={{ height: 40 }} value={patientResp} onChange={(e) => setPatientResp(e.target.value)} data-testid="pay-patient" /></label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 16 }}><span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>Note</span><input className="input" style={{ height: 40 }} value={note} onChange={(e) => setNote(e.target.value)} placeholder="optional" data-testid="pay-note" /></label>
-          <div className={`pm-due ${Math.abs(due) < 0.005 ? 'ok' : 'warn'}`} data-testid="pay-due" style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: Math.abs(due) < 0.005 ? '#f0fdf4' : '#fffbeb', border: '1px solid var(--line)', fontSize: 13 }}>{due < -0.005 ? `Exceeds the open balance by ${money(-due)}` : Math.abs(due) < 0.005 ? 'Balances to zero — filing will close as paid' : `Posting leaves ${money(due)} open on this claim`}</div>
-          {parent && <p className="muted" style={{ fontSize: 12 }}>Linked primary {parent.no}: {money(Math.max(0, dueOf(parent)))} open; this payer payment reduces it to {money(Math.max(0, dueOf(parent) - (Number(amount) || 0)))}. Adjustments on this secondary do not write off the primary.</p>}
+          <div className={`pm-due ${Math.abs(due) < 0.005 ? 'ok' : 'warn'}`} data-testid="pay-due" style={{ marginTop: 16, padding: '12px 14px', borderRadius: 10, background: Math.abs(due) < 0.005 ? '#f0fdf4' : '#fffbeb', border: '1px solid var(--line)', fontSize: 13 }}>{due < -0.005 ? `Exceeds the open balance by ${money(-due)}` : Math.abs(due) < 0.005 ? 'Balances to zero. The claim will close as paid.' : `Posting leaves ${money(due)} open on this claim`}</div>
+          {parent && <p className="muted" style={{ fontSize: 12 }}>Primary {parent.no} has {money(Math.max(0, dueOf(parent)))} open. This payment reduces it to {money(Math.max(0, dueOf(parent) - (Number(amount) || 0)))}. Adjustments here do not write off the primary.</p>}
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', padding: '14px 20px', borderTop: '1px solid var(--line)', background: 'var(--panel-2)' }}>
           <button className="btn btn-sm" onClick={onClose} style={{ borderRadius: 10 }}>Cancel</button>
@@ -664,7 +665,7 @@ function DenyModal({ claim, onClose }) {
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ width: 'min(540px, 92vw)', borderRadius: 14 }} data-testid="deny-modal">
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}><span style={{ width: 32, height: 32, borderRadius: 9, background: '#fee2e2', color: '#ef4444', display: 'grid', placeItems: 'center' }}>{Icon.ban({ size: 16 })}</span><h2 style={{ fontSize: 16, margin: 0 }}>Record Denial — {claim.no}</h2><button className="modal-x" aria-label="Close" onClick={onClose} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 14 })}</button></div>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}><span style={{ width: 32, height: 32, borderRadius: 9, background: '#fee2e2', color: '#ef4444', display: 'grid', placeItems: 'center' }}>{Icon.ban({ size: 16 })}</span><h2 style={{ fontSize: 16, margin: 0 }}>Record denial: {claim.no}</h2><button className="modal-x" aria-label="Close" onClick={onClose} style={{ marginLeft: 'auto' }}>{Icon.x({ size: 14 })}</button></div>
         <div style={{ padding: 20 }}>
           <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)' }}>Denial reason</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
@@ -676,7 +677,7 @@ function DenyModal({ claim, onClose }) {
         </div>
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', padding: '14px 20px', borderTop: '1px solid var(--line)', background: 'var(--panel-2)' }}>
           <button className="btn btn-sm" onClick={onClose} style={{ borderRadius: 10 }}>Cancel</button>
-          <button className="btn btn-sm btn-primary" data-testid="deny-go" onClick={() => { const r = actions.denyClaim(claim.id, { code, note }); toast({ message: `${r.msg} — U to undo`, kind: 'warn' }); onClose() }} style={{ borderRadius: 10, background: '#ef4444', border: 'none' }}>Mark denied</button>
+          <button className="btn btn-sm btn-primary" data-testid="deny-go" onClick={() => { const r = actions.denyClaim(claim.id, { code, note }); toast({ message: withUndo(r.msg), kind: 'warn' }); onClose() }} style={{ borderRadius: 10, background: '#ef4444', border: 'none' }}>Mark denied</button>
         </div>
       </div>
     </div>

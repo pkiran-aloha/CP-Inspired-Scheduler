@@ -1,7 +1,7 @@
 # Accounts receivable
 
 _Sources: src/lib/claims.js, src/lib/statements.js, src/lib/superbill.js, src/lib/gfe.js, src/components/GfeDialog.jsx, src/lib/billingKpis.js, src/lib/billingDocs.js, src/components/ArManagerView.jsx, src/components/GenerateInvoiceView.jsx, src/components/BillingView.jsx, src/__tests__/billingKpis.test.js_
-_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/billingdocs-wiring and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on AR Manager and Generate Invoice)._
+_Last synced against main 73e0236 plus the perf/lazy-views branch on 2026-10-07 and fix/billingdocs-wiring and fix/cms1500-derived-values on 2026-10-08; unrelated behavior unchanged; fix/billing-icons on 2026-10-08 (distinct stat-tile glyphs on AR Manager and Generate Invoice); feat/copy-and-infotips on 2026-10-09 (copy pass, no em dashes, guidance behind InfoTips)._
 
 This page covers what the practice is still owed and how old it is: the AR Manager, the aging buckets, the numbers beside them (DSO, collections rate, write-offs), and the draft patient statement. How balances are reduced is in [era-and-payments](era-and-payments.md); how claims are created is in [billing-and-claims](billing-and-claims.md).
 
@@ -61,7 +61,7 @@ The statement is numbered `STM-<year><month>-<nnn>`. It freezes one line per cla
 
 #### The printed statement
 
-The PDF follows HFMA's patient-friendly billing guidance: plain language, the amount and due date at a glance, proof that insurance paid its part, whom to call, and a remittance stub. Letter size, top to bottom:
+The PDF follows HFMA's patient-friendly billing guidance: plain language, the amount and due date up front, proof that insurance paid its part, whom to call, and a remittance stub. Letter size, top to bottom:
 
 1. **Header.** The practice name and return address on the left; on the right, "STATEMENT", the statement date, the account number (the client id) and the statement number.
 2. **Address block**, placed for a #10 window envelope. It carries only the guardian's name and the client chart's home address, so nothing else shows through the window.
@@ -112,7 +112,7 @@ Under the No Surprises Act (45 CFR 149.610), a practice must give an uninsured o
 
 ### The desk's aging indicators
 
-The Billing desk ages claims with the same engine as the AR Manager: one clock and the same five buckets (0 to 30, 31 to 60, 61 to 90, 91 to 120, 121 plus). The strip above the claim list buckets the submitted claims in the selected range, and the claim drawer shows any open primary claim's days out — a denied claim keeps aging while its balance is still owed. "Late" means older than 1.6 times the payer's expected days to pay, which comes from the payer's Payment Terms.
+The Billing desk ages claims with the same engine as the AR Manager: one clock and the same five buckets (0 to 30, 31 to 60, 61 to 90, 91 to 120, 121 plus). The strip above the claim list buckets the submitted claims in the selected range, and the claim drawer shows any open primary claim's days out. A denied claim keeps aging while its balance is still owed. "Late" means older than 1.6 times the payer's expected days to pay, which comes from the payer's Payment Terms.
 
 ### Reading the numbers
 

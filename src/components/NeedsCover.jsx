@@ -35,14 +35,14 @@ export default function NeedsCover({ days, onClose }) {
     })
     if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
     toast({
-      message: `Slot reactivated — ${s.staff.name.split(' ')[0]} covers ${fmtDayLabel(row.appt.date)} · ${s.reasons[0] || 'free at this time'}`,
+      message: `Slot reactivated. ${s.staff.name.split(' ')[0]} covers ${fmtDayLabel(row.appt.date)} (${s.reasons[0] || 'free at this time'}).`,
       kind: 'ok',
       action: { label: 'Undo', onClick: () => actions.update(row.appt.id, prev) },
     })
   }
   const dismiss = (row) => {
     actions.update(row.appt.id, { backfillIgnored: true })
-    toast({ message: 'Left cancelled — backfill hint dismissed', kind: 'info', action: { label: 'Undo', onClick: () => actions.update(row.appt.id, { backfillIgnored: false }) } })
+    toast({ message: 'Left cancelled. Backfill hint dismissed.', kind: 'info', action: { label: 'Undo', onClick: () => actions.update(row.appt.id, { backfillIgnored: false }) } })
   }
 
   return (
@@ -50,7 +50,7 @@ export default function NeedsCover({ days, onClose }) {
       <div className="modal inbox" role="dialog" aria-modal="true" aria-label="Needs cover">
         <div className="modal-head">
           <span className="cover-badge">{Icon.alert({ size: 14 })}</span>
-          <h2>Needs cover — smart backfill</h2>
+          <h2>Needs cover</h2>
           <span className="sbadge">{rows.length} recoverable</span>
           {cfg.backfill.autoFill && eligible.length > 0 && (
             <button
@@ -61,7 +61,7 @@ export default function NeedsCover({ days, onClose }) {
                   const c = row.candidates[0]
                   actions.update(row.appt.id, { status: 'active', staffIds: [c.staff.id], backfilled: true, backfilledFrom: row.appt.staffIds || [], backfillIgnored: false })
                 }
-                toast({ message: `Auto-filled ${eligible.length} slot${eligible.length > 1 ? 's' : ''} — review the new assignments`, kind: 'ok', action: { label: 'Undo all', onClick: () => actions.undo() } })
+                toast({ message: `Auto-filled ${eligible.length} slot${eligible.length > 1 ? 's' : ''} . Review the new assignments.`, kind: 'ok', action: { label: 'Undo all', onClick: () => actions.undo() } })
               }}
             >
               {Icon.spark({ size: 13 })} Auto-fill {eligible.length}

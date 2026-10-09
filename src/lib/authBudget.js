@@ -177,7 +177,7 @@ export function authBand({ win, remaining, pct, weeklyPct, today, cfg = AUTH_GUA
 
 export const AUTH_BANDS = {
   over: { label: 'Over authorization', tone: 'danger', blurb: 'Booked time exceeds the hours on file' },
-  lapsed: { label: 'Authorization lapsed', tone: 'danger', blurb: 'The window has ended — new sessions will deny' },
+  lapsed: { label: 'Authorization lapsed', tone: 'danger', blurb: 'The window has ended. New sessions will deny.' },
   expiring: { label: 'Renewal due', tone: 'warn', blurb: 'Expires soon; start the re-authorization packet' },
   watch: { label: 'Near the cap', tone: 'warn', blurb: 'Most of the authorized time is already committed' },
   under: { label: 'Under-scheduled', tone: 'info', blurb: 'Delivering well below the authorized week' },
@@ -222,7 +222,7 @@ export function authCheckFor(state, client, draft = {}, { today = todayISO() } =
   let severity = 'ok'
 
   if (!win.hasWindow) {
-    reasons.push('No authorization window on file for this client — hours cannot be verified. Record the window before the session is billed.')
+    reasons.push('No authorization window on file for this client, so hours cannot be verified. Record the window before the session is billed.')
     severity = worse(severity, 'flag')
   } else {
     if (probe.date > win.end) {
@@ -235,10 +235,10 @@ export function authCheckFor(state, client, draft = {}, { today = todayISO() } =
     }
     if (burn.remainingHours < 0) {
       const over = Math.abs(burn.remainingHours)
-      reasons.push(`Spends past the authorization by ${round2(over)} h — ${burn.committedHours} h committed against ${win.authorizedHours} h on file (${burn.pct}%).`)
+      reasons.push(`Spends past the authorization by ${round2(over)} h: ${burn.committedHours} h committed against ${win.authorizedHours} h on file (${burn.pct}%).`)
       severity = worse(severity, burn.pct >= cfg.blockAtPct ? 'stop' : 'warn')
     } else if (burn.pct >= cfg.warnAtPct) {
-      reasons.push(`${burn.pct}% of the authorization is committed — ${burn.remainingHours} h left before it is exhausted.`)
+      reasons.push(`${burn.pct}% of the authorization is committed. ${burn.remainingHours} h left before it runs out.`)
       severity = worse(severity, 'warn')
     }
     if (burn.week.cap > 0 && burn.week.hours > burn.week.cap) {
@@ -246,10 +246,10 @@ export function authCheckFor(state, client, draft = {}, { today = todayISO() } =
       severity = worse(severity, 'warn')
     }
     if (win.daysToExpiry != null && win.daysToExpiry >= 0 && win.daysToExpiry <= cfg.expiryUrgentDays) {
-      reasons.push(`Authorization expires in ${win.daysToExpiry} day${win.daysToExpiry === 1 ? '' : 's'} (${win.end}) — sessions after that date deny.`)
+      reasons.push(`Authorization expires in ${win.daysToExpiry} day${win.daysToExpiry === 1 ? '' : 's'} (${win.end}). Sessions after that date deny.`)
       severity = worse(severity, 'warn')
     } else if (win.daysToExpiry != null && win.daysToExpiry > 0 && win.daysToExpiry <= cfg.expiryWarnDays) {
-      reasons.push(`Authorization expires ${win.end} — ${win.daysToExpiry} days away. Start the renewal packet.`)
+      reasons.push(`Authorization expires ${win.end}, ${win.daysToExpiry} days away. Start the renewal packet.`)
       severity = worse(severity, 'flag')
     }
     if (burn.pace.projectedEmpty && burn.remainingHours > 0 && burn.pace.effectiveWeekly > 0) {

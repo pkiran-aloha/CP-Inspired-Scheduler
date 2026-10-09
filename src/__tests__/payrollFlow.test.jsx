@@ -99,7 +99,7 @@ describe('payroll navigation', () => {
     // the landing now reports the draft run and where the cycle stands
     fireEvent.click(screen.getByTestId('pay-wizard-overview'))
     expect(await screen.findByTestId('pay-cycle-phase-1')).toBeTruthy()
-    expect(screen.getByTestId('pay-cycle-hint').textContent).toMatch(/PR-0001 — next: Review register \(phase 2 of 4\)/)
+    expect(screen.getByTestId('pay-cycle-hint').textContent).toMatch(/PR-0001\. Next: Review register \(phase 2 of 4\)/)
   })
 })
 

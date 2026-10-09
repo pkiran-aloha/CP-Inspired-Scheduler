@@ -70,7 +70,7 @@ export const PAYERS = [
   py('Northstar Pediatric Network', 'NPN', 'Insurance', 'ABA Standard', 'Yes', 'active', { street: '510 S Buena Vista St', city: 'Burbank', zip: '91505', phone: '(818) 555-0184', email: 'pednet.auths@northstar.example.com', evvId: 'NPN-PED-330' }),
   py('Coastline Specialty Plan', 'CSP', 'Employer plan', 'Telehealth', 'No', 'active', { street: '1 Marina Blvd', city: 'Daly City', zip: '94015', phone: '(650) 555-0193', email: 'specialtycoast@csp.example.com' }),
   py('Valley Children’s Services', 'VCS', 'Government', 'School-based', 'No', 'inactive', { street: '1400 F St', city: 'Fresno', zip: '93721', phone: '(559) 555-0202', addressNotes: 'Contract paused pending FY re-bid.', email: 'contracts@vcs.example.gov' }),
-  py('Golden State Health Alliance', 'GSHA', 'Insurance', 'None', 'No', 'inactive', { street: '1120 N Street, Ste 3', city: 'Sacramento', zip: '95814', addressNotes: 'Wound-down plan — keep for legacy claims history.', email: 'legacy@gsha.example.com' }),
+  py('Golden State Health Alliance', 'GSHA', 'Insurance', 'None', 'No', 'inactive', { street: '1120 N Street, Ste 3', city: 'Sacramento', zip: '95814', addressNotes: 'Plan wound down. Kept for legacy claims history.', email: 'legacy@gsha.example.com' }),
   py('Riverside Behavioral Trust', 'RBT-9', 'Employer plan', 'ABA + related services', 'Yes', 'inactive', { street: '3850 La Sierra Ave', city: 'Riverside', zip: '92505', addressNotes: 'Awaiting employer renewal; do not route new auths.' }),
 ]
 
@@ -129,7 +129,7 @@ export const TEAM_DEFS = [
 ]
 // Custom Fields master — reusable typed templates; payers only reference these ids
 export const CF_DEFS = [
-  { id: 'cf-authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3', 'School Liaison'], required: false, note: 'Which department issued the auth — printed on the claim remarks.', status: 'active', assignedTo: ['appointment', 'payer'] },
+  { id: 'cf-authdept', label: 'Prior auth dept', type: 'select', options: ['Behavioral Intake 2', 'Auth Review Unit 3', 'School Liaison'], required: false, note: 'Department that issued the auth. Printed in the claim remarks.', status: 'active', assignedTo: ['appointment', 'payer'] },
   { id: 'cf-waiver', label: 'Service waiver on file', type: 'toggle', onLabel: 'Yes', offLabel: 'No', required: false, note: 'Copay/coinsurance waiver documentation received.', status: 'active', assignedTo: ['appointment', 'payer'] },
   { id: 'cf-present', label: 'Caregiver present', type: 'toggle', onLabel: 'Present', offLabel: 'Not present', required: false, note: '', status: 'active', assignedTo: ['appointment', 'payer'] },
   { id: 'cf-goals', label: 'Session focus areas', type: 'multi', options: ['Mandec', 'Toilet training', 'Sleep routine', 'Play skills', 'Feeding', 'Safety skills'], required: false, note: 'Tick every goal targeted during the session.', status: 'active', assignedTo: ['appointment', 'payer'] },
@@ -299,11 +299,11 @@ const NOTE_POOL = {
   service: [
     'High engagement across DTT block; prompt levels down one step vs last week.',
     'Manding trials 18/20 independent. Generalization into play routine next.',
-    'Elopement attempts ×2 during transition — followed BIP, no escape maintained.',
+    'Two elopement attempts during transition. Followed BIP; no escape.',
     'Took data live; program revision queued for next supervisor review.',
     'Net training at sandbox; peer proximity tolerance improved.',
     'Caregiver observed final 10 min and received handout.',
-    'Session ended 5 min early — client fatigued; makeup proposed for Friday.',
+    'Session ended 5 min early (client fatigued). Makeup proposed for Friday.',
     'New reinforcer assessment completed; updated preference menu.',
   ],
   evaluation: ['Standardized administration, no behavior interruptions.', 'VB-MAPP Level 1-2里程碑 captured; report drafting.'],
@@ -418,7 +418,7 @@ export function buildSeed(todayISO) {
           ...autoBilling({ type: 'service', billing: { code: SVC_CODE[s.svc] } }, dur),
           rate: SVC_CODE[s.svc] === '97152' ? (rnd() < 0.5 ? 37 : 35) : autoBilling({}, dur).rate || 16,
         }
-        const notes = status === 'no-show' ? 'Attempted parent contact at scheduled start; documenting for auth.' : status === 'cancelled' ? 'Cancelled by caregiver — reschedule pending.' : past && rnd() < 0.75 ? pick(rnd, NOTE_POOL.service) : ''
+        const notes = status === 'no-show' ? 'Attempted parent contact at scheduled start; documenting for auth.' : status === 'cancelled' ? 'Cancelled by caregiver. Reschedule pending.' : past && rnd() < 0.75 ? pick(rnd, NOTE_POOL.service) : ''
         const vSigStaff = STAFF_BY_ID[staffIds[0]]
         const verification =
           status === 'completed'
@@ -426,7 +426,7 @@ export function buildSeed(todayISO) {
                 completedBy: vSigStaff.id,
                 checks: Object.fromEntries(VERIFY_CHECKS.map((ch, i) => [ch.id, rnd() < (i === 3 ? 0.7 : 0.95)])),
                 verifyStatus: rnd() < 0.8 ? 'verified' : rnd() < 0.6 ? 'flagged' : 'pending',
-                note: rnd() < 0.3 ? 'Nice generalization today — carry into school routine.' : '',
+                note: rnd() < 0.3 ? 'Good generalization today. Carry into the school routine.' : '',
                 signature: {
                   mode: rnd() < 0.5 ? 'draw' : 'type',
                   text: vSigStaff.name,
@@ -476,7 +476,7 @@ export function buildSeed(todayISO) {
               type: 'drive', date: di, start: ds, end: de,
               title: `${ttl} — ${c.name.split(' ')[0]}`, staffIds, clientIds: [c.id], status: 'active',
               location: 'En route', recurrence: 'weekly', seriesId: `${seriesId}-d${off < 0 ? 'a' : 'b'}`,
-              notes: rnd() < 0.25 ? 'Traffic delay logged — drove straight from previous school site.' : '',
+              notes: rnd() < 0.25 ? 'Traffic delay logged. Drove straight from the previous school site.' : '',
               billing: { code: 'H2019', unitMins: 15, minutes: 20, units: 0, rate: 0, mileage: true, distance: dist, mileageRate: 0.7 },
               custom: {},
             })
@@ -573,7 +573,7 @@ export function buildSeed(todayISO) {
       push({
         type: 'supervision', date: sdi, start: ss, end: ss + 60, title: 'Monthly supervision (BCBA→RBT)',
         staffIds: [sup, rbt], clientIds: [], status: d < todayISO ? 'completed' : 'active', location: 'Main Center',
-        notes: rnd() < 0.6 ? 'Fidelity 92% — focused feedback on MOT procedures.' : '', billing: { ...autoBilling({ billing: { code: '97152' } }, 60) },
+        notes: rnd() < 0.6 ? 'Fidelity 92%. Feedback focused on MOT procedures.' : '', billing: { ...autoBilling({ billing: { code: '97152' } }, 60) },
         recurrence: 'weekly', seriesId: `sr-sup-${sup}-${rbt}`, custom: {},
       })
     }
@@ -600,7 +600,7 @@ export function buildSeed(todayISO) {
       push({
         type: 'unavailable', date: di, start: shapes[0], end: shapes[1],
         title: ptoTitle, staffIds: [st.id], clientIds: [], status: 'active',
-        notes: 'Approved by scheduler — covered by float staff.', recurrence: 'none',
+        notes: 'Approved by scheduler. Covered by float staff.', recurrence: 'none',
         custom: {},
         abaHr: Boolean(abaAct), abaActivity: abaAct || undefined,
       })
@@ -755,16 +755,16 @@ const iso = (ms) => isoDate(new Date(ms))
 
 export const REFERRAL_SOURCES = [
   { id: 'rs-peds', name: 'Sunnyvale Pediatrics', kind: 'Pediatrician', contact: 'Dr. Amelia Ford', phone: '(408) 555-0301', email: 'referrals@sunnyvalepeds.example.com', npi: '1437291055', ownerId: 's12', status: 'active', since: '2024-03-01', dormantDays: 60, notes: 'Prefers a same-day fax acknowledgement; asks for a written plan summary.' },
-  { id: 'rs-devpeds', name: 'Bay Area Developmental Pediatrics', kind: 'Developmental pediatrician', contact: 'Dr. Rohan Mehta', phone: '(408) 555-0302', email: 'intake@baydevpeds.example.com', npi: '1780664211', ownerId: 's9', status: 'active', since: '2023-08-14', dormantDays: 60, notes: 'Diagnostic reports usually arrive with the referral — always ask.' },
+  { id: 'rs-devpeds', name: 'Bay Area Developmental Pediatrics', kind: 'Developmental pediatrician', contact: 'Dr. Rohan Mehta', phone: '(408) 555-0302', email: 'intake@baydevpeds.example.com', npi: '1780664211', ownerId: 's9', status: 'active', since: '2023-08-14', dormantDays: 60, notes: 'Diagnostic reports usually arrive with the referral. Always ask.' },
   { id: 'rs-neuro', name: 'Coast Neurology Associates', kind: 'Neurologist', contact: 'Dr. Priya Nair', phone: '(650) 555-0303', email: 'newpatients@coastneuro.example.com', npi: '1194837260', ownerId: 's9', status: 'active', since: '2025-01-20', dormantDays: 90, notes: 'Wants feedback on assessment outcome for shared patients.' },
   { id: 'rs-fusd', name: 'Fremont Unified School District', kind: 'School district', contact: 'Special Ed Services', phone: '(510) 555-0171', email: 'special.edservices@fusd.example.edu', npi: '', ownerId: 's12', status: 'active', since: '2022-09-06', dormantDays: 120, notes: 'School-year referral waves; IEP must accompany the referral.' },
   { id: 'rs-rc', name: 'Regional Center of the East Bay', kind: 'Regional center', contact: 'Intake desk', phone: '(510) 555-0304', email: 'servicecoord@rceb.example.gov', npi: '', ownerId: 's12', status: 'active', since: '2021-06-01', dormantDays: 120, notes: 'Vendor number required on every authorisation request.' },
-  { id: 'rs-slp', name: 'Little Voices Speech & OT', kind: 'Other provider (SLP/OT)', contact: 'Marcy Lin, CCC-SLP', phone: '(408) 555-0305', email: 'hello@littlevoices.example.com', npi: '1558302941', ownerId: 's11', status: 'active', since: '2024-11-11', dormantDays: 90, notes: 'Co-treatment friendly — flag speech co-treatment requests.' },
+  { id: 'rs-slp', name: 'Little Voices Speech & OT', kind: 'Other provider (SLP/OT)', contact: 'Marcy Lin, CCC-SLP', phone: '(408) 555-0305', email: 'hello@littlevoices.example.com', npi: '1558302941', ownerId: 's11', status: 'active', since: '2024-11-11', dormantDays: 90, notes: 'Open to co-treatment. Flag speech co-treatment requests.' },
   { id: 'rs-self', name: 'Family self-referral', kind: 'Self / family', contact: '—', phone: '', email: '', npi: '', ownerId: 's12', status: 'active', since: '2022-01-04', dormantDays: 999, notes: 'Word of mouth and returning families. Ask the family to bring the diagnostic report.' },
   { id: 'rs-web', name: 'Website / online form', kind: 'Web form / marketing', contact: '—', phone: '', email: 'web@alohaaba.example.com', npi: '', ownerId: 's12', status: 'active', since: '2023-02-15', dormantDays: 45, notes: 'Response-time target: 15 minutes in business hours.' },
   { id: 'rs-hospital', name: 'Valley Children’s Hospital — Neurodevelopment', kind: 'Hospital / ED', contact: 'Discharge planning', phone: '(559) 555-0310', email: 'referrals@vch.example.org', npi: '1029384756', ownerId: 's9', status: 'active', since: '2025-04-02', dormantDays: 90, notes: 'Discharge-driven referrals; timeline is tight, escalate on receipt.' },
   { id: 'rs-community', name: 'Autism Society — South Bay chapter', kind: 'Community organisation', contact: 'Helpline volunteers', phone: '(408) 555-0311', email: 'southbay@autismsociety.example.org', npi: '', ownerId: 's12', status: 'active', since: '2024-05-19', dormantDays: 180, notes: 'High-volume, lower-conversion source; expect insurance eligibility issues.' },
-  { id: 'rs-legacy-peds', name: 'Evergreen Family Medicine', kind: 'Pediatrician', contact: 'Front office', phone: '(408) 555-0312', email: '', npi: '1338274610', ownerId: null, status: 'dormant', since: '2021-03-10', dormantDays: 60, notes: 'No referrals since the practice changed ownership — relationship owner left.' },
+  { id: 'rs-legacy-peds', name: 'Evergreen Family Medicine', kind: 'Pediatrician', contact: 'Front office', phone: '(408) 555-0312', email: '', npi: '1338274610', ownerId: null, status: 'dormant', since: '2021-03-10', dormantDays: 60, notes: 'No referrals since the practice changed ownership. The relationship owner left.' },
 ]
 
 // request builder: keeps the seed readable while every record carries the full schema
@@ -839,7 +839,7 @@ export function seedIntake(ctx = {}) {
     first: 'Maya', last: 'Ellison', dob: '2021-04-18', gender: 'F', phone: '(408) 555-0321', email: 'r.ellison@example.com', city: 'Santa Clara', zip: '95050',
     guardian: { name: 'Rachel Ellison', relation: 'Mother', phone: '(408) 555-0321', email: 'r.ellison@example.com', addressSame: true },
     concerns: 'Web form: 4-year-old, no diagnosis yet, frequent meltdowns at preschool. Asked about evaluation timelines.',
-    notes: 'Overnight web form — first call owed within 15 minutes per source SLA.',
+    notes: 'Overnight web form. First call due within 15 minutes under the source SLA.',
     contacts: [], events: [{ at: at(0), by: null, ev: 'Request created from the website form (unassigned overnight)' }],
   }))
 
@@ -856,7 +856,7 @@ export function seedIntake(ctx = {}) {
     first: 'Liam', last: 'Novak', dob: '2020-07-09', phone: '(408) 555-0323', city: 'Campbell', zip: '95008',
     guardian: { name: 'Petra Novak', relation: 'Mother', phone: '(408) 555-0323', email: 'p.novak@example.com', addressSame: true },
     concerns: 'Faxed referral received; the practice changed ownership and no relationship owner is assigned.',
-    referringNpi: '1338274610', notes: 'Source is dormant — confirm the sender before treating this as a live relationship.',
+    referringNpi: '1338274610', notes: 'Source is dormant. Confirm the sender before treating this as an active relationship.',
     contacts: [], events: [{ at: at(2), by: 's12', ev: 'Referral fax received' }],
   }))
 
@@ -869,7 +869,7 @@ export function seedIntake(ctx = {}) {
     contacts: [
       { id: 'c1', at: at(1, 3), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Spoke with mother; collecting the diagnostic report and insurance card.', nextStepAt: iso(at(-2)) },
     ],
-    events: [{ at: at(5), by: 's12', ev: 'Referral logged from Sunnyvale Pediatrics' }, { at: at(1, 3), by: 's12', ev: 'Contact attempt logged — reached (Phone)' }],
+    events: [{ at: at(5), by: 's12', ev: 'Referral logged from Sunnyvale Pediatrics' }, { at: at(1, 3), by: 's12', ev: 'Contact attempt logged: reached (Phone)' }],
   }))
 
   put(req('iq-1005', 'INT-1005', 'contacted', {
@@ -896,7 +896,7 @@ export function seedIntake(ctx = {}) {
     screen: { fit: 'fit', at: at(2), by: 's12', notes: 'Age and service area confirmed; clinically appropriate for a center-based assessment.' },
     docs: { diagnostic_report: received(4, 's12'), prior_records: { status: 'requested', at: at(2), by: 's12', note: 'ROI sent to Little Voices' } },
     contacts: [{ id: 'c1', at: at(10), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Completed the intake questionnaire with the mother.' }],
-    events: [{ at: at(12), by: 's12', ev: 'Referral logged from Bay Area Developmental Pediatrics' }, { at: at(2), by: 's12', ev: 'Clinical pre-screen saved — fit' }],
+    events: [{ at: at(12), by: 's12', ev: 'Referral logged from Bay Area Developmental Pediatrics' }, { at: at(2), by: 's12', ev: 'Clinical pre-screen saved: fit' }],
   }))
 
   put(req('iq-1007', 'INT-1007', 'screened', {
@@ -908,10 +908,10 @@ export function seedIntake(ctx = {}) {
     priorTherapy: true, priorNotes: 'School-based ABA for one year in another district.',
     setting: 'School-based', serviceLine: 'School-based inclusion', program: 'School-based · Inclusion', iep: true, school: 'Jefferson Elementary',
     guardianNote: '', guardianshipNote: '',
-    screen: { fit: 'maybe', at: at(1), by: 's9', notes: 'Clinically appropriate but school-based capacity is tight this term — check staffing before promising a date.' },
+    screen: { fit: 'maybe', at: at(1), by: 's9', notes: 'Clinically appropriate, but school-based capacity is tight this term. Check staffing before promising a date.' },
     docs: { iep_ifsp: received(3, 's12') },
     contacts: [{ id: 'c1', at: at(3), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Mother confirmed the district referral and IEP date.' }],
-    events: [{ at: at(4), by: 's12', ev: 'District referral received (urgent — school exclusion risk)' }],
+    events: [{ at: at(4), by: 's12', ev: 'District referral received (urgent: school exclusion risk)' }],
   }))
 
   put(req('iq-1008', 'INT-1008', 'benefits', {
@@ -955,7 +955,7 @@ export function seedIntake(ctx = {}) {
     docs: { diagnostic_report: received(18, 's12'), referral: received(18, 's12'), insurance_card: received(19, 's12'), prior_records: received(12, 's12') },
     contacts: [{ id: 'c1', at: at(20), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed with the mother.' }, { id: 'c2', at: at(8), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Benefits verification completed with the payer.' }],
     screen: { fit: 'fit', at: at(19), by: 's12', notes: 'Home-based services clinically appropriate; needs a BCBA with Spanish-language capacity.' },
-    events: [{ at: at(22), by: 's12', ev: 'Regional center referral logged' }, { at: at(8), by: 's12', ev: 'Benefits verified — Medi-Cal, no cost share' }],
+    events: [{ at: at(22), by: 's12', ev: 'Regional center referral logged' }, { at: at(8), by: 's12', ev: 'Benefits verified: Medi-Cal, no cost share' }],
   }))
 
   put(req('iq-1011', 'INT-1011', 'review', {
@@ -969,7 +969,7 @@ export function seedIntake(ctx = {}) {
     vob: { status: 'complete', at: at(12), by: 's12', repName: 'Priya S.', refNo: 'VOB-22788', callPhone: '(844) 555-0149', inNetwork: true, abaCovered: true, coinsurance: 0, priorAuthRequired: true, notes: 'Authorisation required; plan confirmed intensive hours are medically necessary.' },
     docs: { diagnostic_report: received(25, 's12'), referral: received(25, 's12'), insurance_card: received(26, 's12') },
     contacts: [{ id: 'c1', at: at(28), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Discharge planner confirmed the referral.' }, { id: 'c2', at: at(14), by: 's12', channel: 'Email', direction: 'outbound', outcome: 'email_sent', summary: 'Sent the service-area confirmation and requested records.' }],
-    screen: { fit: 'fit', at: at(27), by: 's9', notes: 'Urgent: safety risk. Clinical review owed — this record is over its stage SLA.' },
+    screen: { fit: 'fit', at: at(27), by: 's9', notes: 'Urgent: safety risk. Clinical review is overdue; this record is past its stage SLA.' },
     notes: 'Escalated by the clinical director. Clinical review has been open 11 days against a 1-day urgent budget.',
     events: [{ at: at(30), by: 's12', ev: 'Hospital referral received (urgent)' }, { at: at(11), by: 's9', ev: 'Assigned to Dr. Rohit Srivastava for clinical review' }],
   }))
@@ -987,7 +987,7 @@ export function seedIntake(ctx = {}) {
     waitlist: { reason: 'No assessment slot', priority: '2 · Medium', since: at(15), reviewBy: iso(at(-9)), position: 3, notes: 'Co-treatment slot opens when the SLP returns from leave.' },
     contacts: [{ id: 'c1', at: at(38), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed.' }, { id: 'c2', at: at(5), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Monthly waitlist check-in call; family is still keen.' }],
     screen: { fit: 'fit', at: at(37), by: 's12', notes: 'Clinically ready; capacity-gated.' },
-    events: [{ at: at(40), by: 's12', ev: 'Referral logged from Little Voices' }, { at: at(15), by: 's12', ev: 'Placed on the waitlist — No assessment slot' }],
+    events: [{ at: at(40), by: 's12', ev: 'Referral logged from Little Voices' }, { at: at(15), by: 's12', ev: 'Placed on the waitlist: no assessment slot' }],
   }))
 
   put(req('iq-1013', 'INT-1013', 'waitlist', {
@@ -997,11 +997,11 @@ export function seedIntake(ctx = {}) {
     dxStatus: 'referral_only', concerns: 'Family self-referred via the community helpline; no diagnosis yet, benefits unverified.',
     setting: 'Home-based', serviceLine: 'Home program (NET)',
     payer: medi, memberId: '', planType: 'Medicaid',
-    vob: { status: 'pending', notes: 'No member ID yet — this record is on the waitlist with benefits still open.' },
+    vob: { status: 'pending', notes: 'No member ID yet. This record is on the waitlist with benefits still open.' },
     waitlist: { reason: 'No technician capacity', priority: '3 · Low', since: at(34), reviewBy: '', position: 7, notes: 'Family cannot start before the school year; benefits also outstanding.' },
     contacts: [{ id: 'c1', at: at(60), by: 's12', channel: 'Email', direction: 'outbound', outcome: 'email_sent', summary: 'Sent the intake packet.' }],
     notes: 'Stalled: 34 days in waitlist with no touch and no promised review date.',
-    events: [{ at: at(65), by: 's12', ev: 'Web form request created' }, { at: at(34), by: 's12', ev: 'Placed on the waitlist — No technician capacity' }],
+    events: [{ at: at(65), by: 's12', ev: 'Web form request created' }, { at: at(34), by: 's12', ev: 'Placed on the waitlist: no technician capacity' }],
   }))
 
   const bookedAppt = evals[0]
@@ -1036,7 +1036,7 @@ export function seedIntake(ctx = {}) {
     assessment: { date: iso(at(6)), instrument: 'VB-MAPP', outcome: 'recommended', recommendedHoursPerWeek: 20, recommendedSetting: 'Center-based · 1:1', completedBy: 's2', reportDueBy: iso(at(-4)) },
     contacts: [{ id: 'c1', at: at(45), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Pre-screen completed.' }, { id: 'c2', at: at(7), by: 's2', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Debriefed the assessment findings with the mother.' }],
     screen: { fit: 'fit', at: at(43), by: 's12', notes: 'Centre-based services appropriate.' },
-    events: [{ at: at(48), by: 's12', ev: 'Referral logged' }, { at: at(6), by: 's2', ev: 'Assessment completed — VB-MAPP, ABA recommended' }],
+    events: [{ at: at(48), by: 's12', ev: 'Referral logged' }, { at: at(6), by: 's2', ev: 'Assessment completed: VB-MAPP, ABA recommended' }],
   }))
 
   put(req('iq-1016', 'INT-1016', 'auth', {
@@ -1063,20 +1063,20 @@ export function seedIntake(ctx = {}) {
     first: 'Ada', last: 'Okonkwo', dob: '2020-11-02', gender: 'F', phone: '(408) 555-0341', email: 'okonkwo.family@example.com', city: 'Santa Clara', zip: '95051',
     guardian: { name: 'Chidi Okonkwo', relation: 'Father', phone: '(408) 555-0341', email: 'okonkwo.family@example.com', addressSame: true },
     referredBy: 'Dr. Rohan Mehta', referringNpi: '1780664211', dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder, Level 1',
-    concerns: 'Authorisation approved — the family is ready to start and is waiting on a technician match for the first session.',
+    concerns: 'Authorization approved. The family is ready to start and is waiting for a technician match for the first session.',
     setting: 'Home-based', serviceLine: 'EIBI · Early intervention', program: 'EIBI · Home program', bcba: 's4', clinician: 's4',
     payer: bsca, memberId: 'BSC-7742119', subscriber: 'Chidi Okonkwo', subDob: '1986-02-17', planType: 'Commercial',
     vob: { status: 'complete', at: at(31), by: 's12', repName: 'Denise M.', refNo: 'VOB-22891', callPhone: '(800) 555-0114', inNetwork: true, abaCovered: true, coinsurance: 10, copay: 0, deductible: 500, deductibleMet: 500, priorAuthRequired: true, telehealthCovered: true },
     docs: { diagnostic_report: received(33, 's2'), referral: received(33, 's2'), insurance_card: received(32, 's12'), consent_treat: received(6, 's12'), hipaa_roi: received(6, 's12'), financial_resp: received(5, 's12') },
     consents: [{ id: 'consent_treat', at: at(6), by: 's12', method: 'e-sign' }, { id: 'hipaa_roi', at: at(6), by: 's12', method: 'e-sign' }, { id: 'financial_resp', at: at(5), by: 's12', method: 'portal' }],
     assessment: { date: iso(at(14)), instrument: 'VB-MAPP', outcome: 'recommended', recommendedHoursPerWeek: 20, recommendedSetting: 'Home-based', completedBy: 's4', reportDueBy: iso(at(4)) },
-    auth: { submittedAt: iso(at(9)), requestRef: 'PA-559004', unitsRequested: 240, units: 240, windowStart: iso(at(1)), windowEnd: iso(at(85)), decision: 'approved', decisionAt: iso(at(3)), authNo: 'AUTH-1022', notes: 'Approved as requested — 20 h/week for 12 weeks.' },
+    auth: { submittedAt: iso(at(9)), requestRef: 'PA-559004', unitsRequested: 240, units: 240, windowStart: iso(at(1)), windowEnd: iso(at(85)), decision: 'approved', decisionAt: iso(at(3)), authNo: 'AUTH-1022', notes: 'Approved as requested: 20 h/week for 12 weeks.' },
     contacts: [
       { id: 'c1', at: at(37), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Intake call with the father; fax referral acknowledged to Dr. Mehta the same day.' },
       { id: 'c2', at: at(3), by: 's12', channel: 'Phone', direction: 'inbound', outcome: 'reached', summary: 'Family called to confirm the approval and asked what happens next.' },
     ],
     screen: { fit: 'fit', at: at(34), by: 's12', notes: 'Early-intervention window; father works from home so daytime sessions are workable.' },
-    events: [{ at: at(39), by: 's12', ev: 'Referral logged from Bay Area Developmental Pediatrics' }, { at: at(3), by: 's12', ev: 'Authorisation approved (AUTH-1022) — ready to convert' }],
+    events: [{ at: at(39), by: 's12', ev: 'Referral logged from Bay Area Developmental Pediatrics' }, { at: at(3), by: 's12', ev: 'Authorization approved (AUTH-1022). Ready to convert' }],
   }))
   ready.guardianVerifiedAt = at(2)
 
@@ -1097,7 +1097,7 @@ export function seedIntake(ctx = {}) {
       phone: c.phone, city: c.city, zip: c.zip, office: 'Main Center',
       guardian: { name: c.guardianName, relation: 'Parent', phone: c.phone, email: '', addressSame: true },
       dxStatus: 'confirmed', dx: 'Autism Spectrum Disorder',
-      concerns: 'Converted intake — chart created and linked.', setting: 'Center-based', serviceLine: 'Center-based 1:1',
+      concerns: 'Converted intake. Chart created and linked.', setting: 'Center-based', serviceLine: 'Center-based 1:1',
       bcba: 's1', clinician: 's1', payer, memberId: `MEM-${c.id.slice(-4).toUpperCase()}`, subscriber: c.guardianName, subDob: '1988-01-01', planType: c.insurer === 'Medicaid (CA)' ? 'Medicaid' : 'Commercial',
       vob: { status: 'complete', at: at(c.daysAgo - 60), by: 's12', repName: 'Verified', refNo: `VOB-${1000 + c.daysAgo}`, inNetwork: true, abaCovered: true, priorAuthRequired: true },
       docs: { diagnostic_report: received(c.daysAgo - 70, 's12'), referral: received(c.daysAgo - 70, 's12'), insurance_card: received(c.daysAgo - 65, 's12'), consent_treat: received(c.daysAgo - 40, 's12'), hipaa_roi: received(c.daysAgo - 40, 's12'), financial_resp: received(c.daysAgo - 38, 's12') },
@@ -1123,9 +1123,9 @@ export function seedIntake(ctx = {}) {
     dxStatus: 'suspected', concerns: 'Insurance check came back out of network.',
     payer: null, planType: 'Commercial',
     lost: { reason: 'insurance', notes: 'Plan confirmed out of network for ABA and the family declined self-pay.', at: at(40), by: 's12' },
-    docs: {}, notes: 'Tracked as a demand signal — out-of-network plans are the top loss reason this quarter.',
+    docs: {}, notes: 'Tracked as a demand signal. Out-of-network plans are the top loss reason this quarter.',
     contacts: [{ id: 'c1', at: at(43), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'reached', summary: 'Explained network status and self-pay options.' }],
-    events: [{ at: at(44), by: 's12', ev: 'Web form request created' }, { at: at(40), by: 's12', ev: 'Closed — insurance not accepted / not active' }],
+    events: [{ at: at(44), by: 's12', ev: 'Web form request created' }, { at: at(40), by: 's12', ev: 'Closed: insurance not accepted / not active' }],
   }))
 
   put(req('iq-1021', 'INT-1021', 'closed', {
@@ -1137,9 +1137,9 @@ export function seedIntake(ctx = {}) {
     contacts: [
       { id: 'c1', at: at(20), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'voicemail', summary: 'Left a voicemail.' },
       { id: 'c2', at: at(18), by: 's12', channel: 'Text / SMS', direction: 'outbound', outcome: 'email_sent', summary: 'Texted the intake line and hours.' },
-      { id: 'c3', at: at(17), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'no_answer', summary: 'Final attempt — no answer.' },
+      { id: 'c3', at: at(17), by: 's12', channel: 'Phone', direction: 'outbound', outcome: 'no_answer', summary: 'Final attempt. No answer.' },
     ],
-    events: [{ at: at(21), by: 's12', ev: 'Phone request logged' }, { at: at(16), by: 's12', ev: 'Closed — unable to reach the family' }],
+    events: [{ at: at(21), by: 's12', ev: 'Phone request logged' }, { at: at(16), by: 's12', ev: 'Closed: unable to reach the family' }],
   }))
 
   return { intakeRequests, referralSources: REFERRAL_SOURCES, clientPatches }

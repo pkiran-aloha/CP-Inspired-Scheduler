@@ -1,6 +1,6 @@
-# Aloha ABA Practice Suite — marketing copy
+# Aloha ABA Practice Suite: marketing copy
 
-_Last synced against main beabf9e plus the appointment location suggestions on 2026-10-07._
+_Last synced against main beabf9e plus the appointment location suggestions on 2026-10-07; feat/copy-and-infotips on 2026-10-09 (plain copy, Calm screens)._
 
 Every claim on this page maps to shipped code (see the [Source map](#source-map)). Ground rules for anyone editing it: the app is a local-first prototype with no backend, nothing it does leaves the browser, the bundled data is fictional, and there are no customers, metrics or testimonials to quote. Words to use: *generates, prepares, records, exports, posts locally*. Words never to use: *sends, submits to the payer, syncs, connects, compliant, certified*.
 
@@ -56,8 +56,8 @@ The booking dialog shows what a booking will do to the client's authorization, t
 - **Book-time authorization guard.** Shows committed and remaining hours, the weekly pace against the authorized week, days to expiry and a projected exhaustion date. Off, flag, warn or stop, chosen by the practice; the default is warn.
 - **Per-code unit ledger with payer rules.** Authorizations carry unit pools per CPT code. Minutes convert to units by the payer's own unit size and rounding, with the Medicaid / CPT norm as the default (15-minute units, the 8-minute midpoint rule), and daily MUE limits, weekly per-code limits and credential rules are checked at booking.
 - **Know before you pick.** Every staff member and client in the booking pickers carries a verdict chip, and one Checks panel in the dialog shows every issue in a shared severity language.
-- **The decision at a glance.** The Checks panel opens with one line ("Review before booking", "Clear to book") and draws the numbers that matter: the client's authorized hours as used, booked and left, each clinician's week against their target, and the session's cancellation risk, drive time and history together. One line of why per check; the detail is a click away.
-- **Best person, best slot.** Under every name in the pickers: how many sessions they have had with this child, their hours this week against target, an estimated drive from their last stop, and for each child the authorized hours still open this week and their usual time. One badge marks the best clear fit. If the slot clashes, the dialog lists open times that work for everyone picked. Advice only: nothing books until you save.
+- **The decision on top.** The Checks panel opens with one line ("Review before booking", "Clear to book") and draws the numbers that matter: the client's authorized hours as used, booked and left, each clinician's week against their target, and the session's cancellation risk, drive time and history together. Each check gives one line of reason; the detail opens on click.
+- **Pick fit for staff and times.** Under every name in the pickers: how many sessions they have had with this child, their hours this week against target, an estimated drive from their last stop, and for each child the authorized hours still open this week and their usual time. One badge marks the best clear fit. If the slot clashes, the dialog lists open times that work for everyone picked. Advice only: nothing books until you save.
 - **Scheduler Insights panel.** Fill against an 85–95% band, a weekday × hour coverage heat grid, named idle windows per clinician, density-move suggestions for split days, an authorization burn-down and an at-risk session worklist.
 - **Repeating sessions that behave like Google Calendar.** Daily, weekdays, weekly on any set of days, every N weeks, monthly by date or by "second Tuesday" / "last Friday", yearly. Each series ends on a date, after N sessions, or never (booked up to 12 months ahead). Edit or cancel this session, this and following, or the whole series, with one Undo. Completed, billed, claimed and payroll-approved sessions are never touched by a series change, and the result tells you how many were kept and why.
 - **Five calendar views:** day, week, month, agenda and timeline, with drag-to-move and resize, a backfill inbox for cancelled sessions a qualified colleague could cover, and a Cmd/Ctrl+K command palette.
@@ -68,9 +68,9 @@ The booking dialog shows what a booking will do to the client's authorization, t
 - **Room kept for new families.** Hold back 10–20% of each hour for new starts and same-day needs, and see on the coverage grid exactly where this week's bookings are already eating into it.
 - **Overbooking guidance you can defend.** Scheduler Insights shows which weekday afternoons and mornings have lost a session in at least the confidence you set (70/80/90, default 80) of the last 12 weeks, so one extra session booked there (on a clinician who is free) would usually have been absorbed, and names standby families who are behind their authorized hours. The booking dialog flags a new session that lands in one of those blocks. It never suggests putting two clients on one clinician, never scores families, and books nothing. Family cancellations you were told about in time are left out of the backtest, at the same notice threshold your risk scores use.
 - **Per-clinician day route view.** Scheduler Insights has a Travel tab that lists each clinician's day as legs with travel minutes, tight/impossible flags and totals, plus a read-only suggested re-order that saves miles. Nothing moves on the calendar.
-- **See the caseload ramp before it lands.** Scheduler Insights' Ramp tab walks the next 12 weeks: the authorized hours already on your charts plus open intake requests at their requested hours, set against your clinicians' working days minus blocked time on the practice days you select in System Settings (Monday–Friday by default), split RBT vs BCBA. An authorization that ends mid-horizon drops to zero and the week is marked renewal pending — renewals are never assumed, and intake is never weighted by a conversion rate, so you see known work, not a forecast. Weeks where demand outruns supply are flagged. A strip on the same tab says whether a short week is an hours gap (hire or contract) or a template problem (reshape first) from that week's fill — never a headcount, never a forecast. It books nothing.
+- **See the caseload ramp before it lands.** Scheduler Insights' Ramp tab walks the next 12 weeks: the authorized hours already on your charts plus open intake requests at their requested hours, set against your clinicians' working days minus blocked time on the practice days you select in System Settings (Monday–Friday by default), split RBT vs BCBA. An authorization that ends mid-horizon drops to zero and the week is marked renewal pending. Renewals are never assumed and intake is never weighted by a conversion rate, so the ramp shows known work only. Weeks where demand outruns supply are flagged. A strip on the same tab says whether a short week is an hours gap (hire or contract) or a template problem (reshape first) from that week's fill. It gives no headcount and books nothing.
 
-### Cancellations: know why sessions are lost, not just how many
+### Cancellations: record why sessions are lost
 
 A cancellation records a reason from the practice's own list, and each reason is marked as falling on the family's side or the practice's side. The risk score stops blaming families for a technician's sick day.
 
@@ -102,7 +102,7 @@ Completed sessions become claim-ready lines and are grouped into claims. Submiss
 - **Provider ID rule per payer:** NPI, Medicaid ID or both. It drives the appointment validation, the claim gate and the CMS-1500 provider items (24I/24J, 33a, 33b), and a readiness line names who cannot yet be billed under it.
 - **Payer-specific mileage codes, never a guess.** The practice records each payer's approved CPT/HCPCS mileage code; lines without the current payer code are held, and CPT 14220 is not treated as mileage.
 - **Medicaid unit norms by default.** The ABA codes bill per 15 minutes under the midpoint rule, and the booking dialog, Quick Add and the claim all count units with the payer's own rule, so the authorization pool and the claim agree.
-- **Modifiers on every line, from the payer's settings.** Each insurance claim line carries up to four modifiers: the payer's service modifier, the rendering provider's credential modifier (HO, HN, HM, HP), the payer's qualification modifier for that clinician's education level (first matching row; blanks add nothing) and the payer's place-of-service modifier. The credential modifier can be switched off per payer, and the staff record's education level is optional — the payer panel reports anyone missing one instead of guessing.
+- **Modifiers on every line, from the payer's settings.** Each insurance claim line carries up to four modifiers: the payer's service modifier, the rendering provider's credential modifier (HO, HN, HM, HP), the payer's qualification modifier for that clinician's education level (first matching row; blanks add nothing) and the payer's place-of-service modifier. The credential modifier can be switched off per payer, and the staff record's education level is optional. The payer panel lists anyone missing one instead of guessing.
 - **Same-day merge and claim splitting.** By default, same-day sessions for one client, code and rendering provider become one line with their minutes added up and rounded once, the Medicaid way. A payer can turn that off, or ask for separate claims by rendering provider or place of service.
 - **CMS-1500 (02/12) built to the NUCC manual and the CMS print grid.** Every item follows the NUCC v13 rules: names as LAST, FIRST, M; no punctuation; dates in their sub-fields; dollars and cents in their own columns; ICD-10 without the dot; G2 for Medicaid IDs. Every character lands on the form's 10-per-inch, 6-lines-per-inch grid. **Red form print** puts only the data on genuine red-ink forms, the paper claim scanning payers accept. The **review copy** draws the form as well, for checking and your files. It is a PDF you print, not an electronic filing; the member ID, diagnosis codes and authorization number come from the client chart, never from a placeholder.
 - **Denials, rebills and appeals:** record a denial with a reason and next step from the practice's own list, void and rebill with disputed lines returned to staging, and download an appeal letter built from a template, your note and the recorded denial reason. An appeal is a mark on the claim, not a new status: a win re-opens the claim awaiting the payer's payment, and the money is posted when it actually arrives.
@@ -137,7 +137,7 @@ A/R Manager counts each dollar once. Insurance balances and the patient share th
 
 ### Payroll: pay the way an ABA practice actually works
 
-Each paid duty is priced on its own, overtime is tested by workweek, and approval takes a second person. The engine is built around session-delivery pay, not hours × rate.
+Each paid duty is priced on its own, overtime is tested by workweek, and approval takes a second person. The engine prices session delivery, with each duty on its own code.
 
 - **Separate earning codes** for direct treatment, supervision, drive time, documentation, training and cancelled-session pay, all editable in Settings.
 - **FLSA-aware overtime:** the workweek test, the regular-rate rule for nondiscretionary additions, and a 1.5× overtime floor the settings will not go below.
@@ -145,7 +145,7 @@ Each paid duty is priced on its own, overtime is tested by workweek, and approva
 - **Guided four-phase run:** select period, review the register with blocker and exception gates, approve, then process. Approval is refused if the person who prepared the run tries to approve it.
 - **Exports are files you hand off:** payroll register (XLS/PDF), a QuickBooks-oriented earnings import, a GL journal, printable pay stubs and a NACHA-shaped direct-deposit draft labelled as a draft. Gross-to-net figures are estimates and say so.
 
-### Dashboard and reports: the numbers behind every decision, one click away
+### Dashboard and reports: one metrics engine for every figure
 
 A configurable dashboard and a report library share one metrics engine, so the same figure reads the same everywhere it appears.
 
@@ -171,7 +171,7 @@ Thirteen settings modules hold the practice's own rules. Masters are edited in o
 - **View density:** Relaxed, Normal or Tight. Relaxed adds space and larger text for long sessions at the desk; Tight fits more rows and more of the day on one screen, with text kept readable and every button large enough to hit.
 - **ABA Hours tracking** for behavior-analytic time on non-service appointments, tallied by credential track against targets the practice sets.
 
-### Security, Undo and backup: mistakes are one keystroke from fixed
+### Security, Undo and backup: one step reverses a change
 
 Every financial or compound change is one reducer transaction, so one Undo reverses all of it. The whole workspace exports to a versioned file you can inspect before you restore it.
 
@@ -185,15 +185,17 @@ Every financial or compound change is one reducer transaction, so one Undo rever
 
 ## Why practices trust it
 
-**Guards over warnings.** Invalid financial and configuration states are refused, not just flagged: an overpayment, a recoupment larger than the payment, an office that records still depend on, an overtime multiplier below 1.5×. Scheduling is different on purpose. Booking guards default to *warn*, because the scheduler knows the family, and *stop* is a setting the practice chooses for itself.
+**Guards over warnings.** Invalid financial and configuration states are refused, not only flagged: an overpayment, a recoupment larger than the payment, an office that records still depend on, an overtime multiplier below 1.5×. Scheduling is different on purpose. Booking guards default to *warn*, because the scheduler knows the family, and *stop* is a setting the practice chooses for itself.
 
 **One action, one Undo.** A claim batch and its billed-file record, an ERA's payments and denials, a conversion that creates a chart and moves an appointment: each is one transaction, and one Undo puts every part of it back. Nothing is left half-applied.
 
 **Honest software.** The interface states exactly what happened on your machine. Generating a billed file is not transmitting it. Confirming a session is not texting the family. Recording an external COB filing is not filing it. Where a real connection would need a backend, the app says so instead of pretending.
 
+**Calm screens.** Each screen shows the work, not a manual. How a screen works sits behind an info button next to its title, with a link to the matching Help page. Errors, warnings and what the app did or did not send stay in view.
+
 **Built for the whole practice.** Schedulers, billing staff, clinicians and owners each find their own work (calendar, payment center, intake requests they own, dashboards) without wading through another role's screens.
 
-**Fictional data, real rules.** The demo ships with an invented practice, so you can explore every workflow safely. Do not enter real client information. The production path (backend, authentication, hosting, compliance) is still open, and the copy will say so until it is chosen.
+**Fictional data.** The demo ships with an invented practice, so you can explore every workflow safely. Do not enter real client information. The production path (backend, authentication, hosting, compliance) is still open, and the copy will say so until it is chosen.
 
 ---
 
@@ -209,13 +211,13 @@ One workspace for ABA scheduling, intake, billing and payroll. Every change is c
 
 ### Social posts
 
-1. Authorization problems are cheapest to fix before the session is booked. Aloha ABA shows remaining units, payer daily and weekly limits, and the projected exhaustion date in the booking dialog, not in next month's denial report.
+1. Authorization problems are cheapest to fix before the session is booked. Aloha ABA shows remaining units, payer daily and weekly limits, and the projected exhaustion date in the booking dialog, before the claim is ever built.
 
 2. "12% cancellations" tells you nothing. "Most of these are transport, and they cluster on Fridays" tells you what to do. Aloha ABA records a reason on every cancellation and rolls them up by side, weekday and time of day.
 
 3. An ERA line that doesn't match a claim exactly shouldn't be posted on a guess. Aloha ABA parks it with the reason and posts only what you select and confirm, as one undoable step.
 
-4. Payroll for ABA is not hours × rate. Drive time, supervision, documentation and late-cancel pay each get their own earning code; overtime is a workweek test; and the person who prepared the run can't approve it.
+4. ABA payroll needs more than hours times a rate. Drive time, supervision, documentation and late-cancel pay each get their own earning code; overtime is a workweek test; and the person who prepared the run can't approve it.
 
 5. Our rule for every screen: say exactly what happened. Aloha ABA generates files, prepares drafts and records what you did elsewhere. It never claims to have sent anything, because it doesn't.
 
@@ -243,6 +245,6 @@ When a file in the right-hand column changes, re-check the copy in the matching 
 | Settings & payer rules | `src/lib/settingsMasters.js` (`planSettingsOp`), `src/lib/dataImport.js`, `src/lib/abaHours.js`, `src/components/settings/*`, `src/components/PayerDetail.jsx`, `src/lib/master.js` (payer rule defaults, POS codes), `src/components/MastersView.jsx`, `src/components/SettingsModal.jsx`, `src/lib/viewDensity.js` |
 | Help & Wiki (Settings section bullet) | `src/components/HelpView.jsx`, `src/lib/wiki.js`, `docs/wiki/*` |
 | Security, Undo & backup | `src/state/store.jsx` (reducer, Undo, persistence), `src/lib/security.js`, `src/lib/screenLock.js`, `src/components/ScreenLock.jsx`, `src/components/SecurityView.jsx`, `src/lib/workspaceBackup.js` |
-| Why practices trust it | `PRODUCT.md` (Product Principles), `AGENTS.md` (Non-negotiables 2–4), `src/lib/security.js` (`authorizeAction`) |
+| Why practices trust it | `PRODUCT.md` (Product Principles), `AGENTS.md` (Non-negotiables 2 to 4), `src/lib/security.js` (`authorizeAction`), `src/ui/InfoTip.jsx` (Calm screens) |
 | Short-form assets | Derived from the sections above; refresh whenever any of them changes |
 | Honesty limits (all sections) | `README.md` ("Current development context"), `docs/HANDOFF.md` (Shipped; Known issues / backlog) |

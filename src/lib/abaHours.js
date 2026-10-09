@@ -41,14 +41,14 @@ export const ABA_HOURS_NON_EXAMPLES = [
  * ticking ⚡ ABA Hr against one of them is a validation failure, not a rounding error.
  */
 export const ABA_ACTIVITIES = [
-  { id: 'group-training', label: 'Group training — behavior-analytic principles', qualifies: true, hint: 'Held outside of client sessions (staff-only)' },
+  { id: 'group-training', label: 'Group training in behavior-analytic principles', qualifies: true, hint: 'Held outside of client sessions (staff-only)' },
   { id: 'intervention-design', label: 'Designing / reviewing interventions', qualifies: true, hint: 'Non-billable protocol design, review or revision' },
   { id: 'data-analysis', label: 'Data analysis, graphing & program evaluation', qualifies: true, hint: 'Reviewing client data to change a program' },
   { id: 'assessment-writing', label: 'Assessment / report writing', qualifies: true, hint: 'Narrative scoring, FBA and reassessment write-ups' },
   { id: 'technician-training', label: 'Training technicians on ABA procedures', qualifies: true, hint: 'Onboarding, competency checks, procedure fidelity' },
   { id: 'coursework', label: 'ABA coursework / CEUs', qualifies: true, hint: 'Graduate coursework or continuing education in behavior analysis' },
-  { id: 'facility', label: 'Facility upkeep — cleaning the clinic', qualifies: false, hint: 'Not behavior-analytic time' },
-  { id: 'general-admin', label: 'General admin — e.g. stimulus preparation', qualifies: false, hint: 'Not behavior-analytic time' },
+  { id: 'facility', label: 'Facility upkeep (cleaning the clinic)', qualifies: false, hint: 'Not behavior-analytic time' },
+  { id: 'general-admin', label: 'General admin, such as stimulus preparation', qualifies: false, hint: 'Not behavior-analytic time' },
 ]
 export const ABA_ACTIVITY_BY_ID = Object.fromEntries(ABA_ACTIVITIES.map((a) => [a.id, a]))
 export const ABA_QUALIFYING_ACTIVITIES = ABA_ACTIVITIES.filter((a) => a.qualifies)
@@ -66,7 +66,7 @@ export const ABA_TRACKS = [
   { id: 'student', label: 'Graduate student / trainee', match: /student|trainee|graduate|intern|practicum/i, target: 1500, basis: 'Supervised fieldwork toward BCBA / BCaBA certification' },
   { id: 'technician', label: 'RBT / BCAT', match: /RBT|BCAT|registered behavior technician|behavior technician|line therapist/i, target: 40, basis: 'RBT 40-hour initial training and ongoing competency' },
   { id: 'bcaba', label: 'BCaBA', match: /BCaBA/i, target: 100, basis: 'Supervised practice hours logged for the BCaBA' },
-  { id: 'bcba', label: 'BCBA', match: /BCBA/i, target: 0, basis: 'Supervisor — hours logged, no target' },
+  { id: 'bcba', label: 'BCBA', match: /BCBA/i, target: 0, basis: 'Supervisor: hours logged, no target' },
   { id: 'other', label: 'Other / state certification', match: null, target: 0, basis: 'State certification requirement entered by the practice' },
 ]
 export const ABA_TRACK_BY_ID = Object.fromEntries(ABA_TRACKS.map((t) => [t.id, t]))
@@ -109,7 +109,7 @@ export const abaHoursOf = (a) => round2(abaMinutesOf(a) / 60)
 export const abaHrEligible = (a) => isNonServiceAppt(a)
 export const abaHrRefusal = (a) =>
   isServiceAppt(a)
-    ? 'ABA Hours applies to non-service appointments only — service time counts against the client’s authorization instead.'
+    ? 'ABA Hours applies to non-service appointments only. Service time counts against the client’s authorization instead.'
     : ''
 
 /** Which credential track a staff member's behavior-analytic hours are tallied under. */

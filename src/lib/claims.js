@@ -48,7 +48,7 @@ export function planPayerTerms(state, payerId, input = {}) {
   const filing = input.filingDays === '' || input.filingDays == null ? null : Number(input.filingDays)
   if (!PAYER_KINDS.some((k) => k.id === input.kind)) return { ok: false, msg: 'Choose a payer kind.' }
   if (!Number.isInteger(avgDays) || avgDays < 1 || avgDays > 365) return { ok: false, msg: 'Expected days to pay must be a whole number from 1 to 365.' }
-  if (!Number.isFinite(coinsPct) || coinsPct < 0 || coinsPct > 100 || !twoDp(coinsPct)) return { ok: false, msg: 'Estimated payer share must be 0–100% with at most 2 decimals.' }
+  if (!Number.isFinite(coinsPct) || coinsPct < 0 || coinsPct > 100 || !twoDp(coinsPct)) return { ok: false, msg: 'Estimated payer share must be 0 to 100% with at most 2 decimals.' }
   if (!Number.isFinite(copay) || copay < 0 || copay > 10000 || !twoDp(copay)) return { ok: false, msg: 'Copay must be a dollar amount from 0 to 10,000 with at most 2 decimals.' }
   if (filing != null && (!Number.isInteger(filing) || filing < 1 || filing > 999)) return { ok: false, msg: 'Filing deadline must be a whole number from 1 to 999 days, or blank for the practice default.' }
   const policy = { ...payerPolicy(p.name, state), kind: input.kind, avgDays, coins: Math.round(coinsPct * 100) / 10000, copay }
@@ -66,9 +66,9 @@ export const CLAIM_STATUSES = {
 
 export const DENIAL_REASONS = [
   { id: 'elig', label: 'Member not eligible / no active auth on DOS', fix: 'Verify authorization window, then rebill' },
-  { id: 'verif', label: 'Documentation requested — session notes missing', fix: 'Attach notes to the flagged sessions, rebill without them removed' },
-  { id: 'code', label: 'Coding error — invalid code / modifier', fix: 'Correct the charge lines below, then rebill' },
-  { id: 'dup', label: 'Duplicate line — already paid on prior claim', fix: 'Drop the duplicated line(s), rebill remainder' },
+  { id: 'verif', label: 'Documentation requested: session notes missing', fix: 'Attach notes to the flagged sessions, then rebill with them included' },
+  { id: 'code', label: 'Coding error: invalid code or modifier', fix: 'Correct the charge lines below, then rebill' },
+  { id: 'dup', label: 'Duplicate line: already paid on a prior claim', fix: 'Drop the duplicate line(s), then rebill the rest' },
   { id: 'timely', label: 'Timely filing limit exceeded', fix: 'Appeal with proof of service, or write off' },
 ]
 // Remittance adjustment codes (CARC, with their group) and what to do about them. The
@@ -382,7 +382,7 @@ export function assembleClaims(state, plans, { seqStart, at = Date.now() } = {})
       status: 'draft', charges: r2(lines.reduce((t, l) => t + l.charge, 0)), units: lineUnits(lines),
       adj: 0, paid: 0, patientPaid: 0, remittance: null, denial: null, parentNo: null, version: 1,
       submittedAt: null, closedAt: null, note: '',
-      createdAt: at, history: [{ at, ev: `Draft assembled from staging — ${lines.length} charge line${lines.length > 1 ? 's' : ''}${lines.length < raw.length ? ` (${raw.length} sessions; same-day time per code added up)` : ''}, ${p.dosFrom} → ${p.dosTo}` }],
+      createdAt: at, history: [{ at, ev: `Draft assembled from staging: ${lines.length} charge line${lines.length > 1 ? 's' : ''}${lines.length < raw.length ? ` (${raw.length} sessions; same-day time per code added up)` : ''}, ${p.dosFrom} to ${p.dosTo}` }],
     })
     seq++
   }
@@ -400,22 +400,22 @@ export function claimGate(state, claim) {
   const bad = claimChartIssues(state, claim).map((why) => ({ line: null, why }))
   for (const [l, apptId] of claim.lines.flatMap((x) => lineApptIds(x).map((id) => [x, id]))) {
     const a = state.appts[apptId]
-    if (!a) { bad.push({ line: l, why: 'Source appointment no longer exists — drop this line' }); continue }
+    if (!a) { bad.push({ line: l, why: 'The source appointment no longer exists. Drop this line.' }); continue }
     if (a.billing?.status === 'billed') { bad.push({ line: l, why: 'Line was already billed outside a claim' }); continue }
     if (!(a.billing?.units > 0) && !(a.billing?.mileage && a.billing?.distance > 0)) bad.push({ line: l, why: `Missing billable units on ${l.dos}` })
     if (claim.mode !== 'selfpay' && l.kind === 'mileage') {
       const issue = mileageCodeIssue(l.code, idPayer)
-      if (issue) bad.push({ line: l, why: `${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings, or remove mileage if it is not covered, then rebuild this draft.` })
+      if (issue) bad.push({ line: l, why: `${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings (or remove mileage if it is not covered), then rebuild this draft.` })
     }
-    if (needVer && TYPES[a.type]?.hasVerification && a.verification?.verifyStatus !== 'verified') bad.push({ line: l, why: `Verification flag not cleared on ${l.dos} — open the session & verify` })
+    if (needVer && TYPES[a.type]?.hasVerification && a.verification?.verifyStatus !== 'verified') bad.push({ line: l, why: `Session on ${l.dos} has not passed verification. Open the session and verify it.` })
     // timely filing gate (U3)
-    if (claim.timelyDue && today > claim.timelyDue) bad.push({ line: l, why: `Timely filing exceeded — due ${claim.timelyDue} (DOS ${l.dos})` })
+    if (claim.timelyDue && today > claim.timelyDue) bad.push({ line: l, why: `Timely filing deadline passed on ${claim.timelyDue} (DOS ${l.dos})` })
     // strict auth gate (D2)
     if (strictAuth) {
       const client = (state.clients||[]).find((c)=>c.id===claim.clientId)
       if (client) {
-        if (client.authStart && l.dos < client.authStart) bad.push({ line: l, why: `Auth not yet active on ${l.dos} — starts ${client.authStart}` })
-        if (client.authEnd && l.dos > client.authEnd) bad.push({ line: l, why: `Authorization lapsed on ${l.dos} — ended ${client.authEnd}` })
+        if (client.authStart && l.dos < client.authStart) bad.push({ line: l, why: `Authorization not active yet on ${l.dos}. It starts ${client.authStart}.` })
+        if (client.authEnd && l.dos > client.authEnd) bad.push({ line: l, why: `Authorization lapsed on ${l.dos}. It ended ${client.authEnd}.` })
         if (!client.authStart || !client.authEnd) bad.push({ line: l, why: `No active authorization window on file for ${client.name||'client'} (DOS ${l.dos})` })
       }
     }
@@ -424,14 +424,14 @@ export function claimGate(state, claim) {
       const staff = (state.staff||[]).filter((s)=>(a.staffIds||[]).includes(s.id))
       const hasRBT = staff.some((s)=>/RBT/.test(s.role||''))
       const hasBCBA = staff.some((s)=>/BCBA/.test(s.role||''))
-      if (hasRBT && !hasBCBA) bad.push({ line: l, why: `Supervision required — RBT-only session on ${l.dos} without BCBA` })
+      if (hasRBT && !hasBCBA) bad.push({ line: l, why: `Supervision required: RBT-only session on ${l.dos} with no BCBA` })
     }
     // provider identifiers: once a payer chooses NPI / Medicaid ID / both, every
     // rendering staff member must carry what it asks for
     if (idPayer && providerIdRule(idPayer).explicit) {
       for (const sid of a.staffIds || []) {
         const issue = providerIdIssues(state, idPayer, sid)[0]
-        if (issue) bad.push({ line: l, why: `${issue} — DOS ${l.dos}` })
+        if (issue) bad.push({ line: l, why: `${issue} (DOS ${l.dos})` })
       }
     }
   }
@@ -456,17 +456,17 @@ export function payPatch(claim, { amount, checkNo, adj, note, paidAt = Date.now(
   // chunk-40 (U5): a payment that leaves a patient-responsibility remainder keeps the claim
   // open as partially_paid — it only closes at zero due (secondary or patient invoice follows)
   const status = due <= 0 ? 'paid' : 'partially_paid'
-  return { claim: { ...claim, status, paid: r2((claim.paid || 0) + amount), adj: nextAdj, remittance: rem, closedAt: due <= 0 ? at : claim.closedAt, history: [...claim.history, ev(`Payment posted — $${amount.toLocaleString()} via ${checkNo}${nextAdj ? ` (${nextAdj.toLocaleString()} adjustment)` : ''}${due > 0 ? ` · $${due} still open` : ''}`, at)] } }
+  return { claim: { ...claim, status, paid: r2((claim.paid || 0) + amount), adj: nextAdj, remittance: rem, closedAt: due <= 0 ? at : claim.closedAt, history: [...claim.history, ev(`Payment posted: $${amount.toLocaleString()} via ${checkNo}${nextAdj ? ` (${nextAdj.toLocaleString()} adjustment)` : ''}${due > 0 ? `, $${due} still open` : ''}`, at)] } }
 }
 export function denyPatch(claim, { code, note }, state) {
   const at = Date.now()
   const d = denialOf(code, state)
-  return { claim: { ...claim, status: 'denied', denial: { code: d.id, reason: d.label, fix: d.fix, note: note || '', at }, history: [...claim.history, ev(`Denied — ${d.label}`, at)] } }
+  return { claim: { ...claim, status: 'denied', denial: { code: d.id, reason: d.label, fix: d.fix, note: note || '', at }, history: [...claim.history, ev(`Denied: ${d.label}`, at)] } }
 }
 export function releasePatch(state, claim, kind, extraHist) {
   const at = Date.now()
   return {
-    claim: { ...claim, status: 'void', closedAt: at, history: [...claim.history, ev(extraHist || `Voided — ${claim.lines.length} line${claim.lines.length > 1 ? 's' : ''} released back to staging`, at)] },
+    claim: { ...claim, status: 'void', closedAt: at, history: [...claim.history, ev(extraHist || `Voided. ${claim.lines.length} line${claim.lines.length > 1 ? 's' : ''} released back to staging`, at)] },
     apptPatches: claim.lines.flatMap(lineApptIds).map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null, submittedAt: null } } })),
     kind,
   }
@@ -481,25 +481,25 @@ export function dropLinePatch(state, claim, apptId) {
   const charges = r2(lines.reduce((t, l) => t + l.charge, 0))
   const units = lineUnits(lines)
   if (!lines.length) {
-    return { removeClaim: true, released, claim: { ...claim, lines, charges, units, history: [...claim.history, ev(`Last line removed — claim dissolved`, at)] } }
+    return { removeClaim: true, released, claim: { ...claim, lines, charges, units, history: [...claim.history, ev(`Last line removed, claim dissolved`, at)] } }
   }
   return {
     released,
-    claim: { ...claim, lines, charges, units, adj: Math.min(claim.adj, charges), history: [...claim.history, ev(`Line removed: ${dropped?.code} · ${dropped?.dos} → back to staging`, at)] },
+    claim: { ...claim, lines, charges, units, adj: Math.min(claim.adj, charges), history: [...claim.history, ev(`Line removed: ${dropped?.code} on ${dropped?.dos}, back to staging`, at)] },
   }
 }
 export function rebillPatch(state, claim, dropIds, { seqStart } = {}) {
   const at = Date.now()
   const keep = claim.lines.filter((l) => !lineApptIds(l).some((id) => dropIds.includes(id)))
   const releaseIds = claim.lines.filter((l) => !keep.includes(l)).flatMap(lineApptIds)
-  const voided = { ...claim, status: 'void', closedAt: at, history: [...claim.history, ev(`Voided for rebill → ${claim.no}-R${claim.version + 1}`, at)] }
+  const voided = { ...claim, status: 'void', closedAt: at, history: [...claim.history, ev(`Voided for rebill as ${claim.no}-R${claim.version + 1}`, at)] }
   const charges = r2(keep.reduce((t, l) => t + l.charge, 0))
   const next = {
     ...claim, id: `${claim.id}-r${claim.version + 1}`, no: claim.no.replace(/-R\d+$/, '') + `-R${claim.version + 1}`,
     version: claim.version + 1, parentNo: claim.no, status: 'draft', lines: keep, charges,
     units: lineUnits(keep),
     adj: 0, paid: 0, remittance: null, denial: null, submittedAt: null, closedAt: null, createdAt: at,
-    history: [{ at, ev: `Rebill draft from ${claim.no} — ${dropIds.length ? `dropped ${dropIds.length} disputed line${dropIds.length > 1 ? 's' : ''} back to staging` : 'lines unchanged'}` }],
+    history: [{ at, ev: `Rebill draft from ${claim.no}: ${dropIds.length ? `dropped ${dropIds.length} disputed line${dropIds.length > 1 ? 's' : ''} back to staging` : 'lines unchanged'}` }],
   }
   return { voided, next, apptPatches: [
     ...releaseIds.map((id) => ({ id, patch: { claimId: null, billing: { ...(state.appts[id]?.billing || {}), status: null, claimNo: null } } })),
@@ -767,8 +767,8 @@ export function quickPosts(state, claim, client) {
   const cp = claim.mode === 'insurance' ? Math.min(pol.copay * claim.lines.length, open) : 0
   const coins = r2(open * pol.coins)
   const out = [{ id: 'full', label: 'Full open balance', amount: open, adj: 0 }]
-  if (claim.mode === 'insurance') out.push({ id: 'contract', label: `Estimate ${Math.round(pol.coins * 100)}%`, amount: Math.max(0, r2(coins - cp)), adj: r2(open - coins), note: 'Estimated contract adjustment — verify remittance' })
-  if (cp) out.push({ id: 'copay', label: 'Leave estimated copay', amount: r2(open - cp), adj: 0, note: `Estimated copay $${cp} — not reported patient responsibility` })
+  if (claim.mode === 'insurance') out.push({ id: 'contract', label: `Estimate ${Math.round(pol.coins * 100)}%`, amount: Math.max(0, r2(coins - cp)), adj: r2(open - coins), note: 'Estimated contract adjustment. Check the remittance.' })
+  if (cp) out.push({ id: 'copay', label: 'Leave estimated copay', amount: r2(open - cp), adj: 0, note: `Estimated copay $${cp}, not reported patient responsibility` })
   out.push({ id: 'writeoff', label: 'Write off open balance', amount: 0, adj: open, note: 'Uncollectible' })
   return out
 }
@@ -826,7 +826,7 @@ export function credentialIssue(code, staffCred) {
   const minRank = Math.min(...def.cred.map((c) => CRED_RANK[c] || 0))
   if ((CRED_RANK[staffCred] || 0) >= minRank) return null
   const need = def.cred.map((c) => ({ BCBA: 'a BCBA', BCaBA: 'a BCaBA', RBT: 'an RBT/technician', Psychologist: 'a Psychologist' }[c])).join(' or ')
-  return `${code} requires ${need} — rendered by ${staffCred || 'unknown'}`
+  return `${code} requires ${need}, but was rendered by ${staffCred || 'unknown'}`
 }
 
 // ---------- provider resolution (spec §4.1 / §6.2) ----------
@@ -886,10 +886,10 @@ export function secondaryClaimPatch(state, primary, { id, at = Date.now(), seque
     remittance: null, denial: null, version: 1, timelyDue,
     submittedAt: null, closedAt: null, createdAt: at,
     note: `Claim-level COB draft from ${primary.no}; verify service allocation and file manually`,
-    history: [{ at, ev: `Secondary draft from ${primary.no} — $${due.toFixed(2)} remaining; not transmitted` }],
+    history: [{ at, ev: `Secondary draft from ${primary.no}: $${due.toFixed(2)} remaining. Not transmitted.` }],
   }
   const primaryPatched = { ...primary, secondary: secondary.id,
-    history: [...(primary.history || []), { at, ev: `Secondary draft created → ${secondary.no} (${secPayer.name})` }] }
+    history: [...(primary.history || []), { at, ev: `Secondary draft created: ${secondary.no} (${secPayer.name})` }] }
   return { primary: primaryPatched, secondary }
 }
 

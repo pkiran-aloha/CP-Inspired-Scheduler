@@ -32,7 +32,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
   const chooseType = (id) => { setType(id); reset() }
   const load = (text, name) => {
     const parsed = parseCSV(text)
-    if (!parsed.rows.length) { toast({ message: 'That file has no data rows — check it is a CSV with a header line', kind: 'warn' }); return }
+    if (!parsed.rows.length) { toast({ message: 'That file has no data rows. Check that it is a CSV with a header line.', kind: 'warn' }); return }
     if (parsed.rows.length > IMPORT_LIMIT) { toast({ message: `This demo imports up to ${IMPORT_LIMIT} rows at a time (file has ${parsed.rows.length}).`, kind: 'warn' }); return }
     setHeader(parsed.header)
     setMatrix(parsed.rows)
@@ -59,7 +59,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
     <>
       <Section
         title="Data Import Wizard"
-        sub="Step 1: Import Type → Step 2: Column Mapping → Step 3: Review & Import"
+        sub="Choose a type, map the columns, then review and import"
         testId="set-import-type"
         actions={
           <div className="set-inline">
@@ -74,7 +74,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
       >
         {showGuidelines && (
           <Banner tone="info" testid="set-import-guidelines">
-            <b>Import Order & Validation Rules:</b> Import <b>Payer Profiles</b> and <b>Offices</b> first, then <b>Staff Profiles</b> (followed by Qualifications, NPIs, and Earning Codes), then <b>Client Profiles</b> (followed by Contacts and Authorizations), and finally <b>Appointments</b>. Every import runs as an atomic, undoable transaction.
+            <b>Import order:</b> <b>Payer Profiles</b> and <b>Offices</b> first. Then <b>Staff Profiles</b>, followed by Qualifications, NPIs and Earning Codes. Then <b>Client Profiles</b>, followed by Contacts and Authorizations. <b>Appointments</b> go last. Each import is applied as one step that Undo reverses.
           </Banner>
         )}
         <div className="set-grid2" style={{ gap: 12 }}>
@@ -127,7 +127,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
           <>
             {check.issues.length > 0 && (
               <Banner tone="warn" testid="set-import-issues">
-                <b>{check.issues.length} row{check.issues.length === 1 ? '' : 's'} need fixing — nothing will be imported yet.</b>
+                <b>{check.issues.length} row{check.issues.length === 1 ? '' : 's'} need fixing. Nothing is imported until they are fixed.</b>
                 <ul className="set-issue-list">
                   {check.issues.slice(0, 6).map((i) => <li key={i.line}><b>Line {i.line}{i.name ? ` · ${i.name}` : ''}:</b> {i.errors.join('; ')}</li>)}
                   {check.issues.length > 6 && <li>…and {check.issues.length - 6} more</li>}
@@ -155,13 +155,13 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
 
             <div className="set-import-map">
               <b>Column mapping</b>
-              <span className="muted">Auto-matched from the header — change anything that guessed wrong.</span>
+              <span className="muted">Matched from the header row. Change any column that is wrong.</span>
               <div className="set-map-grid">
                 {header.map((col, i) => (
                   <label key={`${col}-${i}`} className="set-map-row">
                     <span title={col}>{col}</span>
                     <Select value={mapping[i] || ''} wide={190} testid={`set-import-map-${i}`}
-                      options={[{ value: '', label: '— ignore this column —' }, ...def.fields.map((f) => ({ value: f.key, label: f.label + (f.required ? ' *' : '') }))]}
+                      options={[{ value: '', label: '(ignore this column)' }, ...def.fields.map((f) => ({ value: f.key, label: f.label + (f.required ? ' *' : '') }))]}
                       onChange={(v) => setMapping((m) => ({ ...m, [i]: v }))} />
                   </label>
                 ))}
@@ -185,7 +185,15 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
         )}
       </Section>
 
-      <Section title="Import history" sub={`${(state.settings.importLog || []).length} of the last 20 imports`} testId="set-import-log">
+      <Section
+        title="Import history"
+        sub={`${(state.settings.importLog || []).length} of the last 20 imports`}
+        info={<>
+          <span>The log is saved in the workspace backup, so a restored copy still shows what was imported.</span>
+          <span>Files with PHI need a cleaning decision before they belong anywhere but a sandbox. This demo ships fictional rows only.</span>
+        </>}
+        testId="set-import-log"
+      >
         {log.length ? (
           <DataTable
             testid="set-import-log-table"
@@ -202,9 +210,7 @@ export function DataImportPanel({ state, actions, toast, readOnly }) {
           />
         ) : <Empty testid="set-import-log-empty">No imports recorded in this workspace yet.</Empty>}
         <p className="set-hint">
-          Imports are local-only: the file is read in this browser and never uploaded. The log travels in the workspace backup so a
-          restored copy still shows what came in. Files with PHI need a cleaning decision before they belong anywhere but a
-          sandbox — this demo ships fictional rows only.
+          Imports are local. The file is read in this browser and never uploaded.
         </p>
       </Section>
     </>

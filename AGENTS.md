@@ -1,4 +1,4 @@
-# AGENTS.md — rules for every coding agent on this repo
+# AGENTS.md: rules for every coding agent on this repo
 
 This file is the single source of truth for any AI coding agent (Claude Code, Codex, Cursor, Copilot, Gemini, Jules, Aider, …) and for humans. `CLAUDE.md`, `GEMINI.md` and `.github/copilot-instructions.md` only point here. If an instruction elsewhere conflicts with this file, this file wins. **Read `docs/HANDOFF.md` first** for current state and next steps.
 
@@ -42,7 +42,7 @@ Where npm cannot run at all, verify with `node --check` for syntax and pure `src
   - billing: `providerIds.js` (payer rule NPI / Medicaid ID / both), `billingKpis.js` (dashboard Billing Health)
   - help: `wiki.js` renders and searches `docs/wiki/*.md` for the in-app Help & Wiki screen (`HelpView.jsx`, bundled at build time, so a wiki edit is a Help edit). `wiki.test.js` fails CI if a page's `_Sources:` lists a missing file or a wiki link goes nowhere.
 - `src/components/`: screens (sub-folders `intake/`, `payroll/`, `settings/`). `BookingChecks.jsx` = the booking dialog's Checks rail + severity glyphs.
-- `src/ui/`: shared primitives (Icons — one drawn SVG set, Toast, SignaturePad, avatars).
+- `src/ui/`: shared primitives (Icons, one drawn SVG set; InfoTip; Toast; SignaturePad; avatars).
 - `src/styles.css`: the single stylesheet. Tokens on `:root`, redefined under `[data-theme='dark']`. Grew by appended chunks that override earlier ones (some `!important`): check for later overrides before editing a rule. Append new blocks at the end.
 - `src/__tests__/`: `*.test.js` (pure) and `*.test.jsx` (Testing Library UI flows).
 - `docs/specs/`: design briefs. `scheduling-intelligence-ideas.md` tracks what is shipped vs not. Billing specs are historical, not a statement of what exists.
@@ -83,7 +83,7 @@ Where npm cannot run at all, verify with `node --check` for syntax and pure `src
 
 `node` works even where npm doesn't. For pure `src/lib` modules: write a resolve hook in a scratch folder that appends `.js` to extension-less relative imports and stubs npm packages (e.g. `jspdf` → `data:text/javascript,export class jsPDF {}; export default {}`), register it with `node --import ./register.mjs check.mjs`, and import `file:///…/src/lib/<mod>.js` to assert behaviour. Use `buildSeed()` / `defaultSettings()` from `seed.js` (`blankState` lives in `store.jsx`, which node can't load). JSX is only verified by CI.
 
-## Git workflow (plain git only — no `gh`)
+## Git workflow (plain git only, no `gh`)
 
 - Branch from an up-to-date `main` (`git fetch && git switch main && git pull --ff-only`): `feat/…`, `fix/…`, `chore/…`, `ci/…`, `docs/…`.
 - Commit messages: Conventional Commits (`feat(scope): …`), body explains *why*. On Windows write multi-line messages from Git Bash: `git commit -F - <<'EOF' … EOF` (PowerShell 5.1 splits arguments on quotes).
@@ -94,6 +94,7 @@ Where npm cannot run at all, verify with `node --check` for syntax and pure `src
 
 ## UI conventions
 
-- Operate-mode product UI: scannable, consistent, calm. Severity language is shared: stop sign (must fix), caution (review), flag (noted), pencil (to fill in), check (clear) — `ToneGlyph` / `TONE_ICON` in `BookingChecks.jsx`, tones `.tone-stop|warn|flag|todo|ok`.
+- Operate-mode product UI: scannable, consistent, calm. Severity language is shared: stop sign (must fix), caution (review), flag (noted), pencil (to fill in), check (clear). See `ToneGlyph` / `TONE_ICON` in `BookingChecks.jsx`, tones `.tone-stop|warn|flag|todo|ok`.
 - No unicode/emoji as icons (use `src/ui/Icons.jsx`), no thick colored side borders on cards, no gradient text. Theme both light and dark tokens. Respect `prefers-reduced-motion`.
+- No em dashes in UI copy or docs. Guidance text goes in an InfoTip (`src/ui/InfoTip.jsx`, or `info`/`wiki` on `SectionBar`); keep errors, Stop/Warn items, labels and short honesty lines visible.
 - Responsive: the booking dialog rail stacks above the form below 1180px; never hide the only Save button at any width.

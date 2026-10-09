@@ -134,7 +134,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
                 value={effStaffId}
                 onChange={setStaffId}
                 placeholder="Pick staff…"
-                options={[...suggestions.map((s) => ({ value: s.id, label: `${staffById[s.id]?.name} — their usual`, sub: staffById[s.id]?.role })), ...staff.filter((x) => !suggestions.some((sg) => sg.id === x.id)).map((x) => ({ value: x.id, label: x.name, sub: x.role }))]}
+                options={[...suggestions.map((s) => ({ value: s.id, label: `${staffById[s.id]?.name} (usual)`, sub: staffById[s.id]?.role })), ...staff.filter((x) => !suggestions.some((sg) => sg.id === x.id)).map((x) => ({ value: x.id, label: x.name, sub: x.role }))]}
               />
             </div>
           )}
@@ -145,7 +145,7 @@ export default function QuickAdd({ slot, onClose, onFullForm, onBooked }) {
             <div className="warnbox danger" style={{ fontSize: 11.5 }}>
               {Icon.alert({ size: 14 })}
               <span>
-                <b>Clash:</b> {conflicts[0].other.title} ({conflicts[0].who}) — booking anyway will flag it.
+                <b>Clash:</b> {conflicts[0].other.title} ({conflicts[0].who}). Booking anyway flags it.
               </span>
             </div>
           )}

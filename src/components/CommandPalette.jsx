@@ -39,20 +39,20 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
       ['dashboard', 'Dash', 'Analytics dashboard', 'dashboard'], ['calendar', 'Cal', 'Calendar board', 'cal'], ['clients', 'Cli', 'Clients roster', 'user'],
       ['staff', 'Stf', 'Staff directory', 'team'], ['billing', 'Bil', 'Billing & claims desk', 'dollar'],
       ['analytics', 'An', 'Analytics', 'spark'], ['reports', 'Rep', 'Reports desk', 'clipboard'],
-      ['masters', 'Mst', 'Masters — payers & service types', 'clipboard'],
+      ['masters', 'Mst', 'Masters: payers and service types', 'clipboard'],
     ]
     secs.filter(([id]) => can(id)).forEach(([id, key, label, icon]) => out.push({ g: 'Jump to', k: key === 'Dash' ? '1' : undefined, icon, t: label, hint: 'section', run: go({ section: id }) }))
     // chunk-42: every Settings sub-module is one search away, opened on its own panel
     if (can('settings')) {
       const openSettings = (module, sub) => () => { actions.setUI({ settings: true, settingsModule: module, settingsSub: sub ?? null }); onClose() }
-      out.push({ g: 'Settings', icon: 'house', t: 'Organization — practice profile', hint: 'name, tax ID, NPI, offices & locations', run: openSettings('organization') })
+      out.push({ g: 'Settings', icon: 'house', t: 'Organization: practice profile', hint: 'name, tax ID, NPI, offices and locations', run: openSettings('organization') })
       out.push({ g: 'Settings', icon: 'checkCircle', t: 'Appointment statuses', hint: 'the status list and what each one pays', run: openSettings('appointment-status') })
       out.push({ g: 'Settings', icon: 'rows', t: 'Custom lists', hint: 'general & service-type pick lists', run: openSettings('custom-lists', 'general') })
       out.push({ g: 'Settings', icon: 'star', t: 'Qualifications & credentials', hint: 'degrees, certifications, licences', run: openSettings('qualification') })
       out.push({ g: 'Settings', icon: 'team', t: 'Payroll settings', hint: 'cycles, earning codes, overtime rules', run: openSettings('payroll', 'general') })
       out.push({ g: 'Settings', icon: 'badge', t: 'Earning codes', hint: 'what each payable duty is called', run: openSettings('payroll', 'earning-codes') })
       out.push({ g: 'Settings', icon: 'clock', t: 'Overtime rules', hint: 'workweek, multiplier, daily rules', run: openSettings('payroll', 'overtime') })
-      out.push({ g: 'Settings', icon: 'shield', t: 'Security — user accounts & roles', hint: 'local demo access control', run: openSettings('security', 'accounts') })
+      out.push({ g: 'Settings', icon: 'shield', t: 'Security: user accounts and roles', hint: 'local demo access control', run: openSettings('security', 'accounts') })
       out.push({ g: 'Settings', icon: 'download', t: 'Data import', hint: 'bring clients, staff or appointments in from CSV', run: openSettings('data-import') })
       out.push({ g: 'Settings', icon: 'phone', t: 'Text messaging services', hint: 'sender identity, templates, opt-outs', run: openSettings('text-messaging') })
       out.push({ g: 'Settings', icon: 'zap', t: 'Clinical integrations', hint: 'local exports and documented seams', run: openSettings('clinical-integrations') })
@@ -69,7 +69,7 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
     }
     if (can('reports')) for (const r of REPORTS) out.push({ g: 'Reports', icon: r.icon || 'clipboard', t: r.name, hint: r.blurb.slice(0, 46) + '…', run: go({ section: 'reports', repSel: r.id }) })
     if (can('intake')) {
-      out.push({ g: 'Intake', icon: 'user', t: 'Intake Requests — pipeline', hint: 'referrals, screening, benefits & conversion', run: go({ section: 'intake', intakeSel: null }) })
+      out.push({ g: 'Intake', icon: 'user', t: 'Intake Requests: pipeline', hint: 'referrals, screening, benefits and conversion', run: go({ section: 'intake', intakeSel: null }) })
       if (can('intake', 'full')) out.push({ g: 'Intake', icon: 'plus', t: 'New intake client', hint: 'capture a referral without creating a chart', run: go({ section: 'intake-new', intakeEdit: null }) })
       out.push({ g: 'Intake', icon: 'zap', t: 'Referral Sources', hint: 'relationship register & conversion scorecard', run: go({ section: 'referrals' }) })
       out.push({ g: 'Intake', icon: 'alert', t: 'Intake needing attention', hint: 'past SLA or stalled in stage', run: go({ section: 'intake', intakeAttention: 1 }) })
@@ -83,7 +83,7 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
     if (can('dashboard')) out.push({ g: 'Navigate', icon: 'dashboard', t: 'Open Dashboard', hint: 'widget analytics board', run: go({ section: 'dashboard' }) })
     if (can('clients')) for (const c of clients) out.push({ g: 'Clients', icon: 'user', t: c.name, hint: [c.program, c.authWeekly ? `${c.authWeekly}h auth/wk` : null].filter(Boolean).join(' · ') || 'client', run: go({ section: 'clients', cliQ: c.name }) })
     if (can('staff')) for (const s of staff) out.push({
-      g: 'Staff', icon: 'team', t: s.name, hint: `${s.role}${s.cert ? ` · ${s.cert}` : ''} — show their week`,
+      g: 'Staff', icon: 'team', t: s.name, hint: `${s.role}${s.cert ? `, ${s.cert}` : ''}. Show their week`,
       run: () => { if (can('calendar')) actions.setUI({ section: 'calendar', view: 'week', anchor: todayISO(), staffSel: [s.id], clientSel: [], teamSel: [] }); else actions.setUI({ section: 'staff' }); onClose() },
     })
     return out
@@ -171,7 +171,7 @@ export default function CommandPalette({ onClose, onNew, onHelp }) {
           ))}
           {!results.flat.length && (
             <div className="pal-none">
-              {Icon.search({ size: 14 })} No match for “{q}” — try a client name, a report, or “dark”.
+              {Icon.search({ size: 14 })} No match for “{q}”. Try a client name, a report or “dark”.
             </div>
           )}
         </div>

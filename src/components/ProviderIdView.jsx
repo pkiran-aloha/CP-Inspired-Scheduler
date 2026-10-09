@@ -85,7 +85,7 @@ export default function ProviderIdView() {
         <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}>
             <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.shield({ size: 16 })}</span>
-            <div><b style={{ fontSize: 14 }}>Provider Roster</b><div className="muted" style={{ fontSize: 12 }}>NPI · Taxonomy · License · Role</div></div>
+            <div><b style={{ fontSize: 14 }}>Provider Roster</b><div className="muted" style={{ fontSize: 12 }}>NPI, taxonomy, license and role</div></div>
           </div>
           <div className="py-tbl" data-testid="pi-table" style={{ overflowX: 'auto' }}>
             <div className="py-thead" style={{ gridTemplateColumns: '1.6fr 140px 160px 120px 100px 120px', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>

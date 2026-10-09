@@ -64,7 +64,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     // re-staffing is a scheduling write — a Stop rule can refuse it (audit CFG-02)
     const res = actions.update(appt.id, { status: 'active', staffIds: [c.staff.id], backfilled: true, backfilledFrom: appt.staffIds || [], backfillIgnored: false })
     if (!res.ok) { toast({ message: res.msg, kind: 'warn' }); return }
-    toast({ message: `Backfilled — ${c.staff.name.split(' ')[0]} now covers this session`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
+    toast({ message: `Backfilled. ${c.staff.name.split(' ')[0]} now covers this session.`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(appt.id, prev) } })
   }
   const authOf = (cid) => {
     const cl = clientById[cid]
@@ -90,7 +90,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
     // signs as staff and must not complete a session the family has not signed.
     const qPayer = payerForAppt(state, appt.clientIds || [])
     if (qPayer && svcRule(qPayer)?.appt?.sigRequired && !ver?.clientSignature) {
-      toast({ message: `${qPayer.name} requires a client signature before this session can be completed — capture it on the appointment's Verification tab`, kind: 'warn' })
+      toast({ message: `${qPayer.name} requires a client signature before this session can be completed. Capture it on the appointment's Verification tab.`, kind: 'warn' })
       return
     }
     const sigCompletes = systemConfigFor(settings).appointment?.staffSigCompletesAppt !== false
@@ -213,7 +213,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                     {c.reasons.map((r) => <span key={r} className="tag">{r}</span>)}
                     {(c.warnings || []).map((w) => <span key={w} className="tag warn">⚠ {w}</span>)}
                   </span>
-                  <span className="bf-score" title={`Match score ${c.score} — tune weights in Settings`}>★ {c.score}</span>
+                  <span className="bf-score" title={`Match score ${c.score}. Weights are set in Settings.`}>★ {c.score}</span>
                   <button className="btn btn-sm btn-primary" onClick={() => assignCover(c)}>Assign</button>
                 </div>
               ))}
@@ -327,7 +327,7 @@ export default function DetailCard({ appt, onClose, onEdit }) {
                 )}
                 {ver?.clientSignature && (
                   <div className="muted" style={{ fontSize: 11, marginTop: 4 }} data-testid="dc-client-sig">
-                    Client/guardian signed — {ver.clientSignature.staffName || ver.clientSignature.text}
+                    Client or guardian signed: {ver.clientSignature.staffName || ver.clientSignature.text}
                   </div>
                 )}
               </div>

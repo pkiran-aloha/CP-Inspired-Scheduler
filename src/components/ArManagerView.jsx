@@ -58,7 +58,7 @@ export default function ArManagerView() {
       ? 'client,client_id,last_payment_date,last_payment_method,current,31_60,61_90,91_120,121_plus,balance,remaining_patient_share,over90_pct'
       : 'filing_or_patient_bucket,client_count,current,31_60,61_90,91_120,121_plus,balance,remaining_patient_share,over90'
     const lines = [
-      `# ${settings.org?.name || 'Practice'} — AR as of ${asOf}`,
+      `# ${settings.org?.name || 'Practice'} AR as of ${asOf}`,
       header,
       ...rows.map((r) => {
         if (view === 'client') {
@@ -69,17 +69,17 @@ export default function ArManagerView() {
       }),
     ]
     download(`AR-${view}-${asOf}.csv`, lines.join('\n'))
-    toast({ message: `AR ${view} exported — ${rows.length} rows`, kind: 'ok' })
+    toast({ message: `AR ${view} exported (${rows.length} rows)`, kind: 'ok' })
   }
 
   const openStatement = (clientId) => {
     actions.setUI({ section: 'bil-invoice', invPrefill: { clientIds: [clientId], balanceOnly: true, from: range.days[0], to: asOf } })
-    toast({ message: `Opening statement for ${clients.find((c) => c.id === clientId)?.name || clientId} — Balance Only`, kind: 'ok' })
+    toast({ message: `Opening statement for ${clients.find((c) => c.id === clientId)?.name || clientId} (balance only)`, kind: 'ok' })
   }
 
   return (
     <div className="sectionpage" data-testid="ar-sec" style={{ background: 'var(--bg)' }}>
-      <SectionBar icon="dollar" title="AR Manager" sub={`Receivables as of ${fmtDayLabel(asOf)} · ${range.label} · ${ar.byClient.length} clients · ${ar.byPayer.length} filing / patient buckets · ${money(ar.totals.totalAR)} total`}>
+      <SectionBar icon="dollar" title="AR Manager" sub={`As of ${fmtDayLabel(asOf)} · ${ar.byClient.length} clients · ${money(ar.totals.totalAR)} total`} wiki="accounts-receivable" info={<><span>Open balances by client or by payer, aged into 30-day buckets on the same clock as the Claim Desk.</span><span>Totals use the primary ledger only. Reported patient share is a separate portion and needs review before you bill a family.</span></>}>
         <RangePicker preset={preset} onPreset={(p) => actions.setUI({ arPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
         <div className="sb-search" style={{ minWidth: 240, borderRadius: 10 }}>
           <span className="sic">{Icon.search({ size: 12 })}</span>
@@ -109,7 +109,7 @@ export default function ArManagerView() {
           <button className={view === 'client' ? 'on' : ''} data-testid="ar-tab-client" onClick={() => { setView('client'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.team({ size: 12 })} By Client</button>
           <button className={view === 'payer' ? 'on' : ''} data-testid="ar-tab-payer" onClick={() => { setView('payer'); setSelId(null); setPage(0) }} style={{ borderRadius: 8, fontSize: 13 }}>{Icon.shield({ size: 12 })} By filing / patient bucket</button>
         </div>
-        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{list.length} rows · {view === 'client' ? 'Client aging' : 'Disjoint filing and reported patient portions'} · reported share requires review</span>
+        <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{list.length} rows · {view === 'client' ? 'Client aging' : 'Payer and reported patient portions, no overlap'}</span>
       </div>
 
       <div style={{ padding: '0 16px 16px', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
@@ -178,7 +178,7 @@ export default function ArManagerView() {
               )}
               {drillPayer && (
                 <>
-                  <b style={{ fontSize: 13 }}>Primary claims in this bucket ({drillPayer.claims.length})</b><p className="muted" style={{ fontSize: 12 }}>The amount here is this bucket’s portion of each primary, not an additional secondary charge.</p>
+                  <b style={{ fontSize: 13 }}>Primary claims in this bucket ({drillPayer.claims.length})</b><p className="muted" style={{ fontSize: 12 }}>Amounts are this bucket’s share of each primary claim, not an extra secondary charge.</p>
                   <div className="tablewrap" style={{ maxHeight: 360, overflow: 'auto', borderRadius: 10, border: '1px solid var(--line)', marginTop: 10 }}>
                     <table className="table" style={{ fontSize: 13 }}><thead><tr><th>Claim #</th><th>Client</th><th>Due</th><th>Status</th></tr></thead><tbody>{drillPayer.claims.slice(0, 40).map((c) => { const cl = clients.find((x) => x.id === c.clientId); return <tr key={c.id}><td><span className="ln-code">{c.no}</span></td><td><div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><PersonAvatar p={cl} size={18} />{cl?.name || c.clientId}</div></td><td style={{ fontWeight: 700 }}>{money(drillPayer.claimDueById[c.id] || 0)}</td><td>{c.status}</td></tr> })}</tbody></table>
                   </div>

@@ -31,7 +31,7 @@ export function staffFlags(state, s, days) {
   const targetH = (s.targetWeekH || 30) * (days.length / 7)
   const bookedH = mine.filter((a) => a.status !== 'cancelled' && overlapsType(a)).reduce((t, a) => t + (a.end - a.start), 0) / 60
   if (targetH && bookedH / targetH > 1) flags.push({ sev: 'error', txt: `Over target hours (${Math.round(bookedH)}h of ${Math.round(targetH)}h)` })
-  if (targetH && bookedH / targetH < 0.45 && mine.length) flags.push({ sev: 'notice', txt: 'Under 45% utilized — extra coverage available' })
+  if (targetH && bookedH / targetH < 0.45 && mine.length) flags.push({ sev: 'notice', txt: 'Under 45% booked. Available for extra coverage' })
   return flags
 }
 
@@ -66,10 +66,10 @@ function StaffModal({ person, dup, onClose }) {
     if (Object.keys(errs).length) return
     if (editing) {
       actions.updateRoster('staff', { ...form })
-      toast({ message: `${form.name} updated everywhere — grid colors, suggestions & reports included`, kind: 'ok' })
+      toast({ message: `${form.name} updated`, kind: 'ok' })
     } else {
       actions.addRoster('staff', { id: uid(), initials: form.name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase(), ...form })
-      toast({ message: dup ? `Duplicated — ${form.name} joined the team` : `${form.name} joined the team — now selectable everywhere`, kind: 'ok' })
+      toast({ message: dup ? `Copy saved. ${form.name} added to the team` : `${form.name} added to the team`, kind: 'ok' })
     }
     onClose()
   }
@@ -99,7 +99,7 @@ function StaffModal({ person, dup, onClose }) {
           <PersonAvatar p={{ ...form, id: person?.id || form.name }} size={46} className="pm-face" />
           <div className="pm-head-t">
             <b>{editing ? `Edit · ${person.name}` : dup ? `Duplicate · ${dup.name}` : 'New staff member'}</b>
-            <span>{editing ? 'grid colors, availability & billing rates follow this record' : dup ? 'same profile, brand-new id — tweak and save to add' : 'selectable on the grid, in suggestions & on timesheets'}</span>
+            <span>{editing ? 'Calendar colors, availability and billing rates use this record' : dup ? 'Copy of this profile with a new ID. Edit, then save to add' : 'Available on the calendar, in suggestions and on timesheets'}</span>
           </div>
           <button className="iconbtn" onClick={onClose} aria-label="Close">{Icon.x({ size: 14 })}</button>
         </div>
@@ -109,7 +109,7 @@ function StaffModal({ person, dup, onClose }) {
             <h5>{Icon.team({ size: 12 })} Identity</h5>
             <div className="pm-grid">
               <F k="name" label="Full name" icon="edit" />
-              {dupName && <div className="pm-hint warn">A team member with this exact name already exists — saving adds a second record</div>}
+              {dupName && <div className="pm-hint warn">A team member with this name already exists. Saving adds a second record</div>}
               <F k="role" label="Role / title" icon="star" />
               <Sel k="education" label="Education level" icon="badge" options={[{ value: '', label: 'Not recorded' }, ...EDUCATION_LEVELS.map((l) => ({ value: l, label: l }))]} />
               <F k="cert" label="Credential #" icon="badge" />
@@ -126,7 +126,7 @@ function StaffModal({ person, dup, onClose }) {
             </div>
           </section>
           <section className="pm-sect pm-colorrow">
-            <h5>{Icon.palette({ size: 12 })} Calendar color <em>— their chips everywhere use this</em></h5>
+            <h5>{Icon.palette({ size: 12 })} Calendar color <em>(used for their calendar chips)</em></h5>
             <div className="pm-swatches" data-testid="sm-colors">
               {AV_COLORS.map((cl) => (
                 <button key={cl} type="button" title={cl} data-testid={`sm-color-${cl}`} className={`pm-sw ${form.color === cl ? 'on' : ''}`} style={{ background: cl }} onClick={() => set('color', cl)} />
@@ -136,7 +136,7 @@ function StaffModal({ person, dup, onClose }) {
         </div>
         <div className="pm-foot">
           {editing && (
-            <RemoveBtn idp="sm" label={`Remove ${person.name.split(' ')[0]}`} onConfirm={() => { actions.removeRoster('staff', person.id); toast({ message: `${person.name} removed — open slots appear on the grid`, kind: 'warn' }); onClose() }} />
+            <RemoveBtn idp="sm" label={`Remove ${person.name.split(' ')[0]}`} onConfirm={() => { actions.removeRoster('staff', person.id); toast({ message: `${person.name} removed. Their slots show as open on the calendar`, kind: 'warn' }); onClose() }} />
           )}
           <button className="btn btn-sm" onClick={onClose}>Cancel</button>
           <button className="btn btn-sm btn-primary" onClick={save} disabled={!!Object.keys(errs).length} data-testid="sm-save">{Icon.check({ size: 12 })} {editing ? 'Save changes' : 'Add staff'}</button>
@@ -311,7 +311,7 @@ export default function StaffView() {
                                   {r.next.title || 'Appointment'} <span className="when">{fmtDayLabel(r.next.date)} · {fmtTime(r.next.start, settings.h24)}</span>
                                 </button>
                               ) : (
-                                <span className="muted" style={{ fontSize: 11.5 }}>Nothing booked ahead — free for cover shifts.</span>
+                                <span className="muted" style={{ fontSize: 11.5 }}>Nothing booked ahead. Available for cover shifts.</span>
                               )}
                             </div>
                             <div className="dir-actions">
@@ -330,15 +330,15 @@ export default function StaffView() {
                               <div className="mini-metric"><b>{r.caseload}</b><span>Clients</span></div>
                               <div className="mini-metric"><b>{r.pto}</b><span>Blocks</span></div>
                               <div className="mini-metric"><b>${(r.s.payrollRate || 0)}</b><span>$/hour</span></div>
-                              <div className="mini-metric" data-testid={`stf-aba-${r.s.id}`} title="Non-service time marked ⚡ ABA Hours — behavior-analytic time tracked for RBT / BCAT, graduate-student and state-certification requirements">
-                                <b>⚡ {r.aba?.hours ?? 0}h</b><span>ABA hours</span>
+                              <div className="mini-metric" data-testid={`stf-aba-${r.s.id}`} title="Non-service time marked as ABA Hours: behavior-analytic time tracked for RBT / BCAT, graduate-student and state certification requirements">
+                                <b>{Icon.zap({ size: 11 })} {r.aba?.hours ?? 0}h</b><span>ABA hours</span>
                               </div>
                             </div>
                             {r.aba && (r.aba.hours > 0 || r.aba.excluded > 0) && (
                               <div style={{ marginTop: 8, fontSize: 11.3 }} className="muted" data-testid={`stf-aba-detail-${r.s.id}`}>
-                                <b style={{ color: 'var(--text-2)' }}>⚡ Behavior-analytic time</b> — {r.aba.trackLabel}
+                                <b style={{ color: 'var(--text-2)' }}>Behavior-analytic time:</b> {r.aba.trackLabel}
                                 {r.aba.target > 0 ? ` · ${r.aba.hours}h of ${r.aba.target}h target (${r.aba.pct}%)` : ' · logged, no target set'}
-                                {r.aba.activities.length ? <><br />{r.aba.activities.map((a) => `${a.label} — ${a.hours}h`).join(' · ')}</> : null}
+                                {r.aba.activities.length ? <><br />{r.aba.activities.map((a) => `${a.label}: ${a.hours}h`).join(' · ')}</> : null}
                                 {r.aba.uncategorized > 0 ? <><br />{r.aba.uncategorized}h still needs an activity.</> : null}
                                 {r.aba.excluded > 0 ? <><br />{r.aba.excluded}h marked but not counted (service block or non-qualifying activity).</> : null}
                               </div>
@@ -350,11 +350,11 @@ export default function StaffView() {
                             <div className="dir-min">
                               {r.flags.length ? r.flags.map((f, i) => (
                                 <span className="issue-line" key={i}><span className={`sev-pill sev-${f.sev}`}>{f.sev}</span> {f.txt}</span>
-                              )) : <span className="muted" style={{ fontSize: 11.5 }}>No gaps detected this window ✓</span>}
+                              )) : <span className="muted" style={{ fontSize: 11.5 }}>No gaps in this window</span>}
                             </div>
                             {/RBT|Student/i.test(r.s.role || '') && (
                               <div className="dir-actions">
-                                <button className="btn btn-sm" onClick={() => { actions.setUI({ section: 'billing', anchor: r.next?.date || todayISO() }); toast({ message: 'Billing workspace — supervision lines bill under 97152', kind: 'info' }) }}>
+                                <button className="btn btn-sm" onClick={() => { actions.setUI({ section: 'billing', anchor: r.next?.date || todayISO() }); toast({ message: 'Billing opened. Supervision lines bill under 97152', kind: 'info' }) }}>
                                   {Icon.dollar({ size: 12 })} Billing view
                                 </button>
                               </div>

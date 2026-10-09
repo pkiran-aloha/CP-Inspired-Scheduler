@@ -3,6 +3,7 @@ import { useStore } from '../../state/store'
 import { SectionBar } from '../NavRail'
 import { Icon } from '../../ui/Icons'
 import { useToast } from '../../ui/Toast'
+import InfoTip from '../../ui/InfoTip'
 import { PaySubNav, money } from './PayrollCommon'
 import { earningCodesFor, PAY_FREQUENCIES, defaultPayrollSettings } from '../../lib/payroll'
 import { periodsFor } from '../../lib/payroll'
@@ -10,10 +11,16 @@ import { periodsFor } from '../../lib/payroll'
 const FREQ = ['weekly', 'biweekly', 'semimonthly', 'monthly']
 const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-function Section({ title, sub, children, testId }) {
+function Section({ title, sub, info, children, testId }) {
   return (
     <div className="pay-card" data-testid={testId}>
-      <div className="pay-card-head"><div><b>{title}</b>{sub && <div className="muted" style={{ fontSize: 12 }}>{sub}</div>}</div></div>
+      <div className="pay-card-head"><div>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <b>{title}</b>
+          {info && <InfoTip label={title} wiki="payroll" testid={`${testId}-info`}>{info}</InfoTip>}
+        </span>
+        {sub && <div className="muted" style={{ fontSize: 12 }}>{sub}</div>}
+      </div></div>
       {children}
     </div>
   )
@@ -51,8 +58,8 @@ export default function PayrollSetupView() {
 
       <div className="batch-strip" style={{ margin: 16, padding: '12px 16px', background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}>
         <span className="muted">
-          This workspace computes payroll locally. Tax and withholding tables are <b>editable estimates</b>, not a filing engine, and nothing
-          here is transmitted to a bank, a provider or a tax authority. Have the policy below reviewed by your accountant or payroll provider.
+          Payroll is calculated locally. Tax tables are <b>editable estimates</b>, not a filing engine. Nothing here is sent to a bank,
+          a provider or a tax authority.
         </span>
       </div>
 
@@ -60,7 +67,7 @@ export default function PayrollSetupView() {
         <Section title="Pay cycle" sub="The cycle drives periods, cutoffs and pay dates" testId="pay-setup-cycle">
           <div className="pay-form-grid">
             <label className="pay-field"><span>Frequency</span>
-              <select className="input" value={payroll.frequency} data-testid="pay-setup-frequency" onChange={(e) => set({ frequency: e.target.value, anchor: undefined }, 'Pay frequency updated — periods re-cut from the anchor')}>
+              <select className="input" value={payroll.frequency} data-testid="pay-setup-frequency" onChange={(e) => set({ frequency: e.target.value, anchor: undefined }, 'Pay frequency updated. Periods recalculated from the anchor date')}>
                 {FREQ.map((f) => <option key={f} value={f}>{PAY_FREQUENCIES[f].label} ({PAY_FREQUENCIES[f].periods}/yr)</option>)}
               </select>
             </label>
@@ -84,7 +91,7 @@ export default function PayrollSetupView() {
         <Section title="Overtime & timekeeping" sub="FLSA is a workweek test, so the workweek is a policy decision" testId="pay-setup-ot">
           <div className="pay-form-grid">
             <label className="pay-field"><span>Workweek starts</span>
-              <select className="input" value={payroll.workWeekStart} data-testid="pay-setup-workweek" onChange={(e) => set({ workWeekStart: Number(e.target.value) }, 'Workweek redefined — overtime is recalculated per week')}>
+              <select className="input" value={payroll.workWeekStart} data-testid="pay-setup-workweek" onChange={(e) => set({ workWeekStart: Number(e.target.value) }, 'Workweek changed. Overtime is recalculated per week')}>
                 {DAYS.map((d, i) => <option key={d} value={i}>{d}</option>)}
               </select>
             </label>
@@ -95,8 +102,8 @@ export default function PayrollSetupView() {
               <input className="input" type="number" min="1" step="0.1" value={payroll.otMultiplier} data-testid="pay-setup-otmult" onChange={(e) => set({ otMultiplier: Number(e.target.value) })} />
             </label>
             <label className="pay-field"><span>Time rounding</span>
-              <select className="input" value={payroll.rounding.mode} data-testid="pay-setup-rounding" onChange={(e) => set({ rounding: { ...payroll.rounding, mode: e.target.value } }, e.target.value === 'none' ? 'Rounding disabled — time is paid exactly as recorded' : 'Rounding enabled — the run gate will warn on every payroll')}>
-                <option value="none">None — pay exact minutes</option>
+              <select className="input" value={payroll.rounding.mode} data-testid="pay-setup-rounding" onChange={(e) => set({ rounding: { ...payroll.rounding, mode: e.target.value } }, e.target.value === 'none' ? 'Rounding off. Time is paid exactly as recorded' : 'Rounding on. The run gate will warn on every payroll')}>
+                <option value="none">None (pay exact minutes)</option>
                 <option value="nearest">Nearest 15 minutes</option>
               </select>
             </label>
@@ -124,7 +131,13 @@ export default function PayrollSetupView() {
               </label>
             ))}
           </div>
-          <h4 className="pay-h4">Cancellation decision table</h4>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <h4 className="pay-h4">Cancellation decision table</h4>
+            <InfoTip label="cancellation pay" wiki="payroll" testid="pay-setup-cancel-info">
+              Cancellation pay causes many disputes in session-based practices. Write the bands down and pay the same way every
+              period. Some states also require reporting-time pay, so check yours.
+            </InfoTip>
+          </div>
           <div className="pay-form-grid">
             <label className="pay-field"><span>Free-notice band (hours)</span>
               <input className="input" type="number" min="0" value={payroll.cancelPolicy.freeNoticeHours} data-testid="pay-setup-cancel-notice"
@@ -143,13 +156,9 @@ export default function PayrollSetupView() {
                 onChange={(e) => set({ cancelPolicy: { ...payroll.cancelPolicy, payUnknownNoticePct: Number(e.target.value) } })} />
             </label>
           </div>
-          <div className="pay-hint">
-            Cancellations are the single biggest source of disputes in session-based practices. Writing the bands down — and paying the same way
-            every period — is what makes them defensible. Some states also require reporting-time pay; check yours.
-          </div>
         </Section>
 
-        <Section title="Controls & approval" sub="Segregation of duties is the point" testId="pay-setup-controls">
+        <Section title="Controls & approval" sub="Segregation of duties" testId="pay-setup-controls">
           <div className="pay-toggles">
             {[
               ['requireTimesheet', 'Require approved timesheets', 'Payroll flags employees whose timesheet is not approved'],
@@ -172,7 +181,10 @@ export default function PayrollSetupView() {
         </Section>
       </div>
 
-      <Section title="Earning codes" sub="Every paid duty is priced separately so the wage mix stays visible" testId="pay-setup-codes">
+      <Section title="Earning codes" sub="Each paid duty is priced separately" info={<>
+        {earningCodesFor(payroll).filter((c) => c.kind === 'worked').length} worked codes count toward the workweek.
+        Nondiscretionary bonuses are added to the regular rate before the overtime premium is calculated.
+      </>} testId="pay-setup-codes">
         <div className="py-tbl" style={{ overflowX: 'auto', border: 0, boxShadow: 'none' }}>
           <div className="py-thead" style={{ gridTemplateColumns: '90px 2fr 1.2fr 130px 120px 120px' }}>
             <span>Code</span><span>Description</span><span>Duty</span><span>Counts to OT</span><span>In regular rate</span><span>Taxable</span>
@@ -182,20 +194,19 @@ export default function PayrollSetupView() {
               <span className="pay-code">{c.id}</span>
               <span>{c.label}</span>
               <span className="muted">{c.duty}</span>
-              <span className={c.otEligible ? 'pay-flag ok' : 'pay-flag neutral'}>{c.otEligible ? 'yes — FLSA hours' : 'no'}</span>
+              <span className={c.otEligible ? 'pay-flag ok' : 'pay-flag neutral'}>{c.otEligible ? 'yes (FLSA hours)' : 'no'}</span>
               <span className={c.regularRate ? 'pay-flag ok' : 'pay-flag neutral'}>{c.regularRate ? 'yes' : 'no'}</span>
               <span className="muted">{c.taxable === false ? 'no (reimbursement)' : 'yes'}</span>
             </div>
           ))}
         </div>
-        <div className="pay-hint">
-          {earningCodesFor(payroll).filter((c) => c.kind === 'worked').length} worked codes count toward the workweek. Nondiscretionary bonuses are spread into the regular rate before the
-          overtime premium is calculated — that is the rule most manual payrolls get wrong.
-        </div>
       </Section>
 
       <div className="pay-cols">
-        <Section title="Withholding tables (estimates)" sub="Editable demo tables — verify with your provider" testId="pay-setup-taxes">
+        <Section title="Withholding tables (estimates)" sub="Editable demo tables. Verify with your provider" info={<>
+          Real payroll uses each employee's W-4, state schedules and reciprocal agreements. These flat tables give an
+          <b> estimate</b> for the gross-to-net workflow. They do not replace your payroll provider's calculation.
+        </>} testId="pay-setup-taxes">
           <div className="pay-form-grid">
             <label className="pay-field"><span>Federal standard deduction</span>
               <input className="input" type="number" value={tax.federal.standardDeduction} data-testid="pay-setup-stdded"
@@ -234,13 +245,12 @@ export default function PayrollSetupView() {
                 onChange={(e) => { const next = { ...tax, state: { ...tax.state, byState: { ...tax.state.byState, [stateRate]: Number(e.target.value) } } }; setTax(next); set({ taxes: next }) }} />
             </label>
           </div>
-          <div className="pay-hint">
-            Real payroll uses per-employee W-4 elections, state-specific schedules and reciprocal agreements. These flat tables produce a
-            plausible <b>estimate</b> to keep the gross-to-net workflow honest; they are not a substitute for a payroll provider's calculation.
-          </div>
         </Section>
 
-        <Section title="General ledger mapping" sub="Where the journal exports land" testId="pay-setup-gl">
+        <Section title="General ledger mapping" sub="Accounts used by the journal export" info={<>
+          The journal posts gross wages and employer taxes to expense, net pay to a clearing account and withheld tax to a
+          liability. There is no bank or GL connection behind it.
+        </>} testId="pay-setup-gl">
           <div className="pay-form-grid">
             {[['wages', 'Wage expense account'], ['taxes', 'Payroll tax expense'], ['benefits', 'Benefits expense'], ['net', 'Payroll clearing / cash']].map(([key, label]) => (
               <label key={key} className="pay-field"><span>{label}</span>
@@ -248,10 +258,6 @@ export default function PayrollSetupView() {
                   onChange={(e) => set({ glAccounts: { ...payroll.glAccounts, [key]: e.target.value } })} />
               </label>
             ))}
-          </div>
-          <div className="pay-hint">
-            The journal posts gross wages and employer taxes to expense, net pay to a clearing account, and withheld tax to a liability —
-            the shape an accountant expects, with no bank or GL connection behind it.
           </div>
         </Section>
       </div>
@@ -274,8 +280,8 @@ export default function PayrollSetupView() {
       </Section>
 
       <div className="pay-card muted" data-testid="pay-setup-footer">
-        Payroll policy affects real people's pay. This demo uses fictional staff data; before using any of these rules in production, have them
-        reviewed by employment counsel and a payroll provider — especially overtime classification, cancellation pay and multi-state withholding.
+        Payroll policy affects real people's pay. This demo uses fictional staff data. Before using these rules in production, have
+        employment counsel and a payroll provider review them, especially overtime classification, cancellation pay and multi-state withholding.
         Payroll records must be retained for at least three years under the FLSA ({staff.length} staff profiles are on file here).
         <span className="pay-hint">Average base rate on file: {money(Math.round(((staff.reduce((t, s) => t + (s.payrollRate || 0), 0)) / Math.max(1, staff.length)) * 100))}/hour</span>
       </div>

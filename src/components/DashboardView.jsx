@@ -43,7 +43,7 @@ function SparkChart({ series, money, onJump }) {
         {n > 0 && <span className="dw-spark-dot" style={{ left: `${pts[mi][0]}%`, top: `${(pts[mi][1] / 41) * 100}%` }} title={`peak ${fmtNum(vals[mi], money)}`} />}
         <div className="dw-hits">
           {series.map((s, i) => (
-            <button key={s.key} className="dw-hit" data-testid={`dw-hit-${s.key}`} title={`${s.label} — ${fmtNum(s.value, money)} · click to open the calendar`} onClick={() => onJump(s.key)} />
+            <button key={s.key} className="dw-hit" data-testid={`dw-hit-${s.key}`} title={`${s.label}: ${fmtNum(s.value, money)}. Click to open the calendar.`} onClick={() => onJump(s.key)} />
           ))}
         </div>
       </div>
@@ -56,7 +56,7 @@ function BarsChart({ rows, money, activeKey, onPick }) {
   return (
     <div className="dw-bars" data-testid="dw-bars">
       {rows.map((r) => (
-        <button key={r.key} className={`dw-bar-row ${activeKey === r.key ? 'on' : ''}`} data-testid={`dw-bar-${r.key}`} onClick={() => onPick(r)} title={`${r.label} — ${fmtNum(r.value, money)} · click to ${activeKey === r.key ? 'clear' : 'filter'} the dashboard`}>
+        <button key={r.key} className={`dw-bar-row ${activeKey === r.key ? 'on' : ''}`} data-testid={`dw-bar-${r.key}`} onClick={() => onPick(r)} title={`${r.label}: ${fmtNum(r.value, money)}. Click to ${activeKey === r.key ? 'clear the filter' : 'filter the dashboard'}.`}>
           <span className="dw-bar-l">{r.label}</span>
           <span className="dw-bar-track"><i style={{ width: `${r.pct}%` }} /></span>
           <b>{fmtNum(r.value, money)}</b>
@@ -85,7 +85,7 @@ function DonutChart({ slices, total, activeVal, onPick }) {
                 data-testid={`dw-slice-${s.key}`}
                 onClick={() => onPick(s)}
               >
-                <title>{`${s.label} — ${s.value} (${s.pct}%) · click to ${activeVal === s.key ? 'clear' : 'filter'}`}</title>
+                <title>{`${s.label}: ${s.value} (${s.pct}%). Click to ${activeVal === s.key ? 'clear the filter' : 'filter'}.`}</title>
               </path>
             ))
           )}
@@ -125,7 +125,7 @@ function HeatChart({ data, onJump }) {
                 className={`dw-heat-cell ${cell.minutes ? 'lit' : ''}`}
                 style={cell.minutes ? { background: `color-mix(in srgb, var(--accent) ${alpha}%, var(--panel))`, borderColor: 'color-mix(in srgb, var(--accent) 45%, transparent)' } : undefined}
                 data-testid={`dw-heat-${d}-${data.hourStart + h}`}
-                title={`${DOW[d]} ${data.hourStart + h}:00 — ${cell.minutes} min · ${cell.count} session${cell.count === 1 ? '' : 's'}${data.firstDateByDow[d] ? ' · click to jump' : ''}`}
+                title={`${DOW[d]} ${data.hourStart + h}:00, ${cell.minutes} min, ${cell.count} session${cell.count === 1 ? '' : 's'}${data.firstDateByDow[d] ? '. Click to open that day.' : ''}`}
                 onClick={() => cell.minutes && data.firstDateByDow[d] && onJump(d, data.hourStart + h)}
               />
             )
@@ -195,7 +195,7 @@ function WidgetBody({ w, ctx }) {
       const iso = data.firstDateByDow[d]
       if (!iso) return
       actions.setUI({ section: 'calendar', view: 'week', anchor: iso })
-      ctx.toast({ message: `Calendar opened on ${iso} — that weekday has live load`, kind: 'info' })
+      ctx.toast({ message: `Calendar opened on ${iso}, the first matching weekday with sessions`, kind: 'info' })
     }
     return <HeatChart data={data} onJump={jump} />
   }
@@ -324,7 +324,7 @@ function Widget({ w, ctx, idx, count }) {
           </span>
         )}
         {w.cfg.range && (
-          <button className="dw-rpill" data-testid={`dw-rpill-${w.id}`} title="Custom range on this widget — click to follow the global range again" onClick={() => ctx.actions.dash('cfg', { id: w.id, patch: { range: '' } })}>
+          <button className="dw-rpill" data-testid={`dw-rpill-${w.id}`} title="This widget has its own range. Click to use the board range again." onClick={() => ctx.actions.dash('cfg', { id: w.id, patch: { range: '' } })}>
             {RANGE_PRESETS.find((p) => p.id === w.cfg.range)?.label || w.cfg.range} ✕
           </button>
         )}
@@ -337,7 +337,7 @@ function Widget({ w, ctx, idx, count }) {
         </span>
       </header>
       <div className="dsh-w-body"><WidgetBody w={w} ctx={ctx} /></div>
-      <span className="dw-rz" data-testid={`dw-resize-${w.id}`} title="Drag to resize — snaps to thirds, halves or full width" onPointerDown={(e) => ctx.startResize(e, w)}>
+      <span className="dw-rz" data-testid={`dw-resize-${w.id}`} title="Drag to resize. Widths snap to thirds, halves or full width." onPointerDown={(e) => ctx.startResize(e, w)}>
         <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M9 3.4L3.4 9M9 6.6L6.6 9" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
       </span>
       {resizing && <span className="dw-szbadge">{span} / 6 · {['auto', 'tall', 'full height'][h - 1]}</span>}
@@ -362,7 +362,7 @@ function Widget({ w, ctx, idx, count }) {
           </select>
           <div className="dw-menu-acts">
             <button className={w.nl ? 'on' : ''} data-testid={`dw-newline-${w.id}`} onClick={() => { ctx.actions.dash('line', { id: w.id, nl: !w.nl }); ctx.closeMenu() }}>⤶ Start on a new row <i>{w.nl ? '✓' : ''}</i></button>
-            <button data-testid={`dw-clone-${w.id}`} onClick={() => { ctx.actions.dash('clone', { id: w.id }); ctx.closeMenu(); ctx.toast({ message: `${meta.name} cloned — configure the copy independently`, kind: 'ok' }) }}>{Icon.plus({ size: 11 })} Clone widget</button>
+            <button data-testid={`dw-clone-${w.id}`} onClick={() => { ctx.actions.dash('clone', { id: w.id }); ctx.closeMenu(); ctx.toast({ message: `${meta.name} copied. Change the copy's settings from its header.`, kind: 'ok' }) }}>{Icon.plus({ size: 11 })} Clone widget</button>
             <button data-testid={`dw-data-${w.id}`} onClick={() => { ctx.closeMenu(); ctx.openData(w) }}>{Icon.rows({ size: 11 })} Underlying data ({ctx.dataCount(w)})</button>
             <button data-testid={`dw-csv-${w.id}`} onClick={() => { ctx.closeMenu(); ctx.exportCsv(w) }}>{Icon.download({ size: 11 })} Export CSV (chart data)</button>
           </div>
@@ -421,7 +421,7 @@ export default function DashboardView({ onOpenDetail = null }) {
     const name = bName.trim().slice(0, 42) || `Board ${boards.length + 1}`
     actions.dash('saveBoard', { name })
     setBSave(false); setBName('')
-    toast({ message: `Layout saved as “${name}” — ${widgets.length} widgets`, kind: 'ok' })
+    toast({ message: `Layout saved as “${name}” (${widgets.length} widgets)`, kind: 'ok' })
   }
 
   /* ---- the appointments behind a widget's aggregation (drill-down source) ---- */
@@ -455,8 +455,8 @@ export default function DashboardView({ onOpenDetail = null }) {
     const list = widgetRows(w, opts)
     const dd = w.cfg?.range ? resolveRange(w.cfg.range, ui.anchor || todayISO(), settings.weekStart).days : days
     setDrawer({
-      title: opts.kpi ? KPI_SUBS[opts.kpi] : `${WIDGETS[w.type]?.name || 'Widget'} — the data behind it`,
-      sub: `${list.length} appointment${list.length === 1 ? '' : 's'} · ${dd[0]} → ${dd[dd.length - 1]} · ${Object.keys(filter).length ? `${Object.keys(filter).length} filter${Object.keys(filter).length > 1 ? 's' : ''} on` : 'no filters'}${w.cfg?.range ? ' · own range' : ''}`,
+      title: opts.kpi ? KPI_SUBS[opts.kpi] : `${WIDGETS[w.type]?.name || 'Widget'}: underlying data`,
+      sub: `${list.length} appointment${list.length === 1 ? '' : 's'} · ${dd[0]} to ${dd[dd.length - 1]} · ${Object.keys(filter).length ? `${Object.keys(filter).length} filter${Object.keys(filter).length > 1 ? 's' : ''} on` : 'no filters'}${w.cfg?.range ? ' · own range' : ''}`,
       ids: list.map((a) => a.id),
     })
   }
@@ -517,7 +517,7 @@ export default function DashboardView({ onOpenDetail = null }) {
     const csv = [head, ...rows].map((r) => r.map(esc).join(',')).join('\r\n')
     const slug = (WIDGETS[w.type]?.name || w.type).toLowerCase().replace(/[^a-z0-9]+/g, '-')
     download(`aloha-dashboard-${slug}.csv`, '\ufeff' + csv + '\r\n', 'text/csv;charset=utf-8')
-    toast({ message: `${rows.length} rows exported — the data behind ${WIDGETS[w.type]?.name}${cfg.range ? ' (its own range)' : ''}`, kind: 'ok' })
+    toast({ message: `${rows.length} rows exported from ${WIDGETS[w.type]?.name}${cfg.range ? ' (its own range)' : ''}`, kind: 'ok' })
   }
 
   /* ---- drag-to-move & drag-to-resize board engine (pointer events, no deps) ---- */
@@ -581,7 +581,7 @@ export default function DashboardView({ onOpenDetail = null }) {
           const changed = []
           if (d.span && d.span !== d.span0) { actions.dash('resize', { id: d.id, span: d.span }); changed.push(`${d.span} / 6 cols`) }
           if (d.h && d.h !== d.h0) { actions.dash('height', { id: d.id, h: d.h }); changed.push(['auto', 'tall', 'full height'][d.h - 1]) }
-          if (changed.length) { const src = widgets.find((w) => w.id === d.id); toast({ message: `${WIDGETS[src?.type]?.name ?? 'Widget'} — ${changed.join(' · ')}`, kind: 'ok' }) }
+          if (changed.length) { const src = widgets.find((w) => w.id === d.id); toast({ message: `${WIDGETS[src?.type]?.name ?? 'Widget'}: ${changed.join(', ')}`, kind: 'ok' }) }
         }
         else if (d.kind === 'move' && d.target) actions.dash('order', { id: d.id, index: d.to })
       }
@@ -618,7 +618,7 @@ export default function DashboardView({ onOpenDetail = null }) {
 
   const ctx = {
     state, days, filter, ui, settings, clientById, staffById, actions, toast, setFilter, cfg,
-    remove: (id) => { actions.dash('remove', { id }); toast({ message: 'Widget removed — ↺ restores the standard board', kind: 'info' }) },
+    remove: (id) => { actions.dash('remove', { id }); toast({ message: 'Widget removed. The reset button restores the standard board.', kind: 'info' }) },
     move: (id, dir) => actions.dash('move', { id, dir }),
     startMove, startResize, drag,
     menuOpen, toggleMenu: (id) => setMenuOpen((v) => (v === id ? null : id)), closeMenu: () => setMenuOpen(null),
@@ -628,7 +628,12 @@ export default function DashboardView({ onOpenDetail = null }) {
   const activeFilters = Object.entries(filter)
   return (
     <div className="sectionpage">
-      <SectionBar icon="grid" title="Dashboard" sub={`${widgets.length} widget${widgets.length === 1 ? '' : 's'} · ${range.label}${activeFilters.length ? ` · ${activeFilters.length} filter${activeFilters.length > 1 ? 's' : ''} on` : ''}`}>
+      <SectionBar
+        icon="grid"
+        title="Dashboard"
+        wiki="dashboard-and-reports"
+        info="Every widget follows the board range and filters unless it has its own range. Click a chart slice, bar or cell to filter the board or open the calendar. Drag a widget by its handle to move it and by its corner to resize it. The widget menu shows the underlying data and exports it as CSV."
+        sub={`${widgets.length} widget${widgets.length === 1 ? '' : 's'} · ${range.label}${activeFilters.length ? ` · ${activeFilters.length} filter${activeFilters.length > 1 ? 's' : ''} on` : ''}`}>
         <label className="fld" style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <select className="input dsh-rsel" data-testid="dash-range" value={preset} onChange={(e) => actions.setUI({ dashPreset: e.target.value })}>
             {RANGE_PRESETS.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
@@ -645,7 +650,7 @@ export default function DashboardView({ onOpenDetail = null }) {
               {Object.entries(WIDGETS).map(([k, m]) => {
                 const used = widgets.filter((w) => w.type === k).length
                 return (
-                  <button key={k} className="dsh-g-item" role="menuitem" data-testid={`dash-add-${k}`} onClick={() => { actions.dash('add', { wtype: k }); setGallery(false); toast({ message: `${m.name} added — configure it from its header`, kind: 'ok' }) }}>
+                  <button key={k} className="dsh-g-item" role="menuitem" data-testid={`dash-add-${k}`} onClick={() => { actions.dash('add', { wtype: k }); setGallery(false); toast({ message: `${m.name} added. Change its settings from its header.`, kind: 'ok' }) }}>
                     <span className="gg-ic">{Icon[m.icon]?.({ size: 13 }) || Icon.grid({ size: 13 })}</span>
                     <span><b>{m.name}</b><i>{m.blurb}</i></span>
                     {used > 0 && <em>{used} on board</em>}
@@ -704,7 +709,7 @@ export default function DashboardView({ onOpenDetail = null }) {
               <button className="iconbtn" data-testid="dd-close" aria-label="Close" onClick={() => setDrawer(null)}>{Icon.x({ size: 13 })}</button>
             </header>
             <div className="dd-list">
-              {drawerRows.length === 0 && <p className="dd-more">Nothing matches this slice — widen the range or clear filters.</p>}
+              {drawerRows.length === 0 && <p className="dd-more">Nothing matches this slice. Widen the range or clear filters.</p>}
               {drawerRows.slice(0, 240).map((a) => (
                 <div key={a.id} className="dd-roww">
                   <button type="button" className="dd-row" data-testid={`dd-row-${a.id}`} onClick={() => { actions.setUI({ section: 'calendar', view: 'week', anchor: a.date }); setDrawer(null); toast({ message: 'Calendar opened on that day', kind: 'info' }) }}>
@@ -718,7 +723,7 @@ export default function DashboardView({ onOpenDetail = null }) {
                   )}
                 </div>
               ))}
-              {drawerRows.length > 240 && <p className="dd-more">Showing first 240 of {drawerRows.length} — the CSV export contains all rows.</p>}
+              {drawerRows.length > 240 && <p className="dd-more">Showing the first 240 of {drawerRows.length}. The CSV export has every row.</p>}
             </div>
           </aside>
         </div>
@@ -733,8 +738,8 @@ export default function DashboardView({ onOpenDetail = null }) {
       ) : (
         <div className="dsh-empty" data-testid="dash-empty">
           <span>{Icon.grid({ size: 22 })}</span>
-          <b>A blank board. Build your analytics.</b>
-          <p>Pick the views you actually read every morning — trends, mix, leaders, heat — each one filters and aggregates live.</p>
+          <b>This board is empty.</b>
+          <p>Add the views you check each day. Each one follows the board range and filters.</p>
           <button className="btn btn-sm btn-primary" data-testid="dash-empty-add" onClick={() => setGallery(true)}>{Icon.plus({ size: 13 })} Add a widget</button>
         </div>
       )}

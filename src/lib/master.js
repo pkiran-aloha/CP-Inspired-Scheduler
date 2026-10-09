@@ -124,8 +124,8 @@ export { DEFAULT_QM }
 export const ROUNDINGS = ['AMA', 'Nearest', 'Round Up', 'Round Down', 'Truncate']
 export const MODIFIERS = ['U6', 'HP', 'HO', 'HN', 'HM', 'UN', 'HC', 'U1', 'U2', 'U3']
 export const POS_CODES = [
-  { id: '02', label: '02 · Telehealth — other than patient home' },
-  { id: '10', label: '10 · Telehealth — patient home' },
+  { id: '02', label: '02 · Telehealth, not in patient home' },
+  { id: '10', label: '10 · Telehealth in patient home' },
   { id: '11', label: '11 · Office' },
   { id: '03', label: '03 · School' },
   { id: '12', label: '12 · Home' },
@@ -347,7 +347,7 @@ export function concurrentNote(state, { payer, svcId, clientId, date, start, end
   const same = apptList.filter((a) => a.id !== excludeId && a.date === date && (a.clientIds || []).includes(clientId) && a.status !== 'cancelled' && a.start < end && a.end > start)
   if (!same.length) return null
   const label = (id) => (svcList(state).find((s) => s.id === id) || localSvcs(payer).find((s) => s.id === id))?.label || id
-  if (!rules.concurrent.allowed) return { level: 'warn', text: `${payer.name} does not allow concurrent billing — this slot overlaps ${same.length} other booked service hour${same.length > 1 ? 's' : ''} for this client.` }
+  if (!rules.concurrent.allowed) return { level: 'warn', text: `${payer.name} does not allow concurrent billing. This slot overlaps ${same.length} other booked service hour${same.length > 1 ? 's' : ''} for this client.` }
   for (const r of rules.concurrent.rules || []) {
     for (const a of same) {
       if ((r.with === a.service && r.if === svcId) || (r.if === a.service && r.with === svcId)) {

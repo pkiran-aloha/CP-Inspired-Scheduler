@@ -4,6 +4,7 @@ import { SectionBar } from './NavRail'
 import { Icon } from '../ui/Icons'
 import CfDefModal from './CfDefModal.jsx'
 import { useToast } from '../ui/Toast'
+import InfoTip from '../ui/InfoTip'
 import { Dropdown } from './fields'
 import { PayersList } from './PayersView'
 import PayerDetail from './PayerDetail'
@@ -81,10 +82,10 @@ function ServiceTypesView() {
     setEdit(null)
     toast({ message: `“${v.label}” ${edit === 'new' ? 'added to' : 'updated in'} the service master`, kind: 'ok' })
   }
-  const patch = (sv, changes, what) => { actions.updateSvc({ id: sv.id, ...changes }); if (what) toast({ message: `${sv.label} — ${what}`, kind: 'ok' }) }
+  const patch = (sv, changes, what) => { actions.updateSvc({ id: sv.id, ...changes }); if (what) toast({ message: `${sv.label}: ${what}`, kind: 'ok' }) }
   const remove = (sv) => {
     const used = usedBy[sv.id] || 0
-    if (used) { toast({ message: `${sv.label} is used by ${used} appointment${used === 1 ? '' : 's'} — it can’t be deleted`, kind: 'error' }); return }
+    if (used) { toast({ message: `${sv.label} is used by ${used} appointment${used === 1 ? '' : 's'}, so it can’t be deleted`, kind: 'error' }); return }
     // also drop it from any payer contracts/overrides/local copies that still reference it
     for (const p of state.payers || []) {
       const had = (p.services || []).includes(sv.id) || (p.svcOv && p.svcOv[sv.id]) || (p.svcs || []).some((x) => x.ref === sv.id)
@@ -101,7 +102,8 @@ function ServiceTypesView() {
   return (
     <div className="py-list st-list">
       <div className="py-tools">
-        <span className="muted py-toolcount">{all.filter((x) => x.status !== 'active').length ? `${all.filter((x) => x.status !== 'inactive').length} active · ` : ''}{all.length} service types · click a cell to edit inline</span>
+        <span className="muted py-toolcount">{all.filter((x) => x.status !== 'active').length ? `${all.filter((x) => x.status !== 'inactive').length} active · ` : ''}{all.length} service types</span>
+        <InfoTip label="Service types" wiki="settings" testid="sv-info">Click a cell to edit it in place. Service types feed the booking dialog, Quick Add and every payer rate card.</InfoTip>
         <input className="input" style={{ width: 200, height: 30 }} placeholder="Search services or codes…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="sv-search" />
         <button className="btn btn-sm btn-primary" data-testid="sv-add" onClick={() => setEdit('new')}>{Icon.plus({ size: 12 })} Add Service Type</button>
       </div>
@@ -206,16 +208,16 @@ function SvModal({ svc, onClose }) {
     })
   }
   return (
-    <div className="modal pm-modal py-modal" data-testid="sv-modal" role="dialog" aria-modal="true" aria-label={svc ? `Service type — ${svc.label}` : 'Add Service Type'} tabIndex={-1}>
+    <div className="modal pm-modal py-modal" data-testid="sv-modal" role="dialog" aria-modal="true" aria-label={svc ? `Service type: ${svc.label}` : 'Add Service Type'} tabIndex={-1}>
       <div className="modal-head pm-head">
-        <h3>{svc ? `Service Type — ${svc.label}` : 'Add Service Type'}</h3>
+        <h3>{svc ? `Service Type: ${svc.label}` : 'Add Service Type'}</h3>
         <button className="iconbtn modal-x" aria-label="Close" data-testid="sv-close" onClick={() => onClose(null)}>{Icon.x({ size: 14 })}</button>
       </div>
       <div className="modal-body">
         <div className="py-sec">{Icon.clipboard({ size: 12 })} Service definition</div>
         <div className="py-two">
           <label className="bil-fld pm-fld">
-            <span>Service Name{err.label && <i className="pm-err"> — {err.label}</i>}</span>
+            <span>Service Name{err.label && <i className="pm-err">: {err.label}</i>}</span>
             <input className={`input${err.label ? ' err' : ''}`} value={f.label} data-testid="sv-label" onChange={(e) => set('label', e.target.value)} placeholder="e.g. Adaptive / Daily Living Skills" />
           </label>
           <label className="bil-fld pm-fld">
@@ -293,7 +295,6 @@ function SvModal({ svc, onClose }) {
         </label>
       </div>
       <div className="modal-foot pm-foot">
-        <span className="muted">Used by the appointment wizard, Quick Add and every payer rate card.</span>
         <span className="an-spacer" />
         <button className="btn btn-sm" onClick={() => onClose(null)}>Cancel</button>
         <button className="btn btn-sm btn-primary" data-testid="sv-save" onClick={save}>{svc ? 'Save' : 'Add service'}</button>
@@ -322,12 +323,12 @@ function CfDefsView() {
     if (edit === 'new') actions.addCfDef(v)
     else actions.updateCfDef({ id: edit.id, ...v })
     setEdit(null)
-    toast({ message: `Template “${v.label}” ${edit === 'new' ? 'created' : 'updated'} — payers pick it from the master`, kind: 'ok' })
+    toast({ message: `Template “${v.label}” ${edit === 'new' ? 'created' : 'updated'}. Add it to payers from their profiles`, kind: 'ok' })
   }
-  const patch = (d, changes, what) => { actions.updateCfDef({ id: d.id, ...changes }); if (what) toast({ message: `${d.label} — ${what}`, kind: 'ok' }) }
+  const patch = (d, changes, what) => { actions.updateCfDef({ id: d.id, ...changes }); if (what) toast({ message: `${d.label}: ${what}`, kind: 'ok' }) }
   const remove = (d) => {
     const n = usedBy(d.id)
-    if (n) { toast({ message: `“${d.label}” is picked by ${n} payer${n === 1 ? '' : 's'} — unlink it on their profile first`, kind: 'error' }); return }
+    if (n) { toast({ message: `“${d.label}” is used by ${n} payer${n === 1 ? '' : 's'}. Remove it from their profiles first`, kind: 'error' }); return }
     actions.removeCfDef(d.id)
     toast({ message: `Template “${d.label}” removed`, kind: 'info' })
   }
@@ -335,7 +336,8 @@ function CfDefsView() {
   return (
     <div className="py-list cf-list">
       <div className="py-tools">
-        <span className="muted py-toolcount">{defs.filter((d) => d.status !== 'inactive').length} active of {defs.length} templates · define a field once, reuse it on every payer</span>
+        <span className="muted py-toolcount">{defs.filter((d) => d.status !== 'inactive').length} active of {defs.length} templates</span>
+        <InfoTip label="Custom fields" wiki="settings" testid="cf-info">Define a field once and reuse it on any payer.</InfoTip>
         <input className="input" style={{ width: 200, height: 30 }} placeholder="Search templates…" value={q} onChange={(e) => setQ(e.target.value)} data-testid="cf-search" />
         <button className="btn btn-sm btn-primary" data-testid="cf-add" onClick={() => setEdit('new')}>{Icon.plus({ size: 12 })} Add Custom Field</button>
       </div>
@@ -350,7 +352,7 @@ function CfDefsView() {
             <span>Status</span>
             <span />
           </div>
-          {rows.length === 0 && <div className="py-empty py-tempty">{defs.length ? 'No templates match.' : 'No templates yet — create the first one.'}</div>}
+          {rows.length === 0 && <div className="py-empty py-tempty">{defs.length ? 'No templates match.' : 'No templates yet.'}</div>}
           {rows.map((d) => {
             const n = usedBy(d.id)
             return (

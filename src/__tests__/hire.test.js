@@ -97,7 +97,7 @@ describe('hire / contract decision (D2)', () => {
     })
     const h = boardOf(state)
     expect(h.verdict).toBe('hire')
-    expect(h.headline).toMatch(/no clinical bench/i)
+    expect(h.headline).toMatch(/no clinical staff/i)
   })
 
   it('never weights intake by a conversion rate — it uses the ramp’s hours as-is', () => {

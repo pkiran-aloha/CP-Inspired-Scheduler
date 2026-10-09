@@ -223,7 +223,7 @@ export default function TimesheetSubmissionView() {
                 <div><span>Adjustments</span><b>{(detailTs.sheet.adjustments || []).length}</b></div>
                 {/* ⚡ behavior-analytic time on the same sheet — certification currency,
                     not a different pay rate */}
-                <div data-testid="pay-ts-aba" title="Non-service blocks marked as behavior-analytic (⚡ ABA) time — tracked for RBT / BCAT, graduate-student and state-certification hours">
+                <div data-testid="pay-ts-aba" title="Non-service blocks marked as behavior-analytic (ABA) time. Tracked for RBT, BCAT, graduate-student and state-certification hours">
                   <span>⚡ ABA hours</span><b>{hrs(detailTs.totals.abaHours)}</b>
                 </div>
               </div>
@@ -238,7 +238,7 @@ export default function TimesheetSubmissionView() {
                     <span className="num">{hrs(l.hours)}</span>
                     <span className="num">{l.rate ? `$${Number(l.rate).toFixed(2)}` : '—'}</span>
                     <span className="num">{money(l.amount != null ? l.amount : Math.round(l.hours * l.rate * 100))}</span>
-                    <span className="muted">{l.meta?.abaHr ? `⚡ ABA${l.meta?.abaActivity ? ` · ${l.meta.abaActivity}` : ''}` : l.source === 'adjustment' ? `manual — ${l.note || 'adjustment'}` : (l.note || l.meta?.evv || 'schedule')}</span>
+                    <span className="muted">{l.meta?.abaHr ? `⚡ ABA${l.meta?.abaActivity ? ` · ${l.meta.abaActivity}` : ''}` : l.source === 'adjustment' ? `manual: ${l.note || 'adjustment'}` : (l.note || l.meta?.evv || 'schedule')}</span>
                   </div>
                 ))}
                 {!detailTs.lines.length && <div className="pay-line empty">No payable time in this period.</div>}
@@ -284,7 +284,7 @@ export default function TimesheetSubmissionView() {
               <h4 className="pay-h4">Decision trail</h4>
               <div className="pay-audit" data-testid="pay-ts-audit">
                 {(detailTs.sheet.audit || []).slice().reverse().map((a, i) => (
-                  <div key={i} className="pay-audit-row"><span>{new Date(a.at).toLocaleString()}</span><b>{a.who}</b><span>{a.action}{a.detail ? ` — ${a.detail}` : ''}</span></div>
+                  <div key={i} className="pay-audit-row"><span>{new Date(a.at).toLocaleString()}</span><b>{a.who}</b><span>{a.action}{a.detail ? `: ${a.detail}` : ''}</span></div>
                 ))}
               </div>
             </div>

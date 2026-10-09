@@ -47,8 +47,8 @@ export function hireBoard({ ramp, coverage } = {}) {
 
   if (staffTotal === 0 && knownDemand) {
     verdict = 'hire'
-    headline = 'Hours gap — no clinical bench'
-    reason = 'There are no clinical staff on the bench and known demand is on the books. That is an hours gap, not a template problem. The hours short are the ramp’s first short week; demand is not split by RBT vs BCBA, so this is not a headcount.'
+    headline = 'Hours gap: no clinical staff'
+    reason = 'There are no clinical staff and known demand is on the books, so this is an hours gap. The hours short are from the ramp’s first short week. Demand is not split by RBT and BCBA, so this is not a headcount.'
   } else if (shortWeeks > 0 && !utilKnown && staffTotal > 0) {
     verdict = 'thin'
     headline = 'Not enough on-screen hours to tell'
@@ -61,17 +61,17 @@ export function hireBoard({ ramp, coverage } = {}) {
       : 'There is no known demand on the ramp yet, so there is no hours gap to hire against.'
   } else if (highUtil) {
     verdict = 'hire'
-    headline = 'Hours gap — hire or contract'
+    headline = 'Hours gap: hire or contract'
     reason = `Known demand exceeds supply in ${shortWeeks} week${shortWeeks === 1 ? '' : 's'} and the range on screen is already ${fillPct}% full (≥ ${HIRE_HIGH_UTIL}%). That is an hours gap. Demand is not split by credential, so this names hours, not people.`
   } else {
     verdict = 'reshape'
-    headline = 'Template problem — do not hire yet'
-    reason = `Known demand exceeds supply in ${shortWeeks} week${shortWeeks === 1 ? '' : 's'}, but the range on screen is only ${fillPct}% full (below ${HIRE_HIGH_UTIL}%). Low utilization with a wait is a schedule-shape problem, not a capacity problem — reshape the week (Density, idle windows) before hiring.`
+    headline = 'Template problem: do not hire yet'
+    reason = `Known demand exceeds supply in ${shortWeeks} week${shortWeeks === 1 ? '' : 's'}, but the range on screen is only ${fillPct}% full (below ${HIRE_HIGH_UTIL}%). Low utilization with a wait points to a template problem, not a capacity problem. Reshape the week (Density, idle windows) before hiring.`
   }
 
   const note =
     'Before you hire, check whether the gap is demand or schedule shape. Fill is booked staff time over the Coverage denominator (working day minus blocked time) for the range on screen. ' +
-    'Demand is the ramp’s known work — authorized weekly hours plus open intake at recorded hours, never weighted by a conversion rate; renewals are never assumed. ' +
+    'Demand is the ramp’s known work: authorized weekly hours plus open intake at recorded hours, never weighted by a conversion rate. Renewals are never assumed. ' +
     'Supply on the ramp is Mon–Fri. Advisory only: nothing here is hired, contracted, booked or sent.'
 
   return {

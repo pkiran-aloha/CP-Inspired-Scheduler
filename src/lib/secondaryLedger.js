@@ -48,7 +48,7 @@ export function planSecondaryFiling(state, id, { submit = false, method = 'ch', 
       return fail('Primary balance, COB coverage or links changed; review before recording a filing')
     }
     const filed = { ...claim, status: 'submitted', submittedAt: at, submitMethod: method,
-      history: [...(claim.history || []), { at, ev: `Manual ${SECONDARY_METHODS[method]} filing recorded — not transmitted by Aloha` }] }
+      history: [...(claim.history || []), { at, ev: `Manual ${SECONDARY_METHODS[method]} filing recorded. Not transmitted by Aloha.` }] }
     return { ok: true, claimUpserts: [filed], secondaryId: filed.id,
       msg: `${filed.no} recorded as filed via ${SECONDARY_METHODS[method]} (no network transmission)` }
   }
@@ -59,19 +59,19 @@ export function planSecondaryFiling(state, id, { submit = false, method = 'ch', 
   if (!pair || state.claims?.[pair.secondary.id] || Object.values(state.claims || {}).some((c) => c.no === pair.secondary.no)) return fail('A secondary identifier already exists')
   if (submit) {
     pair.secondary = { ...pair.secondary, status: 'submitted', submittedAt: at, submitMethod: method,
-      history: [...pair.secondary.history, { at, ev: `Manual ${SECONDARY_METHODS[method]} filing recorded — not transmitted by Aloha` }] }
+      history: [...pair.secondary.history, { at, ev: `Manual ${SECONDARY_METHODS[method]} filing recorded. Not transmitted by Aloha.` }] }
   }
   return { ok: true, claimUpserts: [pair.primary, pair.secondary], secondaryId: pair.secondary.id,
     msg: submit
       ? `${pair.secondary.no} recorded as filed via ${SECONDARY_METHODS[method]} (no network transmission)`
-      : `${pair.secondary.no} drafted for ${pair.secondary.payer} — $${pair.secondary.charges.toFixed(2)} to review` }
+      : `${pair.secondary.no} drafted for ${pair.secondary.payer}: $${pair.secondary.charges.toFixed(2)} to review` }
 }
 
 export function planSecondarySkip(state, id, { at = Date.now() } = {}) {
   const claim = state.claims?.[id]
   if (!secondaryEligible(state, claim)) return fail('Only an eligible, unfiled primary balance can be skipped')
   return { ok: true, claimUpserts: [{ ...claim, secondarySkipped: true,
-    history: [...(claim.history || []), { at, ev: 'Secondary filing skipped — remaining liability not reassigned automatically' }] }],
+    history: [...(claim.history || []), { at, ev: 'Secondary filing skipped. The remaining balance was not reassigned.' }] }],
   msg: `${claim.no} secondary filing skipped; outstanding balance still requires review` }
 }
 

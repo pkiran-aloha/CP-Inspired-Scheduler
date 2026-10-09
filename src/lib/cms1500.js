@@ -74,7 +74,7 @@ export function cms1500Data(state, claim) {
     const unpricedMileage = (claim.lines || []).find((line) => line.kind === 'mileage' && mileageCodeIssue(line.code, payerRec))
     if (unpricedMileage) {
       const issue = mileageCodeIssue(unpricedMileage.code, payerRec)
-      throw new Error(`${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings, or remove mileage if it is not covered, then rebuild this draft.`)
+      throw new Error(`${issue} Set the code in Masters → Payer → Billing Rules → Claims Settings (or remove mileage if it is not covered), then rebuild this draft.`)
     }
   }
   // never print an invented member ID, diagnosis or required auth number: refuse instead

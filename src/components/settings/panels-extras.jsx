@@ -92,7 +92,7 @@ export function ServicesPanel({ state, actions, toast, readOnly }) {
             <Row label="Billing Code (CPT)"><TextField value={editor.code || '97153'} onCommit={(v) => setEditor({ ...editor, code: v })} wide={120} testid="set-svc-f-code" /></Row>
             <Row label="Default Earning Code">
               <Select value={editor.defaultEarningCode || 'ABA'} wide={200} testid="set-svc-f-earning"
-                options={codes.map((c) => ({ value: c.id, label: `${c.id} — ${c.label}` }))}
+                options={codes.map((c) => ({ value: c.id, label: `${c.id}: ${c.label}` }))}
                 onChange={(v) => setEditor({ ...editor, defaultEarningCode: v })} />
             </Row>
             <Row label="Third-Party Tracking ID"><TextField value={editor.trackingId || ''} onCommit={(v) => setEditor({ ...editor, trackingId: v })} wide={180} testid="set-svc-f-tracking" placeholder="e.g. EVV-97153" /></Row>
@@ -123,6 +123,7 @@ export function CustomFieldsPanel({ state, actions, toast, readOnly }) {
     <Section
       title="Custom fields"
       sub={`${defs.filter((d) => d.status !== 'inactive').length} active of ${defs.length} · ${picks} values captured on appointments`}
+      info={<span data-testid="set-cf-note">Custom fields are <b>opt-in</b>. Each one applies to the places you choose: Client Authorization, Client Profile, Payer Profile, Schedule Appointment or Staff Profile.</span>}
       testId="set-custom-fields"
       actions={
         <div className="set-actions">
@@ -159,9 +160,6 @@ export function CustomFieldsPanel({ state, actions, toast, readOnly }) {
           )
         }}
       />
-      <Banner tone="info" testid="set-cf-note">
-        Custom fields are <b>opt-in</b> and scoped to Client Authorization, Client Profile, Payer Profile, Schedule Appointment, or Staff Profile.
-      </Banner>
       {modalDef !== undefined && (
         <CfDefModal
           def={modalDef}
@@ -195,8 +193,8 @@ export function SecurityPanel({ state, actions, toast, readOnly, sub }) {
         actions={<span className="set-pill">{tab === 'roles' ? 'User Roles' : 'User Accounts'}</span>}
       >
         <Banner tone="warn" testid="set-security-warning">
-          This is browser-local role-based access, <b>not authentication</b>. Passwords are never stored, and nothing here is
-          server-side authorization or HIPAA compliance. Accounts are local demo previews.
+          These are role permissions in this browser, <b>not authentication</b>. No passwords are stored. This is not server-side
+          authorization or HIPAA compliance, and the accounts are local demo records.
         </Banner>
         <div className="set-inline" data-testid={tab === 'roles' ? 'set-roles-table' : 'set-accounts-table'}>
           {tab === 'roles'
@@ -211,10 +209,10 @@ export function SecurityPanel({ state, actions, toast, readOnly, sub }) {
         </div>
         <p className="set-hint">
           {accounts.length} account{accounts.length === 1 ? '' : 's'} across {new Set(accounts.flatMap((a) => a.officeIds || [])).size} office
-          scope. The editor below is the whole workspace: permission matrix, bulk assignment and the role library.
+          scope. Use the editor below for the permission matrix, bulk assignment and the role library.
         </p>
       </Section>
-      <Section title={tab === 'roles' ? 'Role editor & assignment' : 'Account editor'} sub="Everything the standalone Security workspace could do, in place" testId="set-security-workspace">
+      <Section title={tab === 'roles' ? 'Role editor & assignment' : 'Account editor'} sub="Permissions, assignments and the role library" testId="set-security-workspace">
         <div className="set-embed" data-testid="set-security-embed">
           <SecurityView embedded />
         </div>
@@ -254,12 +252,12 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
       const clientsById = Object.fromEntries((state.clients || []).map((c) => [c.id, c]))
       downloadDoc(`aloha-aba-calendar-${todayISO()}.ics`, buildICS(appts, staffById, clientsById, (k) => isCancelStatus(settings, k), (a) => telehealthRoomFor(settings, a)), 'text/calendar;charset=utf-8')
       const res = actions.settingsOp('integration.ran', { id: row.id, who: state.currentAccount?.name })
-      toast({ message: res.msg || `Exported ${appts.length} upcoming events to .ics`, kind: 'ok' })
+      toast({ message: res.msg || `Downloaded ${appts.length} upcoming events as an .ics file`, kind: 'ok' })
       return
     }
     if (row.id === 'int-qbo') { actions.setUI({ section: 'bil-qbo', settings: false }); return }
     if (row.id === 'int-telehealth') {
-      downloadDoc(`aloha-telehealth-room-${todayISO()}.txt`, `Telehealth room link for ${state.settings.org?.name || 'the practice'}\n\n${row.roomUrl || '(set a room URL in this panel)'}\n\nThis file is a reference card only — no session is recorded.\n`, 'text/plain;charset=utf-8')
+      downloadDoc(`aloha-telehealth-room-${todayISO()}.txt`, `Telehealth room link for ${state.settings.org?.name || 'the practice'}\n\n${row.roomUrl || '(set a room URL in this panel)'}\n\nThis file is a reference card only. No session is recorded.\n`, 'text/plain;charset=utf-8')
       const res = actions.settingsOp('integration.ran', { id: row.id, who: state.currentAccount?.name })
       toast({ message: res.msg || 'Reference card downloaded', kind: 'ok' })
       return
@@ -268,7 +266,7 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
       toast({ message: 'Nothing to export: the payment link prints on client statements. Record what families pay in the Payment Center.', kind: 'info' })
       return
     }
-    toast({ message: `${row.name} has no local artifact — it is a documented seam, not a connection.`, kind: 'warn' })
+    toast({ message: `${row.name} has nothing to export here. It is a placeholder, not a connection.`, kind: 'warn' })
   }
   return (
     <>
@@ -299,10 +297,10 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
                 <div className="set-grid2">
                   <Row label="Last local run"><span className="muted" data-testid="set-integration-last">{row.lastRunAt ? new Date(row.lastRunAt).toLocaleString() : 'never'}{row.lastRunBy ? ` · ${row.lastRunBy}` : ''}</span></Row>
                   {row.id === 'int-telehealth' && (
-                    <Row label="Telehealth room URL" hint="Your practice’s own video room (Zoom, Doxy.me, Teams…). Shown on telehealth appointments; the app does not host video."><TextField value={row.roomUrl} disabled={readOnly} wide={260} testid="set-integration-room" placeholder="https://" onCommit={(v) => patch(row.id, { roomUrl: v })} /></Row>
+                    <Row label="Telehealth room URL" hint="Your practice’s own video room (Zoom, Doxy.me, Teams). Shown on telehealth appointments. The app does not host video."><TextField value={row.roomUrl} disabled={readOnly} wide={260} testid="set-integration-room" placeholder="https://" onCommit={(v) => patch(row.id, { roomUrl: v })} /></Row>
                   )}
                   {row.id === 'int-paylink' && (
-                    <Row label="Payment link URL" hint="Your practice’s own payment page, e.g. a Stripe Payment Link. Printed on client statements; the app never charges a card."><TextField value={row.payUrl || ''} disabled={readOnly} wide={260} testid="set-integration-paylink" placeholder="https://" onCommit={(v) => patch(row.id, { payUrl: v })} /></Row>
+                    <Row label="Payment link URL" hint="Your practice’s own payment page, such as a Stripe Payment Link. Printed on client statements. The app never charges a card."><TextField value={row.payUrl || ''} disabled={readOnly} wide={260} testid="set-integration-paylink" placeholder="https://" onCommit={(v) => patch(row.id, { payUrl: v })} /></Row>
                   )}
                   {/* This local prototype has no server-side secret vault, so no credential input is offered. */}
                   {row.direction !== 'Reference data' && (
@@ -319,9 +317,9 @@ export function IntegrationsPanel({ state, actions, toast, readOnly }) {
           </div>
         </div>
         <Banner tone="warn" testid="set-integrations-note">
-          Nothing here opens a network connection. What exists is real <b>local export</b> (ICS feed, QuickBooks CSV, backup JSON);
-          clinical data-collection partners (Ensora, Hi Rasmus, Motivity, Welina), the EMR/FHIR hand-off, clearinghouse and eligibility rows are documented seams kept honest by their status.
-          This browser-local prototype has no server-side secret vault, so the app does not accept or retain API keys and tokens in integration records. Do not enter live credentials.
+          Nothing here opens a network connection. The working parts are <b>local exports</b>: the ICS file, the QuickBooks CSV and the backup file.
+          The other rows (Ensora, Hi Rasmus, Motivity, Welina, EMR/FHIR, clearinghouse, eligibility) are placeholders, and their status says so.
+          There is no server-side secret vault, so integration records do not accept API keys or tokens. Do not enter live credentials.
         </Banner>
       </Section>
     </>
@@ -363,7 +361,7 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
 
   return (
     <>
-      <Section title="Appointment Reminders" sub="Automated SMS reminder preferences for staff and clients" testId="set-msg-reminders">
+      <Section title="Appointment Reminders" sub="SMS reminder preferences for staff and clients" testId="set-msg-reminders">
         <div className="set-grid2">
           <Row label="Send Text Messages to Staff">
             <Toggle on={rem.sendToStaff !== false} disabled={readOnly} testid="set-msg-rem-staff" onChange={(v) => patchRem({ sendToStaff: v })} />
@@ -386,7 +384,7 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
               options={[{ value: '2', label: '2 hours before session' }, { value: '24', label: '24 hours before session' }, { value: '48', label: '48 hours before session' }]}
               onChange={(v) => patchRem({ scheduleHoursBefore: Number(v) })} />
           </Row>
-          <Row label="Organization Code *" hint="Short prefix included in all outbound SMS messages">
+          <Row label="Organization Code *" hint="Short prefix at the start of every SMS reminder">
             <TextField value={cfg.orgCode || 'ALOHA'} disabled={readOnly} wide={140} testid="set-msg-orgcode" onCommit={(v) => patch({ orgCode: v.toUpperCase() })} />
           </Row>
         </div>
@@ -403,7 +401,7 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
 
       <Section title="Sending identity" sub="Who the message says it is from" testId="set-msg-sender">
         <div className="set-grid2">
-          <Row label="Texting enabled" hint="Off by default — this demo never transmits messages"><Toggle on={!!cfg.enabled} disabled={readOnly} testid="set-msg-enabled" onChange={(v) => patch({ enabled: v })} /></Row>
+          <Row label="Texting enabled" hint="Off by default. This demo never sends messages."><Toggle on={!!cfg.enabled} disabled={readOnly} testid="set-msg-enabled" onChange={(v) => patch({ enabled: v })} /></Row>
           <Row label="Sender name"><TextField value={cfg.senderName} disabled={readOnly} wide={220} testid="set-msg-name" onCommit={(v) => patch({ senderName: v })} /></Row>
           <Row label="Sender number"><TextField value={cfg.senderNumber} disabled={readOnly} wide={180} testid="set-msg-number" onCommit={(v) => patch({ senderNumber: v })} /></Row>
           <Row label="Quiet hours start"><TextField value={cfg.quietStart} disabled={readOnly} wide={92} testid="set-msg-quiet-start" onCommit={(v) => patch({ quietStart: v })} /></Row>
@@ -411,8 +409,8 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
           <Row label="Consent note" stack><TextField value={cfg.consentNote} disabled={readOnly} wide={420} testid="set-msg-consent" onCommit={(v) => patch({ consentNote: v })} /></Row>
         </div>
         <Banner tone="warn" testid="set-msg-warning">
-          There is <b>no SMS gateway</b> here: a template renders locally and is copied by hand. Sending PHI by text requires a BAA
-          with the carrier and a compliant opt-out process — this demo does neither, and the opt-out list below is a local record.
+          There is <b>no SMS gateway</b>. A template is filled in locally and you copy it by hand. Texting PHI needs a BAA with the
+          carrier and a compliant opt-out process. This demo has neither, and the opt-out list below is a local record.
         </Banner>
       </Section>
 
@@ -436,7 +434,7 @@ export function MessagingPanel({ state, actions, toast, readOnly }) {
               <span className="set-actions">
                 <IconButton icon="eye" title="Preview" testid={`set-msg-preview-${t.id}`} onClick={() => setPreview(preview === t.id ? null : t.id)} />
                 <IconButton icon="edit" title="Edit" disabled={readOnly} testid={`set-msg-edit-${t.id}`} onClick={() => setEditor({ ...t })} />
-                <IconButton icon="copy" title="Copy rendered message" testid={`set-msg-copy-${t.id}`} onClick={() => { navigator.clipboard?.writeText(renderPreview(t.body)); toast({ message: 'Rendered message copied — nothing was sent', kind: 'info' }) }} />
+                <IconButton icon="copy" title="Copy rendered message" testid={`set-msg-copy-${t.id}`} onClick={() => { navigator.clipboard?.writeText(renderPreview(t.body)); toast({ message: 'Message copied to the clipboard. Nothing was sent.', kind: 'info' }) }} />
                 <IconButton icon="trash" tone="danger" title="Remove" disabled={readOnly} testid={`set-msg-del-${t.id}`} onClick={() => { const res = actions.settingsOp('template.remove', { id: t.id }); toast({ message: res.msg, kind: res.ok ? 'ok' : 'warn' }) }} />
               </span>
             </div>
@@ -515,7 +513,7 @@ export function SubscriptionPanel({ state, actions, toast, readOnly }) {
     if (!(amount > 0)) { toast({ message: 'Enter a positive invoice amount', kind: 'warn' }); return }
     const next = [...(cfg.invoices || []), { id: `inv-${Date.now()}`, date: invoice.date, amount, note: invoice.note, recordedBy: state.currentAccount?.name || 'local user' }]
     const res = patch({ invoices: next })
-    if (res.ok) { toast({ message: `Recorded a local invoice for $${amount.toFixed(2)} — nothing was charged`, kind: 'ok' }); setInvoice({ date: todayISO(), amount: '', note: '' }) }
+    if (res.ok) { toast({ message: `Recorded a local invoice for $${amount.toFixed(2)}. Nothing was charged.`, kind: 'ok' }); setInvoice({ date: todayISO(), amount: '', note: '' }) }
   }
   const seatsUsed = (state.security?.accounts || []).filter((a) => a.status === 'active').length
   return (
@@ -536,12 +534,12 @@ export function SubscriptionPanel({ state, actions, toast, readOnly }) {
           <Row label="Seat price (display only)"><NumberField value={cfg.monthly} min={0} max={100000} step={0.01} suffix="$/seat/mo" disabled={readOnly} testid="set-sub-price" onCommit={(v) => patch({ monthly: v })} /></Row>
         </div>
         <Banner tone="warn" testid="set-sub-note">
-          Subscription billing lives in Aloha’s portal, not in this workspace. The record here is a <b>local note</b> — no card is
-          charged, no invoice is issued, and the portal link opens the real service in a new tab.
+          Subscription billing is handled in Aloha’s portal, not here. This record is a <b>local note</b>. No card is charged and no
+          invoice is issued. The portal link opens the real service in a new tab.
         </Banner>
       </Section>
 
-      <Section title="Local invoice record" sub="Notes for reconciliation — not a billing document" testId="set-sub-invoices">
+      <Section title="Local invoice record" sub="Notes for reconciliation, not a billing document" testId="set-sub-invoices">
         <DataTable
           testid="set-sub-invoice-table"
           empty="No invoices recorded locally."

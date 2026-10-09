@@ -63,8 +63,8 @@ export default function PayRunsView() {
     }
     if (kind === 'ach') {
       download(`payroll-ach-${open.no}.ach`, achFile(open, state), 'text/plain;charset=utf-8')
-      actions.recordPayExport({ runId: open.id, periodId: open.periodId, kind: 'ach_draft', fileName: `payroll-ach-${open.no}.ach`, rows: open.included.length, note: 'NACHA-shaped local draft — not bank-validated' })
-      toast({ message: 'ACH draft downloaded — validate the practice bank details before it goes anywhere near a bank', kind: 'warn' })
+      actions.recordPayExport({ runId: open.id, periodId: open.periodId, kind: 'ach_draft', fileName: `payroll-ach-${open.no}.ach`, rows: open.included.length, note: 'NACHA-format local draft, not bank-validated' })
+      toast({ message: 'ACH draft downloaded. Validate the practice bank details before using it with a bank', kind: 'warn' })
       return
     }
     toast({ message: `${kind} downloaded and recorded`, kind: 'ok' })
@@ -121,7 +121,7 @@ export default function PayRunsView() {
           ))}
           {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="pay-runs-empty">
             <b>No pay runs in this filter</b>
-            <div className="muted" style={{ fontSize: 12 }}>Process a period from Process Payroll and it will appear here with its locked register.</div>
+            <div className="muted" style={{ fontSize: 12 }}>Runs you process in Process Payroll appear here with their locked register.</div>
           </div>}
         </div>
       </div>
@@ -197,7 +197,7 @@ export default function PayRunsView() {
               <h4 className="pay-h4">Audit trail</h4>
               <div className="pay-audit" data-testid="pay-run-audit">
                 {(open.audit || []).slice().reverse().map((a, i) => (
-                  <div key={i} className="pay-audit-row"><span>{new Date(a.at).toLocaleString()}</span><b>{a.who}</b><span>{a.action}{a.detail ? ` — ${a.detail}` : ''}</span></div>
+                  <div key={i} className="pay-audit-row"><span>{new Date(a.at).toLocaleString()}</span><b>{a.who}</b><span>{a.action}{a.detail ? `: ${a.detail}` : ''}</span></div>
                 ))}
               </div>
 
@@ -219,7 +219,7 @@ export default function PayRunsView() {
                     {open.excluded.map((id) => (
                       <div key={id} className="pay-line" style={{ gridTemplateColumns: '2fr 3fr' }}>
                         <span>{staff.find((x) => x.id === id)?.name || id}</span>
-                        <span className="muted">eligible but not included — no money moved for them in this run</span>
+                        <span className="muted">eligible but not included. No money moved for them in this run</span>
                       </div>
                     ))}
                   </div>

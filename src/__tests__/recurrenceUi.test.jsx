@@ -78,7 +78,7 @@ describe('recurrence editor in the booking dialog', () => {
     expect(screen.getByTestId('scope-one').disabled).toBe(true)
     expect(screen.getByTestId('scope-note').textContent).toMatch(/rebuilt from the repeat rule/)
     fireEvent.click(screen.getByTestId('save-appt'))
-    expect(await screen.findByText(/^Series rebuilt — Every 2 weeks on Mon, 4 times/)).toBeTruthy()
+    expect(await screen.findByText(/^Series rebuilt: Every 2 weeks on Mon, 4 times/)).toBeTruthy()
     await waitFor(() => {
       const mine = Object.values(stored()).filter((a) => a.seriesId === 'SER-UI')
       expect(mine.map((a) => a.date).sort()).toEqual([0, 14, 28, 42].map((n) => plus(START, n)))

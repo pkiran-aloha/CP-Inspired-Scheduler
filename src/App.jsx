@@ -155,7 +155,7 @@ function Shell() {
   useEffect(() => {
     const m = state.meta
     if (m?.pcfCleared && !m.pcfClearedSeen && (m.pcfClearedCount || 0) > 0) {
-      toast({ message: `v13 cleanup — cleared ${m.pcfClearedCount} pre-loaded custom-field value${m.pcfClearedCount === 1 ? '' : 's'} from earlier appointments; new appointments start with none`, kind: 'info' })
+      toast({ message: `Cleared ${m.pcfClearedCount} pre-loaded custom-field value${m.pcfClearedCount === 1 ? '' : 's'} from earlier appointments. New appointments start with none.`, kind: 'info' })
       actions.setMeta({ pcfClearedSeen: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -165,7 +165,7 @@ function Shell() {
   useEffect(() => {
     const m = state.meta
     if (m?.legacyCustomCleared && !m.legacyCustomClearedSeen && (m.legacyCustomClearedCount || 0) > 0) {
-      toast({ message: `v14 cleanup — removed pre-loaded legacy custom fields from ${m.legacyCustomClearedCount} appointment${m.legacyCustomClearedCount === 1 ? '' : 's'} (My Care, Yes or No, Grade, Re-eval Notes); they're now add-on-demand fields under “Add Custom Fields”`, kind: 'info' })
+      toast({ message: `Removed pre-loaded legacy custom fields (My Care, Yes or No, Grade, Re-eval Notes) from ${m.legacyCustomClearedCount} appointment${m.legacyCustomClearedCount === 1 ? '' : 's'}. Add them when needed with “Add Custom Fields”.`, kind: 'info' })
       actions.setMeta({ legacyCustomClearedSeen: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -175,7 +175,7 @@ function Shell() {
   useEffect(() => {
     const m = state.meta
     if (m?.billingV2 && !m.billingV2Seen && (m.billingV2Count || 0) > 0) {
-      toast({ message: `Billing v2 — payments & provider IDs now tracked on their own ledgers (${m.billingV2Count} records migrated)`, kind: 'info' })
+      toast({ message: `Payments and provider IDs now have their own ledgers. ${m.billingV2Count} records moved.`, kind: 'info' })
       actions.setMeta({ billingV2Seen: true })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,7 +396,7 @@ function Shell() {
           onBooked={(appt) => {
             setQuickAdd(null)
             setDetailId(appt.id)
-            toast({ message: 'Session booked — open to verify, or edit any field', kind: 'ok' })
+            toast({ message: 'Session booked. Open it to verify or edit any field.', kind: 'ok' })
           }}
           onFullForm={(pre) => {
             setQuickAdd(null)

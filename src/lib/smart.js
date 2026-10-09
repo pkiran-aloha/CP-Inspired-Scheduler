@@ -138,7 +138,7 @@ export function suggestStaff({ staff, teams = [], clients = [], appts, clientIds
     }
     if (role.includes('student')) {
       score -= 12
-      warnings.push('Trainee — co-sign needed')
+      warnings.push('Trainee: co-sign needed')
     }
     const wl = load[s.id] || 0
     score += (14 - wl * 2) * mLoad

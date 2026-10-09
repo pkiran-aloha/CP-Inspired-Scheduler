@@ -1,13 +1,19 @@
 import React, { useEffect, useState } from 'react'
 import { Icon } from '../../ui/Icons'
+import InfoTip from '../../ui/InfoTip'
 
-/** Section card inside a settings module. */
-export function Section({ title, sub, children, actions, testId }) {
+/** Section card inside a settings module. `info` is guidance shown behind an info button. */
+export function Section({ title, sub, info, wiki = 'settings', children, actions, testId }) {
   return (
     <section className="set-sec" data-testid={testId}>
       <header className="set-sec-head">
         <div>
-          <b>{title}</b>
+          {info ? (
+            <span className="set-sec-title">
+              <b>{title}</b>
+              <InfoTip label={title} wiki={wiki} testid={`${testId || 'set-sec'}-info`}>{info}</InfoTip>
+            </span>
+          ) : <b>{title}</b>}
           {sub && <span>{sub}</span>}
         </div>
         <div className="set-sec-actions">{actions}</div>

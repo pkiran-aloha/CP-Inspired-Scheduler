@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
 import { useToast } from '../ui/Toast'
+import InfoTip from '../ui/InfoTip'
 import { REPORTS, REPORT_CATS, REPORT_BY_ID, runReport, toCSV, validationIssues } from '../lib/reports'
 import { numCols, priorResults, numericTotals, deltaPct } from '../lib/rpTrends'
 import { vizFor, VIZ_KIND, statusTone, STATUS_COLS, kpiNumber } from '../lib/reportViz'
@@ -163,7 +164,7 @@ export default function ReportsView() {
     const units = unitsFor(a.end - a.start, unitMins, rounding)
     const prev = { billing: a.billing }
     actions.update(a.id, { billing: { ...(a.billing || {}), units } })
-    toast({ message: `Auto-filled ${units} billable units — table re-ran`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(a.id, prev) } })
+    toast({ message: `Auto-filled ${units} billable units. The table has re-run.`, kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(a.id, prev) } })
   }
   const verify = (r) => {
     const a = state.appts[r._link?.id]
@@ -183,7 +184,7 @@ export default function ReportsView() {
         signature: { mode: 'type', text: who?.name || 'Admin', staffId: who?.id || null, staffName: who?.name || 'Admin', certification: who?.cert || null, timestamp: new Date().toISOString(), geo: null },
       },
     })
-    toast({ message: 'Verified & signed — the row clears on the next run', kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(a.id, prev) } })
+    toast({ message: 'Verified & signed. The row clears on the next run.', kind: 'ok', action: { label: 'Undo', onClick: () => actions.update(a.id, prev) } })
   }
 
   const scopeLabel = scope.staff || scope.client || scope.team ? `scope ${Object.entries(scope).map(([k, v]) => `${k}=${v}`).join(' ')}` : ''
@@ -196,12 +197,12 @@ export default function ReportsView() {
   }
   const exportXls = () => {
     downloadDoc(`${fileBase}.xls`, specToXls(spec()), 'application/vnd.ms-excel')
-    toast({ message: `Excel workbook exported — ${rows.length} styled rows${Object.keys(totals).length ? ' + totals' : ''}`, kind: 'ok' })
+    toast({ message: `Excel workbook exported: ${rows.length} rows${Object.keys(totals).length ? ' with totals' : ''}`, kind: 'ok' })
   }
   const exportPdf = async () => {
     if (!(await loadPdf((m) => toast({ message: m, kind: 'warn' })))) return
     downloadDoc(`${fileBase}.pdf`, specToPdf(spec()).output('blob'), 'application/pdf')
-    toast({ message: `PDF exported — ${rows.length} rows, letter landscape, totals included`, kind: 'ok' })
+    toast({ message: `PDF exported: ${rows.length} rows with totals, letter landscape`, kind: 'ok' })
   }
 
   const doSave = () => {
@@ -209,7 +210,7 @@ export default function ReportsView() {
     actions.saveReport({ name, reportId: sel, preset, note: range.label, dim: scope.staff ? 'staff' : scope.client ? 'client' : scope.team ? 'team' : null, key: scope.staff || scope.client || scope.team || null })
     setSaveOpen(false)
     setSaveName('')
-    toast({ message: `Saved “${name}” — reuse it any time from this panel`, kind: 'ok' })
+    toast({ message: `Saved “${name}”. Run it again from Saved reports.`, kind: 'ok' })
   }
 
   const hasRowActions = result.rows.some((r) => r._link?.kind === 'appt')
@@ -229,8 +230,13 @@ export default function ReportsView() {
     <div className="sectionpage rpv">
       <header className="rpv-head no-print">
         <div className="rpv-title">
-          <h1>Reports</h1>
-          <p>Built in this browser from the workspace ledger · {range.label}</p>
+          <div className="secbar-title">
+            <h1>Reports</h1>
+            <InfoTip label="Reports" wiki="dashboard-and-reports" testid="rp-info">
+              Reports are built in this browser from the data in this workspace. Nothing is sent anywhere. Pick a report, set the range and scope, then click a row to open its record. Exports save a file to this computer.
+            </InfoTip>
+          </div>
+          <p>{range.label}</p>
         </div>
         <div className="rpv-head-actions">
           {errors > 0 && (
@@ -306,7 +312,12 @@ export default function ReportsView() {
           <div className="rpv-report-h">
             <span className={`rpv-ic rpv-ic-lg cat-${def.cat}`} aria-hidden="true">{Icon[def.icon]({ size: 20 })}</span>
             <div>
-              <h2>{def.name}</h2>
+              <div className="secbar-title">
+                <h2>{def.name}</h2>
+                {(result.note || def.note) && (
+                  <InfoTip label={def.name} wiki="dashboard-and-reports" testid="rp-note">{result.note || def.note}</InfoTip>
+                )}
+              </div>
               <p>{def.blurb}</p>
             </div>
           </div>
@@ -486,7 +497,6 @@ export default function ReportsView() {
           </div>
 
           <footer className="rpv-foot">
-            {(result.note || def.note) && <p className="rp-note">{result.note || def.note}</p>}
             <p className="rpv-meta">Computed locally in {result.ms}ms{prior ? ` · comparisons use the previous ${ctx.days.length} days` : ''}</p>
           </footer>
 
@@ -502,7 +512,7 @@ export default function ReportsView() {
                     <span>Name</span>
                     <input className="input" autoFocus value={saveName} onChange={(e) => setSaveName(e.target.value)} placeholder={`${def.name} · ${range.label}`} onKeyDown={(e) => e.key === 'Enter' && doSave()} data-testid="rp-save-name" />
                   </label>
-                  <div className="muted" style={{ fontSize: 11.3 }}>Stores the report, window preset and drill scope. Roster or schedule changes flow through on every run.</div>
+                  <div className="muted" style={{ fontSize: 11.3 }}>Saves the report, range preset and scope. Each run uses current data.</div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
                     <button className="btn btn-sm" onClick={() => setSaveOpen(false)}>Cancel</button>
                     <button className="btn btn-sm btn-primary" onClick={doSave} data-testid="rp-save-go">Save</button>
@@ -519,5 +529,5 @@ export default function ReportsView() {
 
 function DeltaText({ d }) {
   if (d == null) return <span className="rpv-delta flat">—</span>
-  return <span className={`rpv-delta ${d > 0 ? 'up' : d < 0 ? 'down' : 'flat'}`} title="Change vs the previous window">{d === 0 ? 'no change' : signed(d)}</span>
+  return <span className={`rpv-delta ${d > 0 ? 'up' : d < 0 ? 'down' : 'flat'}`} title="Change from the previous window">{d === 0 ? 'no change' : signed(d)}</span>
 }

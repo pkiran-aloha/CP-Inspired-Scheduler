@@ -122,7 +122,7 @@ describe('report engine', () => {
     const r = runReport(s, 'claimready', ctx)
     const csv = toCSV(r, { org: s.settings.org, def: REPORT_BY_ID.claimready, days: ctx.days, gran: 'week' })
     const lines = csv.split('\n')
-    expect(lines[0].startsWith('# Aloha ABA Center — Claim-Ready Lines')).toBe(true)
+    expect(lines[0].startsWith('# Aloha ABA Center: Claim-Ready Lines')).toBe(true)
     expect(lines[4]).toBe('DOS,Client,Payer,Code,Units,Rate $,Charge $,Rendered by')
     expect(lines).toHaveLength(5 + r.rows.length) // 4 meta lines + column header + one per row
     expect(lines[lines.length - 1].split(',').length).toBeGreaterThanOrEqual(6)

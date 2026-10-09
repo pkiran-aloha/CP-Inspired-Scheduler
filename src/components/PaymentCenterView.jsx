@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { useStore } from '../state/store'
 import { SectionBar, RangePicker } from './NavRail'
 import { Icon } from '../ui/Icons'
+const withUndo = (m) => `${String(m).replace(/\.$/, '')}. Press U to undo.`
 import { useToast } from '../ui/Toast'
 import { resolveRange } from '../lib/analytics'
 import { isoDate, addDays, parseISO, todayISO } from '../lib/date'
@@ -63,11 +64,11 @@ function ManualForm({ state, onSaved, initialApply = 'unapplied' }) {
   }
   return (
     <div className="pc-form">
-      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Record money already received elsewhere. Payer remittances, claim-linked patient receipts and unapplied receipts have different ledger effects. No payment processing, refund or bank reconciliation occurs here.</p>
+      <p className="muted" style={{ fontSize: 12, marginTop: 0 }}>Record money you already received. No card is charged, no refund is issued and no bank is reconciled here.</p>
       <label className="field"><span>Apply to</span><select value={apply} onChange={(e) => { setApply(e.target.value); setClaimId(''); setMethod('check'); setError('') }} data-testid="pc-man-apply"><option value="unapplied">Unapplied receipt (no claim change)</option><option value="claim">Payer remittance on open claim</option><option value="patient">Patient share on primary claim</option></select></label>
       <div className="pc-form-grid">
-        <label className="field"><span>Client</span><select value={clientId} onChange={(e) => { setClientId(e.target.value); setClaimId(''); setError('') }} data-testid="pc-man-client"><option value="">— Select —</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-        {apply !== 'unapplied' ? <label className="field"><span>{apply === 'patient' ? 'Primary claim with patient share' : 'Open claim'}</span><select value={selected?.id || ''} onChange={(e) => setClaimId(e.target.value)} data-testid="pc-man-claim"><option value="">— Select —</option>{eligible.map((c) => <option key={c.id} value={c.id}>{c.no} {c.method === 'secondary' ? '(secondary)' : ''} — {money(apply === 'patient' ? patientResponsibilityOf(state, c) : dueOf(c))} {apply === 'patient' ? 'patient share' : 'open'}</option>)}</select></label> : null}
+        <label className="field"><span>Client</span><select value={clientId} onChange={(e) => { setClientId(e.target.value); setClaimId(''); setError('') }} data-testid="pc-man-client"><option value="">Select</option>{clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+        {apply !== 'unapplied' ? <label className="field"><span>{apply === 'patient' ? 'Primary claim with patient share' : 'Open claim'}</span><select value={selected?.id || ''} onChange={(e) => setClaimId(e.target.value)} data-testid="pc-man-claim"><option value="">Select</option>{eligible.map((c) => <option key={c.id} value={c.id}>{c.no} {c.method === 'secondary' ? '(secondary)' : ''}, {money(apply === 'patient' ? patientResponsibilityOf(state, c) : dueOf(c))} {apply === 'patient' ? 'patient share' : 'open'}</option>)}</select></label> : null}
         <label className="field"><span>{apply === 'patient' ? 'Receipt from' : 'Payer'}</span>{apply !== 'unapplied' ? <input value={apply === 'patient' ? PATIENT_AR_BUCKET : selected?.payer || ''} readOnly data-testid="pc-man-payer" /> : <select value={payer} onChange={(e) => setPayer(e.target.value)} data-testid="pc-man-payer">{payers.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}</select>}</label>
         <label className="field"><span>Amount</span><input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" data-testid="pc-man-amount" /></label>
         {apply === 'claim' && <>
@@ -78,9 +79,9 @@ function ManualForm({ state, onSaved, initialApply = 'unapplied' }) {
         <label className="field"><span>Method</span><select value={method} onChange={(e) => setMethod(e.target.value)} data-testid="pc-man-method"><option value="check">Check</option><option value="eft">EFT</option>{apply !== 'patient' && <option value="era">Manually keyed ERA</option>}{(apply !== 'claim' || selected?.mode === 'selfpay') && <><option value="cash">Cash</option><option value="card">Card</option></>}</select></label>
         <label className="field"><span>Reference # (required)</span><input value={ref} onChange={(e) => setRef(e.target.value)} placeholder={apply === 'patient' ? 'External receipt / check reference' : 'CHK / EFT #'} data-testid="pc-man-ref" /></label>
       </div>
-      {selected && apply === 'claim' && <p className="muted" style={{ fontSize: 12 }}>Applying to {selected.no} · {money(dueOf(selected))} open. {selected.method === 'secondary' ? `Linked primary ${claims[selected.secondary]?.no || 'missing'} holds the sole receivable; only payer money reduces it.` : 'If COB is filed, use the linked secondary instead.'}</p>}
-      {apply === 'patient' && <p className="muted" data-testid="pc-man-patient-limit" style={{ fontSize: 12 }}>Only documented patient responsibility or self-pay can be collected. {selected ? `${selected.no} has ${money(patientResponsibilityOf(state, selected))} remaining patient share; the payer and secondary cash ledgers will not change.` : eligible.length ? 'Select a primary claim to allocate the receipt.' : 'No eligible claim for this client.'} A reversal here does not issue a refund.</p>}
-      {apply === 'patient' && paymentLinkFor(state.settings) && <p className="muted" data-testid="pc-man-paylink" style={{ fontSize: 12 }}>Paid through your online payment link? Record it here with method Card and the processor’s receipt number as the reference. The app does not read Stripe, so nothing posts by itself.</p>}
+      {selected && apply === 'claim' && <p className="muted" style={{ fontSize: 12 }}>Applying to {selected.no}, {money(dueOf(selected))} open. {selected.method === 'secondary' ? `The receivable sits on primary ${claims[selected.secondary]?.no || '(missing)'}. Only payer money reduces it.` : 'If COB is filed, use the linked secondary claim instead.'}</p>}
+      {apply === 'patient' && <p className="muted" data-testid="pc-man-patient-limit" style={{ fontSize: 12 }}>Only documented patient responsibility or self-pay can be collected. {selected ? `${selected.no} has ${money(patientResponsibilityOf(state, selected))} patient share left. Payer and secondary ledgers do not change.` : eligible.length ? 'Select a primary claim for this receipt.' : 'No eligible claim for this client.'} A reversal here does not issue a refund.</p>}
+      {apply === 'patient' && paymentLinkFor(state.settings) && <p className="muted" data-testid="pc-man-paylink" style={{ fontSize: 12 }}>Paid through your online payment link? Record it here with method Card and the processor’s receipt number. The app does not read Stripe, so nothing posts on its own.</p>}
       <label className="field"><span>Note</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} data-testid="pc-man-note" /></label>
       {error && <div className="pc-era-error" role="alert" data-testid="pc-man-error">{error}</div>}
       <div className="pc-form-actions"><button className="btn btn-sm btn-primary" data-testid="pc-man-save" onClick={save}>Save {apply === 'patient' ? 'patient receipt' : apply === 'claim' ? 'claim remittance' : 'unapplied receipt'}</button><button className="btn btn-sm" onClick={() => onSaved(null)}>Cancel</button></div>
@@ -107,7 +108,7 @@ function RecoupForm({ state, onSaved }) {
   const save = () => {
     const r = state.actions.recordRecoupment(claimId, { amount, date, reason, method, ref, note })
     if (!r.ok) { setError(r.msg); return }
-    onSaved({ ...r, msg: `${r.msg} — press U to undo` })
+    onSaved({ ...r, msg: withUndo(r.msg) })
   }
   if (!eligible.length) return <p className="muted" data-testid="pc-recoup-none">No paid primary claims to recoup. Recoupments apply to claims a payer has already paid.</p>
   return (
@@ -122,7 +123,7 @@ function RecoupForm({ state, onSaved }) {
         <label className="field"><span>How the money went back</span><select value={method} onChange={(e) => setMethod(e.target.value)} data-testid="pc-recoup-method">{RECOUP_METHODS.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
         <label className="field"><span>Payer reference (letter, ERA trace or PLB)</span><input value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. PLB WO 20261003-77" data-testid="pc-recoup-ref" /></label>
       </div>
-      {sel && <p className="muted" style={{ fontSize: 12 }} data-testid="pc-recoup-effect">{sel.no}: {sel.payer} has paid {money(sel.paid)}. Recording a take-back reopens that much of the balance for rebilling, appeal or a patient decision; the original remittance stays on file.</p>}
+      {sel && <p className="muted" style={{ fontSize: 12 }} data-testid="pc-recoup-effect">{sel.no}: {sel.payer} paid {money(sel.paid)}. A take-back reopens that amount for rebilling, appeal or patient billing. The original remittance stays on file.</p>}
       <label className="field"><span>Note</span><textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} data-testid="pc-recoup-note" /></label>
       {error && <div className="pc-era-error" role="alert" data-testid="pc-recoup-error">{error}</div>}
       <div className="pc-form-actions"><button className="btn btn-sm btn-primary" data-testid="pc-recoup-save" onClick={save}>Record recoupment</button></div>
@@ -150,11 +151,11 @@ function TypedEraForm({ state, onSaved }) {
   }
   return (
     <div className="pc-form" data-testid="pc-typed-era">
-      <p className="muted" style={{ margin: 0, fontSize: 12 }}>Typed entries must match an open claim and reconcile exactly. No lines are silently skipped; use a real 835 file to preserve payer CARC codes.</p>
+      <p className="muted" style={{ margin: 0, fontSize: 12 }}>Each line must match an open claim and balance exactly. No line is skipped. Upload the real 835 file to keep the payer’s CARC codes.</p>
       <label className="field"><span>Reference / file name</span><input value={fileName} onChange={(e) => setFileName(e.target.value)} data-testid="pc-era-file" /></label>
       {lines.map((ln, i) => (
         <div key={i} className="pc-typed-row">
-          <label className="field"><span>Claim</span><select value={ln.claimId} onChange={(e) => change(i, { claimId: e.target.value })} data-testid={`pc-era-line-claim-${i}`}>{eligible.map((c) => <option key={c.id} value={c.id}>{c.no} — {money(dueOf(c))} due</option>)}</select></label>
+          <label className="field"><span>Claim</span><select value={ln.claimId} onChange={(e) => change(i, { claimId: e.target.value })} data-testid={`pc-era-line-claim-${i}`}>{eligible.map((c) => <option key={c.id} value={c.id}>{c.no}, {money(dueOf(c))} due</option>)}</select></label>
           <label className="field"><span>Paid</span><input type="number" min="0" step="0.01" value={ln.amount} onChange={(e) => change(i, { amount: e.target.value })} data-testid={`pc-era-line-amt-${i}`} /></label>
           <label className="field"><span>Adj</span><input type="number" min="0" step="0.01" value={ln.adj} onChange={(e) => change(i, { adj: e.target.value })} data-testid={`pc-era-line-adj-${i}`} /></label>
           <label className="field"><span>Status{ln.status === 'denied' ? ' / CARC' : ''}</span><select value={ln.status} onChange={(e) => change(i, { status: e.target.value })} data-testid={`pc-era-line-status-${i}`}><option value="paid">Paid</option><option value="denied">Denied</option><option value="partial">Partial</option></select>{ln.status === 'denied' && <input aria-label={`CARC code for line ${i + 1}`} value={ln.carc} onChange={(e) => change(i, { carc: e.target.value })} placeholder="197" />}</label>
@@ -175,7 +176,7 @@ function EraLinesTable({ rows, selected, onToggle, limit = 50, testId }) {
         const l = row.line
         return <tr key={row.id} className={row.ready ? 'pc-era-ready' : 'pc-era-held'} data-testid={`pc-era-line-${row.id}`}>
           <td><input type="checkbox" aria-label={`Post ${l.claimNo}`} checked={selected.includes(row.id)} disabled={!row.ready} onChange={() => onToggle(row.id)} /></td>
-          <td><b>{l.claimNo || 'Missing claim #'}</b><small>{row.claim ? `Exact → ${row.claim.no}` : 'Unmatched'}{l.dosFrom ? ` · DOS ${l.dosFrom}${l.dosTo && l.dosTo !== l.dosFrom ? `–${l.dosTo}` : ''}` : ''}</small></td>
+          <td><b>{l.claimNo || 'Missing claim #'}</b><small>{row.claim ? `Matches ${row.claim.no}` : 'Unmatched'}{l.dosFrom ? ` · DOS ${l.dosFrom}${l.dosTo && l.dosTo !== l.dosFrom ? `–${l.dosTo}` : ''}` : ''}</small></td>
           <td>{l.status || l.statusCode || '—'}<small>{carcOf(l)}</small></td>
           <td>{money(Number(l.charges) || 0)}</td><td>{l.allowed == null ? '—' : money(Number(l.allowed) || 0)}</td><td>{money(Number(l.paid) || 0)}</td><td>{money(adjustOf(l))}</td><td>{money(Number(l.patientResp) || 0)}</td>
           <td><span className={`pc-era-state ${row.ready ? 'safe' : 'hold'}`}>{row.ready ? 'Eligible' : 'Park'}</span>{!row.ready && <small>{row.reason}</small>}</td>
@@ -196,7 +197,7 @@ function UploadEraForm({ state, onSaved }) {
   const eraOff = systemConfigFor(state.settings).billing?.enableEra === false
   if (eraOff) {
     return <div className="pc-form" data-testid="pc-upload-era">
-      <p className="muted" style={{ margin: 0, fontSize: 12 }}>ERA import is switched off — turn on “Enable ERA (835 Electronic Remittance)” in Settings → System → Billing defaults to import 835 files here.</p>
+      <p className="muted" style={{ margin: 0, fontSize: 12 }}>ERA import is off. Turn on “Enable ERA (835 Electronic Remittance)” in Settings → System → Billing defaults to import 835 files here.</p>
     </div>
   }
   const onFile = async (e) => {
@@ -217,17 +218,17 @@ function UploadEraForm({ state, onSaved }) {
     else setError(result.msg)
   }
   return <div className="pc-form" data-testid="pc-upload-era">
-    <p className="muted" style={{ margin: 0, fontSize: 12 }}>Local-only claim-level 835 review. No file is sent anywhere. Select lines to post; all others are parked. Service-line SVC and provider-level PLB are <b>not</b> applied automatically.</p>
+    <p className="muted" style={{ margin: 0, fontSize: 12 }}>The 835 file is read in this browser and not sent anywhere. Select the lines to post; the rest are parked. Service line (SVC) and provider level (PLB) adjustments are <b>not</b> applied.</p>
     <label className="field"><span>835 file (.835 or .txt, max 2 MB)</span><input type="file" accept=".835,.txt,text/plain" data-testid="pc-era-upload" onChange={onFile} /></label>
     {error && <div className="pc-era-error" role="alert">{error}</div>}
     {preview && <>
       <div className="pc-era-summary" data-testid="pc-era-preview">
         <b>{fileName}</b><span>{preview.rows.length} claim lines · {preview.ready} eligible · {preview.parked} held</span>
         <span>Payer {parsed.meta?.payerName || 'not supplied'} · Trace {parsed.meta?.traceNo || '—'} · Payment date {parsed.meta?.paymentDate || 'not supplied'} · BPR {parsed.meta?.bprAmount == null ? '—' : money(parsed.meta.bprAmount)}</span>
-        {parsed.meta?.hasPLB && <span className="pc-era-warning">Provider-level PLB present — excluded from all claim payments.</span>}
+        {parsed.meta?.hasPLB && <span className="pc-era-warning">Provider level PLB present. It is left out of every claim payment.</span>}
         {preview.warnings.map((warning) => <span className="pc-era-warning" key={warning}>{warning}</span>)}
       </div>
-      {!!preview.errors.length && <div className="pc-era-error" role="alert">Cannot import: {preview.errors.join(' · ')}</div>}
+      {!!preview.errors.length && <div className="pc-era-error" role="alert">Cannot import: {preview.errors.join('; ')}</div>}
       <EraLinesTable rows={preview.rows} selected={selected} onToggle={toggle} limit={shown} testId="pc-era-preview-lines" />
       {shown < preview.rows.length && <button className="btn btn-xs" onClick={() => setShown((n) => n + 50)}>Show next 50 lines</button>}
       <div className="pc-form-actions">
@@ -272,7 +273,7 @@ function EraHistory({ state, query, range, onImport }) {
     toast({ message: result.msg, kind: 'ok' })
   }
   return <div className="pc-era-history" data-testid="pc-eras">
-    <div className="pc-era-history-head"><div><b>ERA imports</b><small>{visible.length} in range · imports are local to this workspace</small></div><button className="btn btn-sm btn-primary" onClick={onImport}>+ Upload 835</button></div>
+    <div className="pc-era-history-head"><div><b>ERA imports</b><small>{visible.length} in range, stored in this workspace only</small></div><button className="btn btn-sm btn-primary" onClick={onImport}>+ Upload 835</button></div>
     {!visible.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }}>No ERA imports in this range. Upload an 835 to review before posting.</div>}
     {visible.map((record) => <div className="pc-era-history-row" key={record.id}>
       <button type="button" data-testid={`pc-era-history-${record.id}`} onClick={() => { setSelectedId(selectedId === record.id ? null : record.id); setRetryIds([]); setShown(50); setError('') }}>
@@ -283,14 +284,14 @@ function EraHistory({ state, query, range, onImport }) {
       {(record.parked || 0) > 0 && <button className="btn btn-xs" data-testid={`pc-era-export-${record.id}`} onClick={() => exportParked(record)}>Export parked CSV</button>}
     </div>)}
     {era && <section className="pc-era-detail" data-testid="pc-era-detail">
-      <div className="pc-era-history-head"><div><b>{era.fileName} — line review</b><small>{era.posted ?? '—'} posted · {era.parked ?? '—'} parked · payment date {era.paymentDate || '—'}</small></div><button className="btn btn-xs" onClick={() => setSelectedId(null)}>Close</button></div>
+      <div className="pc-era-history-head"><div><b>{era.fileName}: line review</b><small>{era.posted ?? '—'} posted · {era.parked ?? '—'} parked · payment date {era.paymentDate || '—'}</small></div><button className="btn btn-xs" onClick={() => setSelectedId(null)}>Close</button></div>
       {era.hasPLB && <div className="pc-era-warning">Provider-level PLB was not applied.</div>}
       {(era.warnings || []).map((warning) => <div className="pc-era-warning" key={warning}>{warning}</div>)}
       {(era.detail || []).length ? <div className="pc-era-scroll"><table className="pc-era-table"><thead><tr><th>Claim #</th><th>DOS</th><th>Status / CARC</th><th>Charged</th><th>Allowed</th><th>Paid</th><th>Patient</th><th>Decision</th></tr></thead><tbody>{era.detail.map((l, i) => <tr key={l.id || i}>
         <td>{l.claimNo}</td><td>{l.dosFrom || '—'}</td><td>{l.status || l.statusCode}<small>{carcOf(l)}</small></td><td>{money(Number(l.charges) || 0)}</td><td>{l.allowed == null ? '—' : money(Number(l.allowed) || 0)}</td><td>{money(Number(l.paid) || 0)}</td><td>{money(Number(l.patientResp) || 0)}</td><td><span className={`pc-era-state ${l.decision === 'posted' ? 'safe' : 'hold'}`}>{l.decision || 'legacy'}</span>{l.reason && <small>{l.reason}</small>}</td>
       </tr>)}</tbody></table></div> : <p className="muted">This older import has no stored line-level decisions.</p>}
       {!!retry?.rows.length && <div className="pc-era-retry">
-        <b>Retry parked lines</b><p className="muted" style={{ margin: '4px 0 12px', fontSize: 12 }}>After correcting a claim, recheck its current balance. Only selected eligible lines can post; previously posted lines cannot post again.</p>
+        <b>Retry parked lines</b><p className="muted" style={{ margin: '4px 0 12px', fontSize: 12 }}>After you correct a claim, check its balance again. Only selected eligible lines post. Lines already posted cannot post twice.</p>
         <EraLinesTable rows={retry.rows} selected={retryIds} onToggle={(id) => setRetryIds((ids) => ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id])} limit={shown} testId="pc-era-retry-lines" />
         {shown < retry.rows.length && <button className="btn btn-xs" onClick={() => setShown((n) => n + 50)}>Show next 50 lines</button>}
         {error && <div className="pc-era-error" role="alert">{error}</div>}
@@ -357,14 +358,14 @@ export default function PaymentCenterView() {
     } else toast({ message: result.msg || 'Payment not saved', kind: 'warn' })
   }
   return <div className="sectionpage" data-testid="pc-sec" style={{ background: 'var(--bg)' }}>
-    <SectionBar icon="dollar" title="Payment Center" sub={`${range.label} · ${kpis.count} payments · ${money(kpis.total)} · ${money(kpis.unapplied)} unapplied`}>
+    <SectionBar icon="dollar" title="Payment Center" sub={`${range.label} · ${kpis.count} payments · ${money(kpis.total)} · ${money(kpis.unapplied)} unapplied`} wiki="era-and-payments" info={<><span>Record money the practice already received: payer remittances, patient receipts and payer take-backs (recoupments). Upload ERA reads an 835 file in this browser and posts the lines you select.</span><span>Nothing is charged, refunded or sent from here.</span></>}>
       <RangePicker preset={preset} onPreset={(p) => actions.setUI({ payPreset: p })} onSlide={(d) => actions.setUI({ anchor: isoDate(addDays(parseISO(ui.anchor), d * range.days.length)) })} label={range.label} />
       <div className="sb-search" style={{ minWidth: 220, borderRadius: 10 }}><span className="sic">{Icon.search({ size: 12 })}</span><input placeholder={tab === 'eras' ? 'Search ERA file or trace' : 'Search payer, client, ref'} value={q} onChange={(e) => setQ(e.target.value)} data-testid="pc-search" style={{ fontSize: 13 }} /></div>
       <button className="btn btn-sm btn-primary" data-testid="pc-open-man" onClick={() => { setManualApply('unapplied'); setOpenMan(true) }} style={{ borderRadius: 10 }}>+ Manual Payment</button>
       <button className="btn btn-sm" data-testid="pc-open-patient" onClick={() => { setManualApply('patient'); setOpenMan(true) }} style={{ borderRadius: 10 }}>+ Patient receipt</button>
       <button className="btn btn-sm" data-testid="pc-open-recoup" onClick={() => setOpenRecoup(true)} style={{ borderRadius: 10 }}>+ Recoupment</button>
-      <button className="btn btn-sm" data-testid="pc-export-patient" onClick={() => { download(`Patient-receipts-${todayISO()}.csv`, buildPatientReceiptAudit(state), 'text/csv'); toast({ message: 'Local patient receipt audit downloaded — verify against external deposits', kind: 'ok' }) }} style={{ borderRadius: 10 }}>Patient audit CSV</button>
-      <button className="btn btn-sm" data-testid="pc-open-era" disabled={!eraEnabled} title={eraEnabled ? undefined : 'ERA import is switched off — turn on “Enable ERA” in Settings → System → Billing defaults'} onClick={() => { setEntryMode('upload'); setOpenEra(true) }} style={{ borderRadius: 10 }}>Upload ERA (835)</button>
+      <button className="btn btn-sm" data-testid="pc-export-patient" onClick={() => { download(`Patient-receipts-${todayISO()}.csv`, buildPatientReceiptAudit(state), 'text/csv'); toast({ message: 'Patient receipt audit downloaded. Check it against your bank deposits.', kind: 'ok' }) }} style={{ borderRadius: 10 }}>Patient audit CSV</button>
+      <button className="btn btn-sm" data-testid="pc-open-era" disabled={!eraEnabled} title={eraEnabled ? undefined : 'ERA import is off. Turn on “Enable ERA” in Settings → System → Billing defaults.'} onClick={() => { setEntryMode('upload'); setOpenEra(true) }} style={{ borderRadius: 10 }}>Upload ERA (835)</button>
     </SectionBar>
     <div className="batch-strip pc-tabs" data-testid="pc-tabs"><button className={tab === 'payments' ? 'on' : ''} data-testid="pc-tab-payments" onClick={() => setTab('payments')}>Payments</button><button className={tab === 'eras' ? 'on' : ''} data-testid="pc-tab-eras" onClick={() => setTab('eras')}>ERAs ({Object.keys(state.eraImports || {}).length})</button></div>
     {tab === 'payments' ? <>
@@ -381,7 +382,7 @@ export default function PaymentCenterView() {
       <div className="batch-strip" style={{ margin: '0 16px 16px', padding: '12px 16px', gap: 12, background: 'var(--panel)', border: '1px solid var(--line)', borderRadius: 12 }}><div className="viewseg" style={{ borderRadius: 10, padding: 3 }} data-testid="pc-filter">{[['all', 'All'], ['patient', 'Patient'], ['check', 'Check'], ['eft', 'EFT'], ['era', 'ERA'], ['cash', 'Cash'], ['recoupment', 'Recoupments']].map(([id, label]) => <button key={id} className={statusF === id ? 'on' : ''} data-testid={`pc-filter-${id}`} onClick={() => setStatusF(id)} style={{ borderRadius: 8, fontSize: 13 }}>{label}</button>)}</div><span className="muted" style={{ fontSize: 12, marginLeft: 8 }}>{filtered.length} payments</span></div>
       <div style={{ padding: '0 16px 16px' }}><div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}><div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--panel-2)' }}><span style={{ width: 32, height: 32, borderRadius: 9, background: '#10b98114', color: '#10b981', display: 'grid', placeItems: 'center' }}>{Icon.dollar({ size: 16 })}</span><div><b style={{ fontSize: 14 }}>Payments</b><div className="muted" style={{ fontSize: 12 }}>{filtered.length} rows</div></div></div>
         <div className="py-tbl" data-testid="pc-table" style={{ overflowX: 'auto' }}><div className="py-thead" style={{ gridTemplateColumns: '110px 1.4fr 1fr 100px 100px 1fr 100px', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}><span>Date</span><span>Client</span><span>Payer</span><span>Amount</span><span>Method</span><span>Ref / Note</span><span>Claim</span></div>
-          {filtered.slice(0, 100).map((p) => { const cl = clients.find((c) => c.id === p.clientId); return <div key={p.id} className="py-trow" data-testid={`pc-pay-row-${p.id}`} style={{ gridTemplateColumns: '110px 1.4fr 1fr 100px 100px 1fr 100px', minHeight: 52, padding: '10px 16px' }}><div className="py-cell" style={{ fontSize: 12 }}>{p.date}</div><div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl} size={24} /><b style={{ fontSize: 13 }}>{cl?.name || p.clientId}</b></div></div><div className="py-cell" style={{ fontSize: 12 }}>{p.payer}</div><div className="py-cell"><b style={{ fontSize: 13, color: p.amount < 0 ? '#dc2626' : '#059669' }}>{money(p.amount)}</b></div><div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: 'var(--panel-2)' }}>{p.kind === 'recoupment' ? `Recoupment · ${p.method === 'refund' ? 'refund' : 'offset'}` : p.kind === 'patient' ? p.reversalOf ? 'Patient reversal' : 'Patient receipt' : p.method || p.kind}</span></div><div className="py-cell" style={{ fontSize: 12, color: 'var(--muted)' }}>{p.ref || ''} {p.note ? `· ${p.note}` : ''}</div><div className="py-cell" style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{p.claimId ? <span className="ln-code">{claims[p.claimId]?.no || p.claimId.slice(0, 8)}</span> : <span>Unapplied</span>}{!p.reversalOf && !p.eraId && p.kind !== 'recoupment' && (p.claimId || p.kind === 'unapplied') && !Object.values(payments).some((r) => r.reversalOf === p.id) && <button className="btn btn-xs" data-testid={`pc-void-${p.id}`} onClick={() => { const r = actions.voidPayment(p.id); toast({ message: r.ok ? `${r.msg} — press U to undo` : r.msg, kind: r.ok ? 'ok' : 'warn' }) }}>{p.kind === 'patient' ? 'Reverse locally' : 'Void'}</button>}</div></div> })}
+          {filtered.slice(0, 100).map((p) => { const cl = clients.find((c) => c.id === p.clientId); return <div key={p.id} className="py-trow" data-testid={`pc-pay-row-${p.id}`} style={{ gridTemplateColumns: '110px 1.4fr 1fr 100px 100px 1fr 100px', minHeight: 52, padding: '10px 16px' }}><div className="py-cell" style={{ fontSize: 12 }}>{p.date}</div><div className="py-cell"><div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><PersonAvatar p={cl} size={24} /><b style={{ fontSize: 13 }}>{cl?.name || p.clientId}</b></div></div><div className="py-cell" style={{ fontSize: 12 }}>{p.payer}</div><div className="py-cell"><b style={{ fontSize: 13, color: p.amount < 0 ? '#dc2626' : '#059669' }}>{money(p.amount)}</b></div><div className="py-cell"><span className="pill" style={{ fontSize: 11, borderRadius: 20, padding: '3px 10px', background: 'var(--panel-2)' }}>{p.kind === 'recoupment' ? `Recoupment · ${p.method === 'refund' ? 'refund' : 'offset'}` : p.kind === 'patient' ? p.reversalOf ? 'Patient reversal' : 'Patient receipt' : p.method || p.kind}</span></div><div className="py-cell" style={{ fontSize: 12, color: 'var(--muted)' }}>{p.ref || ''} {p.note ? `· ${p.note}` : ''}</div><div className="py-cell" style={{ fontSize: 11, display: 'flex', flexWrap: 'wrap', gap: 4 }}>{p.claimId ? <span className="ln-code">{claims[p.claimId]?.no || p.claimId.slice(0, 8)}</span> : <span>Unapplied</span>}{!p.reversalOf && !p.eraId && p.kind !== 'recoupment' && (p.claimId || p.kind === 'unapplied') && !Object.values(payments).some((r) => r.reversalOf === p.id) && <button className="btn btn-xs" data-testid={`pc-void-${p.id}`} onClick={() => { const r = actions.voidPayment(p.id); toast({ message: r.ok ? withUndo(r.msg) : r.msg, kind: r.ok ? 'ok' : 'warn' }) }}>{p.kind === 'patient' ? 'Reverse locally' : 'Void'}</button>}</div></div> })}
           {!filtered.length && <div className="py-empty" style={{ padding: 48, textAlign: 'center' }} data-testid="pc-empty"><b>No payments</b><div className="muted" style={{ fontSize: 12 }}>Record a manual payment or import an ERA.</div></div>}
           <div className="footer" style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', background: 'var(--panel-2)', borderTop: '1px solid var(--line)', fontSize: 12 }}><span>{filtered.length} payments · {money(filtered.reduce((s, p) => s + p.amount, 0))} total</span><span>Unapplied {money(kpis.unapplied)}</span></div></div>
       </div></div>

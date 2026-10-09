@@ -223,7 +223,7 @@ describe('overlap grouping (calendar best practice)', () => {
     await pickDropdown('qa-service', 'dtt')
     fireEvent.click(screen.getByTestId('qa-book'))
     await waitFor(() => expect(sundayNineCount()).toBe(before + 1), { timeout: 4000 })
-    await screen.findAllByText('Session booked — open to verify, or edit any field')
+    await screen.findAllByText('Session booked. Open it to verify or edit any field.')
     const closes = screen.getAllByLabelText('Close')
     fireEvent.click(closes[closes.length - 1]) // dismiss the detail card that opens post-booking
   }
@@ -284,7 +284,7 @@ describe('drag/click quick-add flow', () => {
     // pick service
     await pickDropdown('qa-service', 'dtt')
     fireEvent.click(screen.getByTestId('qa-book'))
-    expect(await screen.findByText('Session booked — open to verify, or edit any field')).toBeTruthy()
+    expect(await screen.findByText('Session booked. Open it to verify or edit any field.')).toBeTruthy()
     // detail card auto-opens so the session can be edited
     expect(screen.getByRole('button', { name: /Edit/ })).toBeTruthy()
     await waitFor(() => {
@@ -652,7 +652,7 @@ describe('series editing end-to-end', () => {
     expect(await screen.findByText(/^Created 3 occurrences/)).toBeTruthy()
     // detail card auto-opens → edit → scope all
     fireEvent.click(screen.getByRole('button', { name: /Edit/ }))
-    expect(await screen.findByText(/Repeating series — apply changes to/)).toBeTruthy()
+    expect(await screen.findByText(/Repeating series. Apply changes to/)).toBeTruthy()
     fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Renamed session' } })
     fireEvent.click(screen.getByTestId('scope-all'))
     ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))
@@ -663,7 +663,7 @@ describe('series editing end-to-end', () => {
     })
     // now single-occurrence edit marks exception
     fireEvent.click(screen.getByRole('button', { name: /Edit/ }))
-    await screen.findByText(/Repeating series — apply changes to/)
+    await screen.findByText(/Repeating series. Apply changes to/)
     fireEvent.change(screen.getByTestId('appt-title'), { target: { value: 'Only this one' } })
     fireEvent.click(screen.getByTestId('scope-one'))
     ackWarns(); fireEvent.click(screen.getByTestId('save-appt'))

@@ -142,7 +142,7 @@ export function notificationsFor(state, staffId, today, can = () => true) {
   }
   if (on(cfg.timelyFiling)) {
     const late = lateFilingClaimsFor(state, today)
-    if (late.length) out.push({ id: 'filing', tone: 'stop', text: `${plural(late.length, 'claim')} past its filing window — file or write off`, go: { section: 'billing' } })
+    if (late.length) out.push({ id: 'filing', tone: 'stop', text: `${plural(late.length, 'claim')} past the filing window. File or write off`, go: { section: 'billing' } })
   }
   if (can('billing') && on(cfg.parkedEra)) {
     const parked = Object.values(state.payments || {}).filter((p) => p.kind === 'unapplied' && !p.reversalOf)
