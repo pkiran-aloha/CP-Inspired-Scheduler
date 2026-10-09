@@ -211,17 +211,17 @@ export default function BillingView({ initialTab }) {
         )}
       </SectionBar>
 
-      <div style={{ margin: '16px', padding: '20px', borderRadius: 14, background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 20, boxShadow: 'var(--shadow-1)' }}>
+      <div style={{ margin: '16px', padding: '20px', borderRadius: 14, background: 'var(--panel)', border: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap', boxShadow: 'var(--shadow-1)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, flex: 1, flexWrap: 'wrap' }}>
           <PipelineStep icon={Icon.file({ size: 14 })} label="Staging" count={`${staged.length} lines · ${money(stagedTotal)}`} active={tab === 'stage'} done={staged.length === 0} color="#6366f1" />
-          <span style={{ width: 40, height: 1, background: 'var(--line)', flex: '0 0 40px' }} />
+          <span className="bil-pipe-sep" style={{ width: 40, height: 1, background: 'var(--line)', flex: '0 0 40px' }} />
           <PipelineStep icon={Icon.edit({ size: 14 })} label="Drafts" count={`${stats.drafts.n} · ${money(stats.drafts.$)}${Object.keys(gatedIds).length ? ` · ${Object.keys(gatedIds).length} gated` : ''}`} active={tab === 'claims' && statusF === 'draft'} done={false} color="#f59e0b" />
-          <span style={{ width: 40, height: 1, background: 'var(--line)', flex: '0 0 40px' }} />
+          <span className="bil-pipe-sep" style={{ width: 40, height: 1, background: 'var(--line)', flex: '0 0 40px' }} />
           <PipelineStep icon={Icon.clock({ size: 14 })} label="Awaiting" count={`${stats.pending.n} · ${money(stats.pending.$)}${stats.pending.late ? ` · ${stats.pending.late} late` : ''}`} active={tab === 'claims' && statusF === 'submitted'} done={false} color="#0ea5e9" />
-          <span style={{ width: 40, height: 1, background: 'var(--line)', flex: '0 0 40px' }} />
+          <span className="bil-pipe-sep" style={{ width: 40, height: 1, background: 'var(--line)', flex: '0 0 40px' }} />
           <PipelineStep icon={Icon.dollar({ size: 14 })} label="Paid" count={`${stats.paid.n} · ${money(stats.paid.$)} · ${stats.denialRate}% denial`} active={tab === 'claims' && statusF === 'paid'} done={stats.paid.n > 0} color="#10b981" />
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {AGING_BUCKETS.map((b) => (
             <span key={b} title={`Submitted claims ${AGING_BUCKET_LABELS[b]} days out, aged the same way as the AR Manager`} className={`rp-sumchip ${stats.pending.buckets[b] ? 'on' : ''}`} style={{ padding: '8px 12px', opacity: stats.pending.buckets[b] ? 1 : 0.4, borderRadius: 10, border: '1px solid var(--line)', background: 'var(--panel)', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
               <span style={{ width: 8, height: 8, borderRadius: 4, background: AGING_DOT[b] }} />
@@ -252,7 +252,7 @@ export default function BillingView({ initialTab }) {
       </div>
 
       {tab === 'stage' && (
-        <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
+        <div className="bil-split" style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20, alignItems: 'start' }}>
           <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-1)', border: '1px solid var(--line)' }}>
             <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 12, alignItems: 'center', background: 'var(--panel-2)' }}>
               <span style={{ width: 32, height: 32, borderRadius: 9, background: '#6366f114', color: '#6366f1', display: 'grid', placeItems: 'center' }}>{Icon.file({ size: 16 })}</span>
@@ -318,7 +318,7 @@ export default function BillingView({ initialTab }) {
       )}
 
       {tab === 'claims' && (
-        <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '400px 1fr', gap: 20, alignItems: 'start' }}>
+        <div className="bil-split" style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '400px 1fr', gap: 20, alignItems: 'start' }}>
           <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', boxShadow: 'var(--shadow-1)', border: '1px solid var(--line)' }}>
             <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--line)', display: 'flex', gap: 10, alignItems: 'center', background: 'var(--panel-2)' }}>
               <span className="sb-search" style={{ flex: 1, minWidth: 0, borderRadius: 10 }}>
@@ -428,7 +428,7 @@ export default function BillingView({ initialTab }) {
       )}
 
       {tab === 'setup' && (
-        <div style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, alignItems: 'start' }}>
+        <div className="bil-split" style={{ padding: '0 16px 16px', display: 'grid', gridTemplateColumns: '380px 1fr', gap: 20, alignItems: 'start' }}>
           <div className="panel" style={{ borderRadius: 14, padding: 20, border: '1px solid var(--line)' }}>
             <b style={{ fontSize: 14 }}>Practice Identity</b><div className="muted" style={{ fontSize: 12, marginBottom: 16 }}>Printed on claim forms and invoices</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -539,7 +539,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
         <div style={{ display: 'flex', gap: 20, marginTop: 16, fontSize: 13 }}><span>charges <b>{money(claim.charges)}</b></span>{claim.adj ? <span>adj <b style={{ color: '#ef4444' }}>-{money(claim.adj)}</b></span> : null}{claim.secondaryPaid > 0 && <span>secondary receipts <b>-{money(claim.secondaryPaid)}</b></span>}{claim.patientPaid > 0 && <span>patient receipts <b>-{money(claim.patientPaid)}</b></span>}<span>due <b style={{ color: due > 0 ? '#ef4444' : '#10b981' }}>{money(due)}</b></span>{claim.parentNo ? <span>Prior claim <b>{claim.parentNo}</b></span> : null}</div>
       </header>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: 'var(--line)' }}>
+      <div className="clm-facts" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 1, background: 'var(--line)' }}>
         <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Billing provider</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{org.name || 'Practice'}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{org.address} · {org.phone}</span></div>
         <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Patient</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{client.name || '—'}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>{claim.mode === 'selfpay' ? 'Self-pay' : <>Member <span data-testid="clm-member">{memberIdOf(claim.method === 'secondary' ? client.secondary : client) || 'Needs member ID'}</span></>}</span></div>
         <div style={{ background: 'var(--panel)', padding: '14px 16px' }}><span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--muted)', fontWeight: 700 }}>Payer</span><b style={{ display: 'block', fontSize: 13, marginTop: 4 }}>{claim.mode === 'selfpay' ? 'Self-pay' : claim.payer}</b><span style={{ fontSize: 11, color: 'var(--muted)' }}>Auth <span data-testid="clm-authno">{authNoOf(claim.method === 'secondary' ? client.secondary : client) || 'not on file'}</span></span></div>
@@ -584,7 +584,7 @@ function ClaimForm({ claim, gated, disputed, setDisputed, payOpen, setPayOpen, d
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, padding: 20 }}>
+      <div className="clm-foot" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, padding: 20 }}>
         <div className="panel" style={{ borderRadius: 12, padding: 16, background: 'var(--panel-2)', border: '1px solid var(--line)' }}>
           <b style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--muted)' }}>Lifecycle</b>
           <ul style={{ listStyle: 'none', padding: 0, margin: '12px 0 0', display: 'flex', flexDirection: 'column', gap: 10 }} data-testid="clm-timeline">
