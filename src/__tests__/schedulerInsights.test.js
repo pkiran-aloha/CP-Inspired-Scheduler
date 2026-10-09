@@ -191,3 +191,79 @@ describe('forward range helper', () => {
     expect(d).toEqual(['2026-06-15', '2026-06-16', '2026-06-17', '2026-06-18'])
   })
 })
+
+describe('density optimisation output is pinned', () => {
+  // A fixed multi-day workspace: cancelled, completed, claimed, travel and blocked-out time,
+  // a client booked elsewhere, plus days outside the range and before today. The board is
+  // computed per date from that date's appointments only; these exact rows were produced
+  // by the earlier whole-workspace scan, so a speed-up can never change what is suggested.
+  const TUE = '2026-06-16'
+  const WED = '2026-06-17'
+  const SUN = '2026-06-14'
+  const ap = (id, date, staffIds, clientIds, start, end, extra = {}) => ({
+    id, date, type: 'service', status: 'active', title: id, staffIds, clientIds, start, end, billing: { code: '97153', units: 4, rate: 18 }, ...extra,
+  })
+  const pinned = () => ({
+    appts: Object.fromEntries([
+      ap('m-early', MON, ['s1'], ['c1'], 480, 540),
+      ap('m-late', MON, ['s1'], ['c2'], 840, 900),
+      ap('m-drive', MON, ['s1'], [], 900, 930, { type: 'drive', billing: null }),
+      ap('m-gone', MON, ['s1'], ['c1'], 600, 660, { status: 'cancelled' }),
+      ap('m-c2-school', MON, ['s3'], ['c2'], 540, 600),
+      ap('m-s2-a', MON, ['s2'], ['c3'], 600, 660),
+      ap('m-s2-off', MON, ['s2'], [], 720, 780, { type: 'unavailable', billing: null }),
+      ap('m-s2-b', MON, ['s2', 's3'], ['c4'], 960, 1020),
+      ap('t-s3-a', TUE, ['s3'], ['c3'], 480, 540),
+      ap('t-s3-b', TUE, ['s3'], ['c4'], 900, 960),
+      ap('t-s3-done', TUE, ['s3'], ['c1'], 660, 720, { status: 'completed' }),
+      ap('t-s1-claimed', TUE, ['s1'], ['c2'], 1000, 1060, { claimId: 'cl-1' }),
+      ap('t-s1-a', TUE, ['s1'], ['c1'], 480, 540),
+      ap('t-s1-drive', TUE, ['s1'], [], 540, 570, { type: 'drive', billing: null }),
+      ap('w-c2', WED, ['s2'], ['c2'], 540, 600),
+      ap('w-s1', WED, ['s1'], ['c3'], 900, 960),
+      ap('w-s1-b', WED, ['s1'], ['c3'], 480, 540),
+      ap('p-past', SUN, ['s1'], ['c1'], 480, 540),
+      ap('p-past-b', SUN, ['s1'], ['c1'], 900, 960),
+    ].map((a) => [a.id, a])),
+    clients: [1, 2, 3, 4].map((n) => ({ id: `c${n}`, name: `Client ${n}` })),
+    staff: [{ id: 's1', name: 'Sam Staff', payrollRate: 30 }, { id: 's2', name: 'Tess Tech' }, { id: 's3', name: 'Uma User', payrollRate: 25 }],
+    teams: [],
+    settings: { workday: [8, 18] },
+  })
+
+  it('suggests exactly the same moves, scores and warnings', () => {
+    const board = densityBoard(pinned(), [SUN, MON, TUE], { today: TODAY, nowMin: 0, limit: 200 })
+    expect(board.summary).toEqual({ suggestions: 20, shown: 20, idleHours: 74, spreadHours: 74, halfDays: 11 })
+    const pay = ['Missing Staff Pay Rate']
+    expect(board.allRows.map((r) => [r.id, r.score, r.gain.idleMin, r.gain.spreadMin, r.gain.blocks, r.gain.halfDays, r.driveNote, r.warnings])).toEqual([
+      ['den-m-s2-b-2026-06-15-660-720', 1129, 540, 540, 2, 2, false, pay],
+      ['den-m-s2-b-2026-06-15-480-540', 985, 480, 480, 1, 2, false, pay],
+      ['den-m-c2-school-2026-06-15-900-960', 705, 360, 360, 1, 1, false, []],
+      ['den-m-c2-school-2026-06-15-1020-1080', 703, 360, 360, 1, 1, false, []],
+      ['den-m-s2-b-2026-06-15-780-840', 618, 360, 360, 1, 0, false, pay],
+      ['den-m-early-2026-06-15-780-840', 610, 300, 300, 1, 1, false, []],
+      ['den-m-early-2026-06-15-930-990', 607, 300, 300, 1, 1, false, []],
+      ['den-t-s3-b-2026-06-16-600-660', 514, 240, 240, 1, 1, false, []],
+      ['den-t-s3-b-2026-06-16-540-600', 513, 240, 240, 1, 1, false, []],
+      ['den-t-s3-b-2026-06-16-720-780', 420, 180, 180, 1, 1, false, []],
+      ['den-t-s3-a-2026-06-16-720-780', 329, 180, 180, 1, 0, false, []],
+      ['den-t-s3-a-2026-06-16-840-900', 327, 180, 180, 1, 0, false, []],
+      ['den-t-s3-a-2026-06-16-600-660', 235, 120, 120, 1, 0, false, []],
+      ['den-m-s2-a-2026-06-15-780-840', 234, 120, 120, 1, 0, false, pay],
+      ['den-m-s2-a-2026-06-15-900-960', 232, 120, 120, 1, 0, false, pay],
+      ['den-t-s3-a-2026-06-16-960-1020', 229, 120, 120, 1, 0, false, []],
+      ['den-m-s2-a-2026-06-15-660-720', 140, 60, 60, 1, 0, false, pay],
+      ['den-m-s2-a-2026-06-15-1020-1080', 134, 60, 60, 1, 0, false, pay],
+      ['den-t-s1-a-2026-06-16-570-630', 94, 60, 60, 0, 0, true, []],
+      ['den-t-s1-a-2026-06-16-940-1000', 88, 60, 60, 0, 0, true, []],
+    ])
+  })
+
+  it('hands back the workspace’s own appointment records, untouched', () => {
+    const s = pinned()
+    const before = JSON.stringify(s)
+    const row = densityBoard(s, [MON], { today: TODAY, nowMin: 0 }).rows[0]
+    expect(row.appt).toBe(s.appts[row.apptId])
+    expect(JSON.stringify(s)).toBe(before)
+  })
+})
