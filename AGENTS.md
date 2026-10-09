@@ -27,7 +27,8 @@ npm run share       # single-file inline build into share/ (POSIX env syntax: us
 The maintainer's work PC (Windows, Node 25 via nvm4w) runs the suite with three workarounds:
 - **Controlled Folder Access** blocks `node.exe` from writing under `Documents`, so `npm ci` hangs there. Work from a clone outside it: `C:\Users\PrateekKiran\dev\CP-Inspired-Scheduler`.
 - **`npm` crashes** with `EPERM … systemprofile`, because `C:\nvm4w\nodejs` links into a system folder. Call npm through node: `node --preserve-symlinks --preserve-symlinks-main C:\nvm4w\nodejs\node_modules\npm\bin\npm-cli.js <ci|test>`.
-- **Node 25's built-in `localStorage`** shadows jsdom's and fails about 560 tests (`localStorage.clear is not a function`). Set `$env:NODE_OPTIONS="--no-experimental-webstorage"` first. Add `-- --testTimeout=20000` on a slow machine. CI (Node 22) needs neither.
+- **Node 25's built-in `localStorage`** shadows jsdom's and fails about 560 tests (`localStorage.clear is not a function`). Set `$env:NODE_OPTIONS="--no-experimental-webstorage"` first. CI (Node 22) doesn't need it.
+- **Run one full suite at a time.** A second suite running at once (another agent, a watcher) doubles test times: the slowest test, the Scheduler Insights holdout flow, goes from about 10 s to 17-25 s against the 20 s `testTimeout`. With one suite, a full run takes about 2 minutes.
 
 Where npm cannot run at all, verify with `node --check` for syntax and pure `src/lib` logic run directly with node (see "Verifying without npm"), then GitHub CI on push to `main`.
 
@@ -77,6 +78,7 @@ Where npm cannot run at all, verify with `node --check` for syntax and pure `src
 - New demo data is built through the real `plan*` functions, dated relative to `todayISO()`, so it always passes the same validation as the screens.
 - Select elements by `data-testid` with module prefixes (`py-`, `pd-`, `pay-`, `pc-`, `iq-`, `dw-`, `bk-`, `nav-sub-`, `help-`). No shared helper module; seed via `localStorage.setItem('aloha-aba.v3', JSON.stringify(state))` then render `<App />`.
 - When a change intentionally alters existing behaviour (default dashboard widgets, a button that now asks first, an always-visible panel), search the tests for the old assumption and update them in the same change: `grep -rn "<old text or id>" src/__tests__`.
+- Never assert that storage is still empty after rendering `<App />`. The app saves 250 ms after any render, so the assertion only passes on a fast run. Seed storage first and compare the records instead.
 - Exact-text queries (`getByText('…')`) throw on duplicates; panels that echo messages must not render the exact same string twice.
 
 ## Verifying without npm

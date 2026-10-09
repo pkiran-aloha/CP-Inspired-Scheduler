@@ -56,6 +56,12 @@ describe('Intake Manager lives inside the Client module', () => {
   })
 
   it('filters the worklist by status without touching the pipeline', async () => {
+    // Start from a saved workspace: the app re-saves 250 ms after any render, so "nothing in
+    // storage" would only hold on a fast run. Compare the pipeline instead.
+    localStorage.setItem('aloha-aba.v3', JSON.stringify(seeded))
+    const pipeline = () => Object.values(stored().intakeRequests || {}).map((r) => `${r.id}:${r.stage}`).sort()
+    const saved = pipeline()
+    expect(saved.length).toBeGreaterThan(5)
     render(<App />)
     await gotoSub('intake')
     fireEvent.click(screen.getByTestId('iq-mode-list'))
@@ -70,7 +76,7 @@ describe('Intake Manager lives inside the Client module', () => {
       expect(rows).toBeLessThan(before)
     })
     // no data was mutated by looking
-    expect(Object.keys(stored().intakeRequests || {}).length).toBe(0) // nothing persisted yet — browsing is not a change
+    expect(pipeline()).toEqual(saved) // browsing is not a change
   })
 })
 
