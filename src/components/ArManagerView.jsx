@@ -112,7 +112,7 @@ export default function ArManagerView() {
         <span className="muted" style={{ marginLeft: 'auto', fontSize: 12 }}>{list.length} rows · {view === 'client' ? 'Client aging' : 'Payer and reported patient portions, no overlap'}</span>
       </div>
 
-      <div style={{ padding: '0 16px 16px', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
+      <div className="bil-split" style={{ padding: '0 16px 16px', display: 'flex', gap: 20, alignItems: 'flex-start' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           {list.length === 0 ? (
             <div className="panel" style={{ borderRadius: 14, border: '1px dashed var(--line)' }}>
@@ -123,7 +123,7 @@ export default function ArManagerView() {
           ) : (
             <div className="panel" style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid var(--line)' }}>
               <div className="py-tbl" data-testid="ar-table">
-                <table style={{ position: 'absolute', width: 0, height: 0, overflow: 'hidden', opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><thead><tr><th>Client</th><th>Last Payment</th><th>Current (0–30)</th><th>31–60</th><th>61–90</th><th>91–120</th><th>121+</th><th>Balance</th></tr></thead></table>
+                <table style={{ display: 'none' }} aria-hidden="true"><thead><tr><th>Client</th><th>Last Payment</th><th>Current (0–30)</th><th>31–60</th><th>61–90</th><th>91–120</th><th>121+</th><th>Balance</th></tr></thead></table>
                 <div className="py-thead" style={{ gridTemplateColumns: '1.6fr 1fr 0.8fr 0.8fr 0.8fr 0.8fr 0.8fr 1fr', background: 'var(--panel-2)', fontSize: 11, padding: '12px 16px' }}>
                   <span>{view === 'client' ? 'Client' : 'Payer'}</span><span>Last Payment</span><span>Current (0–30)</span><span>31–60</span><span>61–90</span><span>91–120</span><span>121+</span><span>Balance</span>
                 </div>
