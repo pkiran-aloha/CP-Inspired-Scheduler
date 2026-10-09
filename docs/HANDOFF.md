@@ -542,7 +542,7 @@ Fixes: status-removal reassignment, payer template delete crash, send-for-approv
 
 - Configuration audit (2026-10-07): every finding is resolved except **CFG-01** and **CFG-05** (decisions, see "Next"). See [the report](audits/configuration-audit-2026-10-07.md).
 - Two tabs editing within the same 250 ms window: the later tab's unsaved edit yields to the other tab's save (workspace persistence fix, 2026-10-08).
-- Test speed: with the Scheduler Insights panel open, every click re-renders for about 2.5 s in jsdom (opening it takes about 5 s). Its holdout test takes about 10 s alone and 17-25 s when two suites run at once, against the 20 s limit. Making that render cheaper is app work, not yet done (test flakes fix, 2026-10-09).
+- Test speed, narrowed (perf/scheduler-insights, 2026-10-09): the Density tab checked each candidate move against every appointment in the workspace; it now checks only that day's appointments, with identical suggestions. The Insights board on the demo workspace dropped from about 1.3 s to 0.1 s; in jsdom the panel opens in about 0.35 s (was 1.5 s), a holdout click takes about 0.5 s (was 1.7 s) and the holdout test about 2.5 s (was 6 s). What is left of a click is app-wide re-rendering on any settings change (sidebar week stats and needs-cover scan, the month view, `visibleApptsFor`), not the panel. Not yet done.
 - Recoupments: secondary / COB-linked claims refused (scope v1).
 - Integration secrets: API-key/token inputs have been removed and recognized legacy fields are scrubbed by the local workspace/backup paths. This does not provide a secret vault; future live integrations still require the production backend architecture.
 

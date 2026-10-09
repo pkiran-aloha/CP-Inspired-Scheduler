@@ -195,11 +195,17 @@ export function densityBoard(state, days, { today = todayISO(), nowMin, limit = 
   const workEnd = wdEnd * 60
   const activeStaff = arr(state.staff).filter((s) => s.status !== 'inactive')
   const rows = new Map()
+  // Every check below is same-day, so each date gets a state holding only that date's
+  // appointments: rescanning the whole workspace per candidate move was ~90% of the
+  // Insights panel's render time.
+  const apptsByDate = {}
+  for (const [id, a] of Object.entries(state.appts || {})) if (daySet.has(a?.date)) (apptsByDate[a.date] ||= {})[id] = a
 
   for (const date of daySet) {
     if (date < today) continue
+    const dayState = { ...state, appts: apptsByDate[date] || {} }
     for (const staff of activeStaff) {
-      const staffBlocks = sameDayLive(state, date)
+      const staffBlocks = sameDayLive(dayState, date)
         .filter((a) => arr(a.staffIds).includes(staff.id) && blocksCalendar(a))
         .sort((a, b) => a.start - b.start || a.end - b.end)
       const movable = staffBlocks.filter((a) => movableAppt(state, a, today, now))
@@ -217,7 +223,7 @@ export function densityBoard(state, days, { today = todayISO(), nowMin, limit = 
           ]
           for (const cand of candidates) {
             if (cand.start < workStart || cand.end > workEnd || pastClock(date, cand.start, today, now)) continue
-            const row = suggestionFromMove(state, appt, staff.id, { date, start: cand.start, end: cand.end }, {
+            const row = suggestionFromMove(dayState, appt, staff.id, { date, start: cand.start, end: cand.end }, {
               side: cand.side,
               start: block.start,
               end: block.end,
